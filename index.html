@@ -3,43 +3,61 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR — Auto Care</title>
-<meta name="painel-versao" content="v6.1">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Inter:wght@400;500;600;700&display=swap">
+<title>Painel de SDR — Car Service</title>
+<meta name="painel-versao" content="v9">
 <style>
+/* Poppins nos títulos e números; a fonte do sistema no texto denso.
+   A Aeonik saiu por licença — ela é comercial e este painel é servido na
+   web. Poppins é geométrica como o símbolo da marca e livre para uso web.
+   Vai embutida no arquivo, só com os caracteres usados: 7 KB por peso,
+   sem requisição externa, funciona em rede bloqueada.
+
+   A divisão não é preguiça: Poppins é larga e de formas circulares, ótima
+   em tamanho grande e ruim em tabela densa. Nas colunas de número quem
+   trabalha é a fonte do sistema, que foi desenhada para isso. */
+@font-face { font-family: "PoppinsMarca"; font-weight: 500; font-style: normal; font-display: swap;
+  src: url(data:font/woff;base64,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) format("woff"); }
+@font-face { font-family: "PoppinsMarca"; font-weight: 700; font-style: normal; font-display: swap;
+  src: url(data:font/woff;base64,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) format("woff"); }
+
   :root { color-scheme: light; }
   * { box-sizing: border-box; }
-  html, body { background: #F3F4F6; color: #12161C; }
-  body { margin: 0; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  html, body { background: #EEEEEE; color: #1A1A1A; }
+  body { margin: 0;
+         font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+                      Helvetica, Arial, sans-serif;
          -webkit-font-smoothing: antialiased; }
   h2, p { margin: 0; }
   input, select, button { font-family: inherit; color-scheme: light; }
 
   .wrap { max-width: 1560px; margin: 0 auto; }
-  .card { background: #fff; border: 1px solid #E4E7EB; border-radius: 8px;
-          box-shadow: 0 1px 2px rgba(16,22,28,.04); }
+  .card { background: #FFFFFF; border: 1px solid #E2E2E2; border-radius: 10px; }
   .p0 { padding: 0; } .p12 { padding: 12px; } .p16 { padding: 16px; }
-  .p20 { padding: 20px; } .p24 { padding: 24px; }
+  .p20 { padding: 20px; } .p24 { padding: 24px; } .p28 { padding: 28px; }
 
   .grid-kpi { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); }
   .grid-kpi-2 { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
                 align-content: start; }
   .col2 { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+  .mini4 { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
   @media (max-width: 1000px) { .col2 { grid-template-columns: 1fr; } }
 
   .rolagem { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; min-width: 720px;
           font-variant-numeric: tabular-nums; }
-  .dt { font-size: 13px; border: 1px solid #E4E7EB; border-radius: 6px; padding: 6px 9px;
-        background: #fff; color: #12161C; }
+  .dt { font-size: 13px; border: 1px solid #E2E2E2; border-radius: 8px; padding: 7px 10px;
+        background: #fff; color: #1A1A1A; }
   code { font-family: ui-monospace, Menlo, monospace; font-size: .92em; }
-  .recharts-wrapper { font-family: 'Inter', system-ui, sans-serif; }
+  svg text { font-family: ui-sans-serif, system-ui, sans-serif; }
+
+  /* O amarelo da marca só aparece como preenchimento ou atrás de texto
+     preto — sobre branco ele tem contraste 1.6:1 e seria ilegível. */
+  .foco { outline: 2px solid #FFBF00; outline-offset: 2px; }
 </style>
 </head>
 <body>
 
-<div id="root"><div style="padding:48px;color:#6B7480">Iniciando o painel…</div></div>
+<div id="root"><div style="padding:48px;color:#666666">Iniciando o painel…</div></div>
 
 <script>
 /* =====================================================================
@@ -67,21 +85,45 @@ const CONFIG = {
 function iniciarPainel() {
 "use strict";
 "use strict";
-/* Painel de SDR — The Wonder / Auto Care
+/* Painel de SDR — The Wonder / Car Service
    Lê as views do Supabase. Sem lançamento manual: o dado vem do Kommo. */
 const { useState, useEffect, useMemo, useCallback } = React;
-const { ResponsiveContainer, BarChart, Bar, LineChart, Line, ComposedChart, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell, } = Recharts;
+/* Sem biblioteca de gráficos. Foram três rodadas de problema com CDN —
+   uma fonte que aceitava a conexão e nunca respondia, depois o PropTypes
+   que o React 18 deixou de embutir. Os dois gráficos deste painel são
+   simples o bastante para desenhar em SVG, e assim não dependem de rede
+   nem de versão de terceiro. */
 const db = window.supabase.createClient(CONFIG.url, CONFIG.anonKey, {
     db: { schema: "comercial" },
 });
-/* ===================== tokens ===================== */
+/* ===================== tokens da marca =====================
+   Paleta The Wonder: amarelo #FFBF00, preto e escala de cinza.
+
+   Regra de uso que vem do contraste, não do gosto: o amarelo tem 1,6:1
+   sobre branco — ilegível como texto. Ele entra como preenchimento, ou
+   como fundo atrás de texto preto (12,7:1). Verde e vermelho não são da
+   marca, mas indicam estado; ficam nos tons mais escuros que passam em
+   contraste sobre branco (5,3:1 e 6,2:1) e nunca aparecem sozinhos —
+   sempre com número, seta ou rótulo ao lado. */
 const T = {
-    ink: "#12161C", ink2: "#3D454F", muted: "#6B7480", hair: "#E4E7EB",
-    canvas: "#F3F4F6", surface: "#FFFFFF", accent: "#E8A33D", accentDeep: "#A8720F",
-    good: "#0F8C6C", bad: "#C6303B", warn: "#D98014", steel: "#2E5C8A",
+    ink: "#1A1A1A", ink2: "#4D4D4D", muted: "#666666", hair: "#E2E2E2",
+    canvas: "#EEEEEE", surface: "#FFFFFF",
+    marca: "#FFBF00", preto: "#000000",
+    good: "#0B7A5A", bad: "#C1121F", warn: "#8A5A00",
 };
-const F_UI = "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif";
-const F_NUM = "'Archivo', 'Inter', ui-sans-serif, system-ui, sans-serif";
+/* Duas famílias com papéis distintos: a de marca aparece em título,
+   número grande e rótulo; a do sistema carrega tabela e texto corrido,
+   onde legibilidade em corpo pequeno vale mais que personalidade. */
+const F_MARCA = '"PoppinsMarca", ui-sans-serif, system-ui, sans-serif';
+const F_UI = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+const F_NUM = F_MARCA;
+/* O símbolo da marca, vetorizado do manual. Caminho único, sem imagem. */
+const Marca = ({ tam = 24, cor = "#000000" }) => (React.createElement("svg", { width: tam, height: tam, viewBox: "0 0 360 360", fill: cor, role: "img", "aria-label": "The Wonder", style: { display: "block" } },
+    React.createElement("path", { d: "M360 72L288 0L216 72L288 216L180 108L72 216L144 72L72 0L0 72L72 180L0 288L72 360L180 252L288 360L360 288L288 180Z" })));
+/* O bloco amarelo com o símbolo preto — o uso de app do manual. */
+const Selo = ({ tam = 34 }) => (React.createElement("div", { style: { width: tam, height: tam, background: T.marca, borderRadius: 8,
+        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } },
+    React.createElement(Marca, { tam: Math.round(tam * 0.6), cor: T.preto })));
 /* ===================== helpers ===================== */
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const hoje = () => iso(new Date());
@@ -159,10 +201,10 @@ function faixa(f) {
 }
 /* ===================== UI ===================== */
 const Card = ({ children, className = "", style = {} }) => (React.createElement("div", { className: "card " + className, style: style }, children));
-const Label = ({ children, style = {} }) => (React.createElement("div", { style: { fontSize: 10.5, letterSpacing: ".09em", textTransform: "uppercase",
-        color: T.muted, fontWeight: 600, ...style } }, children));
+const Label = ({ children, style = {} }) => (React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 10.5, letterSpacing: ".08em",
+        textTransform: "uppercase", color: T.muted, fontWeight: 500, ...style } }, children));
 const Metric = ({ value, size = 30, color = T.ink }) => (React.createElement("div", { style: { fontFamily: F_NUM, fontSize: size, fontWeight: 700, color, lineHeight: 1.1,
-        fontVariantNumeric: "tabular-nums", letterSpacing: "-.02em" } }, value));
+        fontVariantNumeric: "tabular-nums", letterSpacing: "-.01em" } }, value));
 function Delta({ atual, anterior }) {
     if (anterior == null || anterior === 0)
         return React.createElement("span", { style: { fontSize: 11, color: T.muted } }, "sem base anterior");
@@ -183,7 +225,7 @@ function Kpi({ label, value, sub, foot, tone }) {
         sub && React.createElement("div", { style: { fontSize: 12, color: T.ink2, marginTop: 2 } }, sub),
         foot && React.createElement("div", { style: { marginTop: 4 } }, foot)));
 }
-const Barra = ({ pct, cor = T.accent, alt = 8 }) => (React.createElement("div", { style: { background: T.canvas, borderRadius: 99, height: alt, overflow: "hidden" } },
+const Barra = ({ pct, cor = T.ink, alt = 8 }) => (React.createElement("div", { style: { background: T.canvas, borderRadius: 99, height: alt, overflow: "hidden" } },
     React.createElement("div", { style: { width: `${Math.max(0, Math.min(1, pct || 0)) * 100}%`, height: "100%",
             background: cor, borderRadius: 99, transition: "width .4s ease" } })));
 const Th = ({ children, right, w }) => (React.createElement("th", { style: { textAlign: right ? "right" : "left", padding: "9px 10px", fontSize: 10.5,
@@ -199,7 +241,7 @@ const Select = ({ value, onChange, options, style = {} }) => (React.createElemen
 function Btn({ children, onClick, kind = "ghost", style = {}, type }) {
     const kinds = {
         solid: { background: T.ink, color: "#fff", borderColor: T.ink },
-        accent: { background: T.accent, color: "#22190A", borderColor: T.accentDeep },
+        accent: { background: T.marca, color: T.preto, borderColor: T.marca },
         ghost: {},
     };
     return (React.createElement("button", { type: type, onClick: onClick, style: { fontFamily: F_UI, fontSize: 13, fontWeight: 600,
@@ -222,10 +264,11 @@ function Dica({ active, payload, label, pct }) {
             React.createElement("b", null, pct ? nPct(p.value / 100) : nInt(p.value)))))));
 }
 const Secao = ({ n, titulo, children, nota }) => (React.createElement("section", { style: { marginTop: 40 } },
-    React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 12, marginBottom: 4 } },
-        React.createElement("span", { style: { fontFamily: F_NUM, color: T.accentDeep, fontSize: 12, fontWeight: 700,
-                letterSpacing: ".08em" } }, String(n).padStart(2, "0")),
-        React.createElement("h2", { style: { fontFamily: F_NUM, color: T.ink, fontSize: 19, fontWeight: 700, margin: 0 } }, titulo)),
+    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 11, marginBottom: 5 } },
+        React.createElement("span", { style: { fontFamily: F_MARCA, background: T.marca, color: T.preto, fontSize: 11.5,
+                fontWeight: 700, borderRadius: 6, padding: "3px 7px", lineHeight: 1.2 } }, String(n).padStart(2, "0")),
+        React.createElement("h2", { style: { fontFamily: F_MARCA, color: T.ink, fontSize: 18.5, fontWeight: 700,
+                margin: 0, letterSpacing: "-.005em" } }, titulo)),
     nota && React.createElement("p", { style: { fontSize: 12.5, color: T.muted, margin: "0 0 14px", maxWidth: "72ch" } }, nota),
     !nota && React.createElement("div", { style: { height: 14 } }),
     children));
@@ -250,18 +293,109 @@ function Login() {
         if (error)
             setEstado({ tipo: "erro", txt: ERROS[error.message] || error.message });
     };
-    return (React.createElement("div", { style: { minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 } },
-        React.createElement(Card, { className: "p24", style: { maxWidth: 420, width: "100%" } },
-            React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 20, fontWeight: 700 } }, "Painel de SDR"),
-            React.createElement("p", { style: { fontSize: 13.5, color: T.ink2, lineHeight: 1.6, marginTop: 8 } }, "Entre com seu e-mail da empresa e a senha que o administrador cadastrou."),
-            React.createElement("form", { onSubmit: entrar, style: { marginTop: 18, display: "grid", gap: 10 } },
-                React.createElement("input", { type: "email", value: email, onChange: (e) => setEmail(e.target.value), placeholder: "voce@thew.com", required: true, autoComplete: "username", style: { width: "100%", fontFamily: F_UI, fontSize: 14, padding: "10px 12px",
-                        border: `1px solid ${T.hair}`, borderRadius: 6, outline: "none", background: T.surface } }),
-                React.createElement("input", { type: "password", value: senha, onChange: (e) => setSenha(e.target.value), placeholder: "senha", required: true, autoComplete: "current-password", style: { width: "100%", fontFamily: F_UI, fontSize: 14, padding: "10px 12px",
-                        border: `1px solid ${T.hair}`, borderRadius: 6, outline: "none", background: T.surface } }),
-                React.createElement(Btn, { type: "submit", kind: "solid", style: { width: "100%", padding: "10px 14px" } }, "Entrar")),
-            estado && (React.createElement("div", { style: { marginTop: 14, fontSize: 13,
-                    color: estado.tipo === "erro" ? T.bad : estado.tipo === "ok" ? T.good : T.muted } }, estado.txt)))));
+    const campo = {
+        width: "100%", fontFamily: F_UI, fontSize: 14.5, padding: "12px 14px",
+        border: `1px solid ${T.hair}`, borderRadius: 8, outline: "none",
+        background: T.surface, color: T.ink,
+    };
+    /* Amarelo cobrindo a tela, o símbolo em preto e um cartão branco por
+       cima — é o padrão do manual da marca para aplicação em tela. O texto
+       do cartão fica preto sobre branco; nada de texto sobre o amarelo,
+       que tem contraste de 1,6:1 e seria ilegível. */
+    return (React.createElement("div", { style: { minHeight: "100vh", background: T.marca, display: "grid",
+            placeItems: "center", padding: 24 } },
+        React.createElement("div", { style: { width: "100%", maxWidth: 400 } },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14, marginBottom: 22 } },
+                React.createElement(Marca, { tam: 44, cor: T.preto }),
+                React.createElement("div", { style: { lineHeight: 1.15 } },
+                    React.createElement("div", { style: { fontSize: 20, fontWeight: 700, color: T.preto,
+                            fontFamily: F_MARCA } }, "Car Service"),
+                    React.createElement("div", { style: { fontSize: 13, color: "rgba(0,0,0,.72)" } }, "Painel de SDR"))),
+            React.createElement(Card, { className: "p28", style: { border: "none", borderRadius: 12 } },
+                React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 17, fontWeight: 700 } }, "Entrar"),
+                React.createElement("p", { style: { fontSize: 13.5, color: T.ink2, lineHeight: 1.6, marginTop: 8 } }, "Use seu e-mail da empresa e a senha cadastrada pelo administrador."),
+                React.createElement("form", { onSubmit: entrar, style: { marginTop: 20, display: "grid", gap: 10 } },
+                    React.createElement("input", { type: "email", value: email, onChange: (e) => setEmail(e.target.value), placeholder: "voce@thew.com.br", required: true, autoComplete: "username", style: campo }),
+                    React.createElement("input", { type: "password", value: senha, onChange: (e) => setSenha(e.target.value), placeholder: "senha", required: true, autoComplete: "current-password", style: campo }),
+                    React.createElement("button", { type: "submit", disabled: estado && estado.tipo === "carregando", style: { width: "100%", marginTop: 4, padding: "13px 16px", border: "none",
+                            borderRadius: 8, background: T.preto, color: "#fff", fontSize: 14.5,
+                            fontWeight: 700, cursor: "pointer", fontFamily: F_UI } }, estado && estado.tipo === "carregando" ? "Entrando…" : "Entrar")),
+                estado && estado.tipo !== "carregando" && (React.createElement("div", { style: { marginTop: 14, fontSize: 13, lineHeight: 1.5,
+                        color: estado.tipo === "erro" ? T.bad : T.ink2 } },
+                    estado.tipo === "erro" ? "\u26A0 " : "",
+                    estado.txt))),
+            React.createElement("div", { style: { marginTop: 16, fontSize: 12, color: "rgba(0,0,0,.75)", lineHeight: 1.6 } }, "Os n\u00FAmeros v\u00EAm direto do Kommo e do discador. Nada aqui \u00E9 lan\u00E7ado \u00E0 m\u00E3o."))));
+}
+/* ===================== gráficos ===================== */
+/* Evolução no período: barras de leads e agendamentos, linhas de visitas
+   e vendas. SVG puro, sem dependência externa. O viewBox faz a escala;
+   a altura é fixa para o texto não deformar. */
+/* Evolução: quatro mini-gráficos em vez de um só com quatro séries.
+
+   Duas razões. A primeira é de escala — leads vêm em dezenas por dia e
+   vendas em unidades; no mesmo eixo a linha de vendas fica colada no
+   zero e não diz nada. A segunda é de cor: a marca é amarelo mais cinza,
+   e quatro séries pedem quatro matizes que não existem aqui. Separando
+   os painéis, cada métrica tem sua escala, uma cor só, e o título
+   identifica a série sem precisar de legenda. */
+function MiniGrafico({ titulo, chave, dados, sufixo }) {
+    const valores = dados.map((d) => Number(d[chave]) || 0);
+    const total = valores.reduce((a, b) => a + b, 0);
+    const teto = Math.max(1, ...valores);
+    const H = 54, W = 300;
+    const faixa = W / Math.max(1, dados.length);
+    const larg = Math.max(1.5, Math.min(14, faixa - 2));
+    return (React.createElement(Card, { className: "p16" },
+        React.createElement(Label, null, titulo),
+        React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 8, margin: "8px 0 10px" } },
+            React.createElement(Metric, { value: nInt(total), size: 26 }),
+            sufixo && React.createElement("span", { style: { fontSize: 12, color: T.muted } }, sufixo)),
+        React.createElement("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", height: H, style: { display: "block", overflow: "visible" }, "aria-hidden": "true" },
+            React.createElement("line", { x1: "0", x2: W, y1: H, y2: H, stroke: T.hair, strokeWidth: "1" }),
+            dados.map((d, i) => {
+                const v = Number(d[chave]) || 0;
+                const alt = (v / teto) * (H - 4);
+                const ultimo = i === dados.length - 1;
+                return (React.createElement("rect", { key: i, x: i * faixa + (faixa - larg) / 2, y: H - alt, width: larg, height: Math.max(v > 0 ? 1.5 : 0, alt), rx: "2", fill: ultimo ? T.marca : T.ink },
+                    React.createElement("title", null, `${d.dia} · ${nInt(v)}`)));
+            })),
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 6,
+                fontSize: 10.5, color: T.muted } },
+            React.createElement("span", null, dados[0] ? dados[0].dia : ""),
+            React.createElement("span", null, dados.length > 1 ? dados[dados.length - 1].dia : ""))));
+}
+function GraficoEvolucao({ dados }) {
+    if (!dados.length) {
+        return React.createElement(Card, { className: "p20", style: { fontSize: 13, color: T.muted } }, "Sem movimento no per\u00EDodo.");
+    }
+    const painel = [
+        { titulo: "Leads recebidos", chave: "Leads" },
+        { titulo: "Agendamentos marcados", chave: "Agend. marcados" },
+        { titulo: "Visitas do dia", chave: "Visitas do dia" },
+        { titulo: "Vendas", chave: "Vendas" },
+    ];
+    return (React.createElement("div", null,
+        React.createElement("div", { className: "mini4" }, painel.map((p) => (React.createElement(MiniGrafico, { key: p.chave, titulo: p.titulo, chave: p.chave, dados: dados, sufixo: "no per\u00EDodo" })))),
+        React.createElement("div", { style: { marginTop: 10, fontSize: 11.5, color: T.muted } }, "Cada painel tem a pr\u00F3pria escala \u2014 servem para ver o ritmo de cada m\u00E9trica, n\u00E3o para comparar tamanhos entre eles. A \u00FAltima barra \u00E9 o dia mais recente.")));
+}
+/* Barras horizontais. Divs em vez de SVG: o texto quebra sozinho e a
+   largura acompanha a tela sem cálculo. */
+function BarrasHorizontais({ dados }) {
+    const teto = Math.max(1, ...dados.map((d) => d.qtd));
+    const total = dados.reduce((s, d) => s + d.qtd, 0);
+    return (React.createElement("div", { style: { display: "grid", gap: 10 } }, dados.map((d, i) => (React.createElement("div", { key: d.nome, style: { display: "flex", alignItems: "center", gap: 12 } },
+        React.createElement("div", { style: { width: 210, fontSize: 12.5, color: T.ink2, textAlign: "right",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, title: d.nome }, d.nome),
+        React.createElement("div", { style: { flex: 1, background: T.canvas, borderRadius: 4, height: 22 } },
+            React.createElement("div", { style: { width: `${Math.max(1.5, (d.qtd / teto) * 100)}%`, height: "100%",
+                    background: T.ink, borderRadius: 4,
+                    transition: "width .4s ease" } })),
+        React.createElement("div", { style: { width: 96, fontSize: 12.5, textAlign: "right", color: T.ink,
+                fontVariantNumeric: "tabular-nums" } },
+            React.createElement("b", null, nInt(d.qtd)),
+            React.createElement("span", { style: { color: T.muted } },
+                " \u00B7 ",
+                nPct(div(d.qtd, total), 0))))))));
 }
 /* ===================== dados ===================== */
 function usarDados(de, ate, prevDe) {
@@ -364,20 +498,30 @@ function usarDados(de, ate, prevDe) {
             setQualidade(q[0] || null);
             setFunilAgora(fa);
             setMetas({ sdr: ms, taxa: mt[0] || null });
-            setEstado({ carregando: false, erro: null });
+            setEstado({ carregando: false, erro: null, em: new Date() });
         }
         catch (e) {
             setEstado({ carregando: false, erro: e.message || String(e) });
         }
     }, [de, ate, prevDe]);
     useEffect(() => { buscar(); }, [buscar]);
+    /* O painel fica ligado numa TV: ninguém vai apertar "Atualizar". A cada
+       5 minutos ele busca sozinho. Como o filtro "Hoje" recalcula a data a
+       cada render, a virada da meia-noite se resolve na atualização
+       seguinte — não é preciso recarregar a página. */
+    useEffect(() => {
+        const t = setInterval(() => { buscar(); }, 5 * 60 * 1000);
+        return () => clearInterval(t);
+    }, [buscar]);
     return { estado, fato, motivos, sla, esforco, tempoAntigo, pendentes,
         carteiraEsf, robo, qualidade, funilAgora, metas, recarregar: buscar };
 }
 /* ===================== app ===================== */
 function Painel({ sessao }) {
+    /* Abre em "Hoje": o painel vive numa TV na sala dos SDRs, e o que
+       interessa lá é o dia corrente. Quem quiser o mês troca no filtro. */
     const [f, setF] = useState({
-        periodo: "30d", de: addDays(hoje(), -29), ate: hoje(),
+        periodo: "hoje", de: addDays(hoje(), -29), ate: hoje(),
         unidade: "__all", servico: "__all", sdr: "__all",
     });
     const [de, ate] = faixa(f);
@@ -409,7 +553,12 @@ function Painel({ sessao }) {
         });
         return [...m.entries()].map(([nome, linhas]) => ({ nome, ...somar(linhas) }));
     };
-    const porSdr = useMemo(() => porChave("sdr").filter((x) => x.nome !== "Sem SDR" || x.leads_recebidos > 0), [noPeriodo]);
+    /* "Sem SDR" não é uma pessoa: é lead que nunca foi distribuído. Ele fica
+       fora do placar e aparece embaixo, como pendência. Misturado na tabela,
+       ele entrava no ranking como se fosse alguém com desempenho ruim. */
+    const porSdrTudo = useMemo(() => porChave("sdr"), [noPeriodo]);
+    const porSdr = useMemo(() => porSdrTudo.filter((x) => x.nome !== "Sem SDR"), [porSdrTudo]);
+    const semSdr = useMemo(() => porSdrTudo.find((x) => x.nome === "Sem SDR") || null, [porSdrTudo]);
     const porUnidade = useMemo(() => porChave("unidade"), [noPeriodo]);
     const porServico = useMemo(() => porChave("servico"), [noPeriodo]);
     const serie = useMemo(() => {
@@ -474,12 +623,26 @@ function Painel({ sessao }) {
                 reais_por_ligacao: div(r ? r.receita : 0, e.ligacoes_tentadas) };
         }).filter((x) => x.ligacoes_tentadas > 0 || x.whatsapp_enviados > 0);
     }, [esforcoNoPeriodo, porSdr]);
-    const motivosTot = useMemo(() => {
-        const m = new Map();
-        d.motivos.filter((r) => (f.unidade === "__all" || r.unidade === f.unidade) &&
-            (f.servico === "__all" || r.servico === f.servico) &&
-            (f.sdr === "__all" || r.sdr === f.sdr)).forEach((r) => m.set(r.motivo, (m.get(r.motivo) || 0) + (Number(r.leads) || 0)));
-        return [...m.entries()].map(([nome, qtd]) => ({ nome, qtd })).sort((x, y) => y.qtd - x.qtd);
+    /* O vocabulário antigo sai do gráfico e vira nota de rodapé. Misturar
+       "Descartado" (708, que significava qualquer coisa) com a lista nova
+       tornava o gráfico ilegível e sugeria uma análise que não existe. */
+    const motivos = useMemo(() => {
+        const atuais = new Map();
+        let historico = 0;
+        aplicar(d.motivos).forEach((r) => {
+            const n = Number(r.leads) || 0;
+            // A coluna "atual" só existe depois do motivos_limpos.sql; sem ela
+            // o painel se comporta como antes.
+            if (r.atual === false)
+                historico += n;
+            else
+                atuais.set(r.motivo, (atuais.get(r.motivo) || 0) + n);
+        });
+        return {
+            lista: [...atuais.entries()].map(([nome, qtd]) => ({ nome, qtd }))
+                .sort((x, y) => y.qtd - x.qtd),
+            historico,
+        };
     }, [d.motivos, f]);
     /* O espelho do esforço na chave da carteira: quanto trabalho os leads
        de cada pessoa receberam, de quantas mãos diferentes. */
@@ -546,19 +709,27 @@ function Painel({ sessao }) {
     const gargalo = comPerda.length ? comPerda.reduce((m, p) => (p.perda > m.perda ? p : m)) : null;
     const q = d.qualidade;
     return (React.createElement("div", { style: { background: T.canvas, minHeight: "100vh", fontFamily: F_UI, color: T.ink } },
-        React.createElement("header", { style: { background: T.ink, position: "sticky", top: 0, zIndex: 30 } },
+        React.createElement("header", { style: { background: T.preto, position: "sticky", top: 0, zIndex: 30 } },
             React.createElement("div", { className: "wrap", style: { display: "flex", alignItems: "center", justifyContent: "space-between",
-                    flexWrap: "wrap", gap: 12, padding: "12px 24px" } },
-                React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap" } },
-                    React.createElement("span", { style: { fontFamily: F_NUM, fontSize: 17, fontWeight: 700, color: "#fff" } }, "Auto Care"),
-                    React.createElement("span", { style: { width: 1, height: 14, background: "rgba(255,255,255,.25)" } }),
-                    React.createElement("span", { style: { fontSize: 12.5, color: "rgba(255,255,255,.66)" } }, "Performance de SDR"),
-                    React.createElement("span", { style: { width: 1, height: 14, background: "rgba(255,255,255,.25)" } }),
-                    React.createElement("span", { style: { fontSize: 11.5, color: "rgba(255,255,255,.55)" } }, d.estado.carregando ? "carregando…" : "direto do Kommo")),
+                    flexWrap: "wrap", gap: 12, padding: "11px 24px" } },
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 13, flexWrap: "wrap" } },
+                    React.createElement(Selo, { tam: 32 }),
+                    React.createElement("div", { style: { lineHeight: 1.2 } },
+                        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 15, fontWeight: 700, color: "#fff" } }, "Car Service"),
+                        React.createElement("div", { style: { fontSize: 11.5, color: "rgba(255,255,255,.6)" } }, "Performance de SDR")),
+                    React.createElement("span", { style: { marginLeft: 6, fontSize: 11, padding: "3px 9px", borderRadius: 99,
+                            background: d.estado.carregando ? "rgba(255,255,255,.14)" : "rgba(255,191,0,.16)",
+                            color: d.estado.carregando ? "rgba(255,255,255,.7)" : T.marca, fontWeight: 500,
+                            whiteSpace: "nowrap" } }, d.estado.carregando
+                        ? "atualizando…"
+                        : d.estado.em
+                            ? `atualizado ${d.estado.em.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+                            : "ao vivo")),
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
-                    React.createElement("span", { style: { fontSize: 12, color: "rgba(255,255,255,.6)" } }, sessao.user.email),
-                    React.createElement("button", { onClick: () => db.auth.signOut(), style: { background: "transparent", border: "1px solid rgba(255,255,255,.25)",
-                            color: "rgba(255,255,255,.8)", borderRadius: 6, padding: "5px 10px", fontSize: 12, cursor: "pointer" } }, "Sair")))),
+                    React.createElement("span", { style: { fontSize: 12, color: "rgba(255,255,255,.55)" } }, sessao.user.email),
+                    React.createElement("button", { onClick: () => db.auth.signOut(), style: { background: "transparent",
+                            border: "1px solid rgba(255,255,255,.28)", color: "rgba(255,255,255,.85)",
+                            borderRadius: 7, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: F_UI } }, "Sair")))),
         React.createElement("main", { className: "wrap", style: { padding: "24px 24px 80px" } },
             d.estado.erro && (React.createElement(Card, { className: "p16", style: { borderColor: "#F0C3C6", background: "#FDF3F3", marginBottom: 16 } },
                 React.createElement("div", { style: { fontSize: 13, color: T.bad, fontWeight: 600 } },
@@ -592,7 +763,7 @@ function Painel({ sessao }) {
             React.createElement(Secao, { n: 2, titulo: "Funil", nota: "Cada etapa conta no dia em que aconteceu. Agendamento entra no dia em que o SDR marcou \u2014 n\u00E3o no dia da visita." },
                 React.createElement(Card, { className: "p20" },
                     gargalo && (React.createElement("div", { style: { marginBottom: 14 } },
-                        React.createElement(Pill, { cor: T.accentDeep },
+                        React.createElement(Pill, { cor: T.warn },
                             "Maior perda: ",
                             funil[gargalo.i - 1].l,
                             " \u2192 ",
@@ -605,19 +776,17 @@ function Painel({ sessao }) {
                         return (React.createElement("div", { key: e.l },
                             passo && (React.createElement("div", { style: { display: "flex", gap: 12, padding: "3px 0" } },
                                 React.createElement("div", { style: { width: 150 } }),
-                                React.createElement("div", { style: { fontSize: 11.5, color: eh ? T.accentDeep : T.muted,
-                                        fontWeight: eh ? 700 : 500, fontVariantNumeric: "tabular-nums" } },
-                                    "\u2193 ",
-                                    nPct(passo.conv),
-                                    " avan\u00E7am",
-                                    passo.perda > 0 ? ` · perde ${nInt(passo.perda)}` : ""))),
+                                React.createElement("div", { style: { fontSize: 11.5, color: passo.conv > 1 ? T.warn : (eh ? T.warn : T.muted),
+                                        fontWeight: eh || passo.conv > 1 ? 700 : 500, fontVariantNumeric: "tabular-nums" } }, passo.conv > 1
+                                    ? `↑ ${nInt(-passo.perda)} a mais que a etapa anterior — falta registro acima`
+                                    : `↓ ${nPct(passo.conv)} avançam${passo.perda > 0 ? ` · perde ${nInt(passo.perda)}` : ""}`))),
                             React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
                                 React.createElement("div", { style: { width: 150, fontSize: 12.5, color: T.ink2, textAlign: "right" } }, e.l),
                                 React.createElement("div", { style: { flex: 1 } },
                                     React.createElement("div", { style: { width: `${Math.max(4, div(e.v, topo) * 100)}%`, height: 34, borderRadius: 4,
-                                            background: eh ? `linear-gradient(90deg, ${T.accent}, ${T.accentDeep})` : `linear-gradient(90deg, ${T.ink}, ${T.ink2})`,
+                                            background: eh ? T.marca : T.ink,
                                             display: "flex", alignItems: "center", paddingLeft: 10, minWidth: 84, transition: "width .5s ease" } },
-                                        React.createElement("span", { style: { fontFamily: F_NUM, color: eh ? "#22190A" : "#fff", fontWeight: 700,
+                                        React.createElement("span", { style: { fontFamily: F_NUM, color: eh ? T.preto : "#fff", fontWeight: 700,
                                                 fontSize: 15, fontVariantNumeric: "tabular-nums" } }, nInt(e.v)))),
                                 React.createElement("div", { style: { width: 104, fontSize: 12, color: T.muted, textAlign: "right",
                                         fontVariantNumeric: "tabular-nums" } },
@@ -678,7 +847,15 @@ function Painel({ sessao }) {
                                 React.createElement(Td, { right: true, bold: true }, nReal(a.receita)),
                                 React.createElement(Td, { right: true, bold: true }, nPct(a.conversao_final)),
                                 React.createElement(Td, { right: true, bold: true }, ligacoesNaCarteiraTot ? nInt(ligacoesNaCarteiraTot) : "—"),
-                                React.createElement(Td, { right: true, bold: true }, ligacoesNaCarteiraTot ? nReal(div(a.receita, ligacoesNaCarteiraTot)) : "—")))))),
+                                React.createElement(Td, { right: true, bold: true }, ligacoesNaCarteiraTot ? nReal(div(a.receita, ligacoesNaCarteiraTot)) : "—"))))),
+                semSdr && semSdr.leads_recebidos > 0 && (React.createElement(Card, { className: "p16", style: { marginTop: 12, borderColor: "#F3D9DB" } },
+                    React.createElement("div", { style: { fontSize: 13, color: T.ink2, lineHeight: 1.6 } },
+                        React.createElement("b", { style: { color: T.bad } },
+                            "\u26A0 ",
+                            nInt(semSdr.leads_recebidos),
+                            " leads sem SDR"),
+                        " no per\u00EDodo \u2014 entraram e n\u00E3o foram distribu\u00EDdos a ningu\u00E9m. N\u00E3o entram no placar acima porque n\u00E3o s\u00E3o de ningu\u00E9m; entram no total.",
+                        semSdr.vendas > 0 && ` Ainda assim, ${nInt(semSdr.vendas)} viraram venda.`)))),
             esforcoPorSdr.length > 0 && (React.createElement(Secao, { n: 4, titulo: "Esfor\u00E7o \u2014 por quem executou", nota: `Chave diferente da seção 3: aqui o crédito é de quem FEZ, não de quem é dono do lead. A ligação vem do discador, que sabe qual ramal discou; o Kommo não sabe. "Tentou" conta toda discagem; "atendeu" usa o motivo real de encerramento, então caixa postal não conta; "falou com" são pessoas em conversas acima de ${segConversa}s. Mensagem do robô de triagem fica fora: automação não é esforço de ninguém.` },
                 React.createElement("div", { className: "grid-kpi", style: { marginBottom: 16 } },
                     React.createElement(Kpi, { label: "Liga\u00E7\u00F5es tentadas", value: nInt(esf.ligacoes_tentadas), sub: "Inclui caixa postal e n\u00E3o atendida" }),
@@ -718,18 +895,7 @@ function Painel({ sessao }) {
                 React.createElement(Card, { className: "p16", style: { marginTop: 12, fontSize: 12.5, color: T.ink2, lineHeight: 1.6 } }, "Esfor\u00E7o \u00E9 insumo, n\u00E3o resultado \u2014 quem mais disca n\u00E3o \u00E9 necessariamente quem mais traz. Para juntar as duas coisas, compare esta tabela com a da se\u00E7\u00E3o 3: l\u00E1 est\u00E1 o que a carteira de cada um produziu, aqui est\u00E1 o que cada um fez. Quando os dois nomes n\u00E3o batem, \u00E9 gente trabalhando lead de outro \u2014 normal em cobertura, problema se for rotina."))),
             React.createElement(Secao, { n: 5, titulo: "Evolu\u00E7\u00E3o no per\u00EDodo" },
                 React.createElement(Card, { className: "p16" },
-                    React.createElement("div", { style: { height: 280 } },
-                        React.createElement(ResponsiveContainer, { width: "100%", height: "100%" },
-                            React.createElement(ComposedChart, { data: serie, margin: { top: 6, right: 10, left: -18, bottom: 0 } },
-                                React.createElement(CartesianGrid, { stroke: T.hair, vertical: false }),
-                                React.createElement(XAxis, { dataKey: "dia", tick: { fontSize: 10, fill: T.muted }, minTickGap: 14 }),
-                                React.createElement(YAxis, { tick: { fontSize: 10, fill: T.muted } }),
-                                React.createElement(Tooltip, { content: React.createElement(Dica, null), cursor: { fill: "rgba(0,0,0,.04)" } }),
-                                React.createElement(Legend, { wrapperStyle: { fontSize: 11 } }),
-                                React.createElement(Bar, { dataKey: "Leads", fill: T.hair, radius: [3, 3, 0, 0] }),
-                                React.createElement(Bar, { dataKey: "Agend. marcados", fill: T.accent, radius: [3, 3, 0, 0] }),
-                                React.createElement(Line, { type: "monotone", dataKey: "Visitas do dia", stroke: T.steel, strokeWidth: 2, dot: false }),
-                                React.createElement(Line, { type: "monotone", dataKey: "Vendas", stroke: T.good, strokeWidth: 2.4, dot: { r: 2.5, fill: T.good } })))))),
+                    React.createElement(GraficoEvolucao, { dados: serie }))),
             React.createElement(Secao, { n: 6, titulo: "Por unidade e por servi\u00E7o" },
                 React.createElement("div", { className: "col2" }, [["Unidade", porUnidade], ["Serviço", porServico]].map(([titulo, dados]) => (React.createElement(Card, { key: titulo, className: "p0 rolagem" },
                     React.createElement("table", null,
@@ -787,16 +953,15 @@ function Painel({ sessao }) {
                         React.createElement(Kpi, { label: "Tempo m\u00E9dio at\u00E9 ligar", value: tempoTot.medio == null ? "—" : `${nNum(tempoTot.medio, 0)} min`, sub: "Da entrada do lead \u00E0 primeira discagem" }),
                         React.createElement(Kpi, { label: "Tempo m\u00E9dio at\u00E9 falar", value: tempoTot.medioAteFalar == null ? "—" : `${nNum(tempoTot.medioAteFalar, 0)} min`, sub: `Até uma conversa acima de ${segConversa}s` }),
                         React.createElement(Kpi, { label: "Ningu\u00E9m ligou", value: nInt(tempoTot.leads - tempoTot.com_medida), sub: "Leads sem nenhuma discagem registrada", tone: tempoTot.leads - tempoTot.com_medida > 0 ? "bad" : "good" })))),
-            React.createElement(Secao, { n: 8, titulo: "Por que perdemos" }, motivosTot.length === 0 ? (React.createElement(Card, { className: "p20", style: { fontSize: 13, color: T.muted } }, "Nenhum motivo de perda registrado no per\u00EDodo.")) : (React.createElement(Card, { className: "p16" },
-                React.createElement("div", { style: { height: Math.max(200, motivosTot.length * 32) } },
-                    React.createElement(ResponsiveContainer, { width: "100%", height: "100%" },
-                        React.createElement(BarChart, { data: motivosTot, layout: "vertical", margin: { top: 0, right: 24, left: 100, bottom: 0 } },
-                            React.createElement(CartesianGrid, { stroke: T.hair, horizontal: false }),
-                            React.createElement(XAxis, { type: "number", tick: { fontSize: 10, fill: T.muted } }),
-                            React.createElement(YAxis, { type: "category", dataKey: "nome", tick: { fontSize: 11, fill: T.ink2 }, width: 160 }),
-                            React.createElement(Tooltip, { content: React.createElement(Dica, null), cursor: { fill: "rgba(0,0,0,.04)" } }),
-                            React.createElement(Bar, { dataKey: "qtd", name: "Leads perdidos", radius: [0, 3, 3, 0] }, motivosTot.map((x, i) => React.createElement(Cell, { key: i, fill: i === 0 ? T.bad : T.ink2 }))))))))),
-            React.createElement(Secao, { n: 9, titulo: "Onde os leads est\u00E3o parados agora", nota: "Foto do momento, n\u00E3o do per\u00EDodo filtrado. Responde quantos leads est\u00E3o largados neste instante." },
+            React.createElement(Secao, { n: 8, titulo: "Por que perdemos", nota: "S\u00F3 a lista oficial de motivos do Kommo. Perdas registradas antes dela existir ficam na nota do rodap\u00E9 \u2014 o vocabul\u00E1rio antigo jogava quase tudo num motivo s\u00F3, ent\u00E3o somar os dois daria uma leitura que n\u00E3o existe." },
+                React.createElement(Card, { className: "p16" },
+                    motivos.lista.length === 0 ? (React.createElement("div", { style: { fontSize: 13, color: T.muted } }, "Nenhuma perda com motivo da lista oficial neste per\u00EDodo.")) : (React.createElement(BarrasHorizontais, { dados: motivos.lista })),
+                    motivos.historico > 0 && (React.createElement("div", { style: { marginTop: 16, paddingTop: 12, borderTop: `1px solid ${T.hair}`,
+                            fontSize: 12, color: T.muted, lineHeight: 1.6 } },
+                        "Mais ",
+                        React.createElement("b", { style: { color: T.ink2 } }, nInt(motivos.historico)),
+                        " perdas no per\u00EDodo registradas antes da lista oficial de motivos. Ficam fora do gr\u00E1fico porque o vocabul\u00E1rio antigo n\u00E3o distinguia os casos. Este n\u00FAmero encolhe sozinho conforme os leads novos s\u00E3o fechados.")))),
+            React.createElement(Secao, { n: 9, titulo: "Onde os leads est\u00E3o parados agora", nota: "Foto do momento, n\u00E3o do per\u00EDodo filtrado, e s\u00F3 do que continua aberto \u2014 ganhos e perdas saem daqui de prop\u00F3sito: a pergunta \u00E9 o que est\u00E1 largado, e uma etapa de perda com centenas de leads afogaria a resposta." },
                 React.createElement(Card, { className: "p0 rolagem" },
                     React.createElement("table", null,
                         React.createElement("thead", null,
@@ -805,7 +970,10 @@ function Painel({ sessao }) {
                                 React.createElement(Th, null, "Grupo"),
                                 React.createElement(Th, { right: true }, "Leads"),
                                 React.createElement(Th, { right: true }, "Mais antigo"))),
-                        React.createElement("tbody", null, d.funilAgora.filter((r) => !r.ignorada).map((r) => (React.createElement("tr", { key: r.etapa || "—" },
+                        React.createElement("tbody", null, d.funilAgora
+                            .filter((r) => !r.ignorada)
+                            .filter((r) => !["ganho", "perdido"].includes(r.etapa_grupo))
+                            .map((r) => (React.createElement("tr", { key: r.etapa || "—" },
                             React.createElement(Td, { bold: true }, r.etapa || "—"),
                             React.createElement(Td, { color: T.muted }, r.etapa_grupo || "—"),
                             React.createElement(Td, { right: true, bold: true }, nInt(r.leads)),
@@ -819,7 +987,7 @@ function Painel({ sessao }) {
                     React.createElement(Kpi, { label: "Vendas sem valor", value: nInt(q.ganho_sem_valor), sub: "Fecharam com R$ 0", tone: q.ganho_sem_valor > 0 ? "bad" : "good" }),
                     React.createElement(Kpi, { label: "Valores em quarentena", value: nInt(q.valor_em_quarentena), sub: "Acima de R$ 100 mil, fora do c\u00E1lculo", tone: q.valor_em_quarentena > 0 ? "bad" : "good" })))),
             React.createElement("footer", { style: { marginTop: 48, paddingTop: 18, borderTop: `1px solid ${T.hair}`,
-                    fontSize: 11.5, color: T.muted, lineHeight: 1.7, maxWidth: "80ch" } }, "Fonte: funil Auto Care no Kommo, via integra\u00E7\u00E3o autom\u00E1tica. A etapa \"AGENTE DE IA\" fica fora de todos os n\u00FAmeros. Agendamento conta no dia em que uma pessoa marcou; visita conta no dia agendado; venda na data da venda; perda na data de fechamento. Movimenta\u00E7\u00E3o feita por automa\u00E7\u00E3o n\u00E3o conta como produtividade. Vendas acima de R$ 100 mil entram na contagem, mas ficam fora da receita at\u00E9 serem conferidas. Liga\u00E7\u00F5es e mensagens v\u00EAm das notas e dos eventos do pr\u00F3prio Kommo, n\u00E3o do discador \u2014 trocar o API4COM pelo 3C n\u00E3o quebra este painel. A liga\u00E7\u00E3o \u00E9 creditada ao dono do lead, porque a nota \u00E9 criada pela integra\u00E7\u00E3o e n\u00E3o pela pessoa que discou. Mensagem sem autor \u00E9 do rob\u00F4 de triagem e fica fora do esfor\u00E7o da equipe."))));
+                    fontSize: 11.5, color: T.muted, lineHeight: 1.7, maxWidth: "80ch" } }, "Fonte: o funil chamado \"Auto Care\" no Kommo (o nome da etiqueta l\u00E1 dentro), via integra\u00E7\u00E3o autom\u00E1tica. A etapa \"AGENTE DE IA\" fica fora de todos os n\u00FAmeros. Agendamento conta no dia em que uma pessoa marcou; visita conta no dia agendado; venda na data da venda; perda na data de fechamento. Movimenta\u00E7\u00E3o feita por automa\u00E7\u00E3o n\u00E3o conta como produtividade. Vendas acima de R$ 100 mil entram na contagem, mas ficam fora da receita at\u00E9 serem conferidas. Liga\u00E7\u00F5es e mensagens v\u00EAm das notas e dos eventos do pr\u00F3prio Kommo, n\u00E3o do discador \u2014 trocar o API4COM pelo 3C n\u00E3o quebra este painel. A liga\u00E7\u00E3o \u00E9 creditada ao dono do lead, porque a nota \u00E9 criada pela integra\u00E7\u00E3o e n\u00E3o pela pessoa que discou. Mensagem sem autor \u00E9 do rob\u00F4 de triagem e fica fora do esfor\u00E7o da equipe."))));
 }
 function App() {
     const [sessao, setSessao] = useState(undefined);
@@ -849,11 +1017,12 @@ function App() {
 }
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
 }
-/* Carregamento tolerante a falha:
-   Recharts muda de caminho entre CDNs, então tentamos várias origens.
-   Se nenhuma responder, o painel abre sem gráficos em vez de não abrir. */
+/* Carregamento do painel.
+   Os gráficos são desenhados em SVG pelo próprio código — não há mais
+   biblioteca de gráficos para baixar, então sobrou só React e o cliente
+   do Supabase, que vêm de uma CDN só e são verificados abaixo. */
 (function () {
-  var VERSAO = "v6.1";
+  var VERSAO = "v9";
   console.log("Painel SDR " + VERSAO);
   var raiz = document.getElementById("root");
 
@@ -864,64 +1033,6 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
       '<div style="font-weight:700;font-size:16px;margin-bottom:8px">' + titulo + '</div>' +
       '<div style="font-size:11px;color:#9AA5B4;margin-bottom:10px">Painel SDR ' + VERSAO + '</div>' +
       '<div style="font-size:13.5px;color:#3D454F">' + detalhe + '</div></div>';
-  }
-
-  var FONTES_RECHARTS = [
-    "https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.min.js",
-    "https://cdnjs.cloudflare.com/ajax/libs/recharts/2.12.7/Recharts.js",
-    "https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/Recharts.js",
-    "https://cdn.jsdelivr.net/npm/recharts@2.15.0/umd/Recharts.js",
-    "https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/Recharts.min.js"
-  ];
-
-  /* Cada fonte tem prazo. Sem isto, uma CDN que aceita a conexão e nunca
-     responde deixa a página em "Carregando..." para sempre: a tag de
-     script não dispara onload nem onerror, e o painel nunca inicia. Foi
-     exatamente o que aconteceu. */
-  var PRAZO_MS = 4000;
-
-  function tentar(i, pronto) {
-    if (window.Recharts) return pronto(true);
-    if (i >= FONTES_RECHARTS.length) return pronto(false);
-
-    var t = document.createElement("script");
-    var seguiu = false;
-    var relogio = null;
-
-    function seguir() {
-      if (seguiu) return;
-      seguiu = true;
-      clearTimeout(relogio);
-      if (window.Recharts) return pronto(true);
-      tentar(i + 1, pronto);
-    }
-
-    relogio = setTimeout(seguir, PRAZO_MS);
-    t.src = FONTES_RECHARTS[i];
-    t.async = false;
-    t.onload = seguir;
-    t.onerror = seguir;
-    document.head.appendChild(t);
-  }
-
-  /* Substitutos: o painel inteiro funciona, só o desenho do gráfico vira aviso. */
-  function stubRecharts() {
-    var h = window.React.createElement;
-    var Aviso = function () {
-      return h("div", {
-        style: {
-          height: "100%", display: "flex", alignItems: "center", justifyContent: "center",
-          border: "1px dashed #E4E7EB", borderRadius: 6, padding: 18, textAlign: "center",
-          fontSize: 12, color: "#6B7480"
-        }
-      }, "Gráfico indisponível: a biblioteca não carregou nesta rede. Os números das tabelas continuam corretos.");
-    };
-    var Nada = function () { return null; };
-    return {
-      ResponsiveContainer: Aviso, BarChart: Nada, Bar: Nada, LineChart: Nada, Line: Nada,
-      ComposedChart: Nada, XAxis: Nada, YAxis: Nada, CartesianGrid: Nada,
-      Tooltip: Nada, Legend: Nada, Cell: Nada
-    };
   }
 
   if (!window.React || !window.ReactDOM) {
@@ -948,22 +1059,18 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
     parar("O painel travou ao carregar",
       "Nada foi desenhado em 20 segundos. Diagnóstico: " +
       "React " + (window.React ? "ok" : "FALTOU") + " · " +
-      "Supabase " + (window.supabase ? "ok" : "FALTOU") + " · " +
-      "Recharts " + (window.Recharts ? "ok" : "faltou (o painel funciona sem)") +
+      "Supabase " + (window.supabase ? "ok" : "FALTOU") +
       ". Tente Ctrl+Shift+R. Se persistir, mande um print desta tela.");
   }, 20000);
 
-  tentar(0, function (temGraficos) {
-    if (!temGraficos) window.Recharts = stubRecharts();
-    try {
-      iniciarPainel();
-      window.__painelDesenhou = true;
-      clearTimeout(vigia);
-    } catch (e) {
-      clearTimeout(vigia);
-      parar("Erro ao iniciar o painel", (e && e.message ? e.message : String(e)));
-    }
-  });
+  try {
+    iniciarPainel();
+    window.__painelDesenhou = true;
+    clearTimeout(vigia);
+  } catch (e) {
+    clearTimeout(vigia);
+    parar("Erro ao iniciar o painel", (e && e.message ? e.message : String(e)));
+  }
 })();
 
 </script>
