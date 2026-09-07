@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Painel de SDR — Car Service</title>
-<meta name="painel-versao" content="v9">
+<meta name="painel-versao" content="v10">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -961,23 +961,48 @@ function Painel({ sessao }) {
                         "Mais ",
                         React.createElement("b", { style: { color: T.ink2 } }, nInt(motivos.historico)),
                         " perdas no per\u00EDodo registradas antes da lista oficial de motivos. Ficam fora do gr\u00E1fico porque o vocabul\u00E1rio antigo n\u00E3o distinguia os casos. Este n\u00FAmero encolhe sozinho conforme os leads novos s\u00E3o fechados.")))),
-            React.createElement(Secao, { n: 9, titulo: "Onde os leads est\u00E3o parados agora", nota: "Foto do momento, n\u00E3o do per\u00EDodo filtrado, e s\u00F3 do que continua aberto \u2014 ganhos e perdas saem daqui de prop\u00F3sito: a pergunta \u00E9 o que est\u00E1 largado, e uma etapa de perda com centenas de leads afogaria a resposta." },
-                React.createElement(Card, { className: "p0 rolagem" },
-                    React.createElement("table", null,
-                        React.createElement("thead", null,
-                            React.createElement("tr", null,
-                                React.createElement(Th, null, "Etapa"),
-                                React.createElement(Th, null, "Grupo"),
-                                React.createElement(Th, { right: true }, "Leads"),
-                                React.createElement(Th, { right: true }, "Mais antigo"))),
-                        React.createElement("tbody", null, d.funilAgora
-                            .filter((r) => !r.ignorada)
-                            .filter((r) => !["ganho", "perdido"].includes(r.etapa_grupo))
-                            .map((r) => (React.createElement("tr", { key: r.etapa || "—" },
-                            React.createElement(Td, { bold: true }, r.etapa || "—"),
-                            React.createElement(Td, { color: T.muted }, r.etapa_grupo || "—"),
-                            React.createElement(Td, { right: true, bold: true }, nInt(r.leads)),
-                            React.createElement(Td, { right: true, color: T.muted }, r.lead_mais_antigo ? brFull(r.lead_mais_antigo) : "—")))))))),
+            React.createElement(Secao, { n: 9, titulo: "Onde os leads est\u00E3o parados agora", nota: "Foto do momento, n\u00E3o do per\u00EDodo filtrado, e s\u00F3 do que continua aberto. O valor \u00E9 a soma do que est\u00E1 registrado nos leads da etapa \u2014 vale o que o preenchimento valer, por isso a coluna ao lado mostra quantos est\u00E3o sem valor nenhum. Ordenado por dinheiro, n\u00E3o por quantidade." }, (() => {
+                const abertas = d.funilAgora
+                    .filter((r) => !r.ignorada)
+                    .filter((r) => !["ganho", "perdido"].includes(r.etapa_grupo))
+                    .sort((a, b) => (Number(b.valor_parado) || 0) - (Number(a.valor_parado) || 0));
+                const totalLeads = abertas.reduce((s2, r) => s2 + (Number(r.leads) || 0), 0);
+                const totalValor = abertas.reduce((s2, r) => s2 + (Number(r.valor_parado) || 0), 0);
+                const totalSemValor = abertas.reduce((s2, r) => s2 + (Number(r.sem_valor) || 0), 0);
+                const temValor = abertas.some((r) => r.valor_parado != null);
+                return (React.createElement(React.Fragment, null,
+                    temValor && (React.createElement("div", { className: "grid-kpi", style: { marginBottom: 12 } },
+                        React.createElement(Kpi, { label: "Dinheiro parado", value: nReal(totalValor), sub: `Em ${nInt(totalLeads)} leads abertos` }),
+                        React.createElement(Kpi, { label: "Leads sem valor", value: nInt(totalSemValor), sub: "N\u00E3o somam no valor acima", tone: totalSemValor > totalLeads / 2 ? "bad" : undefined }))),
+                    React.createElement(Card, { className: "p0 rolagem" },
+                        React.createElement("table", null,
+                            React.createElement("thead", null,
+                                React.createElement("tr", null,
+                                    React.createElement(Th, null, "Etapa"),
+                                    React.createElement(Th, null, "Grupo"),
+                                    React.createElement(Th, { right: true }, "Leads"),
+                                    temValor && React.createElement(Th, { right: true }, "Valor parado"),
+                                    temValor && React.createElement(Th, { right: true }, "Sem valor"),
+                                    temValor && React.createElement(Th, { right: true }, "Dias sem mexer"),
+                                    React.createElement(Th, { right: true }, "Mais antigo"))),
+                            React.createElement("tbody", null,
+                                abertas.map((r) => (React.createElement("tr", { key: r.etapa || "—" },
+                                    React.createElement(Td, { bold: true }, r.etapa || "—"),
+                                    React.createElement(Td, { color: T.muted }, r.etapa_grupo || "—"),
+                                    React.createElement(Td, { right: true }, nInt(r.leads)),
+                                    temValor && React.createElement(Td, { right: true, bold: true }, nReal(r.valor_parado)),
+                                    temValor && (React.createElement(Td, { right: true, color: T.muted }, r.sem_valor ? `${nInt(r.sem_valor)} de ${nInt(r.leads)}` : "—")),
+                                    temValor && (React.createElement(Td, { right: true, color: Number(r.dias_sem_mexer) > 30 ? T.bad : T.ink }, r.dias_sem_mexer != null ? nInt(r.dias_sem_mexer) : "—")),
+                                    React.createElement(Td, { right: true, color: T.muted }, r.lead_mais_antigo ? brFull(r.lead_mais_antigo) : "—")))),
+                                React.createElement("tr", { style: { background: T.canvas } },
+                                    React.createElement(Td, { bold: true }, "Total aberto"),
+                                    React.createElement(Td, null),
+                                    React.createElement(Td, { right: true, bold: true }, nInt(totalLeads)),
+                                    temValor && React.createElement(Td, { right: true, bold: true }, nReal(totalValor)),
+                                    temValor && React.createElement(Td, { right: true, bold: true }, nInt(totalSemValor)),
+                                    temValor && React.createElement(Td, null),
+                                    React.createElement(Td, null)))))));
+            })()),
             q && (React.createElement(Secao, { n: 10, titulo: "Qualidade do preenchimento no CRM", nota: "N\u00E3o \u00E9 sobre a equipe de vendas \u2014 \u00E9 sobre o que est\u00E1 sendo registrado. Todo n\u00FAmero acima depende disto." },
                 React.createElement("div", { className: "grid-kpi" },
                     React.createElement(Kpi, { label: "Visitas sem desfecho", value: nInt(q.visita_sem_desfecho), sub: "J\u00E1 passaram e ningu\u00E9m marcou", tone: q.visita_sem_desfecho > 0 ? "bad" : "good" }),
@@ -1022,7 +1047,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
    biblioteca de gráficos para baixar, então sobrou só React e o cliente
    do Supabase, que vêm de uma CDN só e são verificados abaixo. */
 (function () {
-  var VERSAO = "v9";
+  var VERSAO = "v10";
   console.log("Painel SDR " + VERSAO);
   var raiz = document.getElementById("root");
 
