@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Painel de SDR — Auto Care</title>
-<meta name="painel-versao" content="v5">
+<meta name="painel-versao" content="v6">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Inter:wght@400;500;600;700&display=swap">
 <style>
@@ -63,6 +63,7 @@ const CONFIG = {
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
+<script>
 <script>
 function iniciarPainel() {
 "use strict";
@@ -272,6 +273,8 @@ function usarDados(de, ate, prevDe) {
     const [esforco, setEsforco] = useState([]);
     const [tempoAntigo, setTempoAntigo] = useState(false);
     const [pendentes, setPendentes] = useState([]);
+    const [carteiraEsf, setCarteiraEsf] = useState([]);
+    const [robo, setRobo] = useState([]);
     const [qualidade, setQualidade] = useState(null);
     const [funilAgora, setFunilAgora] = useState([]);
     const [metas, setMetas] = useState({ sdr: [], taxa: null });
@@ -334,6 +337,14 @@ function usarDados(de, ate, prevDe) {
             const vp = await buscarSePuder(() => db.from("visitas_pendentes_dia")
                 .select("*").gte("data", de).lte("data", ate).order("data"));
             setPendentes(vp || []);
+            /* O espelho do esforço na chave da carteira, e a cobertura do robô.
+               Os dois são opcionais: sem eles o painel só mostra menos coluna. */
+            const ce = await buscarSePuder(() => db.from("carteira_esforco_dia")
+                .select("*").gte("data", de).lte("data", ate).order("data"));
+            setCarteiraEsf(ce || []);
+            const rb = await buscarSePuder(() => db.from("robo_dia")
+                .select("*").gte("data", de).lte("data", ate).order("data"));
+            setRobo(rb || []);
             /* Estas quatro são acessórias: se uma falhar, o painel continua com o
                que importa em vez de zerar tudo. */
             const opcional = async (fn, padrao) => {
@@ -362,7 +373,7 @@ function usarDados(de, ate, prevDe) {
     }, [de, ate, prevDe]);
     useEffect(() => { buscar(); }, [buscar]);
     return { estado, fato, motivos, sla, esforco, tempoAntigo, pendentes,
-        qualidade, funilAgora, metas, recarregar: buscar };
+        carteiraEsf, robo, qualidade, funilAgora, metas, recarregar: buscar };
 }
 /* ===================== app ===================== */
 function Painel({ sessao }) {
@@ -471,6 +482,22 @@ function Painel({ sessao }) {
             (f.sdr === "__all" || r.sdr === f.sdr)).forEach((r) => m.set(r.motivo, (m.get(r.motivo) || 0) + (Number(r.leads) || 0)));
         return [...m.entries()].map(([nome, qtd]) => ({ nome, qtd })).sort((x, y) => y.qtd - x.qtd);
     }, [d.motivos, f]);
+    /* O espelho do esforço na chave da carteira: quanto trabalho os leads
+       de cada pessoa receberam, de quantas mãos diferentes. */
+    const carteiraEsfPorSdr = useMemo(() => {
+        const m = new Map();
+        aplicar(d.carteiraEsf).forEach((r) => {
+            const k = r.sdr || "—";
+            const o = m.get(k) || { ligacoes: 0, pessoas: 0, zap_robo: 0 };
+            o.ligacoes += Number(r.ligacoes_na_carteira) || 0;
+            o.pessoas = Math.max(o.pessoas, Number(r.pessoas_que_ligaram) || 0);
+            o.zap_robo += Number(r.zap_do_robo) || 0;
+            m.set(k, o);
+        });
+        return m;
+    }, [d.carteiraEsf, f]);
+    const ligacoesNaCarteiraTot = useMemo(() => aplicar(d.carteiraEsf).reduce((s2, r) => s2 + (Number(r.ligacoes_na_carteira) || 0), 0), [d.carteiraEsf, f]);
+    const roboTot = useMemo(() => aplicar(d.robo).reduce((s2, r) => s2 + (Number(r.mensagens) || 0), 0), [d.robo, f]);
     /* Visitas vencidas que ninguém marcou o desfecho. Enquanto isso existir,
        a taxa de comparecimento divide por um total que inclui visitas sobre
        as quais o CRM não sabe nada — e sai menor do que a realidade. */
@@ -598,7 +625,7 @@ function Painel({ sessao }) {
                                     nPct(div(e.v, topo)),
                                     " do topo"))));
                     }))),
-            React.createElement(Secao, { n: 3, titulo: "Por SDR", nota: "Marcou \u00E9 produtividade: o dia em que a pessoa agendou. Visitas \u00E9 a agenda da loja. Movimenta\u00E7\u00E3o feita por automa\u00E7\u00E3o n\u00E3o entra." },
+            React.createElement(Secao, { n: 3, titulo: "Carteira \u2014 por dono do lead", nota: "Tudo aqui \u00E9 creditado a quem o lead pertence. Marcou \u00E9 o dia em que a pessoa agendou; visitas \u00E9 a agenda da loja; automa\u00E7\u00E3o n\u00E3o conta. As duas \u00FAltimas colunas mostram quanto trabalho a carteira recebeu \u2014 de qualquer pessoa do time, n\u00E3o s\u00F3 do dono." },
                 React.createElement(Card, { className: "p0 rolagem" },
                     React.createElement("table", null,
                         React.createElement("thead", null,
@@ -613,20 +640,32 @@ function Painel({ sessao }) {
                                 React.createElement(Th, { right: true }, "% Show"),
                                 React.createElement(Th, { right: true }, "Vendas"),
                                 React.createElement(Th, { right: true }, "Receita"),
-                                React.createElement(Th, { right: true }, "Conv."))),
+                                React.createElement(Th, { right: true }, "Conv."),
+                                React.createElement(Th, { right: true }, "Lig. na carteira"),
+                                React.createElement(Th, { right: true }, "R$ por lig."))),
                         React.createElement("tbody", null,
-                            [...porSdr].sort((x, y) => y.agendamentos_marcados - x.agendamentos_marcados).map((s) => (React.createElement("tr", { key: s.nome },
-                                React.createElement(Td, { bold: true }, s.nome),
-                                React.createElement(Td, { right: true }, nInt(s.leads_recebidos)),
-                                React.createElement(Td, { right: true }, nInt(s.leads_trabalhados)),
-                                React.createElement(Td, { right: true, bold: true }, nInt(s.agendamentos_marcados)),
-                                React.createElement(Td, { right: true, color: s.taxa_agendamento >= metaTaxa.taxa_agendamento / 100 ? T.good : T.bad }, nPct(s.taxa_agendamento)),
-                                React.createElement(Td, { right: true }, nInt(s.visitas_do_dia)),
-                                React.createElement(Td, { right: true }, nInt(s.comparecimentos)),
-                                React.createElement(Td, { right: true, color: s.taxa_show >= metaTaxa.taxa_show / 100 ? T.good : T.bad }, nPct(s.taxa_show)),
-                                React.createElement(Td, { right: true, bold: true }, nInt(s.vendas)),
-                                React.createElement(Td, { right: true }, nReal(s.receita)),
-                                React.createElement(Td, { right: true, color: s.conversao_final >= a.conversao_final ? T.good : T.bad }, nPct(s.conversao_final))))),
+                            [...porSdr].sort((x, y) => y.agendamentos_marcados - x.agendamentos_marcados).map((s) => {
+                                const ce = carteiraEsfPorSdr.get(s.nome) || { ligacoes: 0, pessoas: 0 };
+                                return (React.createElement("tr", { key: s.nome },
+                                    React.createElement(Td, { bold: true }, s.nome),
+                                    React.createElement(Td, { right: true }, nInt(s.leads_recebidos)),
+                                    React.createElement(Td, { right: true }, nInt(s.leads_trabalhados)),
+                                    React.createElement(Td, { right: true, bold: true }, nInt(s.agendamentos_marcados)),
+                                    React.createElement(Td, { right: true, color: s.taxa_agendamento >= metaTaxa.taxa_agendamento / 100 ? T.good : T.bad }, nPct(s.taxa_agendamento)),
+                                    React.createElement(Td, { right: true }, nInt(s.visitas_do_dia)),
+                                    React.createElement(Td, { right: true }, nInt(s.comparecimentos)),
+                                    React.createElement(Td, { right: true, color: s.taxa_show >= metaTaxa.taxa_show / 100 ? T.good : T.bad }, nPct(s.taxa_show)),
+                                    React.createElement(Td, { right: true, bold: true }, nInt(s.vendas)),
+                                    React.createElement(Td, { right: true }, nReal(s.receita)),
+                                    React.createElement(Td, { right: true, color: s.conversao_final >= a.conversao_final ? T.good : T.bad }, nPct(s.conversao_final)),
+                                    React.createElement(Td, { right: true },
+                                        ce.ligacoes ? nInt(ce.ligacoes) : "—",
+                                        ce.pessoas > 1 && (React.createElement("span", { style: { color: T.muted, fontSize: 11 } },
+                                            " \u00B7 ",
+                                            ce.pessoas,
+                                            " pessoas"))),
+                                    React.createElement(Td, { right: true, bold: true }, ce.ligacoes ? nReal(div(s.receita, ce.ligacoes)) : "—")));
+                            }),
                             React.createElement("tr", { style: { background: T.canvas } },
                                 React.createElement(Td, { bold: true }, "Total"),
                                 React.createElement(Td, { right: true, bold: true }, nInt(a.leads_recebidos)),
@@ -638,39 +677,37 @@ function Painel({ sessao }) {
                                 React.createElement(Td, { right: true, bold: true }, nPct(a.taxa_show)),
                                 React.createElement(Td, { right: true, bold: true }, nInt(a.vendas)),
                                 React.createElement(Td, { right: true, bold: true }, nReal(a.receita)),
-                                React.createElement(Td, { right: true, bold: true }, nPct(a.conversao_final))))))),
-            esforcoPorSdr.length > 0 && (React.createElement(Secao, { n: 4, titulo: "Esfor\u00E7o \u2014 telefone e WhatsApp", nota: `Ligações e mensagens lidas do Kommo. "Tentou" conta toda discagem, inclusive caixa postal. "Falou com" conta pessoas em ligações acima de ${segConversa}s. Mensagem do robô de triagem fica de fora do esforço: ela é cobertura da automação, não trabalho de SDR.` },
+                                React.createElement(Td, { right: true, bold: true }, nPct(a.conversao_final)),
+                                React.createElement(Td, { right: true, bold: true }, ligacoesNaCarteiraTot ? nInt(ligacoesNaCarteiraTot) : "—"),
+                                React.createElement(Td, { right: true, bold: true }, ligacoesNaCarteiraTot ? nReal(div(a.receita, ligacoesNaCarteiraTot)) : "—")))))),
+            esforcoPorSdr.length > 0 && (React.createElement(Secao, { n: 4, titulo: "Esfor\u00E7o \u2014 por quem executou", nota: `Chave diferente da seção 3: aqui o crédito é de quem FEZ, não de quem é dono do lead. A ligação vem do discador, que sabe qual ramal discou; o Kommo não sabe. "Tentou" conta toda discagem; "atendeu" usa o motivo real de encerramento, então caixa postal não conta; "falou com" são pessoas em conversas acima de ${segConversa}s. Mensagem do robô de triagem fica fora: automação não é esforço de ninguém.` },
                 React.createElement("div", { className: "grid-kpi", style: { marginBottom: 16 } },
                     React.createElement(Kpi, { label: "Liga\u00E7\u00F5es tentadas", value: nInt(esf.ligacoes_tentadas), sub: "Inclui caixa postal e n\u00E3o atendida" }),
                     React.createElement(Kpi, { label: "Falou com", value: nInt(esf.pessoas_com_quem_falou), sub: `Pessoas, em ligações acima de ${segConversa}s` }),
-                    React.createElement(Kpi, { label: "Taxa de atendimento", value: nPct(esf.taxa_atendimento), sub: "Algu\u00E9m tirou do gancho" }),
+                    React.createElement(Kpi, { label: "Taxa de atendimento", value: nPct(esf.taxa_atendimento), sub: "Pelo motivo real de encerramento" }),
                     React.createElement(Kpi, { label: "Discagens por conversa", value: nNum(esf.discagens_por_conversa, 1), sub: "Quanto custa cada conversa" }),
                     React.createElement(Kpi, { label: "Horas ao telefone", value: nNum(esf.horas, 1), sub: "Soma da dura\u00E7\u00E3o das liga\u00E7\u00F5es" }),
-                    React.createElement(Kpi, { label: "WhatsApp de pessoa", value: nInt(esf.whatsapp_enviados), sub: `O robô mandou ${nInt(esf.whatsapp_bot)} à parte` })),
+                    React.createElement(Kpi, { label: "WhatsApp de pessoa", value: nInt(esf.whatsapp_enviados), sub: roboTot ? `O robô de triagem mandou ${nInt(roboTot)} à parte` : "Digitadas por gente" })),
                 React.createElement(Card, { className: "p0 rolagem" },
                     React.createElement("table", null,
                         React.createElement("thead", null,
                             React.createElement("tr", null,
-                                React.createElement(Th, null, "SDR"),
+                                React.createElement(Th, null, "Executor"),
                                 React.createElement(Th, { right: true }, "Tentou"),
-                                React.createElement(Th, { right: true }, "% atend."),
+                                React.createElement(Th, { right: true }, "% atendeu"),
                                 React.createElement(Th, { right: true }, "Falou com"),
                                 React.createElement(Th, { right: true }, "Disc./conversa"),
                                 React.createElement(Th, { right: true }, "Zap"),
-                                React.createElement(Th, { right: true }, "Horas"),
-                                React.createElement(Th, { right: true }, "Lig./agend."),
-                                React.createElement(Th, { right: true }, "R$ por liga\u00E7\u00E3o"))),
+                                React.createElement(Th, { right: true }, "Horas ao telefone"))),
                         React.createElement("tbody", null,
-                            [...esforcoPorSdr].sort((x, y) => y.reais_por_ligacao - x.reais_por_ligacao).map((s) => (React.createElement("tr", { key: s.nome },
+                            [...esforcoPorSdr].sort((x, y) => y.ligacoes_tentadas - x.ligacoes_tentadas).map((s) => (React.createElement("tr", { key: s.nome },
                                 React.createElement(Td, { bold: true }, s.nome),
                                 React.createElement(Td, { right: true }, nInt(s.ligacoes_tentadas)),
                                 React.createElement(Td, { right: true }, nPct(s.taxa_atendimento)),
                                 React.createElement(Td, { right: true }, nInt(s.pessoas_com_quem_falou)),
                                 React.createElement(Td, { right: true, color: s.discagens_por_conversa > esf.discagens_por_conversa ? T.bad : T.good }, nNum(s.discagens_por_conversa, 1)),
                                 React.createElement(Td, { right: true }, nInt(s.whatsapp_enviados)),
-                                React.createElement(Td, { right: true }, nNum(s.horas, 1)),
-                                React.createElement(Td, { right: true }, s.marcou ? nNum(s.por_agendamento, 1) : "—"),
-                                React.createElement(Td, { right: true, bold: true, color: s.reais_por_ligacao >= reaisPorLigacaoGeral ? T.good : T.bad }, nReal(s.reais_por_ligacao))))),
+                                React.createElement(Td, { right: true }, nNum(s.horas, 1))))),
                             React.createElement("tr", { style: { background: T.canvas } },
                                 React.createElement(Td, { bold: true }, "Total"),
                                 React.createElement(Td, { right: true, bold: true }, nInt(esf.ligacoes_tentadas)),
@@ -678,10 +715,8 @@ function Painel({ sessao }) {
                                 React.createElement(Td, { right: true, bold: true }, nInt(esf.pessoas_com_quem_falou)),
                                 React.createElement(Td, { right: true, bold: true }, nNum(esf.discagens_por_conversa, 1)),
                                 React.createElement(Td, { right: true, bold: true }, nInt(esf.whatsapp_enviados)),
-                                React.createElement(Td, { right: true, bold: true }, nNum(esf.horas, 1)),
-                                React.createElement(Td, { right: true, bold: true }, nNum(div(esf.ligacoes_tentadas, a.agendamentos_marcados), 1)),
-                                React.createElement(Td, { right: true, bold: true }, nReal(reaisPorLigacaoGeral)))))),
-                React.createElement(Card, { className: "p16", style: { marginTop: 12, fontSize: 12.5, color: T.ink2, lineHeight: 1.6 } }, "A \u00FAltima coluna \u00E9 a que importa: quanto de receita cada discagem gera. Ela costuma sair na ordem inversa do volume de liga\u00E7\u00E3o \u2014 quem mais liga nem sempre \u00E9 quem mais traz. Esfor\u00E7o \u00E9 insumo, n\u00E3o resultado."))),
+                                React.createElement(Td, { right: true, bold: true }, nNum(esf.horas, 1)))))),
+                React.createElement(Card, { className: "p16", style: { marginTop: 12, fontSize: 12.5, color: T.ink2, lineHeight: 1.6 } }, "Esfor\u00E7o \u00E9 insumo, n\u00E3o resultado \u2014 quem mais disca n\u00E3o \u00E9 necessariamente quem mais traz. Para juntar as duas coisas, compare esta tabela com a da se\u00E7\u00E3o 3: l\u00E1 est\u00E1 o que a carteira de cada um produziu, aqui est\u00E1 o que cada um fez. Quando os dois nomes n\u00E3o batem, \u00E9 gente trabalhando lead de outro \u2014 normal em cobertura, problema se for rotina."))),
             React.createElement(Secao, { n: 5, titulo: "Evolu\u00E7\u00E3o no per\u00EDodo" },
                 React.createElement(Card, { className: "p16" },
                     React.createElement("div", { style: { height: 280 } },
@@ -805,7 +840,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
    Recharts muda de caminho entre CDNs, então tentamos várias origens.
    Se nenhuma responder, o painel abre sem gráficos em vez de não abrir. */
 (function () {
-  var VERSAO = "v5";
+  var VERSAO = "v6";
   console.log("Painel SDR " + VERSAO);
   var raiz = document.getElementById("root");
 
