@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Painel de SDR — Auto Care</title>
-<meta name="painel-versao" content="v6">
+<meta name="painel-versao" content="v6.1">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700&family=Inter:wght@400;500;600;700&display=swap">
 <style>
@@ -39,7 +39,7 @@
 </head>
 <body>
 
-<div id="root"><div style="padding:48px;color:#6B7480">Carregando…</div></div>
+<div id="root"><div style="padding:48px;color:#6B7480">Iniciando o painel…</div></div>
 
 <script>
 /* =====================================================================
@@ -63,7 +63,6 @@ const CONFIG = {
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<script>
 <script>
 function iniciarPainel() {
 "use strict";
@@ -825,12 +824,26 @@ function Painel({ sessao }) {
 function App() {
     const [sessao, setSessao] = useState(undefined);
     useEffect(() => {
-        db.auth.getSession().then(({ data }) => setSessao(data.session));
-        const { data: sub } = db.auth.onAuthStateChange((_e, s) => setSessao(s));
-        return () => sub.subscription.unsubscribe();
+        let vivo = true;
+        /* Se a checagem de sessão não voltar em 8 segundos, cai na tela de
+           login em vez de ficar em "Verificando". Rede lenta ou Supabase
+           fora do ar não podem deixar a página presa para sempre. */
+        const prazo = setTimeout(() => {
+            if (vivo)
+                setSessao((x) => (x === undefined ? null : x));
+        }, 8000);
+        db.auth.getSession()
+            .then(({ data }) => { if (vivo)
+            setSessao(data.session ?? null); })
+            .catch(() => { if (vivo)
+            setSessao(null); })
+            .finally(() => clearTimeout(prazo));
+        const { data: sub } = db.auth.onAuthStateChange((_e, s) => { if (vivo)
+            setSessao(s); });
+        return () => { vivo = false; clearTimeout(prazo); sub.subscription.unsubscribe(); };
     }, []);
     if (sessao === undefined) {
-        return React.createElement("div", { style: { padding: 48, color: T.muted, fontFamily: F_UI } }, "Carregando\u2026");
+        return React.createElement("div", { style: { padding: 48, color: T.muted, fontFamily: F_UI } }, "Verificando o login\u2026");
     }
     return sessao ? React.createElement(Painel, { sessao: sessao }) : React.createElement(Login, null);
 }
@@ -840,7 +853,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
    Recharts muda de caminho entre CDNs, então tentamos várias origens.
    Se nenhuma responder, o painel abre sem gráficos em vez de não abrir. */
 (function () {
-  var VERSAO = "v6";
+  var VERSAO = "v6.1";
   console.log("Painel SDR " + VERSAO);
   var raiz = document.getElementById("root");
 
@@ -861,14 +874,33 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
     "https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/Recharts.min.js"
   ];
 
+  /* Cada fonte tem prazo. Sem isto, uma CDN que aceita a conexão e nunca
+     responde deixa a página em "Carregando..." para sempre: a tag de
+     script não dispara onload nem onerror, e o painel nunca inicia. Foi
+     exatamente o que aconteceu. */
+  var PRAZO_MS = 4000;
+
   function tentar(i, pronto) {
     if (window.Recharts) return pronto(true);
     if (i >= FONTES_RECHARTS.length) return pronto(false);
+
     var t = document.createElement("script");
+    var seguiu = false;
+    var relogio = null;
+
+    function seguir() {
+      if (seguiu) return;
+      seguiu = true;
+      clearTimeout(relogio);
+      if (window.Recharts) return pronto(true);
+      tentar(i + 1, pronto);
+    }
+
+    relogio = setTimeout(seguir, PRAZO_MS);
     t.src = FONTES_RECHARTS[i];
     t.async = false;
-    t.onload = function () { tentar(i + 1, pronto); };
-    t.onerror = function () { tentar(i + 1, pronto); };
+    t.onload = seguir;
+    t.onerror = seguir;
     document.head.appendChild(t);
   }
 
@@ -908,11 +940,27 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
       "<b>anon public</b> do projeto — em Supabase → Project Settings → API.");
   }
 
+  /* Rede de segurança final: se em 20 segundos nada tiver sido desenhado,
+     mostra o diagnóstico em vez de deixar a pessoa olhando "Carregando".
+     A tela vira a informação de que eu preciso para consertar. */
+  var vigia = setTimeout(function () {
+    if (window.__painelDesenhou) return;
+    parar("O painel travou ao carregar",
+      "Nada foi desenhado em 20 segundos. Diagnóstico: " +
+      "React " + (window.React ? "ok" : "FALTOU") + " · " +
+      "Supabase " + (window.supabase ? "ok" : "FALTOU") + " · " +
+      "Recharts " + (window.Recharts ? "ok" : "faltou (o painel funciona sem)") +
+      ". Tente Ctrl+Shift+R. Se persistir, mande um print desta tela.");
+  }, 20000);
+
   tentar(0, function (temGraficos) {
     if (!temGraficos) window.Recharts = stubRecharts();
     try {
       iniciarPainel();
+      window.__painelDesenhou = true;
+      clearTimeout(vigia);
     } catch (e) {
+      clearTimeout(vigia);
       parar("Erro ao iniciar o painel", (e && e.message ? e.message : String(e)));
     }
   });
