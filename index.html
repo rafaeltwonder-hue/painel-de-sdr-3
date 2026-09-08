@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR — Car Service</title>
-<meta name="painel-versao" content="v11">
+<title>Painel de SDR — CAR SERVICE</title>
+<meta name="painel-versao" content="v12">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -83,7 +83,6 @@ const CONFIG = {
 
 <script>
 function iniciarPainel() {
-"use strict";
 "use strict";
 /* Painel de SDR — The Wonder / Car Service
    Lê as views do Supabase. Sem lançamento manual: o dado vem do Kommo. */
@@ -165,6 +164,10 @@ const CAMPOS_ESFORCO = [
     "conversas", "pessoas_com_quem_falou",
     "whatsapp_enviados", "whatsapp_bot", "whatsapp_recebidos",
     "tentativas", "leads_tocados", "leads_com_contato", "segundos_ao_telefone",
+    /* Trabalho feito fora do funil do CAR SERVICE — Remarketing, na maior
+       parte. Conta como esforço porque a pessoa fez; fica identificado
+       porque o resultado dele não aparece nas seções de carteira. */
+    "ligacoes_fora", "whatsapp_fora", "segundos_fora",
 ];
 function somarEsforco(linhas) {
     const o = {};
@@ -174,6 +177,8 @@ function somarEsforco(linhas) {
     o.discagens_por_conversa = div(o.ligacoes_tentadas, o.pessoas_com_quem_falou);
     o.horas = o.segundos_ao_telefone / 3600;
     o.zap_por_ligacao = div(o.whatsapp_enviados, o.ligacoes_tentadas);
+    o.horas_fora = o.segundos_fora / 3600;
+    o.pct_fora = div(o.ligacoes_fora, o.ligacoes_tentadas);
     return o;
 }
 const CAMPOS_TEMPO = [
@@ -412,6 +417,13 @@ function usarDados(de, ate, prevDe) {
     const [qualidade, setQualidade] = useState(null);
     const [funilAgora, setFunilAgora] = useState([]);
     const [metas, setMetas] = useState({ sdr: [], taxa: null });
+    /* Duas listas novas, as duas nascidas do dia 08/09, quando o painel
+       mostrou zero ligações com cara de "hoje ninguém trabalhou" enquanto
+       a verdade era que a carga automática estava tomando 401 havia dias.
+         falhas -> consulta que quebrou de verdade (antes virava zero mudo)
+         saude  -> há quanto tempo cada FONTE não recebe dado novo */
+    const [falhas, setFalhas] = useState([]);
+    const [saude, setSaude] = useState([]);
     /* O Supabase corta em 1.000 linhas por consulta. A fato_dia tem uma linha
        por dia × SDR × unidade × serviço, então um mês passa desse teto e os
        totais sairiam menores sem ninguém perceber. Buscamos em páginas até
@@ -440,12 +452,23 @@ function usarDados(de, ate, prevDe) {
             setFato(f);
             setMotivos(m);
             /* Tolerante de propósito: uma view que ainda não foi criada no banco
-               não pode derrubar o painel inteiro. Some o bloco, fica o resto. */
-            const buscarSePuder = async (montar) => {
+               não pode derrubar o painel inteiro. Some o bloco, fica o resto.
+      
+               MAS: até 08/09 isto engolia QUALQUER erro. Uma queda de rede de
+               dois segundos zerava a seção com a mesma cara de "não houve
+               ligação hoje" — e foi assim que o painel passou dias mostrando
+               zero sem ninguém desconfiar. Agora só o erro de "view não
+               existe" fica em silêncio; o resto vira aviso na tela. */
+            const falhou = [];
+            const viewAusente = (m) => /does not exist|could not find the table|schema cache|não existe/i.test(String(m || ""));
+            const buscarSePuder = async (nome, montar) => {
                 try {
                     return await buscarTudo(montar);
                 }
                 catch (e) {
+                    const m = e && e.message ? e.message : String(e);
+                    if (!viewAusente(m))
+                        falhou.push({ nome, m });
                     return null;
                 }
             };
@@ -453,33 +476,33 @@ function usarDados(de, ate, prevDe) {
                verdade. sla_dia é a antiga, com nomes velhos e medida pela saída
                da etapa de entrada — fica como plano B para o painel não quebrar
                entre um deploy do banco e outro. */
-            let s = await buscarSePuder(() => db.from("tempo_resposta_dia")
+            let s = await buscarSePuder("Tempo de resposta", () => db.from("tempo_resposta_dia")
                 .select("*").gte("data", de).lte("data", ate).order("data"));
             let antiga = false;
             if (s === null) {
                 antiga = true;
-                const v = await buscarSePuder(() => db.from("sla_dia")
+                const v = await buscarSePuder("Tempo de resposta (medida antiga)", () => db.from("sla_dia")
                     .select("*").gte("data", de).lte("data", ate).order("data")) || [];
                 s = v.map((r) => ({ ...r, ate_5min: r.sla_5, ate_15min: r.sla_15,
                     ate_60min: r.sla_60, acima_de_1h: r.sla_acima, nunca_ligaram: 0 }));
             }
             setSla(s);
             setTempoAntigo(antiga);
-            const es = await buscarSePuder(() => db.from("esforco_dia")
+            const es = await buscarSePuder("Esforço", () => db.from("esforco_dia")
                 .select("*").gte("data", de).lte("data", ate).order("data"));
             setEsforco(es || []);
-            const vp = await buscarSePuder(() => db.from("visitas_pendentes_dia")
+            const vp = await buscarSePuder("Visitas sem desfecho", () => db.from("visitas_pendentes_dia")
                 .select("*").gte("data", de).lte("data", ate).order("data"));
             setPendentes(vp || []);
             /* O espelho do esforço na chave da carteira, e a cobertura do robô.
                Os dois são opcionais: sem eles o painel só mostra menos coluna. */
-            const ce = await buscarSePuder(() => db.from("carteira_esforco_dia")
+            const ce = await buscarSePuder("Esforço na carteira", () => db.from("carteira_esforco_dia")
                 .select("*").gte("data", de).lte("data", ate).order("data"));
             setCarteiraEsf(ce || []);
-            const rb = await buscarSePuder(() => db.from("robo_dia")
+            const rb = await buscarSePuder("Robô de triagem", () => db.from("robo_dia")
                 .select("*").gte("data", de).lte("data", ate).order("data"));
             setRobo(rb || []);
-            const pr = await buscarSePuder(() => db.from("preenchimento_sdr")
+            const pr = await buscarSePuder("Nota de preenchimento", () => db.from("preenchimento_sdr")
                 .select("*").gte("data", de).lte("data", ate).order("data"));
             setPreench(pr || []);
             /* Estas quatro são acessórias: se uma falhar, o painel continua com o
@@ -487,21 +510,24 @@ function usarDados(de, ate, prevDe) {
             const opcional = async (fn, padrao) => {
                 try {
                     const { data, error } = await fn();
-                    return error ? padrao : (data ?? padrao);
+                    return error ? padrao : (data !== null && data !== void 0 ? data : padrao);
                 }
                 catch (e) {
                     return padrao;
                 }
             };
-            const [q, fa, ms, mt] = await Promise.all([
+            const [q, fa, ms, mt, sd] = await Promise.all([
                 opcional(() => db.from("qualidade").select("*").limit(1), []),
                 opcional(() => db.from("funil_agora").select("*"), []),
                 opcional(() => db.from("metas_sdr").select("*"), []),
                 opcional(() => db.from("metas_taxa").select("*").limit(1), []),
+                opcional(() => db.from("saude_das_cargas").select("*"), []),
             ]);
             setQualidade(q[0] || null);
             setFunilAgora(fa);
             setMetas({ sdr: ms, taxa: mt[0] || null });
+            setSaude(sd);
+            setFalhas(falhou);
             setEstado({ carregando: false, erro: null, em: new Date() });
         }
         catch (e) {
@@ -518,7 +544,8 @@ function usarDados(de, ate, prevDe) {
         return () => clearInterval(t);
     }, [buscar]);
     return { estado, fato, motivos, sla, esforco, tempoAntigo, pendentes,
-        carteiraEsf, robo, preench, qualidade, funilAgora, metas, recarregar: buscar };
+        carteiraEsf, robo, preench, qualidade, funilAgora, metas,
+        falhas, saude, recarregar: buscar };
 }
 /* ===================== app ===================== */
 function Painel({ sessao }) {
@@ -587,13 +614,19 @@ function Painel({ sessao }) {
         aplicar(d.sla).forEach((r) => {
             CAMPOS_TEMPO.forEach((k) => (o[k] += Number(r[k]) || 0));
             const base = Number(r.com_medida) || 0;
+            /* A base do "até falar" é MENOR: nem toda ligação vira conversa.
+               Ponderar as duas médias pelo mesmo número inclinava o resultado
+               para os dias em que se ligou muito e se falou pouco. A coluna
+               com_medida_falar veio na correção de 08/09; sem ela, cai no
+               com_medida como antes para o painel não quebrar. */
+            const baseFalar = r.com_medida_falar != null ? Number(r.com_medida_falar) || 0 : base;
             if (r.minutos_medio != null) {
                 o.soma += Number(r.minutos_medio) * base;
                 o.n += base;
             }
             if (r.minutos_ate_falar != null) {
-                o.somaFalar += Number(r.minutos_ate_falar) * base;
-                o.nFalar += base;
+                o.somaFalar += Number(r.minutos_ate_falar) * baseFalar;
+                o.nFalar += baseFalar;
             }
         });
         o.medio = o.n ? o.soma / o.n : null;
@@ -623,8 +656,11 @@ function Painel({ sessao }) {
                 vendas: r ? r.vendas : 0,
                 receita: r ? r.receita : 0,
                 marcou: r ? r.agendamentos_marcados : 0,
-                por_agendamento: div(e.ligacoes_tentadas, r ? r.agendamentos_marcados : 0),
-                reais_por_ligacao: div(r ? r.receita : 0, e.ligacoes_tentadas) };
+                /* Estas duas cruzam esforço com RESULTADO, e o resultado só existe
+                   no CAR SERVICE. Por isso dividem pelas ligações de dentro do
+                   funil, não pelo total — senão comparariam bases diferentes. */
+                por_agendamento: div(e.ligacoes_tentadas - e.ligacoes_fora, r ? r.agendamentos_marcados : 0),
+                reais_por_ligacao: div(r ? r.receita : 0, e.ligacoes_tentadas - e.ligacoes_fora) };
         }).filter((x) => x.ligacoes_tentadas > 0 || x.whatsapp_enviados > 0);
     }, [esforcoNoPeriodo, porSdr]);
     /* O vocabulário antigo sai do gráfico e vira nota de rodapé. Misturar
@@ -663,7 +699,13 @@ function Painel({ sessao }) {
         return m;
     }, [d.carteiraEsf, f]);
     const ligacoesNaCarteiraTot = useMemo(() => aplicar(d.carteiraEsf).reduce((s2, r) => s2 + (Number(r.ligacoes_na_carteira) || 0), 0), [d.carteiraEsf, f]);
-    const roboTot = useMemo(() => aplicar(d.robo).reduce((s2, r) => s2 + (Number(r.mensagens) || 0), 0), [d.robo, f]);
+    /* O robô, separado de quem responde a ele.
+       Até 08/09 esta conta somava as duas direções e o painel dizia "o robô
+       mandou 4.006" — sendo que 2.596 daquelas mensagens foram o CLIENTE
+       respondendo. Mensagem recebida também chega sem autor, e era isso que
+       confundia a view. */
+    const roboEnviou = useMemo(() => aplicar(d.robo).reduce((s2, r) => s2 + (Number(r.enviadas_pelo_robo) || 0), 0), [d.robo, f]);
+    const clienteRespondeu = useMemo(() => aplicar(d.robo).reduce((s2, r) => s2 + (Number(r.recebidas_do_cliente) || 0), 0), [d.robo, f]);
     /* Visitas vencidas que ninguém marcou o desfecho. Enquanto isso existir,
        a taxa de comparecimento divide por um total que inclui visitas sobre
        as quais o CRM não sabe nada — e sai menor do que a realidade. */
@@ -701,11 +743,29 @@ function Painel({ sessao }) {
         }), { exigidos: 0, ok: 0, leads: 0, agendados: 0 });
         return { lista, geral: div(tot.ok, tot.exigidos), tot };
     }, [d.preench, f]);
+    /* A IDADE DO DADO, que é diferente da hora do carregamento.
+       No dia 08/09 o painel exibia "atualizado 10:47" com ligação de vinte
+       horas antes: o relógio dizia que a TELA estava viva, não que o DADO
+       estava. Agora quem manda é a saude_das_cargas.
+       Fora do expediente o atraso é normal e não vira alarme. */
+    const horaSP = new Date().getHours();
+    const emExpediente = horaSP >= 8 && horaSP < 21;
+    const frescor = useMemo(() => {
+        const linhas = (d.saude || [])
+            .map((r) => ({ fonte: r.fonte, min: Number(r.atraso_min) }))
+            .filter((x) => Number.isFinite(x.min));
+        if (!linhas.length)
+            return null;
+        return { linhas, pior: linhas.reduce((m, x) => (x.min > m.min ? x : m)) };
+    }, [d.saude]);
+    const LIMITE_MIN = 75; // a carga roda de hora em hora
+    const dadoVelho = !!(frescor && emExpediente && frescor.pior.min > LIMITE_MIN);
+    const idade = (min) => (min >= 120 ? `${Math.round(min / 60)}h` : `${Math.round(min)} min`);
     const metaTaxa = d.metas.taxa || { taxa_agendamento: 25, taxa_show: 70, pct_trabalhados: 95, sla_ate_15: 80 };
     /* Quantos segundos de ligação contam como conversa. Vem do banco para
        poder mudar sem republicar o painel. */
     const segConversa = Number(metaTaxa.segundos_conversa || 30);
-    const reaisPorLigacaoGeral = div(a.receita, esf.ligacoes_tentadas);
+    const reaisPorLigacaoGeral = div(a.receita, esf.ligacoes_tentadas - esf.ligacoes_fora);
     const rotulo = f.periodo === "custom" ? `${brFull(de)} a ${brFull(ate)}` : PERIODOS[f.periodo];
     const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
     const KPIS = [
@@ -752,13 +812,17 @@ function Painel({ sessao }) {
                         React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 15, fontWeight: 700, color: "#fff" } }, "Car Service"),
                         React.createElement("div", { style: { fontSize: 11.5, color: "rgba(255,255,255,.6)" } }, "Performance de SDR")),
                     React.createElement("span", { style: { marginLeft: 6, fontSize: 11, padding: "3px 9px", borderRadius: 99,
-                            background: d.estado.carregando ? "rgba(255,255,255,.14)" : "rgba(255,191,0,.16)",
-                            color: d.estado.carregando ? "rgba(255,255,255,.7)" : T.marca, fontWeight: 500,
-                            whiteSpace: "nowrap" } }, d.estado.carregando
+                            background: d.estado.carregando ? "rgba(255,255,255,.14)"
+                                : dadoVelho ? "rgba(193,18,31,.30)" : "rgba(255,191,0,.16)",
+                            color: d.estado.carregando ? "rgba(255,255,255,.7)"
+                                : dadoVelho ? "#FFC9CD" : T.marca,
+                            fontWeight: dadoVelho ? 700 : 500, whiteSpace: "nowrap" } }, d.estado.carregando
                         ? "atualizando…"
-                        : d.estado.em
-                            ? `atualizado ${d.estado.em.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
-                            : "ao vivo")),
+                        : dadoVelho
+                            ? `⚠ ${frescor.pior.fonte} parado há ${idade(frescor.pior.min)}`
+                            : d.estado.em
+                                ? `atualizado ${d.estado.em.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+                                : "ao vivo")),
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
                     React.createElement("span", { style: { fontSize: 12, color: "rgba(255,255,255,.55)" } }, sessao.user.email),
                     React.createElement("button", { onClick: () => db.auth.signOut(), style: { background: "transparent",
@@ -773,6 +837,25 @@ function Painel({ sessao }) {
                     "Confira se o schema ",
                     React.createElement("code", null, "comercial"),
                     " est\u00E1 exposto em Project Settings \u2192 API."))),
+            d.falhas.length > 0 && (React.createElement(Card, { className: "p16", style: { borderColor: "#F0C3C6", background: "#FDF3F3", marginBottom: 16 } },
+                React.createElement("div", { style: { fontSize: 13, color: T.bad, fontWeight: 600 } }, d.falhas.length === 1 ? "Uma seção não carregou" : `${d.falhas.length} seções não carregaram`),
+                React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 6, lineHeight: 1.6 } },
+                    d.falhas.map((x) => x.nome).join(", "),
+                    " \u2014 os n\u00FAmeros dessas se\u00E7\u00F5es est\u00E3o incompletos ou zerados por falha de leitura, n\u00E3o por falta de trabalho. Aperte Atualizar; se persistir, \u00E9 o banco."))),
+            dadoVelho && (React.createElement(Card, { className: "p16", style: { borderColor: "#F0C3C6", background: "#FDF3F3", marginBottom: 16 } },
+                React.createElement("div", { style: { fontSize: 13, color: T.bad, fontWeight: 600 } },
+                    "\u26A0 Dado desatualizado \u2014 ",
+                    frescor.pior.fonte,
+                    " n\u00E3o recebe nada h\u00E1 ",
+                    idade(frescor.pior.min)),
+                React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 6, lineHeight: 1.6 } },
+                    "A tela est\u00E1 atualizando normalmente; quem parou foi a carga autom\u00E1tica. Os n\u00FAmeros abaixo dessa fonte est\u00E3o menores que a realidade.",
+                    frescor.linhas.length > 1 && (React.createElement("span", null,
+                        " Idade de cada fonte: ",
+                        frescor.linhas
+                            .slice().sort((x, y) => y.min - x.min)
+                            .map((x) => `${x.fonte} ${idade(x.min)}`).join(" · "),
+                        "."))))),
             React.createElement(Card, { className: "p12", style: { position: "sticky", top: 54, zIndex: 20 } },
                 React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
                     React.createElement(Select, { value: f.periodo, onChange: (v) => set("periodo", v), options: Object.entries(PERIODOS).map(([v, l]) => ({ v, l })) }),
@@ -890,20 +973,25 @@ function Painel({ sessao }) {
                             " leads sem SDR"),
                         " no per\u00EDodo \u2014 entraram e n\u00E3o foram distribu\u00EDdos a ningu\u00E9m. N\u00E3o entram no placar acima porque n\u00E3o s\u00E3o de ningu\u00E9m; entram no total.",
                         semSdr.vendas > 0 && ` Ainda assim, ${nInt(semSdr.vendas)} viraram venda.`)))),
-            esforcoPorSdr.length > 0 && (React.createElement(Secao, { n: 4, titulo: "Esfor\u00E7o \u2014 por quem executou", nota: `Chave diferente da seção 3: aqui o crédito é de quem FEZ, não de quem é dono do lead. A ligação vem do discador, que sabe qual ramal discou; o Kommo não sabe. "Tentou" conta toda discagem; "atendeu" usa o motivo real de encerramento, então caixa postal não conta; "falou com" são pessoas em conversas acima de ${segConversa}s. Mensagem do robô de triagem fica fora: automação não é esforço de ninguém.` },
+            esforcoPorSdr.length > 0 && (React.createElement(Secao, { n: 4, titulo: "Esfor\u00E7o \u2014 por quem executou", nota: `Chave diferente da seção 3: aqui o crédito é de quem FEZ, não de quem é dono do lead. A ligação vem do discador, que sabe qual ramal discou; o Kommo não sabe. "Tentou" conta toda discagem; "atendeu" usa o motivo real de encerramento, então caixa postal não conta; "falou com" são pessoas em conversas acima de ${segConversa}s. Mensagem do robô de triagem fica fora: automação não é esforço de ninguém. "Fora do funil" é trabalho em lead de outro funil, quase sempre o Remarketing, que a equipe atende quando não há lead novo entrando — conta como esforço porque a pessoa fez, mas o resultado dele não aparece nas seções de carteira.` },
                 React.createElement("div", { className: "grid-kpi", style: { marginBottom: 16 } },
-                    React.createElement(Kpi, { label: "Liga\u00E7\u00F5es tentadas", value: nInt(esf.ligacoes_tentadas), sub: "Inclui caixa postal e n\u00E3o atendida" }),
+                    React.createElement(Kpi, { label: "Liga\u00E7\u00F5es tentadas", value: nInt(esf.ligacoes_tentadas), sub: esf.ligacoes_fora
+                            ? `${nInt(esf.ligacoes_fora)} fora do CAR SERVICE (${nPct(esf.pct_fora, 0)})`
+                            : "Inclui caixa postal e não atendida" }),
                     React.createElement(Kpi, { label: "Falou com", value: nInt(esf.pessoas_com_quem_falou), sub: `Pessoas, em ligações acima de ${segConversa}s` }),
                     React.createElement(Kpi, { label: "Taxa de atendimento", value: nPct(esf.taxa_atendimento), sub: "Pelo motivo real de encerramento" }),
                     React.createElement(Kpi, { label: "Discagens por conversa", value: nNum(esf.discagens_por_conversa, 1), sub: "Quanto custa cada conversa" }),
                     React.createElement(Kpi, { label: "Horas ao telefone", value: nNum(esf.horas, 1), sub: "Soma da dura\u00E7\u00E3o das liga\u00E7\u00F5es" }),
-                    React.createElement(Kpi, { label: "WhatsApp de pessoa", value: nInt(esf.whatsapp_enviados), sub: roboTot ? `O robô de triagem mandou ${nInt(roboTot)} à parte` : "Digitadas por gente" })),
+                    React.createElement(Kpi, { label: "WhatsApp de pessoa", value: nInt(esf.whatsapp_enviados), sub: roboEnviou
+                            ? `À parte: o robô enviou ${nInt(roboEnviou)} e o cliente respondeu ${nInt(clienteRespondeu)}`
+                            : "Digitadas por gente" })),
                 React.createElement(Card, { className: "p0 rolagem" },
                     React.createElement("table", null,
                         React.createElement("thead", null,
                             React.createElement("tr", null,
                                 React.createElement(Th, null, "Executor"),
                                 React.createElement(Th, { right: true }, "Tentou"),
+                                React.createElement(Th, { right: true }, "Fora do funil"),
                                 React.createElement(Th, { right: true }, "% atendeu"),
                                 React.createElement(Th, { right: true }, "Falou com"),
                                 React.createElement(Th, { right: true }, "Disc./conversa"),
@@ -913,6 +1001,7 @@ function Painel({ sessao }) {
                             [...esforcoPorSdr].sort((x, y) => y.ligacoes_tentadas - x.ligacoes_tentadas).map((s) => (React.createElement("tr", { key: s.nome },
                                 React.createElement(Td, { bold: true }, s.nome),
                                 React.createElement(Td, { right: true }, nInt(s.ligacoes_tentadas)),
+                                React.createElement(Td, { right: true, color: T.muted }, s.ligacoes_fora ? `${nInt(s.ligacoes_fora)} · ${nPct(s.pct_fora, 0)}` : "—"),
                                 React.createElement(Td, { right: true }, nPct(s.taxa_atendimento)),
                                 React.createElement(Td, { right: true }, nInt(s.pessoas_com_quem_falou)),
                                 React.createElement(Td, { right: true, color: s.discagens_por_conversa > esf.discagens_por_conversa ? T.bad : T.good }, nNum(s.discagens_por_conversa, 1)),
@@ -921,6 +1010,7 @@ function Painel({ sessao }) {
                             React.createElement("tr", { style: { background: T.canvas } },
                                 React.createElement(Td, { bold: true }, "Total"),
                                 React.createElement(Td, { right: true, bold: true }, nInt(esf.ligacoes_tentadas)),
+                                React.createElement(Td, { right: true, bold: true, color: T.muted }, esf.ligacoes_fora ? `${nInt(esf.ligacoes_fora)} · ${nPct(esf.pct_fora, 0)}` : "—"),
                                 React.createElement(Td, { right: true, bold: true }, nPct(esf.taxa_atendimento)),
                                 React.createElement(Td, { right: true, bold: true }, nInt(esf.pessoas_com_quem_falou)),
                                 React.createElement(Td, { right: true, bold: true }, nNum(esf.discagens_por_conversa, 1)),
@@ -1088,7 +1178,17 @@ function Painel({ sessao }) {
                     React.createElement(Kpi, { label: "Vendas sem valor", value: nInt(q.ganho_sem_valor), sub: "Fecharam com R$ 0", tone: q.ganho_sem_valor > 0 ? "bad" : "good" }),
                     React.createElement(Kpi, { label: "Valores em quarentena", value: nInt(q.valor_em_quarentena), sub: "Acima de R$ 100 mil, fora do c\u00E1lculo", tone: q.valor_em_quarentena > 0 ? "bad" : "good" })))),
             React.createElement("footer", { style: { marginTop: 48, paddingTop: 18, borderTop: `1px solid ${T.hair}`,
-                    fontSize: 11.5, color: T.muted, lineHeight: 1.7, maxWidth: "80ch" } }, "Fonte: o funil chamado \"Auto Care\" no Kommo (o nome da etiqueta l\u00E1 dentro), via integra\u00E7\u00E3o autom\u00E1tica. A etapa \"AGENTE DE IA\" fica fora de todos os n\u00FAmeros. Agendamento conta no dia em que uma pessoa marcou; visita conta no dia agendado; venda na data da venda; perda na data de fechamento. Movimenta\u00E7\u00E3o feita por automa\u00E7\u00E3o n\u00E3o conta como produtividade. Vendas acima de R$ 100 mil entram na contagem, mas ficam fora da receita at\u00E9 serem conferidas. Liga\u00E7\u00F5es e mensagens v\u00EAm das notas e dos eventos do pr\u00F3prio Kommo, n\u00E3o do discador \u2014 trocar o API4COM pelo 3C n\u00E3o quebra este painel. A liga\u00E7\u00E3o \u00E9 creditada ao dono do lead, porque a nota \u00E9 criada pela integra\u00E7\u00E3o e n\u00E3o pela pessoa que discou. Mensagem sem autor \u00E9 do rob\u00F4 de triagem e fica fora do esfor\u00E7o da equipe."))));
+                    fontSize: 11.5, color: T.muted, lineHeight: 1.7, maxWidth: "80ch" } },
+                React.createElement("b", null, "De onde vem cada n\u00FAmero."),
+                " A carteira \u2014 leads, agendamentos, visitas, vendas e receita \u2014 vem do funil do CAR SERVICE no Kommo \u2014 que l\u00E1 dentro ainda se chama \"Auto Care\", id 13727267, um dos 29 funis da conta \u2014 e \u00E9 creditada ao dono do lead. O esfor\u00E7o \u2014 liga\u00E7\u00F5es, tempo ao telefone e taxa de atendimento \u2014 vem do discador API4COM, que \u00E9 quem sabe qual ramal discou; o Kommo n\u00E3o sabe, porque quem escreve a nota da liga\u00E7\u00E3o \u00E9 a integra\u00E7\u00E3o e n\u00E3o a pessoa. Por isso a se\u00E7\u00E3o 4 tem uma chave diferente da se\u00E7\u00E3o 3, e por isso trocar o API4COM por outro discador exige refazer essa parte. O WhatsApp vem do Kommo, onde o autor da mensagem \u00E9 confi\u00E1vel.",
+                React.createElement("br", null),
+                React.createElement("br", null),
+                React.createElement("b", null, "Como o dia \u00E9 contado."),
+                " Sempre no fuso de S\u00E3o Paulo. Agendamento conta no dia em que uma pessoa marcou; visita, no dia agendado; venda, na data da venda; perda, na data de fechamento. Movimenta\u00E7\u00E3o feita por automa\u00E7\u00E3o n\u00E3o conta como produtividade de ningu\u00E9m. A etapa \"AGENTE DE IA\" fica fora dos n\u00FAmeros do per\u00EDodo, mas aparece na se\u00E7\u00E3o 9, que \u00E9 uma foto do funil aberto agora.",
+                React.createElement("br", null),
+                React.createElement("br", null),
+                React.createElement("b", null, "O que o painel n\u00E3o v\u00EA."),
+                " Venda acima de R$ 100 mil entra na contagem, mas com receita zerada at\u00E9 algu\u00E9m conferir o valor \u2014 hoje h\u00E1 uma, de R$ 6,95 milh\u00F5es, que \u00E9 erro de digita\u00E7\u00E3o. Liga\u00E7\u00E3o para lead de outro funil \u2014 quase sempre o Remarketing, que a equipe trabalha quando n\u00E3o h\u00E1 lead novo \u2014 entra no esfor\u00E7o da se\u00E7\u00E3o 4 e aparece na coluna \"fora do funil\". Ela n\u00E3o entra em nenhuma outra se\u00E7\u00E3o: agendamento, visita e venda desses leads continuam invis\u00EDveis aqui, por decis\u00E3o de escopo. Mensagem sem autor \u00E9 do rob\u00F4 de triagem quando sai e \u00E9 o cliente quando entra \u2014 as duas s\u00E3o mostradas separadas, nunca somadas."))));
 }
 function App() {
     const [sessao, setSessao] = useState(undefined);
@@ -1102,8 +1202,8 @@ function App() {
                 setSessao((x) => (x === undefined ? null : x));
         }, 8000);
         db.auth.getSession()
-            .then(({ data }) => { if (vivo)
-            setSessao(data.session ?? null); })
+            .then(({ data }) => { var _a; if (vivo)
+            setSessao((_a = data.session) !== null && _a !== void 0 ? _a : null); })
             .catch(() => { if (vivo)
             setSessao(null); })
             .finally(() => clearTimeout(prazo));
@@ -1117,13 +1217,15 @@ function App() {
     return sessao ? React.createElement(Painel, { sessao: sessao }) : React.createElement(Login, null);
 }
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+
 }
+
 /* Carregamento do painel.
    Os gráficos são desenhados em SVG pelo próprio código — não há mais
    biblioteca de gráficos para baixar, então sobrou só React e o cliente
    do Supabase, que vêm de uma CDN só e são verificados abaixo. */
 (function () {
-  var VERSAO = "v11"; 
+  var VERSAO = "v12";
   console.log("Painel SDR " + VERSAO);
   var raiz = document.getElementById("root");
 
