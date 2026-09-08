@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Painel de SDR — CAR SERVICE</title>
-<meta name="painel-versao" content="v12">
+<meta name="painel-versao" content="v13">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -82,17 +82,148 @@ const CONFIG = {
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
+/* Compatibilidade com o navegador da TV.
+   O painel vive numa TV LG na sala dos SDRs, e o navegador dela é um
+   Chromium travado no ano do aparelho — em muitos modelos, 2016. Ele não
+   conhece métodos que o Chrome ganhou de 2016 para cá.
+
+   Isto não é "boa prática por precaução": em 08/09/2026 a TV mostrou
+   página em branco por causa disso. Cada função abaixo é usada de
+   verdade pelo painel; nenhuma está aqui por enfeite. */
+(function () {
+  // Usado em br(), para a data no formato 08/09
+  if (!String.prototype.padStart) {
+    String.prototype.padStart = function (alvo, preencher) {
+      var s = String(this);
+      preencher = preencher === undefined ? " " : String(preencher);
+      if (s.length >= alvo || !preencher) return s;
+      var falta = alvo - s.length, enche = "";
+      while (enche.length < falta) enche += preencher;
+      return enche.slice(0, falta) + s;
+    };
+  }
+
+  // Usado para montar a lista de períodos do filtro
+  if (!Object.entries) {
+    Object.entries = function (o) {
+      var r = [];
+      for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) r.push([k, o[k]]);
+      return r;
+    };
+  }
+  if (!Object.values) {
+    Object.values = function (o) {
+      var r = [];
+      for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) r.push(o[k]);
+      return r;
+    };
+  }
+
+  // Usado no filtro de etapas da seção 9
+  if (!Array.prototype.includes) {
+    Array.prototype.includes = function (x) { return this.indexOf(x) !== -1; };
+  }
+  if (!String.prototype.includes) {
+    String.prototype.includes = function (x) { return this.indexOf(x) !== -1; };
+  }
+
+  // Usado na leitura da saude_das_cargas
+  if (!Number.isFinite) {
+    Number.isFinite = function (n) { return typeof n === "number" && isFinite(n); };
+  }
+  if (!Number.isNaN) {
+    Number.isNaN = function (n) { return n !== n; };
+  }
+
+  if (!Object.assign) {
+    Object.assign = function (alvo) {
+      for (var i = 1; i < arguments.length; i++) {
+        var f = arguments[i];
+        if (!f) continue;
+        for (var k in f) if (Object.prototype.hasOwnProperty.call(f, k)) alvo[k] = f[k];
+      }
+      return alvo;
+    };
+  }
+
+  if (!Array.prototype.find) {
+    Array.prototype.find = function (fn) {
+      for (var i = 0; i < this.length; i++) if (fn(this[i], i, this)) return this[i];
+      return undefined;
+    };
+  }
+})();
+
+</script>
+
+<script>
 function iniciarPainel() {
 "use strict";
 /* Painel de SDR — The Wonder / Car Service
    Lê as views do Supabase. Sem lançamento manual: o dado vem do Kommo. */
-const { useState, useEffect, useMemo, useCallback } = React;
+var __assign = (this && this.__assign) || function () {
+    __assign = Object.assign || function(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                t[p] = s[p];
+        }
+        return t;
+    };
+    return __assign.apply(this, arguments);
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __generator = (this && this.__generator) || function (thisArg, body) {
+    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
+    return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+    function verb(n) { return function (v) { return step([n, v]); }; }
+    function step(op) {
+        if (f) throw new TypeError("Generator is already executing.");
+        while (g && (g = 0, op[0] && (_ = 0)), _) try {
+            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+            if (y = 0, t) op = [op[0] & 2, t.value];
+            switch (op[0]) {
+                case 0: case 1: t = op; break;
+                case 4: _.label++; return { value: op[1], done: false };
+                case 5: _.label++; y = op[1]; op = [0]; continue;
+                case 7: op = _.ops.pop(); _.trys.pop(); continue;
+                default:
+                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+                    if (t[2]) _.ops.pop();
+                    _.trys.pop(); continue;
+            }
+            op = body.call(thisArg, _);
+        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+    }
+};
+var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
+    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+        if (ar || !(i in from)) {
+            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+            ar[i] = from[i];
+        }
+    }
+    return to.concat(ar || Array.prototype.slice.call(from));
+};
+var useState = React.useState, useEffect = React.useEffect, useMemo = React.useMemo, useCallback = React.useCallback;
 /* Sem biblioteca de gráficos. Foram três rodadas de problema com CDN —
    uma fonte que aceitava a conexão e nunca respondia, depois o PropTypes
    que o React 18 deixou de embutir. Os dois gráficos deste painel são
    simples o bastante para desenhar em SVG, e assim não dependem de rede
    nem de versão de terceiro. */
-const db = window.supabase.createClient(CONFIG.url, CONFIG.anonKey, {
+var db = window.supabase.createClient(CONFIG.url, CONFIG.anonKey, {
     db: { schema: "comercial" },
 });
 /* ===================== tokens da marca =====================
@@ -104,7 +235,7 @@ const db = window.supabase.createClient(CONFIG.url, CONFIG.anonKey, {
    marca, mas indicam estado; ficam nos tons mais escuros que passam em
    contraste sobre branco (5,3:1 e 6,2:1) e nunca aparecem sozinhos —
    sempre com número, seta ou rótulo ao lado. */
-const T = {
+var T = {
     ink: "#1A1A1A", ink2: "#4D4D4D", muted: "#666666", hair: "#E2E2E2",
     canvas: "#EEEEEE", surface: "#FFFFFF",
     marca: "#FFBF00", preto: "#000000",
@@ -113,38 +244,50 @@ const T = {
 /* Duas famílias com papéis distintos: a de marca aparece em título,
    número grande e rótulo; a do sistema carrega tabela e texto corrido,
    onde legibilidade em corpo pequeno vale mais que personalidade. */
-const F_MARCA = '"PoppinsMarca", ui-sans-serif, system-ui, sans-serif';
-const F_UI = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
-const F_NUM = F_MARCA;
+var F_MARCA = '"PoppinsMarca", ui-sans-serif, system-ui, sans-serif';
+var F_UI = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+var F_NUM = F_MARCA;
 /* O símbolo da marca, vetorizado do manual. Caminho único, sem imagem. */
-const Marca = ({ tam = 24, cor = "#000000" }) => (React.createElement("svg", { width: tam, height: tam, viewBox: "0 0 360 360", fill: cor, role: "img", "aria-label": "The Wonder", style: { display: "block" } },
-    React.createElement("path", { d: "M360 72L288 0L216 72L288 216L180 108L72 216L144 72L72 0L0 72L72 180L0 288L72 360L180 252L288 360L360 288L288 180Z" })));
+var Marca = function (_a) {
+    var _b = _a.tam, tam = _b === void 0 ? 24 : _b, _c = _a.cor, cor = _c === void 0 ? "#000000" : _c;
+    return (React.createElement("svg", { width: tam, height: tam, viewBox: "0 0 360 360", fill: cor, role: "img", "aria-label": "The Wonder", style: { display: "block" } },
+        React.createElement("path", { d: "M360 72L288 0L216 72L288 216L180 108L72 216L144 72L72 0L0 72L72 180L0 288L72 360L180 252L288 360L360 288L288 180Z" })));
+};
 /* O bloco amarelo com o símbolo preto — o uso de app do manual. */
-const Selo = ({ tam = 34 }) => (React.createElement("div", { style: { width: tam, height: tam, background: T.marca, borderRadius: 8,
-        display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } },
-    React.createElement(Marca, { tam: Math.round(tam * 0.6), cor: T.preto })));
+var Selo = function (_a) {
+    var _b = _a.tam, tam = _b === void 0 ? 34 : _b;
+    return (React.createElement("div", { style: { width: tam, height: tam, background: T.marca, borderRadius: 8,
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } },
+        React.createElement(Marca, { tam: Math.round(tam * 0.6), cor: T.preto })));
+};
 /* ===================== helpers ===================== */
-const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const hoje = () => iso(new Date());
-const parseISO = (s) => { const [y, m, d] = String(s).split("-").map(Number); return new Date(y, m - 1, d); };
-const addDays = (s, n) => { const d = parseISO(s); d.setDate(d.getDate() + n); return iso(d); };
-const diasEntre = (a, b) => Math.round((parseISO(b) - parseISO(a)) / 86400000) + 1;
-const br = (s) => { const d = parseISO(s); return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`; };
-const brFull = (s) => parseISO(s).toLocaleDateString("pt-BR");
-const div = (a, b) => (b ? a / b : 0);
-const nInt = (n) => (Number(n) || 0).toLocaleString("pt-BR");
-const nPct = (n, d = 1) => `${((Number(n) || 0) * 100).toFixed(d).replace(".", ",")}%`;
-const nNum = (n, d = 1) => (Number(n) || 0).toFixed(d).replace(".", ",");
-const nReal = (n) => (Number(n) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
-const CAMPOS = [
+var iso = function (d) { return "".concat(d.getFullYear(), "-").concat(String(d.getMonth() + 1).padStart(2, "0"), "-").concat(String(d.getDate()).padStart(2, "0")); };
+var hoje = function () { return iso(new Date()); };
+var parseISO = function (s) { var _a = String(s).split("-").map(Number), y = _a[0], m = _a[1], d = _a[2]; return new Date(y, m - 1, d); };
+var addDays = function (s, n) { var d = parseISO(s); d.setDate(d.getDate() + n); return iso(d); };
+var diasEntre = function (a, b) { return Math.round((parseISO(b) - parseISO(a)) / 86400000) + 1; };
+var br = function (s) { var d = parseISO(s); return "".concat(String(d.getDate()).padStart(2, "0"), "/").concat(String(d.getMonth() + 1).padStart(2, "0")); };
+var brFull = function (s) { return parseISO(s).toLocaleDateString("pt-BR"); };
+var div = function (a, b) { return (b ? a / b : 0); };
+var nInt = function (n) { return (Number(n) || 0).toLocaleString("pt-BR"); };
+var nPct = function (n, d) {
+    if (d === void 0) { d = 1; }
+    return "".concat(((Number(n) || 0) * 100).toFixed(d).replace(".", ","), "%");
+};
+var nNum = function (n, d) {
+    if (d === void 0) { d = 1; }
+    return (Number(n) || 0).toFixed(d).replace(".", ",");
+};
+var nReal = function (n) { return (Number(n) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }); };
+var CAMPOS = [
     "leads_recebidos", "leads_trabalhados", "leads_sem_atendimento",
     "agendamentos_marcados", "visitas_do_dia", "comparecimentos",
     "reagendamentos", "vendas", "perdidos", "receita",
 ];
 function somar(linhas) {
-    const o = {};
-    CAMPOS.forEach((k) => (o[k] = 0));
-    linhas.forEach((r) => CAMPOS.forEach((k) => (o[k] += Number(r[k]) || 0)));
+    var o = {};
+    CAMPOS.forEach(function (k) { return (o[k] = 0); });
+    linhas.forEach(function (r) { return CAMPOS.forEach(function (k) { return (o[k] += Number(r[k]) || 0); }); });
     o.pct_trabalhados = div(o.leads_trabalhados, o.leads_recebidos);
     o.taxa_agendamento = div(o.agendamentos_marcados, o.leads_recebidos);
     o.taxa_show = div(o.comparecimentos, o.visitas_do_dia);
@@ -159,7 +302,7 @@ function somar(linhas) {
    ligação acima do limite de conversa — é o indicador de resultado do
    telefone. whatsapp_bot fica separado de propósito: é cobertura da
    automação, não trabalho de SDR. */
-const CAMPOS_ESFORCO = [
+var CAMPOS_ESFORCO = [
     "ligacoes_tentadas", "ligacoes_atendidas", "ligacoes_recebidas",
     "conversas", "pessoas_com_quem_falou",
     "whatsapp_enviados", "whatsapp_bot", "whatsapp_recebidos",
@@ -170,9 +313,9 @@ const CAMPOS_ESFORCO = [
     "ligacoes_fora", "whatsapp_fora", "segundos_fora",
 ];
 function somarEsforco(linhas) {
-    const o = {};
-    CAMPOS_ESFORCO.forEach((k) => (o[k] = 0));
-    linhas.forEach((r) => CAMPOS_ESFORCO.forEach((k) => (o[k] += Number(r[k]) || 0)));
+    var o = {};
+    CAMPOS_ESFORCO.forEach(function (k) { return (o[k] = 0); });
+    linhas.forEach(function (r) { return CAMPOS_ESFORCO.forEach(function (k) { return (o[k] += Number(r[k]) || 0); }); });
     o.taxa_atendimento = div(o.ligacoes_atendidas, o.ligacoes_tentadas);
     o.discagens_por_conversa = div(o.ligacoes_tentadas, o.pessoas_com_quem_falou);
     o.horas = o.segundos_ao_telefone / 3600;
@@ -181,16 +324,16 @@ function somarEsforco(linhas) {
     o.pct_fora = div(o.ligacoes_fora, o.ligacoes_tentadas);
     return o;
 }
-const CAMPOS_TEMPO = [
+var CAMPOS_TEMPO = [
     "leads", "com_medida", "nunca_ligaram",
     "ate_5min", "ate_15min", "ate_60min", "acima_de_1h",
 ];
-const PERIODOS = {
+var PERIODOS = {
     hoje: "Hoje", ontem: "Ontem", "7d": "Últimos 7 dias", "30d": "Últimos 30 dias",
     mes: "Mês atual", mesPassado: "Mês passado", custom: "Período personalizado",
 };
 function faixa(f) {
-    const t = hoje();
+    var t = hoje();
     switch (f.periodo) {
         case "hoje": return [t, t];
         case "ontem": return [addDays(t, -1), addDays(t, -1)];
@@ -198,31 +341,41 @@ function faixa(f) {
         case "30d": return [addDays(t, -29), t];
         case "mes": return [t.slice(0, 8) + "01", t];
         case "mesPassado": {
-            const p = addDays(t.slice(0, 8) + "01", -1);
+            var p = addDays(t.slice(0, 8) + "01", -1);
             return [p.slice(0, 8) + "01", p];
         }
         default: return [f.de, f.ate];
     }
 }
 /* ===================== UI ===================== */
-const Card = ({ children, className = "", style = {} }) => (React.createElement("div", { className: "card " + className, style: style }, children));
-const Label = ({ children, style = {} }) => (React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 10.5, letterSpacing: ".08em",
-        textTransform: "uppercase", color: T.muted, fontWeight: 500, ...style } }, children));
-const Metric = ({ value, size = 30, color = T.ink }) => (React.createElement("div", { style: { fontFamily: F_NUM, fontSize: size, fontWeight: 700, color, lineHeight: 1.1,
-        fontVariantNumeric: "tabular-nums", letterSpacing: "-.01em" } }, value));
-function Delta({ atual, anterior }) {
+var Card = function (_a) {
+    var children = _a.children, _b = _a.className, className = _b === void 0 ? "" : _b, _c = _a.style, style = _c === void 0 ? {} : _c;
+    return (React.createElement("div", { className: "card " + className, style: style }, children));
+};
+var Label = function (_a) {
+    var children = _a.children, _b = _a.style, style = _b === void 0 ? {} : _b;
+    return (React.createElement("div", { style: __assign({ fontFamily: F_MARCA, fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", color: T.muted, fontWeight: 500 }, style) }, children));
+};
+var Metric = function (_a) {
+    var value = _a.value, _b = _a.size, size = _b === void 0 ? 30 : _b, _c = _a.color, color = _c === void 0 ? T.ink : _c;
+    return (React.createElement("div", { style: { fontFamily: F_NUM, fontSize: size, fontWeight: 700, color: color, lineHeight: 1.1,
+            fontVariantNumeric: "tabular-nums", letterSpacing: "-.01em" } }, value));
+};
+function Delta(_a) {
+    var atual = _a.atual, anterior = _a.anterior;
     if (anterior == null || anterior === 0)
         return React.createElement("span", { style: { fontSize: 11, color: T.muted } }, "sem base anterior");
-    const v = (atual - anterior) / Math.abs(anterior);
-    const cor = Math.abs(v) < 0.005 ? T.muted : v > 0 ? T.good : T.bad;
+    var v = (atual - anterior) / Math.abs(anterior);
+    var cor = Math.abs(v) < 0.005 ? T.muted : v > 0 ? T.good : T.bad;
     return (React.createElement("span", { style: { fontSize: 11.5, color: cor, fontWeight: 600, fontVariantNumeric: "tabular-nums" } },
         v > 0 ? "▲" : v < 0 ? "▼" : "•",
         " ",
         nPct(Math.abs(v), 0),
         React.createElement("span", { style: { color: T.muted, fontWeight: 400 } }, " vs. anterior")));
 }
-function Kpi({ label, value, sub, foot, tone }) {
-    const cor = tone === "bad" ? T.bad : tone === "good" ? T.good : T.ink;
+function Kpi(_a) {
+    var label = _a.label, value = _a.value, sub = _a.sub, foot = _a.foot, tone = _a.tone;
+    var cor = tone === "bad" ? T.bad : tone === "good" ? T.good : T.ink;
     return (React.createElement(Card, { className: "p16", style: tone === "bad" ? { borderColor: "#F0C3C6" } : {} },
         React.createElement(Label, null, label),
         React.createElement("div", { style: { marginTop: 8 } },
@@ -230,77 +383,101 @@ function Kpi({ label, value, sub, foot, tone }) {
         sub && React.createElement("div", { style: { fontSize: 12, color: T.ink2, marginTop: 2 } }, sub),
         foot && React.createElement("div", { style: { marginTop: 4 } }, foot)));
 }
-const Barra = ({ pct, cor = T.ink, alt = 8 }) => (React.createElement("div", { style: { background: T.canvas, borderRadius: 99, height: alt, overflow: "hidden" } },
-    React.createElement("div", { style: { width: `${Math.max(0, Math.min(1, pct || 0)) * 100}%`, height: "100%",
-            background: cor, borderRadius: 99, transition: "width .4s ease" } })));
-const Th = ({ children, right, w }) => (React.createElement("th", { style: { textAlign: right ? "right" : "left", padding: "9px 10px", fontSize: 10.5,
-        letterSpacing: ".06em", textTransform: "uppercase", color: T.muted, fontWeight: 600,
-        borderBottom: `1px solid ${T.hair}`, whiteSpace: "nowrap", width: w,
-        background: T.surface, position: "sticky", top: 0 } }, children));
-const Td = ({ children, right, bold, color, style = {} }) => (React.createElement("td", { style: { textAlign: right ? "right" : "left", padding: "9px 10px", fontSize: 13,
-        color: color || T.ink, fontWeight: bold ? 700 : 400, fontVariantNumeric: "tabular-nums",
-        borderBottom: `1px solid ${T.hair}`, whiteSpace: "nowrap", ...style } }, children));
-const Select = ({ value, onChange, options, style = {} }) => (React.createElement("select", { value: value, onChange: (e) => onChange(e.target.value), style: { fontFamily: F_UI,
-        fontSize: 13, color: T.ink, background: T.surface, border: `1px solid ${T.hair}`,
-        borderRadius: 6, padding: "7px 9px", outline: "none", ...style } }, options.map((o) => React.createElement("option", { key: o.v, value: o.v }, o.l))));
-function Btn({ children, onClick, kind = "ghost", style = {}, type }) {
-    const kinds = {
+var Barra = function (_a) {
+    var pct = _a.pct, _b = _a.cor, cor = _b === void 0 ? T.ink : _b, _c = _a.alt, alt = _c === void 0 ? 8 : _c;
+    return (React.createElement("div", { style: { background: T.canvas, borderRadius: 99, height: alt, overflow: "hidden" } },
+        React.createElement("div", { style: { width: "".concat(Math.max(0, Math.min(1, pct || 0)) * 100, "%"), height: "100%",
+                background: cor, borderRadius: 99, transition: "width .4s ease" } })));
+};
+var Th = function (_a) {
+    var children = _a.children, right = _a.right, w = _a.w;
+    return (React.createElement("th", { style: { textAlign: right ? "right" : "left", padding: "9px 10px", fontSize: 10.5,
+            letterSpacing: ".06em", textTransform: "uppercase", color: T.muted, fontWeight: 600,
+            borderBottom: "1px solid ".concat(T.hair), whiteSpace: "nowrap", width: w,
+            background: T.surface, position: "sticky", top: 0 } }, children));
+};
+var Td = function (_a) {
+    var children = _a.children, right = _a.right, bold = _a.bold, color = _a.color, _b = _a.style, style = _b === void 0 ? {} : _b;
+    return (React.createElement("td", { style: __assign({ textAlign: right ? "right" : "left", padding: "9px 10px", fontSize: 13, color: color || T.ink, fontWeight: bold ? 700 : 400, fontVariantNumeric: "tabular-nums", borderBottom: "1px solid ".concat(T.hair), whiteSpace: "nowrap" }, style) }, children));
+};
+var Select = function (_a) {
+    var value = _a.value, onChange = _a.onChange, options = _a.options, _b = _a.style, style = _b === void 0 ? {} : _b;
+    return (React.createElement("select", { value: value, onChange: function (e) { return onChange(e.target.value); }, style: __assign({ fontFamily: F_UI, fontSize: 13, color: T.ink, background: T.surface, border: "1px solid ".concat(T.hair), borderRadius: 6, padding: "7px 9px", outline: "none" }, style) }, options.map(function (o) { return React.createElement("option", { key: o.v, value: o.v }, o.l); })));
+};
+function Btn(_a) {
+    var children = _a.children, onClick = _a.onClick, _b = _a.kind, kind = _b === void 0 ? "ghost" : _b, _c = _a.style, style = _c === void 0 ? {} : _c, type = _a.type;
+    var kinds = {
         solid: { background: T.ink, color: "#fff", borderColor: T.ink },
         accent: { background: T.marca, color: T.preto, borderColor: T.marca },
         ghost: {},
     };
-    return (React.createElement("button", { type: type, onClick: onClick, style: { fontFamily: F_UI, fontSize: 13, fontWeight: 600,
-            borderRadius: 6, padding: "8px 14px", cursor: "pointer", border: `1px solid ${T.hair}`,
-            background: T.surface, color: T.ink, ...kinds[kind], ...style } }, children));
+    return (React.createElement("button", { type: type, onClick: onClick, style: __assign(__assign({ fontFamily: F_UI, fontSize: 13, fontWeight: 600, borderRadius: 6, padding: "8px 14px", cursor: "pointer", border: "1px solid ".concat(T.hair), background: T.surface, color: T.ink }, kinds[kind]), style) }, children));
 }
-const Pill = ({ children, cor }) => (React.createElement("span", { style: { fontSize: 11, fontWeight: 600, color: cor, background: cor + "14",
-        border: `1px solid ${cor}33`, borderRadius: 99, padding: "2px 8px", whiteSpace: "nowrap" } }, children));
-function Dica({ active, payload, label, pct }) {
+var Pill = function (_a) {
+    var children = _a.children, cor = _a.cor;
+    return (React.createElement("span", { style: { fontSize: 11, fontWeight: 600, color: cor, background: cor + "14",
+            border: "1px solid ".concat(cor, "33"), borderRadius: 99, padding: "2px 8px", whiteSpace: "nowrap" } }, children));
+};
+function Dica(_a) {
+    var active = _a.active, payload = _a.payload, label = _a.label, pct = _a.pct;
     if (!active || !payload || !payload.length)
         return null;
     return (React.createElement("div", { style: { background: T.ink, color: "#fff", borderRadius: 6, padding: "8px 10px",
             fontSize: 12, fontFamily: F_UI } },
         React.createElement("div", { style: { opacity: .7, marginBottom: 4 } }, label),
-        payload.map((p, i) => (React.createElement("div", { key: i, style: { fontVariantNumeric: "tabular-nums" } },
+        payload.map(function (p, i) { return (React.createElement("div", { key: i, style: { fontVariantNumeric: "tabular-nums" } },
             React.createElement("span", { style: { color: p.color } }, "\u25A0"),
             " ",
             p.name,
             ": ",
-            React.createElement("b", null, pct ? nPct(p.value / 100) : nInt(p.value)))))));
+            React.createElement("b", null, pct ? nPct(p.value / 100) : nInt(p.value)))); })));
 }
-const Secao = ({ n, titulo, children, nota }) => (React.createElement("section", { style: { marginTop: 40 } },
-    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 11, marginBottom: 5 } },
-        React.createElement("span", { style: { fontFamily: F_MARCA, background: T.marca, color: T.preto, fontSize: 11.5,
-                fontWeight: 700, borderRadius: 6, padding: "3px 7px", lineHeight: 1.2 } }, String(n).padStart(2, "0")),
-        React.createElement("h2", { style: { fontFamily: F_MARCA, color: T.ink, fontSize: 18.5, fontWeight: 700,
-                margin: 0, letterSpacing: "-.005em" } }, titulo)),
-    nota && React.createElement("p", { style: { fontSize: 12.5, color: T.muted, margin: "0 0 14px", maxWidth: "72ch" } }, nota),
-    !nota && React.createElement("div", { style: { height: 14 } }),
-    children));
+var Secao = function (_a) {
+    var n = _a.n, titulo = _a.titulo, children = _a.children, nota = _a.nota;
+    return (React.createElement("section", { style: { marginTop: 40 } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 11, marginBottom: 5 } },
+            React.createElement("span", { style: { fontFamily: F_MARCA, background: T.marca, color: T.preto, fontSize: 11.5,
+                    fontWeight: 700, borderRadius: 6, padding: "3px 7px", lineHeight: 1.2 } }, String(n).padStart(2, "0")),
+            React.createElement("h2", { style: { fontFamily: F_MARCA, color: T.ink, fontSize: 18.5, fontWeight: 700,
+                    margin: 0, letterSpacing: "-.005em" } }, titulo)),
+        nota && React.createElement("p", { style: { fontSize: 12.5, color: T.muted, margin: "0 0 14px", maxWidth: "72ch" } }, nota),
+        !nota && React.createElement("div", { style: { height: 14 } }),
+        children));
+};
 /* ===================== login ===================== */
-const ERROS = {
+var ERROS = {
     "Invalid login credentials": "E-mail ou senha incorretos.",
     "Email not confirmed": "Este usuário ainda não foi confirmado. Peça para quem administra o painel marcar a confirmação.",
     "email rate limit exceeded": "Limite de e-mails do Supabase atingido. Isso não afeta o login por senha.",
 };
 function Login() {
-    const [email, setEmail] = useState("");
-    const [senha, setSenha] = useState("");
-    const [estado, setEstado] = useState(null);
-    const entrar = async (e) => {
-        e.preventDefault();
-        if (!email.trim() || !senha)
-            return;
-        setEstado({ tipo: "carregando", txt: "Entrando…" });
-        const { error } = await db.auth.signInWithPassword({
-            email: email.trim(), password: senha,
+    var _this = this;
+    var _a = useState(""), email = _a[0], setEmail = _a[1];
+    var _b = useState(""), senha = _b[0], setSenha = _b[1];
+    var _c = useState(null), estado = _c[0], setEstado = _c[1];
+    var entrar = function (e) { return __awaiter(_this, void 0, void 0, function () {
+        var error;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    e.preventDefault();
+                    if (!email.trim() || !senha)
+                        return [2 /*return*/];
+                    setEstado({ tipo: "carregando", txt: "Entrando…" });
+                    return [4 /*yield*/, db.auth.signInWithPassword({
+                            email: email.trim(), password: senha,
+                        })];
+                case 1:
+                    error = (_a.sent()).error;
+                    if (error)
+                        setEstado({ tipo: "erro", txt: ERROS[error.message] || error.message });
+                    return [2 /*return*/];
+            }
         });
-        if (error)
-            setEstado({ tipo: "erro", txt: ERROS[error.message] || error.message });
-    };
-    const campo = {
+    }); };
+    var campo = {
         width: "100%", fontFamily: F_UI, fontSize: 14.5, padding: "12px 14px",
-        border: `1px solid ${T.hair}`, borderRadius: 8, outline: "none",
+        border: "1px solid ".concat(T.hair), borderRadius: 8, outline: "none",
         background: T.surface, color: T.ink,
     };
     /* Amarelo cobrindo a tela, o símbolo em preto e um cartão branco por
@@ -320,8 +497,8 @@ function Login() {
                 React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 17, fontWeight: 700 } }, "Entrar"),
                 React.createElement("p", { style: { fontSize: 13.5, color: T.ink2, lineHeight: 1.6, marginTop: 8 } }, "Use seu e-mail da empresa e a senha cadastrada pelo administrador."),
                 React.createElement("form", { onSubmit: entrar, style: { marginTop: 20, display: "grid", gap: 10 } },
-                    React.createElement("input", { type: "email", value: email, onChange: (e) => setEmail(e.target.value), placeholder: "voce@thew.com.br", required: true, autoComplete: "username", style: campo }),
-                    React.createElement("input", { type: "password", value: senha, onChange: (e) => setSenha(e.target.value), placeholder: "senha", required: true, autoComplete: "current-password", style: campo }),
+                    React.createElement("input", { type: "email", value: email, onChange: function (e) { return setEmail(e.target.value); }, placeholder: "voce@thew.com.br", required: true, autoComplete: "username", style: campo }),
+                    React.createElement("input", { type: "password", value: senha, onChange: function (e) { return setSenha(e.target.value); }, placeholder: "senha", required: true, autoComplete: "current-password", style: campo }),
                     React.createElement("button", { type: "submit", disabled: estado && estado.tipo === "carregando", style: { width: "100%", marginTop: 4, padding: "13px 16px", border: "none",
                             borderRadius: 8, background: T.preto, color: "#fff", fontSize: 14.5,
                             fontWeight: 700, cursor: "pointer", fontFamily: F_UI } }, estado && estado.tipo === "carregando" ? "Entrando…" : "Entrar")),
@@ -343,56 +520,59 @@ function Login() {
    e quatro séries pedem quatro matizes que não existem aqui. Separando
    os painéis, cada métrica tem sua escala, uma cor só, e o título
    identifica a série sem precisar de legenda. */
-function MiniGrafico({ titulo, chave, dados, sufixo }) {
-    const valores = dados.map((d) => Number(d[chave]) || 0);
-    const total = valores.reduce((a, b) => a + b, 0);
-    const teto = Math.max(1, ...valores);
-    const H = 54, W = 300;
-    const faixa = W / Math.max(1, dados.length);
-    const larg = Math.max(1.5, Math.min(14, faixa - 2));
+function MiniGrafico(_a) {
+    var titulo = _a.titulo, chave = _a.chave, dados = _a.dados, sufixo = _a.sufixo;
+    var valores = dados.map(function (d) { return Number(d[chave]) || 0; });
+    var total = valores.reduce(function (a, b) { return a + b; }, 0);
+    var teto = Math.max.apply(Math, __spreadArray([1], valores, false));
+    var H = 54, W = 300;
+    var faixa = W / Math.max(1, dados.length);
+    var larg = Math.max(1.5, Math.min(14, faixa - 2));
     return (React.createElement(Card, { className: "p16" },
         React.createElement(Label, null, titulo),
         React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 8, margin: "8px 0 10px" } },
             React.createElement(Metric, { value: nInt(total), size: 26 }),
             sufixo && React.createElement("span", { style: { fontSize: 12, color: T.muted } }, sufixo)),
-        React.createElement("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", height: H, style: { display: "block", overflow: "visible" }, "aria-hidden": "true" },
+        React.createElement("svg", { viewBox: "0 0 ".concat(W, " ").concat(H), width: "100%", height: H, style: { display: "block", overflow: "visible" }, "aria-hidden": "true" },
             React.createElement("line", { x1: "0", x2: W, y1: H, y2: H, stroke: T.hair, strokeWidth: "1" }),
-            dados.map((d, i) => {
-                const v = Number(d[chave]) || 0;
-                const alt = (v / teto) * (H - 4);
-                const ultimo = i === dados.length - 1;
+            dados.map(function (d, i) {
+                var v = Number(d[chave]) || 0;
+                var alt = (v / teto) * (H - 4);
+                var ultimo = i === dados.length - 1;
                 return (React.createElement("rect", { key: i, x: i * faixa + (faixa - larg) / 2, y: H - alt, width: larg, height: Math.max(v > 0 ? 1.5 : 0, alt), rx: "2", fill: ultimo ? T.marca : T.ink },
-                    React.createElement("title", null, `${d.dia} · ${nInt(v)}`)));
+                    React.createElement("title", null, "".concat(d.dia, " \u00B7 ").concat(nInt(v)))));
             })),
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 6,
                 fontSize: 10.5, color: T.muted } },
             React.createElement("span", null, dados[0] ? dados[0].dia : ""),
             React.createElement("span", null, dados.length > 1 ? dados[dados.length - 1].dia : ""))));
 }
-function GraficoEvolucao({ dados }) {
+function GraficoEvolucao(_a) {
+    var dados = _a.dados;
     if (!dados.length) {
         return React.createElement(Card, { className: "p20", style: { fontSize: 13, color: T.muted } }, "Sem movimento no per\u00EDodo.");
     }
-    const painel = [
+    var painel = [
         { titulo: "Leads recebidos", chave: "Leads" },
         { titulo: "Agendamentos marcados", chave: "Agend. marcados" },
         { titulo: "Visitas do dia", chave: "Visitas do dia" },
         { titulo: "Vendas", chave: "Vendas" },
     ];
     return (React.createElement("div", null,
-        React.createElement("div", { className: "mini4" }, painel.map((p) => (React.createElement(MiniGrafico, { key: p.chave, titulo: p.titulo, chave: p.chave, dados: dados, sufixo: "no per\u00EDodo" })))),
+        React.createElement("div", { className: "mini4" }, painel.map(function (p) { return (React.createElement(MiniGrafico, { key: p.chave, titulo: p.titulo, chave: p.chave, dados: dados, sufixo: "no per\u00EDodo" })); })),
         React.createElement("div", { style: { marginTop: 10, fontSize: 11.5, color: T.muted } }, "Cada painel tem a pr\u00F3pria escala \u2014 servem para ver o ritmo de cada m\u00E9trica, n\u00E3o para comparar tamanhos entre eles. A \u00FAltima barra \u00E9 o dia mais recente.")));
 }
 /* Barras horizontais. Divs em vez de SVG: o texto quebra sozinho e a
    largura acompanha a tela sem cálculo. */
-function BarrasHorizontais({ dados }) {
-    const teto = Math.max(1, ...dados.map((d) => d.qtd));
-    const total = dados.reduce((s, d) => s + d.qtd, 0);
-    return (React.createElement("div", { style: { display: "grid", gap: 10 } }, dados.map((d, i) => (React.createElement("div", { key: d.nome, style: { display: "flex", alignItems: "center", gap: 12 } },
+function BarrasHorizontais(_a) {
+    var dados = _a.dados;
+    var teto = Math.max.apply(Math, __spreadArray([1], dados.map(function (d) { return d.qtd; }), false));
+    var total = dados.reduce(function (s, d) { return s + d.qtd; }, 0);
+    return (React.createElement("div", { style: { display: "grid", gap: 10 } }, dados.map(function (d, i) { return (React.createElement("div", { key: d.nome, style: { display: "flex", alignItems: "center", gap: 12 } },
         React.createElement("div", { style: { width: 210, fontSize: 12.5, color: T.ink2, textAlign: "right",
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, title: d.nome }, d.nome),
         React.createElement("div", { style: { flex: 1, background: T.canvas, borderRadius: 4, height: 22 } },
-            React.createElement("div", { style: { width: `${Math.max(1.5, (d.qtd / teto) * 100)}%`, height: "100%",
+            React.createElement("div", { style: { width: "".concat(Math.max(1.5, (d.qtd / teto) * 100), "%"), height: "100%",
                     background: T.ink, borderRadius: 4,
                     transition: "width .4s ease" } })),
         React.createElement("div", { style: { width: 96, fontSize: 12.5, textAlign: "right", color: T.ink,
@@ -400,226 +580,276 @@ function BarrasHorizontais({ dados }) {
             React.createElement("b", null, nInt(d.qtd)),
             React.createElement("span", { style: { color: T.muted } },
                 " \u00B7 ",
-                nPct(div(d.qtd, total), 0))))))));
+                nPct(div(d.qtd, total), 0))))); })));
 }
 /* ===================== dados ===================== */
 function usarDados(de, ate, prevDe) {
-    const [estado, setEstado] = useState({ carregando: true, erro: null });
-    const [fato, setFato] = useState([]);
-    const [motivos, setMotivos] = useState([]);
-    const [sla, setSla] = useState([]);
-    const [esforco, setEsforco] = useState([]);
-    const [tempoAntigo, setTempoAntigo] = useState(false);
-    const [pendentes, setPendentes] = useState([]);
-    const [carteiraEsf, setCarteiraEsf] = useState([]);
-    const [robo, setRobo] = useState([]);
-    const [preench, setPreench] = useState([]);
-    const [qualidade, setQualidade] = useState(null);
-    const [funilAgora, setFunilAgora] = useState([]);
-    const [metas, setMetas] = useState({ sdr: [], taxa: null });
+    var _this = this;
+    var _a = useState({ carregando: true, erro: null }), estado = _a[0], setEstado = _a[1];
+    var _b = useState([]), fato = _b[0], setFato = _b[1];
+    var _c = useState([]), motivos = _c[0], setMotivos = _c[1];
+    var _d = useState([]), sla = _d[0], setSla = _d[1];
+    var _f = useState([]), esforco = _f[0], setEsforco = _f[1];
+    var _g = useState(false), tempoAntigo = _g[0], setTempoAntigo = _g[1];
+    var _h = useState([]), pendentes = _h[0], setPendentes = _h[1];
+    var _j = useState([]), carteiraEsf = _j[0], setCarteiraEsf = _j[1];
+    var _k = useState([]), robo = _k[0], setRobo = _k[1];
+    var _l = useState([]), preench = _l[0], setPreench = _l[1];
+    var _m = useState(null), qualidade = _m[0], setQualidade = _m[1];
+    var _o = useState([]), funilAgora = _o[0], setFunilAgora = _o[1];
+    var _p = useState({ sdr: [], taxa: null }), metas = _p[0], setMetas = _p[1];
     /* Duas listas novas, as duas nascidas do dia 08/09, quando o painel
        mostrou zero ligações com cara de "hoje ninguém trabalhou" enquanto
        a verdade era que a carga automática estava tomando 401 havia dias.
          falhas -> consulta que quebrou de verdade (antes virava zero mudo)
          saude  -> há quanto tempo cada FONTE não recebe dado novo */
-    const [falhas, setFalhas] = useState([]);
-    const [saude, setSaude] = useState([]);
+    var _q = useState([]), falhas = _q[0], setFalhas = _q[1];
+    var _r = useState([]), saude = _r[0], setSaude = _r[1];
     /* O Supabase corta em 1.000 linhas por consulta. A fato_dia tem uma linha
        por dia × SDR × unidade × serviço, então um mês passa desse teto e os
        totais sairiam menores sem ninguém perceber. Buscamos em páginas até
        acabar. */
-    const PAGINA = 1000;
-    const buscarTudo = async (montar) => {
-        const todas = [];
-        for (let i = 0; i < 40; i++) {
-            const { data, error } = await montar().range(i * PAGINA, (i + 1) * PAGINA - 1);
-            if (error)
-                throw new Error(error.message);
-            const lote = data || [];
-            todas.push(...lote);
-            if (lote.length < PAGINA)
-                break;
-        }
-        return todas;
-    };
-    const buscar = useCallback(async () => {
-        setEstado({ carregando: true, erro: null });
-        try {
-            const [f, m] = await Promise.all([
-                buscarTudo(() => db.from("fato_dia").select("*").gte("data", prevDe).lte("data", ate).order("data")),
-                buscarTudo(() => db.from("motivos_dia").select("*").gte("data", de).lte("data", ate).order("data")),
-            ]);
-            setFato(f);
-            setMotivos(m);
-            /* Tolerante de propósito: uma view que ainda não foi criada no banco
-               não pode derrubar o painel inteiro. Some o bloco, fica o resto.
-      
-               MAS: até 08/09 isto engolia QUALQUER erro. Uma queda de rede de
-               dois segundos zerava a seção com a mesma cara de "não houve
-               ligação hoje" — e foi assim que o painel passou dias mostrando
-               zero sem ninguém desconfiar. Agora só o erro de "view não
-               existe" fica em silêncio; o resto vira aviso na tela. */
-            const falhou = [];
-            const viewAusente = (m) => /does not exist|could not find the table|schema cache|não existe/i.test(String(m || ""));
-            const buscarSePuder = async (nome, montar) => {
-                try {
-                    return await buscarTudo(montar);
-                }
-                catch (e) {
-                    const m = e && e.message ? e.message : String(e);
-                    if (!viewAusente(m))
-                        falhou.push({ nome, m });
-                    return null;
-                }
-            };
-            /* tempo_resposta_dia é a view nova, medida pela primeira ligação de
-               verdade. sla_dia é a antiga, com nomes velhos e medida pela saída
-               da etapa de entrada — fica como plano B para o painel não quebrar
-               entre um deploy do banco e outro. */
-            let s = await buscarSePuder("Tempo de resposta", () => db.from("tempo_resposta_dia")
-                .select("*").gte("data", de).lte("data", ate).order("data"));
-            let antiga = false;
-            if (s === null) {
-                antiga = true;
-                const v = await buscarSePuder("Tempo de resposta (medida antiga)", () => db.from("sla_dia")
-                    .select("*").gte("data", de).lte("data", ate).order("data")) || [];
-                s = v.map((r) => ({ ...r, ate_5min: r.sla_5, ate_15min: r.sla_15,
-                    ate_60min: r.sla_60, acima_de_1h: r.sla_acima, nunca_ligaram: 0 }));
+    var PAGINA = 1000;
+    var buscarTudo = function (montar) { return __awaiter(_this, void 0, void 0, function () {
+        var todas, i, _a, data, error, lote;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
+                case 0:
+                    todas = [];
+                    i = 0;
+                    _b.label = 1;
+                case 1:
+                    if (!(i < 40)) return [3 /*break*/, 4];
+                    return [4 /*yield*/, montar().range(i * PAGINA, (i + 1) * PAGINA - 1)];
+                case 2:
+                    _a = _b.sent(), data = _a.data, error = _a.error;
+                    if (error)
+                        throw new Error(error.message);
+                    lote = data || [];
+                    todas.push.apply(todas, lote);
+                    if (lote.length < PAGINA)
+                        return [3 /*break*/, 4];
+                    _b.label = 3;
+                case 3:
+                    i++;
+                    return [3 /*break*/, 1];
+                case 4: return [2 /*return*/, todas];
             }
-            setSla(s);
-            setTempoAntigo(antiga);
-            const es = await buscarSePuder("Esforço", () => db.from("esforco_dia")
-                .select("*").gte("data", de).lte("data", ate).order("data"));
-            setEsforco(es || []);
-            const vp = await buscarSePuder("Visitas sem desfecho", () => db.from("visitas_pendentes_dia")
-                .select("*").gte("data", de).lte("data", ate).order("data"));
-            setPendentes(vp || []);
-            /* O espelho do esforço na chave da carteira, e a cobertura do robô.
-               Os dois são opcionais: sem eles o painel só mostra menos coluna. */
-            const ce = await buscarSePuder("Esforço na carteira", () => db.from("carteira_esforco_dia")
-                .select("*").gte("data", de).lte("data", ate).order("data"));
-            setCarteiraEsf(ce || []);
-            const rb = await buscarSePuder("Robô de triagem", () => db.from("robo_dia")
-                .select("*").gte("data", de).lte("data", ate).order("data"));
-            setRobo(rb || []);
-            const pr = await buscarSePuder("Nota de preenchimento", () => db.from("preenchimento_sdr")
-                .select("*").gte("data", de).lte("data", ate).order("data"));
-            setPreench(pr || []);
-            /* Estas quatro são acessórias: se uma falhar, o painel continua com o
-               que importa em vez de zerar tudo. */
-            const opcional = async (fn, padrao) => {
-                try {
-                    const { data, error } = await fn();
-                    return error ? padrao : (data !== null && data !== void 0 ? data : padrao);
-                }
-                catch (e) {
-                    return padrao;
-                }
-            };
-            const [q, fa, ms, mt, sd] = await Promise.all([
-                opcional(() => db.from("qualidade").select("*").limit(1), []),
-                opcional(() => db.from("funil_agora").select("*"), []),
-                opcional(() => db.from("metas_sdr").select("*"), []),
-                opcional(() => db.from("metas_taxa").select("*").limit(1), []),
-                opcional(() => db.from("saude_das_cargas").select("*"), []),
-            ]);
-            setQualidade(q[0] || null);
-            setFunilAgora(fa);
-            setMetas({ sdr: ms, taxa: mt[0] || null });
-            setSaude(sd);
-            setFalhas(falhou);
-            setEstado({ carregando: false, erro: null, em: new Date() });
-        }
-        catch (e) {
-            setEstado({ carregando: false, erro: e.message || String(e) });
-        }
-    }, [de, ate, prevDe]);
-    useEffect(() => { buscar(); }, [buscar]);
+        });
+    }); };
+    var buscar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
+        var _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, es, vp, ce, rb, pr, opcional, _b, q, fa, ms, mt, sd, e_1;
+        var _this = this;
+        return __generator(this, function (_c) {
+            switch (_c.label) {
+                case 0:
+                    setEstado({ carregando: true, erro: null });
+                    _c.label = 1;
+                case 1:
+                    _c.trys.push([1, 12, , 13]);
+                    return [4 /*yield*/, Promise.all([
+                            buscarTudo(function () { return db.from("fato_dia").select("*").gte("data", prevDe).lte("data", ate).order("data"); }),
+                            buscarTudo(function () { return db.from("motivos_dia").select("*").gte("data", de).lte("data", ate).order("data"); }),
+                        ])];
+                case 2:
+                    _a = _c.sent(), f = _a[0], m = _a[1];
+                    setFato(f);
+                    setMotivos(m);
+                    falhou_1 = [];
+                    viewAusente_1 = function (m) {
+                        return /does not exist|could not find the table|schema cache|não existe/i.test(String(m || ""));
+                    };
+                    buscarSePuder = function (nome, montar) { return __awaiter(_this, void 0, void 0, function () {
+                        var e_2, m_1;
+                        return __generator(this, function (_a) {
+                            switch (_a.label) {
+                                case 0:
+                                    _a.trys.push([0, 2, , 3]);
+                                    return [4 /*yield*/, buscarTudo(montar)];
+                                case 1: return [2 /*return*/, _a.sent()];
+                                case 2:
+                                    e_2 = _a.sent();
+                                    m_1 = e_2 && e_2.message ? e_2.message : String(e_2);
+                                    if (!viewAusente_1(m_1))
+                                        falhou_1.push({ nome: nome, m: m_1 });
+                                    return [2 /*return*/, null];
+                                case 3: return [2 /*return*/];
+                            }
+                        });
+                    }); };
+                    return [4 /*yield*/, buscarSePuder("Tempo de resposta", function () { return db.from("tempo_resposta_dia")
+                            .select("*").gte("data", de).lte("data", ate).order("data"); })];
+                case 3:
+                    s = _c.sent();
+                    antiga = false;
+                    if (!(s === null)) return [3 /*break*/, 5];
+                    antiga = true;
+                    return [4 /*yield*/, buscarSePuder("Tempo de resposta (medida antiga)", function () { return db.from("sla_dia")
+                            .select("*").gte("data", de).lte("data", ate).order("data"); })];
+                case 4:
+                    v = (_c.sent()) || [];
+                    s = v.map(function (r) { return (__assign(__assign({}, r), { ate_5min: r.sla_5, ate_15min: r.sla_15, ate_60min: r.sla_60, acima_de_1h: r.sla_acima, nunca_ligaram: 0 })); });
+                    _c.label = 5;
+                case 5:
+                    setSla(s);
+                    setTempoAntigo(antiga);
+                    return [4 /*yield*/, buscarSePuder("Esforço", function () { return db.from("esforco_dia")
+                            .select("*").gte("data", de).lte("data", ate).order("data"); })];
+                case 6:
+                    es = _c.sent();
+                    setEsforco(es || []);
+                    return [4 /*yield*/, buscarSePuder("Visitas sem desfecho", function () { return db.from("visitas_pendentes_dia")
+                            .select("*").gte("data", de).lte("data", ate).order("data"); })];
+                case 7:
+                    vp = _c.sent();
+                    setPendentes(vp || []);
+                    return [4 /*yield*/, buscarSePuder("Esforço na carteira", function () { return db.from("carteira_esforco_dia")
+                            .select("*").gte("data", de).lte("data", ate).order("data"); })];
+                case 8:
+                    ce = _c.sent();
+                    setCarteiraEsf(ce || []);
+                    return [4 /*yield*/, buscarSePuder("Robô de triagem", function () { return db.from("robo_dia")
+                            .select("*").gte("data", de).lte("data", ate).order("data"); })];
+                case 9:
+                    rb = _c.sent();
+                    setRobo(rb || []);
+                    return [4 /*yield*/, buscarSePuder("Nota de preenchimento", function () { return db.from("preenchimento_sdr")
+                            .select("*").gte("data", de).lte("data", ate).order("data"); })];
+                case 10:
+                    pr = _c.sent();
+                    setPreench(pr || []);
+                    opcional = function (fn, padrao) { return __awaiter(_this, void 0, void 0, function () {
+                        var _a, data, error, e_3;
+                        return __generator(this, function (_b) {
+                            switch (_b.label) {
+                                case 0:
+                                    _b.trys.push([0, 2, , 3]);
+                                    return [4 /*yield*/, fn()];
+                                case 1:
+                                    _a = _b.sent(), data = _a.data, error = _a.error;
+                                    return [2 /*return*/, error ? padrao : (data !== null && data !== void 0 ? data : padrao)];
+                                case 2:
+                                    e_3 = _b.sent();
+                                    return [2 /*return*/, padrao];
+                                case 3: return [2 /*return*/];
+                            }
+                        });
+                    }); };
+                    return [4 /*yield*/, Promise.all([
+                            opcional(function () { return db.from("qualidade").select("*").limit(1); }, []),
+                            opcional(function () { return db.from("funil_agora").select("*"); }, []),
+                            opcional(function () { return db.from("metas_sdr").select("*"); }, []),
+                            opcional(function () { return db.from("metas_taxa").select("*").limit(1); }, []),
+                            opcional(function () { return db.from("saude_das_cargas").select("*"); }, []),
+                        ])];
+                case 11:
+                    _b = _c.sent(), q = _b[0], fa = _b[1], ms = _b[2], mt = _b[3], sd = _b[4];
+                    setQualidade(q[0] || null);
+                    setFunilAgora(fa);
+                    setMetas({ sdr: ms, taxa: mt[0] || null });
+                    setSaude(sd);
+                    setFalhas(falhou_1);
+                    setEstado({ carregando: false, erro: null, em: new Date() });
+                    return [3 /*break*/, 13];
+                case 12:
+                    e_1 = _c.sent();
+                    setEstado({ carregando: false, erro: e_1.message || String(e_1) });
+                    return [3 /*break*/, 13];
+                case 13: return [2 /*return*/];
+            }
+        });
+    }); }, [de, ate, prevDe]);
+    useEffect(function () { buscar(); }, [buscar]);
     /* O painel fica ligado numa TV: ninguém vai apertar "Atualizar". A cada
        5 minutos ele busca sozinho. Como o filtro "Hoje" recalcula a data a
        cada render, a virada da meia-noite se resolve na atualização
        seguinte — não é preciso recarregar a página. */
-    useEffect(() => {
-        const t = setInterval(() => { buscar(); }, 5 * 60 * 1000);
-        return () => clearInterval(t);
+    useEffect(function () {
+        var t = setInterval(function () { buscar(); }, 5 * 60 * 1000);
+        return function () { return clearInterval(t); };
     }, [buscar]);
-    return { estado, fato, motivos, sla, esforco, tempoAntigo, pendentes,
-        carteiraEsf, robo, preench, qualidade, funilAgora, metas,
-        falhas, saude, recarregar: buscar };
+    return { estado: estado, fato: fato, motivos: motivos, sla: sla, esforco: esforco, tempoAntigo: tempoAntigo, pendentes: pendentes, carteiraEsf: carteiraEsf, robo: robo, preench: preench, qualidade: qualidade, funilAgora: funilAgora, metas: metas, falhas: falhas, saude: saude, recarregar: buscar };
 }
 /* ===================== app ===================== */
-function Painel({ sessao }) {
+function Painel(_a) {
+    var sessao = _a.sessao;
     /* Abre em "Hoje": o painel vive numa TV na sala dos SDRs, e o que
        interessa lá é o dia corrente. Quem quiser o mês troca no filtro. */
-    const [f, setF] = useState({
+    var _b = useState({
         periodo: "hoje", de: addDays(hoje(), -29), ate: hoje(),
         unidade: "__all", servico: "__all", sdr: "__all",
-    });
-    const [de, ate] = faixa(f);
-    const dias = Math.max(1, diasEntre(de, ate));
-    const prevAte = addDays(de, -1), prevDe = addDays(prevAte, -(dias - 1));
-    const d = usarDados(de, ate, prevDe);
-    const aplicar = (linhas) => linhas.filter((r) => (f.unidade === "__all" || r.unidade === f.unidade) &&
-        (f.servico === "__all" || r.servico === f.servico) &&
-        (f.sdr === "__all" || r.sdr === f.sdr));
-    const noPeriodo = useMemo(() => aplicar(d.fato.filter((r) => r.data >= de && r.data <= ate)), [d.fato, f, de, ate]);
-    const noAnterior = useMemo(() => aplicar(d.fato.filter((r) => r.data >= prevDe && r.data <= prevAte)), [d.fato, f, prevDe, prevAte]);
-    const a = useMemo(() => somar(noPeriodo), [noPeriodo]);
-    const aPrev = useMemo(() => somar(noAnterior), [noAnterior]);
-    const listas = useMemo(() => {
-        const u = new Set(), s = new Set(), r = new Set();
-        d.fato.forEach((x) => { if (x.unidade)
+    }), f = _b[0], setF = _b[1];
+    var _c = faixa(f), de = _c[0], ate = _c[1];
+    var dias = Math.max(1, diasEntre(de, ate));
+    var prevAte = addDays(de, -1), prevDe = addDays(prevAte, -(dias - 1));
+    var d = usarDados(de, ate, prevDe);
+    var aplicar = function (linhas) { return linhas.filter(function (r) {
+        return (f.unidade === "__all" || r.unidade === f.unidade) &&
+            (f.servico === "__all" || r.servico === f.servico) &&
+            (f.sdr === "__all" || r.sdr === f.sdr);
+    }); };
+    var noPeriodo = useMemo(function () { return aplicar(d.fato.filter(function (r) { return r.data >= de && r.data <= ate; })); }, [d.fato, f, de, ate]);
+    var noAnterior = useMemo(function () { return aplicar(d.fato.filter(function (r) { return r.data >= prevDe && r.data <= prevAte; })); }, [d.fato, f, prevDe, prevAte]);
+    var a = useMemo(function () { return somar(noPeriodo); }, [noPeriodo]);
+    var aPrev = useMemo(function () { return somar(noAnterior); }, [noAnterior]);
+    var listas = useMemo(function () {
+        var u = new Set(), s = new Set(), r = new Set();
+        d.fato.forEach(function (x) { if (x.unidade)
             u.add(x.unidade); if (x.servico)
             s.add(x.servico); if (x.sdr)
             r.add(x.sdr); });
-        return { unidades: [...u].sort(), servicos: [...s].sort(), sdrs: [...r].sort() };
+        return { unidades: __spreadArray([], u, true).sort(), servicos: __spreadArray([], s, true).sort(), sdrs: __spreadArray([], r, true).sort() };
     }, [d.fato]);
-    const porChave = (chave) => {
-        const m = new Map();
-        noPeriodo.forEach((r) => {
-            const k = r[chave] || "—";
+    var porChave = function (chave) {
+        var m = new Map();
+        noPeriodo.forEach(function (r) {
+            var k = r[chave] || "—";
             if (!m.has(k))
                 m.set(k, []);
             m.get(k).push(r);
         });
-        return [...m.entries()].map(([nome, linhas]) => ({ nome, ...somar(linhas) }));
+        return __spreadArray([], m.entries(), true).map(function (_a) {
+            var nome = _a[0], linhas = _a[1];
+            return (__assign({ nome: nome }, somar(linhas)));
+        });
     };
     /* "Sem SDR" não é uma pessoa: é lead que nunca foi distribuído. Ele fica
        fora do placar e aparece embaixo, como pendência. Misturado na tabela,
        ele entrava no ranking como se fosse alguém com desempenho ruim. */
-    const porSdrTudo = useMemo(() => porChave("sdr"), [noPeriodo]);
-    const porSdr = useMemo(() => porSdrTudo.filter((x) => x.nome !== "Sem SDR"), [porSdrTudo]);
-    const semSdr = useMemo(() => porSdrTudo.find((x) => x.nome === "Sem SDR") || null, [porSdrTudo]);
-    const porUnidade = useMemo(() => porChave("unidade"), [noPeriodo]);
-    const porServico = useMemo(() => porChave("servico"), [noPeriodo]);
-    const serie = useMemo(() => {
-        const m = new Map();
-        noPeriodo.forEach((r) => {
+    var porSdrTudo = useMemo(function () { return porChave("sdr"); }, [noPeriodo]);
+    var porSdr = useMemo(function () { return porSdrTudo.filter(function (x) { return x.nome !== "Sem SDR"; }); }, [porSdrTudo]);
+    var semSdr = useMemo(function () { return porSdrTudo.find(function (x) { return x.nome === "Sem SDR"; }) || null; }, [porSdrTudo]);
+    var porUnidade = useMemo(function () { return porChave("unidade"); }, [noPeriodo]);
+    var porServico = useMemo(function () { return porChave("servico"); }, [noPeriodo]);
+    var serie = useMemo(function () {
+        var m = new Map();
+        noPeriodo.forEach(function (r) {
             if (!m.has(r.data))
                 m.set(r.data, []);
             m.get(r.data).push(r);
         });
-        return [...m.entries()].sort((x, y) => x[0].localeCompare(y[0]))
-            .map(([data, linhas]) => {
-            const t = somar(linhas);
+        return __spreadArray([], m.entries(), true).sort(function (x, y) { return x[0].localeCompare(y[0]); })
+            .map(function (_a) {
+            var data = _a[0], linhas = _a[1];
+            var t = somar(linhas);
             return { dia: br(data), Leads: t.leads_recebidos, "Agend. marcados": t.agendamentos_marcados,
                 "Visitas do dia": t.visitas_do_dia, Vendas: t.vendas };
         });
     }, [noPeriodo]);
     /* Tempo de resposta. NÃO chamar de SLA: aqui "SLA" quer dizer que o lead
        atende aos padrões mínimos para ser atendido, que é outra coisa. */
-    const tempoTot = useMemo(() => {
-        const o = { soma: 0, n: 0, somaFalar: 0, nFalar: 0 };
-        CAMPOS_TEMPO.forEach((k) => (o[k] = 0));
-        aplicar(d.sla).forEach((r) => {
-            CAMPOS_TEMPO.forEach((k) => (o[k] += Number(r[k]) || 0));
-            const base = Number(r.com_medida) || 0;
+    var tempoTot = useMemo(function () {
+        var o = { soma: 0, n: 0, somaFalar: 0, nFalar: 0 };
+        CAMPOS_TEMPO.forEach(function (k) { return (o[k] = 0); });
+        aplicar(d.sla).forEach(function (r) {
+            CAMPOS_TEMPO.forEach(function (k) { return (o[k] += Number(r[k]) || 0); });
+            var base = Number(r.com_medida) || 0;
             /* A base do "até falar" é MENOR: nem toda ligação vira conversa.
                Ponderar as duas médias pelo mesmo número inclinava o resultado
                para os dias em que se ligou muito e se falou pouco. A coluna
                com_medida_falar veio na correção de 08/09; sem ela, cai no
                com_medida como antes para o painel não quebrar. */
-            const baseFalar = r.com_medida_falar != null ? Number(r.com_medida_falar) || 0 : base;
+            var baseFalar = r.com_medida_falar != null ? Number(r.com_medida_falar) || 0 : base;
             if (r.minutos_medio != null) {
                 o.soma += Number(r.minutos_medio) * base;
                 o.n += base;
@@ -636,41 +866,38 @@ function Painel({ sessao }) {
     /* Esforço: agregado e por pessoa. Vem da esforco_dia, que só existe
        depois da carga de atividades — por isso o bloco some sozinho quando
        não há dado, em vez de mostrar uma tabela de zeros. */
-    const esforcoNoPeriodo = useMemo(() => aplicar(d.esforco), [d.esforco, f]);
-    const esf = useMemo(() => somarEsforco(esforcoNoPeriodo), [esforcoNoPeriodo]);
-    const esforcoPorSdr = useMemo(() => {
-        const m = new Map();
-        esforcoNoPeriodo.forEach((r) => {
-            const k = r.sdr || "—";
+    var esforcoNoPeriodo = useMemo(function () { return aplicar(d.esforco); }, [d.esforco, f]);
+    var esf = useMemo(function () { return somarEsforco(esforcoNoPeriodo); }, [esforcoNoPeriodo]);
+    var esforcoPorSdr = useMemo(function () {
+        var m = new Map();
+        esforcoNoPeriodo.forEach(function (r) {
+            var k = r.sdr || "—";
             if (!m.has(k))
                 m.set(k, []);
             m.get(k).push(r);
         });
         /* Junta com o resultado do mesmo SDR: é o cruzamento que responde
            "quem liga muito converte muito?". */
-        const res = new Map(porSdr.map((x) => [x.nome, x]));
-        return [...m.entries()].map(([nome, linhas]) => {
-            const e = somarEsforco(linhas);
-            const r = res.get(nome);
-            return { nome, ...e,
-                vendas: r ? r.vendas : 0,
-                receita: r ? r.receita : 0,
-                marcou: r ? r.agendamentos_marcados : 0,
+        var res = new Map(porSdr.map(function (x) { return [x.nome, x]; }));
+        return __spreadArray([], m.entries(), true).map(function (_a) {
+            var nome = _a[0], linhas = _a[1];
+            var e = somarEsforco(linhas);
+            var r = res.get(nome);
+            return __assign(__assign({ nome: nome }, e), { vendas: r ? r.vendas : 0, receita: r ? r.receita : 0, marcou: r ? r.agendamentos_marcados : 0, 
                 /* Estas duas cruzam esforço com RESULTADO, e o resultado só existe
                    no CAR SERVICE. Por isso dividem pelas ligações de dentro do
                    funil, não pelo total — senão comparariam bases diferentes. */
-                por_agendamento: div(e.ligacoes_tentadas - e.ligacoes_fora, r ? r.agendamentos_marcados : 0),
-                reais_por_ligacao: div(r ? r.receita : 0, e.ligacoes_tentadas - e.ligacoes_fora) };
-        }).filter((x) => x.ligacoes_tentadas > 0 || x.whatsapp_enviados > 0);
+                por_agendamento: div(e.ligacoes_tentadas - e.ligacoes_fora, r ? r.agendamentos_marcados : 0), reais_por_ligacao: div(r ? r.receita : 0, e.ligacoes_tentadas - e.ligacoes_fora) });
+        }).filter(function (x) { return x.ligacoes_tentadas > 0 || x.whatsapp_enviados > 0; });
     }, [esforcoNoPeriodo, porSdr]);
     /* O vocabulário antigo sai do gráfico e vira nota de rodapé. Misturar
        "Descartado" (708, que significava qualquer coisa) com a lista nova
        tornava o gráfico ilegível e sugeria uma análise que não existe. */
-    const motivos = useMemo(() => {
-        const atuais = new Map();
-        let historico = 0;
-        aplicar(d.motivos).forEach((r) => {
-            const n = Number(r.leads) || 0;
+    var motivos = useMemo(function () {
+        var atuais = new Map();
+        var historico = 0;
+        aplicar(d.motivos).forEach(function (r) {
+            var n = Number(r.leads) || 0;
             // A coluna "atual" só existe depois do motivos_limpos.sql; sem ela
             // o painel se comporta como antes.
             if (r.atual === false)
@@ -679,18 +906,21 @@ function Painel({ sessao }) {
                 atuais.set(r.motivo, (atuais.get(r.motivo) || 0) + n);
         });
         return {
-            lista: [...atuais.entries()].map(([nome, qtd]) => ({ nome, qtd }))
-                .sort((x, y) => y.qtd - x.qtd),
-            historico,
+            lista: __spreadArray([], atuais.entries(), true).map(function (_a) {
+                var nome = _a[0], qtd = _a[1];
+                return ({ nome: nome, qtd: qtd });
+            })
+                .sort(function (x, y) { return y.qtd - x.qtd; }),
+            historico: historico,
         };
     }, [d.motivos, f]);
     /* O espelho do esforço na chave da carteira: quanto trabalho os leads
        de cada pessoa receberam, de quantas mãos diferentes. */
-    const carteiraEsfPorSdr = useMemo(() => {
-        const m = new Map();
-        aplicar(d.carteiraEsf).forEach((r) => {
-            const k = r.sdr || "—";
-            const o = m.get(k) || { ligacoes: 0, pessoas: 0, zap_robo: 0 };
+    var carteiraEsfPorSdr = useMemo(function () {
+        var m = new Map();
+        aplicar(d.carteiraEsf).forEach(function (r) {
+            var k = r.sdr || "—";
+            var o = m.get(k) || { ligacoes: 0, pessoas: 0, zap_robo: 0 };
             o.ligacoes += Number(r.ligacoes_na_carteira) || 0;
             o.pessoas = Math.max(o.pessoas, Number(r.pessoas_que_ligaram) || 0);
             o.zap_robo += Number(r.zap_do_robo) || 0;
@@ -698,29 +928,29 @@ function Painel({ sessao }) {
         });
         return m;
     }, [d.carteiraEsf, f]);
-    const ligacoesNaCarteiraTot = useMemo(() => aplicar(d.carteiraEsf).reduce((s2, r) => s2 + (Number(r.ligacoes_na_carteira) || 0), 0), [d.carteiraEsf, f]);
+    var ligacoesNaCarteiraTot = useMemo(function () { return aplicar(d.carteiraEsf).reduce(function (s2, r) { return s2 + (Number(r.ligacoes_na_carteira) || 0); }, 0); }, [d.carteiraEsf, f]);
     /* O robô, separado de quem responde a ele.
        Até 08/09 esta conta somava as duas direções e o painel dizia "o robô
        mandou 4.006" — sendo que 2.596 daquelas mensagens foram o CLIENTE
        respondendo. Mensagem recebida também chega sem autor, e era isso que
        confundia a view. */
-    const roboEnviou = useMemo(() => aplicar(d.robo).reduce((s2, r) => s2 + (Number(r.enviadas_pelo_robo) || 0), 0), [d.robo, f]);
-    const clienteRespondeu = useMemo(() => aplicar(d.robo).reduce((s2, r) => s2 + (Number(r.recebidas_do_cliente) || 0), 0), [d.robo, f]);
+    var roboEnviou = useMemo(function () { return aplicar(d.robo).reduce(function (s2, r) { return s2 + (Number(r.enviadas_pelo_robo) || 0); }, 0); }, [d.robo, f]);
+    var clienteRespondeu = useMemo(function () { return aplicar(d.robo).reduce(function (s2, r) { return s2 + (Number(r.recebidas_do_cliente) || 0); }, 0); }, [d.robo, f]);
     /* Visitas vencidas que ninguém marcou o desfecho. Enquanto isso existir,
        a taxa de comparecimento divide por um total que inclui visitas sobre
        as quais o CRM não sabe nada — e sai menor do que a realidade. */
-    const semDesfecho = useMemo(() => aplicar(d.pendentes).reduce((s, r) => s + (Number(r.visitas_sem_desfecho) || 0), 0), [d.pendentes, f]);
-    const visitasApuradas = Math.max(0, a.visitas_do_dia - semDesfecho);
-    const showApurado = div(a.comparecimentos, visitasApuradas);
-    const duvidaGrande = semDesfecho > 0 && semDesfecho >= a.visitas_do_dia * 0.1;
+    var semDesfecho = useMemo(function () { return aplicar(d.pendentes).reduce(function (s, r) { return s + (Number(r.visitas_sem_desfecho) || 0); }, 0); }, [d.pendentes, f]);
+    var visitasApuradas = Math.max(0, a.visitas_do_dia - semDesfecho);
+    var showApurado = div(a.comparecimentos, visitasApuradas);
+    var duvidaGrande = semDesfecho > 0 && semDesfecho >= a.visitas_do_dia * 0.1;
     /* A nota é campos preenchidos ÷ campos exigidos, somando o período
        inteiro antes de dividir. Média de médias daria peso igual a um dia
        de 2 leads e a um de 60. */
-    const notaPreench = useMemo(() => {
-        const m = new Map();
-        aplicar(d.preench).forEach((r) => {
-            const k = r.sdr || "—";
-            const o = m.get(k) || { nome: k, leads: 0, agendados: 0, ganhos: 0, com_unidade: 0,
+    var notaPreench = useMemo(function () {
+        var m = new Map();
+        aplicar(d.preench).forEach(function (r) {
+            var k = r.sdr || "—";
+            var o = m.get(k) || { nome: k, leads: 0, agendados: 0, ganhos: 0, com_unidade: 0,
                 com_servico: 0, com_data: 0, com_nota: 0, com_valor: 0, exigidos: 0, ok: 0 };
             o.leads += Number(r.leads) || 0;
             o.agendados += Number(r.agendados) || 0;
@@ -734,74 +964,77 @@ function Painel({ sessao }) {
             o.ok += Number(r.campos_ok) || 0;
             m.set(k, o);
         });
-        const lista = [...m.values()].filter((x) => x.exigidos > 0)
-            .map((x) => ({ ...x, nota: div(x.ok, x.exigidos) }))
-            .sort((a, b) => b.nota - a.nota);
-        const tot = lista.reduce((o, x) => ({
+        var lista = __spreadArray([], m.values(), true).filter(function (x) { return x.exigidos > 0; })
+            .map(function (x) { return (__assign(__assign({}, x), { nota: div(x.ok, x.exigidos) })); })
+            .sort(function (a, b) { return b.nota - a.nota; });
+        var tot = lista.reduce(function (o, x) { return ({
             exigidos: o.exigidos + x.exigidos, ok: o.ok + x.ok,
             leads: o.leads + x.leads, agendados: o.agendados + x.agendados,
-        }), { exigidos: 0, ok: 0, leads: 0, agendados: 0 });
-        return { lista, geral: div(tot.ok, tot.exigidos), tot };
+        }); }, { exigidos: 0, ok: 0, leads: 0, agendados: 0 });
+        return { lista: lista, geral: div(tot.ok, tot.exigidos), tot: tot };
     }, [d.preench, f]);
     /* A IDADE DO DADO, que é diferente da hora do carregamento.
        No dia 08/09 o painel exibia "atualizado 10:47" com ligação de vinte
        horas antes: o relógio dizia que a TELA estava viva, não que o DADO
        estava. Agora quem manda é a saude_das_cargas.
        Fora do expediente o atraso é normal e não vira alarme. */
-    const horaSP = new Date().getHours();
-    const emExpediente = horaSP >= 8 && horaSP < 21;
-    const frescor = useMemo(() => {
-        const linhas = (d.saude || [])
-            .map((r) => ({ fonte: r.fonte, min: Number(r.atraso_min) }))
-            .filter((x) => Number.isFinite(x.min));
+    var horaSP = new Date().getHours();
+    var emExpediente = horaSP >= 8 && horaSP < 21;
+    var frescor = useMemo(function () {
+        var linhas = (d.saude || [])
+            .map(function (r) { return ({ fonte: r.fonte, min: Number(r.atraso_min) }); })
+            .filter(function (x) { return Number.isFinite(x.min); });
         if (!linhas.length)
             return null;
-        return { linhas, pior: linhas.reduce((m, x) => (x.min > m.min ? x : m)) };
+        return { linhas: linhas, pior: linhas.reduce(function (m, x) { return (x.min > m.min ? x : m); }) };
     }, [d.saude]);
-    const LIMITE_MIN = 75; // a carga roda de hora em hora
-    const dadoVelho = !!(frescor && emExpediente && frescor.pior.min > LIMITE_MIN);
-    const idade = (min) => (min >= 120 ? `${Math.round(min / 60)}h` : `${Math.round(min)} min`);
-    const metaTaxa = d.metas.taxa || { taxa_agendamento: 25, taxa_show: 70, pct_trabalhados: 95, sla_ate_15: 80 };
+    var LIMITE_MIN = 75; // a carga roda de hora em hora
+    var dadoVelho = !!(frescor && emExpediente && frescor.pior.min > LIMITE_MIN);
+    var idade = function (min) { return (min >= 120 ? "".concat(Math.round(min / 60), "h") : "".concat(Math.round(min), " min")); };
+    var metaTaxa = d.metas.taxa || { taxa_agendamento: 25, taxa_show: 70, pct_trabalhados: 95, sla_ate_15: 80 };
     /* Quantos segundos de ligação contam como conversa. Vem do banco para
        poder mudar sem republicar o painel. */
-    const segConversa = Number(metaTaxa.segundos_conversa || 30);
-    const reaisPorLigacaoGeral = div(a.receita, esf.ligacoes_tentadas - esf.ligacoes_fora);
-    const rotulo = f.periodo === "custom" ? `${brFull(de)} a ${brFull(ate)}` : PERIODOS[f.periodo];
-    const set = (k, v) => setF((x) => ({ ...x, [k]: v }));
-    const KPIS = [
+    var segConversa = Number(metaTaxa.segundos_conversa || 30);
+    var reaisPorLigacaoGeral = div(a.receita, esf.ligacoes_tentadas - esf.ligacoes_fora);
+    var rotulo = f.periodo === "custom" ? "".concat(brFull(de), " a ").concat(brFull(ate)) : PERIODOS[f.periodo];
+    var set = function (k, v) { return setF(function (x) {
+        var _a;
+        return (__assign(__assign({}, x), (_a = {}, _a[k] = v, _a)));
+    }); };
+    var KPIS = [
         { l: "Leads recebidos", v: nInt(a.leads_recebidos), d: React.createElement(Delta, { atual: a.leads_recebidos, anterior: aPrev.leads_recebidos }) },
-        { l: "Leads trabalhados", v: nInt(a.leads_trabalhados), s: `${nPct(a.pct_trabalhados)} dos recebidos`,
+        { l: "Leads trabalhados", v: nInt(a.leads_trabalhados), s: "".concat(nPct(a.pct_trabalhados), " dos recebidos"),
             tone: a.pct_trabalhados >= metaTaxa.pct_trabalhados / 100 ? "good" : undefined },
         { l: "Sem atendimento", v: nInt(a.leads_sem_atendimento), s: "Parados na entrada do funil",
             tone: a.leads_sem_atendimento > 0 ? "bad" : "good" },
         { l: "Agendamentos marcados", v: nInt(a.agendamentos_marcados), s: "No dia em que o SDR marcou",
             d: React.createElement(Delta, { atual: a.agendamentos_marcados, anterior: aPrev.agendamentos_marcados }) },
-        { l: "Taxa de agendamento", v: nPct(a.taxa_agendamento), s: `Meta: ${metaTaxa.taxa_agendamento}%`,
+        { l: "Taxa de agendamento", v: nPct(a.taxa_agendamento), s: "Meta: ".concat(metaTaxa.taxa_agendamento, "%"),
             tone: a.taxa_agendamento >= metaTaxa.taxa_agendamento / 100 ? "good" : "bad" },
         { l: "Visitas do dia", v: nInt(a.visitas_do_dia), s: "Agenda da loja no período" },
         { l: "Comparecimentos", v: nInt(a.comparecimentos), d: React.createElement(Delta, { atual: a.comparecimentos, anterior: aPrev.comparecimentos }) },
         { l: "Taxa de show", v: nPct(a.taxa_show),
             s: semDesfecho > 0
-                ? `${nInt(semDesfecho)} visitas sem desfecho — entre as preenchidas dá ${nPct(showApurado)}`
-                : `Meta: ${metaTaxa.taxa_show}%`,
+                ? "".concat(nInt(semDesfecho), " visitas sem desfecho \u2014 entre as preenchidas d\u00E1 ").concat(nPct(showApurado))
+                : "Meta: ".concat(metaTaxa.taxa_show, "%"),
             tone: duvidaGrande ? "bad" : (a.taxa_show >= metaTaxa.taxa_show / 100 ? "good" : "bad") },
         { l: "Vendas", v: nInt(a.vendas), d: React.createElement(Delta, { atual: a.vendas, anterior: aPrev.vendas }) },
-        { l: "Receita", v: nReal(a.receita), s: `Ticket médio ${nReal(a.ticket)}` },
+        { l: "Receita", v: nReal(a.receita), s: "Ticket m\u00E9dio ".concat(nReal(a.ticket)) },
         { l: "Conversão final", v: nPct(a.conversao_final), s: "Vendas ÷ leads recebidos" },
         { l: "Leads perdidos", v: nInt(a.perdidos), s: "Encerrados sem conversão" },
     ];
-    const funil = [
+    var funil = [
         { l: "Leads recebidos", v: a.leads_recebidos },
         { l: "Leads trabalhados", v: a.leads_trabalhados },
         { l: "Agendamentos", v: a.agendamentos_marcados },
         { l: "Comparecimentos", v: a.comparecimentos },
         { l: "Vendas", v: a.vendas },
     ];
-    const topo = funil[0].v || 1;
-    const perdas = funil.slice(1).map((e, i) => ({ i: i + 1, perda: funil[i].v - e.v, conv: div(e.v, funil[i].v) }));
-    const comPerda = perdas.filter((p) => p.perda > 0);
-    const gargalo = comPerda.length ? comPerda.reduce((m, p) => (p.perda > m.perda ? p : m)) : null;
-    const q = d.qualidade;
+    var topo = funil[0].v || 1;
+    var perdas = funil.slice(1).map(function (e, i) { return ({ i: i + 1, perda: funil[i].v - e.v, conv: div(e.v, funil[i].v) }); });
+    var comPerda = perdas.filter(function (p) { return p.perda > 0; });
+    var gargalo = comPerda.length ? comPerda.reduce(function (m, p) { return (p.perda > m.perda ? p : m); }) : null;
+    var q = d.qualidade;
     return (React.createElement("div", { style: { background: T.canvas, minHeight: "100vh", fontFamily: F_UI, color: T.ink } },
         React.createElement("header", { style: { background: T.preto, position: "sticky", top: 0, zIndex: 30 } },
             React.createElement("div", { className: "wrap", style: { display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -819,13 +1052,13 @@ function Painel({ sessao }) {
                             fontWeight: dadoVelho ? 700 : 500, whiteSpace: "nowrap" } }, d.estado.carregando
                         ? "atualizando…"
                         : dadoVelho
-                            ? `⚠ ${frescor.pior.fonte} parado há ${idade(frescor.pior.min)}`
+                            ? "\u26A0 ".concat(frescor.pior.fonte, " parado h\u00E1 ").concat(idade(frescor.pior.min))
                             : d.estado.em
-                                ? `atualizado ${d.estado.em.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+                                ? "atualizado ".concat(d.estado.em.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }))
                                 : "ao vivo")),
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
                     React.createElement("span", { style: { fontSize: 12, color: "rgba(255,255,255,.55)" } }, sessao.user.email),
-                    React.createElement("button", { onClick: () => db.auth.signOut(), style: { background: "transparent",
+                    React.createElement("button", { onClick: function () { return db.auth.signOut(); }, style: { background: "transparent",
                             border: "1px solid rgba(255,255,255,.28)", color: "rgba(255,255,255,.85)",
                             borderRadius: 7, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: F_UI } }, "Sair")))),
         React.createElement("main", { className: "wrap", style: { padding: "24px 24px 80px" } },
@@ -838,9 +1071,9 @@ function Painel({ sessao }) {
                     React.createElement("code", null, "comercial"),
                     " est\u00E1 exposto em Project Settings \u2192 API."))),
             d.falhas.length > 0 && (React.createElement(Card, { className: "p16", style: { borderColor: "#F0C3C6", background: "#FDF3F3", marginBottom: 16 } },
-                React.createElement("div", { style: { fontSize: 13, color: T.bad, fontWeight: 600 } }, d.falhas.length === 1 ? "Uma seção não carregou" : `${d.falhas.length} seções não carregaram`),
+                React.createElement("div", { style: { fontSize: 13, color: T.bad, fontWeight: 600 } }, d.falhas.length === 1 ? "Uma seção não carregou" : "".concat(d.falhas.length, " se\u00E7\u00F5es n\u00E3o carregaram")),
                 React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 6, lineHeight: 1.6 } },
-                    d.falhas.map((x) => x.nome).join(", "),
+                    d.falhas.map(function (x) { return x.nome; }).join(", "),
                     " \u2014 os n\u00FAmeros dessas se\u00E7\u00F5es est\u00E3o incompletos ou zerados por falha de leitura, n\u00E3o por falta de trabalho. Aperte Atualizar; se persistir, \u00E9 o banco."))),
             dadoVelho && (React.createElement(Card, { className: "p16", style: { borderColor: "#F0C3C6", background: "#FDF3F3", marginBottom: 16 } },
                 React.createElement("div", { style: { fontSize: 13, color: T.bad, fontWeight: 600 } },
@@ -853,19 +1086,22 @@ function Painel({ sessao }) {
                     frescor.linhas.length > 1 && (React.createElement("span", null,
                         " Idade de cada fonte: ",
                         frescor.linhas
-                            .slice().sort((x, y) => y.min - x.min)
-                            .map((x) => `${x.fonte} ${idade(x.min)}`).join(" · "),
+                            .slice().sort(function (x, y) { return y.min - x.min; })
+                            .map(function (x) { return "".concat(x.fonte, " ").concat(idade(x.min)); }).join(" · "),
                         "."))))),
             React.createElement(Card, { className: "p12", style: { position: "sticky", top: 54, zIndex: 20 } },
                 React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
-                    React.createElement(Select, { value: f.periodo, onChange: (v) => set("periodo", v), options: Object.entries(PERIODOS).map(([v, l]) => ({ v, l })) }),
+                    React.createElement(Select, { value: f.periodo, onChange: function (v) { return set("periodo", v); }, options: Object.entries(PERIODOS).map(function (_a) {
+                            var v = _a[0], l = _a[1];
+                            return ({ v: v, l: l });
+                        }) }),
                     f.periodo === "custom" && (React.createElement(React.Fragment, null,
-                        React.createElement("input", { type: "date", value: f.de, onChange: (e) => set("de", e.target.value), className: "dt" }),
+                        React.createElement("input", { type: "date", value: f.de, onChange: function (e) { return set("de", e.target.value); }, className: "dt" }),
                         React.createElement("span", { style: { color: T.muted, fontSize: 12 } }, "at\u00E9"),
-                        React.createElement("input", { type: "date", value: f.ate, onChange: (e) => set("ate", e.target.value), className: "dt" }))),
-                    React.createElement(Select, { value: f.unidade, onChange: (v) => set("unidade", v), options: [{ v: "__all", l: "Todas as unidades" }, ...listas.unidades.map((u) => ({ v: u, l: u }))] }),
-                    React.createElement(Select, { value: f.servico, onChange: (v) => set("servico", v), options: [{ v: "__all", l: "Todos os serviços" }, ...listas.servicos.map((s) => ({ v: s, l: s }))] }),
-                    React.createElement(Select, { value: f.sdr, onChange: (v) => set("sdr", v), options: [{ v: "__all", l: "Todos os SDRs" }, ...listas.sdrs.map((s) => ({ v: s, l: s }))] }),
+                        React.createElement("input", { type: "date", value: f.ate, onChange: function (e) { return set("ate", e.target.value); }, className: "dt" }))),
+                    React.createElement(Select, { value: f.unidade, onChange: function (v) { return set("unidade", v); }, options: __spreadArray([{ v: "__all", l: "Todas as unidades" }], listas.unidades.map(function (u) { return ({ v: u, l: u }); }), true) }),
+                    React.createElement(Select, { value: f.servico, onChange: function (v) { return set("servico", v); }, options: __spreadArray([{ v: "__all", l: "Todos os serviços" }], listas.servicos.map(function (s) { return ({ v: s, l: s }); }), true) }),
+                    React.createElement(Select, { value: f.sdr, onChange: function (v) { return set("sdr", v); }, options: __spreadArray([{ v: "__all", l: "Todos os SDRs" }], listas.sdrs.map(function (s) { return ({ v: s, l: s }); }), true) }),
                     React.createElement(Btn, { onClick: d.recarregar, style: { padding: "6px 11px" } }, "Atualizar"),
                     React.createElement("div", { style: { marginLeft: "auto", fontSize: 12, color: T.muted, fontVariantNumeric: "tabular-nums" } },
                         brFull(de),
@@ -875,8 +1111,8 @@ function Painel({ sessao }) {
                         dias,
                         " ",
                         dias === 1 ? "dia" : "dias"))),
-            React.createElement(Secao, { n: 1, titulo: `Resultado — ${rotulo}` },
-                React.createElement("div", { className: "grid-kpi" }, KPIS.map((k) => React.createElement(Kpi, { key: k.l, label: k.l, value: k.v, sub: k.s, foot: k.d, tone: k.tone })))),
+            React.createElement(Secao, { n: 1, titulo: "Resultado \u2014 ".concat(rotulo) },
+                React.createElement("div", { className: "grid-kpi" }, KPIS.map(function (k) { return React.createElement(Kpi, { key: k.l, label: k.l, value: k.v, sub: k.s, foot: k.d, tone: k.tone }); }))),
             React.createElement(Secao, { n: 2, titulo: "Funil", nota: "Cada etapa conta no dia em que aconteceu. Agendamento entra no dia em que o SDR marcou \u2014 n\u00E3o no dia da visita." },
                 React.createElement(Card, { className: "p20" },
                     gargalo && (React.createElement("div", { style: { marginBottom: 14 } },
@@ -887,20 +1123,20 @@ function Painel({ sessao }) {
                             funil[gargalo.i].l,
                             " \u00B7 \u2212",
                             nInt(gargalo.perda)))),
-                    funil.map((e, i) => {
-                        const passo = i > 0 ? perdas[i - 1] : null;
-                        const eh = gargalo && gargalo.i === i;
+                    funil.map(function (e, i) {
+                        var passo = i > 0 ? perdas[i - 1] : null;
+                        var eh = gargalo && gargalo.i === i;
                         return (React.createElement("div", { key: e.l },
                             passo && (React.createElement("div", { style: { display: "flex", gap: 12, padding: "3px 0" } },
                                 React.createElement("div", { style: { width: 150 } }),
                                 React.createElement("div", { style: { fontSize: 11.5, color: passo.conv > 1 ? T.warn : (eh ? T.warn : T.muted),
                                         fontWeight: eh || passo.conv > 1 ? 700 : 500, fontVariantNumeric: "tabular-nums" } }, passo.conv > 1
-                                    ? `↑ ${nInt(-passo.perda)} a mais que a etapa anterior — falta registro acima`
-                                    : `↓ ${nPct(passo.conv)} avançam${passo.perda > 0 ? ` · perde ${nInt(passo.perda)}` : ""}`))),
+                                    ? "\u2191 ".concat(nInt(-passo.perda), " a mais que a etapa anterior \u2014 falta registro acima")
+                                    : "\u2193 ".concat(nPct(passo.conv), " avan\u00E7am").concat(passo.perda > 0 ? " \u00B7 perde ".concat(nInt(passo.perda)) : "")))),
                             React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
                                 React.createElement("div", { style: { width: 150, fontSize: 12.5, color: T.ink2, textAlign: "right" } }, e.l),
                                 React.createElement("div", { style: { flex: 1 } },
-                                    React.createElement("div", { style: { width: `${Math.max(4, div(e.v, topo) * 100)}%`, height: 34, borderRadius: 4,
+                                    React.createElement("div", { style: { width: "".concat(Math.max(4, div(e.v, topo) * 100), "%"), height: 34, borderRadius: 4,
                                             background: eh ? T.marca : T.ink,
                                             display: "flex", alignItems: "center", paddingLeft: 10, minWidth: 84, transition: "width .5s ease" } },
                                         React.createElement("span", { style: { fontFamily: F_NUM, color: eh ? T.preto : "#fff", fontWeight: 700,
@@ -929,8 +1165,8 @@ function Painel({ sessao }) {
                                 React.createElement(Th, { right: true }, "Lig. na carteira"),
                                 React.createElement(Th, { right: true }, "R$ por lig."))),
                         React.createElement("tbody", null,
-                            [...porSdr].sort((x, y) => y.agendamentos_marcados - x.agendamentos_marcados).map((s) => {
-                                const ce = carteiraEsfPorSdr.get(s.nome) || { ligacoes: 0, pessoas: 0 };
+                            __spreadArray([], porSdr, true).sort(function (x, y) { return y.agendamentos_marcados - x.agendamentos_marcados; }).map(function (s) {
+                                var ce = carteiraEsfPorSdr.get(s.nome) || { ligacoes: 0, pessoas: 0 };
                                 return (React.createElement("tr", { key: s.nome },
                                     React.createElement(Td, { bold: true }, s.nome),
                                     React.createElement(Td, { right: true }, nInt(s.leads_recebidos)),
@@ -972,18 +1208,18 @@ function Painel({ sessao }) {
                             nInt(semSdr.leads_recebidos),
                             " leads sem SDR"),
                         " no per\u00EDodo \u2014 entraram e n\u00E3o foram distribu\u00EDdos a ningu\u00E9m. N\u00E3o entram no placar acima porque n\u00E3o s\u00E3o de ningu\u00E9m; entram no total.",
-                        semSdr.vendas > 0 && ` Ainda assim, ${nInt(semSdr.vendas)} viraram venda.`)))),
-            esforcoPorSdr.length > 0 && (React.createElement(Secao, { n: 4, titulo: "Esfor\u00E7o \u2014 por quem executou", nota: `Chave diferente da seção 3: aqui o crédito é de quem FEZ, não de quem é dono do lead. A ligação vem do discador, que sabe qual ramal discou; o Kommo não sabe. "Tentou" conta toda discagem; "atendeu" usa o motivo real de encerramento, então caixa postal não conta; "falou com" são pessoas em conversas acima de ${segConversa}s. Mensagem do robô de triagem fica fora: automação não é esforço de ninguém. "Fora do funil" é trabalho em lead de outro funil, quase sempre o Remarketing, que a equipe atende quando não há lead novo entrando — conta como esforço porque a pessoa fez, mas o resultado dele não aparece nas seções de carteira.` },
+                        semSdr.vendas > 0 && " Ainda assim, ".concat(nInt(semSdr.vendas), " viraram venda."))))),
+            esforcoPorSdr.length > 0 && (React.createElement(Secao, { n: 4, titulo: "Esfor\u00E7o \u2014 por quem executou", nota: "Chave diferente da se\u00E7\u00E3o 3: aqui o cr\u00E9dito \u00E9 de quem FEZ, n\u00E3o de quem \u00E9 dono do lead. A liga\u00E7\u00E3o vem do discador, que sabe qual ramal discou; o Kommo n\u00E3o sabe. \"Tentou\" conta toda discagem; \"atendeu\" usa o motivo real de encerramento, ent\u00E3o caixa postal n\u00E3o conta; \"falou com\" s\u00E3o pessoas em conversas acima de ".concat(segConversa, "s. Mensagem do rob\u00F4 de triagem fica fora: automa\u00E7\u00E3o n\u00E3o \u00E9 esfor\u00E7o de ningu\u00E9m. \"Fora do funil\" \u00E9 trabalho em lead de outro funil, quase sempre o Remarketing, que a equipe atende quando n\u00E3o h\u00E1 lead novo entrando \u2014 conta como esfor\u00E7o porque a pessoa fez, mas o resultado dele n\u00E3o aparece nas se\u00E7\u00F5es de carteira.") },
                 React.createElement("div", { className: "grid-kpi", style: { marginBottom: 16 } },
                     React.createElement(Kpi, { label: "Liga\u00E7\u00F5es tentadas", value: nInt(esf.ligacoes_tentadas), sub: esf.ligacoes_fora
-                            ? `${nInt(esf.ligacoes_fora)} fora do CAR SERVICE (${nPct(esf.pct_fora, 0)})`
+                            ? "".concat(nInt(esf.ligacoes_fora), " fora do CAR SERVICE (").concat(nPct(esf.pct_fora, 0), ")")
                             : "Inclui caixa postal e não atendida" }),
-                    React.createElement(Kpi, { label: "Falou com", value: nInt(esf.pessoas_com_quem_falou), sub: `Pessoas, em ligações acima de ${segConversa}s` }),
+                    React.createElement(Kpi, { label: "Falou com", value: nInt(esf.pessoas_com_quem_falou), sub: "Pessoas, em liga\u00E7\u00F5es acima de ".concat(segConversa, "s") }),
                     React.createElement(Kpi, { label: "Taxa de atendimento", value: nPct(esf.taxa_atendimento), sub: "Pelo motivo real de encerramento" }),
                     React.createElement(Kpi, { label: "Discagens por conversa", value: nNum(esf.discagens_por_conversa, 1), sub: "Quanto custa cada conversa" }),
                     React.createElement(Kpi, { label: "Horas ao telefone", value: nNum(esf.horas, 1), sub: "Soma da dura\u00E7\u00E3o das liga\u00E7\u00F5es" }),
                     React.createElement(Kpi, { label: "WhatsApp de pessoa", value: nInt(esf.whatsapp_enviados), sub: roboEnviou
-                            ? `À parte: o robô enviou ${nInt(roboEnviou)} e o cliente respondeu ${nInt(clienteRespondeu)}`
+                            ? "\u00C0 parte: o rob\u00F4 enviou ".concat(nInt(roboEnviou), " e o cliente respondeu ").concat(nInt(clienteRespondeu))
                             : "Digitadas por gente" })),
                 React.createElement(Card, { className: "p0 rolagem" },
                     React.createElement("table", null,
@@ -998,19 +1234,19 @@ function Painel({ sessao }) {
                                 React.createElement(Th, { right: true }, "Zap"),
                                 React.createElement(Th, { right: true }, "Horas ao telefone"))),
                         React.createElement("tbody", null,
-                            [...esforcoPorSdr].sort((x, y) => y.ligacoes_tentadas - x.ligacoes_tentadas).map((s) => (React.createElement("tr", { key: s.nome },
+                            __spreadArray([], esforcoPorSdr, true).sort(function (x, y) { return y.ligacoes_tentadas - x.ligacoes_tentadas; }).map(function (s) { return (React.createElement("tr", { key: s.nome },
                                 React.createElement(Td, { bold: true }, s.nome),
                                 React.createElement(Td, { right: true }, nInt(s.ligacoes_tentadas)),
-                                React.createElement(Td, { right: true, color: T.muted }, s.ligacoes_fora ? `${nInt(s.ligacoes_fora)} · ${nPct(s.pct_fora, 0)}` : "—"),
+                                React.createElement(Td, { right: true, color: T.muted }, s.ligacoes_fora ? "".concat(nInt(s.ligacoes_fora), " \u00B7 ").concat(nPct(s.pct_fora, 0)) : "—"),
                                 React.createElement(Td, { right: true }, nPct(s.taxa_atendimento)),
                                 React.createElement(Td, { right: true }, nInt(s.pessoas_com_quem_falou)),
                                 React.createElement(Td, { right: true, color: s.discagens_por_conversa > esf.discagens_por_conversa ? T.bad : T.good }, nNum(s.discagens_por_conversa, 1)),
                                 React.createElement(Td, { right: true }, nInt(s.whatsapp_enviados)),
-                                React.createElement(Td, { right: true }, nNum(s.horas, 1))))),
+                                React.createElement(Td, { right: true }, nNum(s.horas, 1)))); }),
                             React.createElement("tr", { style: { background: T.canvas } },
                                 React.createElement(Td, { bold: true }, "Total"),
                                 React.createElement(Td, { right: true, bold: true }, nInt(esf.ligacoes_tentadas)),
-                                React.createElement(Td, { right: true, bold: true, color: T.muted }, esf.ligacoes_fora ? `${nInt(esf.ligacoes_fora)} · ${nPct(esf.pct_fora, 0)}` : "—"),
+                                React.createElement(Td, { right: true, bold: true, color: T.muted }, esf.ligacoes_fora ? "".concat(nInt(esf.ligacoes_fora), " \u00B7 ").concat(nPct(esf.pct_fora, 0)) : "—"),
                                 React.createElement(Td, { right: true, bold: true }, nPct(esf.taxa_atendimento)),
                                 React.createElement(Td, { right: true, bold: true }, nInt(esf.pessoas_com_quem_falou)),
                                 React.createElement(Td, { right: true, bold: true }, nNum(esf.discagens_por_conversa, 1)),
@@ -1021,23 +1257,26 @@ function Painel({ sessao }) {
                 React.createElement(Card, { className: "p16" },
                     React.createElement(GraficoEvolucao, { dados: serie }))),
             React.createElement(Secao, { n: 6, titulo: "Por unidade e por servi\u00E7o" },
-                React.createElement("div", { className: "col2" }, [["Unidade", porUnidade], ["Serviço", porServico]].map(([titulo, dados]) => (React.createElement(Card, { key: titulo, className: "p0 rolagem" },
-                    React.createElement("table", null,
-                        React.createElement("thead", null,
-                            React.createElement("tr", null,
-                                React.createElement(Th, null, titulo),
-                                React.createElement(Th, { right: true }, "Leads"),
-                                React.createElement(Th, { right: true }, "Marcou"),
-                                React.createElement(Th, { right: true }, "Compar."),
-                                React.createElement(Th, { right: true }, "Vendas"),
-                                React.createElement(Th, { right: true }, "Conv."))),
-                        React.createElement("tbody", null, [...dados].sort((x, y) => y.leads_recebidos - x.leads_recebidos).map((r) => (React.createElement("tr", { key: r.nome },
-                            React.createElement(Td, { bold: true }, r.nome),
-                            React.createElement(Td, { right: true }, nInt(r.leads_recebidos)),
-                            React.createElement(Td, { right: true }, nInt(r.agendamentos_marcados)),
-                            React.createElement(Td, { right: true }, nInt(r.comparecimentos)),
-                            React.createElement(Td, { right: true, bold: true }, nInt(r.vendas)),
-                            React.createElement(Td, { right: true, color: r.conversao_final >= a.conversao_final ? T.good : T.bad }, nPct(r.conversao_final)))))))))))),
+                React.createElement("div", { className: "col2" }, [["Unidade", porUnidade], ["Serviço", porServico]].map(function (_a) {
+                    var titulo = _a[0], dados = _a[1];
+                    return (React.createElement(Card, { key: titulo, className: "p0 rolagem" },
+                        React.createElement("table", null,
+                            React.createElement("thead", null,
+                                React.createElement("tr", null,
+                                    React.createElement(Th, null, titulo),
+                                    React.createElement(Th, { right: true }, "Leads"),
+                                    React.createElement(Th, { right: true }, "Marcou"),
+                                    React.createElement(Th, { right: true }, "Compar."),
+                                    React.createElement(Th, { right: true }, "Vendas"),
+                                    React.createElement(Th, { right: true }, "Conv."))),
+                            React.createElement("tbody", null, __spreadArray([], dados, true).sort(function (x, y) { return y.leads_recebidos - x.leads_recebidos; }).map(function (r) { return (React.createElement("tr", { key: r.nome },
+                                React.createElement(Td, { bold: true }, r.nome),
+                                React.createElement(Td, { right: true }, nInt(r.leads_recebidos)),
+                                React.createElement(Td, { right: true }, nInt(r.agendamentos_marcados)),
+                                React.createElement(Td, { right: true }, nInt(r.comparecimentos)),
+                                React.createElement(Td, { right: true, bold: true }, nInt(r.vendas)),
+                                React.createElement(Td, { right: true, color: r.conversao_final >= a.conversao_final ? T.good : T.bad }, nPct(r.conversao_final)))); })))));
+                }))),
             React.createElement(Secao, { n: 7, titulo: "Tempo at\u00E9 a primeira liga\u00E7\u00E3o", nota: d.tempoAntigo
                     ? "Medida antiga, pela saída do lead da etapa de entrada. Rode o filtro_usuarios.sql para passar a medir pela ligação de verdade."
                     : "Da entrada do lead até a primeira ligação DISCADA — vale a discagem, não o atendimento: o SDR controla quando liga, não se o cliente atende. Isto não é o que a casa chama de SLA; SLA aqui quer dizer que o lead atende aos padrões mínimos para ser atendido." },
@@ -1054,9 +1293,9 @@ function Painel({ sessao }) {
                             { l: "Até 15 minutos", n: tempoTot.ate_5min + tempoTot.ate_15min, meta: (metaTaxa.resposta_ate_15_min || metaTaxa.sla_ate_15) / 100 },
                             { l: "Até 1 hora", n: tempoTot.ate_5min + tempoTot.ate_15min + tempoTot.ate_60min },
                             { l: "Acima de 1 hora", n: tempoTot.acima_de_1h, ruim: true },
-                        ].map((i) => {
-                            const p = div(i.n, tempoTot.com_medida);
-                            const cor = i.ruim ? T.bad : i.meta ? (p >= i.meta ? T.good : T.bad) : T.ink;
+                        ].map(function (i) {
+                            var p = div(i.n, tempoTot.com_medida);
+                            var cor = i.ruim ? T.bad : i.meta ? (p >= i.meta ? T.good : T.bad) : T.ink;
                             return (React.createElement("div", { key: i.l },
                                 React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 } },
                                     React.createElement("span", { style: { fontSize: 13, color: T.ink2 } }, i.l),
@@ -1074,29 +1313,29 @@ function Painel({ sessao }) {
                                     nPct(i.meta, 0))));
                         }))),
                     React.createElement("div", { className: "grid-kpi-2" },
-                        React.createElement(Kpi, { label: "Tempo m\u00E9dio at\u00E9 ligar", value: tempoTot.medio == null ? "—" : `${nNum(tempoTot.medio, 0)} min`, sub: "Da entrada do lead \u00E0 primeira discagem" }),
-                        React.createElement(Kpi, { label: "Tempo m\u00E9dio at\u00E9 falar", value: tempoTot.medioAteFalar == null ? "—" : `${nNum(tempoTot.medioAteFalar, 0)} min`, sub: `Até uma conversa acima de ${segConversa}s` }),
+                        React.createElement(Kpi, { label: "Tempo m\u00E9dio at\u00E9 ligar", value: tempoTot.medio == null ? "—" : "".concat(nNum(tempoTot.medio, 0), " min"), sub: "Da entrada do lead \u00E0 primeira discagem" }),
+                        React.createElement(Kpi, { label: "Tempo m\u00E9dio at\u00E9 falar", value: tempoTot.medioAteFalar == null ? "—" : "".concat(nNum(tempoTot.medioAteFalar, 0), " min"), sub: "At\u00E9 uma conversa acima de ".concat(segConversa, "s") }),
                         React.createElement(Kpi, { label: "Ningu\u00E9m ligou", value: nInt(tempoTot.leads - tempoTot.com_medida), sub: "Leads sem nenhuma discagem registrada", tone: tempoTot.leads - tempoTot.com_medida > 0 ? "bad" : "good" })))),
             React.createElement(Secao, { n: 8, titulo: "Por que perdemos", nota: "S\u00F3 a lista oficial de motivos do Kommo. Perdas registradas antes dela existir ficam na nota do rodap\u00E9 \u2014 o vocabul\u00E1rio antigo jogava quase tudo num motivo s\u00F3, ent\u00E3o somar os dois daria uma leitura que n\u00E3o existe." },
                 React.createElement(Card, { className: "p16" },
                     motivos.lista.length === 0 ? (React.createElement("div", { style: { fontSize: 13, color: T.muted } }, "Nenhuma perda com motivo da lista oficial neste per\u00EDodo.")) : (React.createElement(BarrasHorizontais, { dados: motivos.lista })),
-                    motivos.historico > 0 && (React.createElement("div", { style: { marginTop: 16, paddingTop: 12, borderTop: `1px solid ${T.hair}`,
+                    motivos.historico > 0 && (React.createElement("div", { style: { marginTop: 16, paddingTop: 12, borderTop: "1px solid ".concat(T.hair),
                             fontSize: 12, color: T.muted, lineHeight: 1.6 } },
                         "Mais ",
                         React.createElement("b", { style: { color: T.ink2 } }, nInt(motivos.historico)),
                         " perdas no per\u00EDodo registradas antes da lista oficial de motivos. Ficam fora do gr\u00E1fico porque o vocabul\u00E1rio antigo n\u00E3o distinguia os casos. Este n\u00FAmero encolhe sozinho conforme os leads novos s\u00E3o fechados.")))),
-            React.createElement(Secao, { n: 9, titulo: "Onde os leads est\u00E3o parados agora", nota: "Foto do momento, n\u00E3o do per\u00EDodo filtrado, e s\u00F3 do que continua aberto. O valor \u00E9 a soma do que est\u00E1 registrado nos leads da etapa \u2014 vale o que o preenchimento valer, por isso a coluna ao lado mostra quantos est\u00E3o sem valor nenhum. Ordenado por dinheiro, n\u00E3o por quantidade." }, (() => {
-                const abertas = d.funilAgora
-                    .filter((r) => !r.ignorada)
-                    .filter((r) => !["ganho", "perdido"].includes(r.etapa_grupo))
-                    .sort((a, b) => (Number(b.valor_parado) || 0) - (Number(a.valor_parado) || 0));
-                const totalLeads = abertas.reduce((s2, r) => s2 + (Number(r.leads) || 0), 0);
-                const totalValor = abertas.reduce((s2, r) => s2 + (Number(r.valor_parado) || 0), 0);
-                const totalSemValor = abertas.reduce((s2, r) => s2 + (Number(r.sem_valor) || 0), 0);
-                const temValor = abertas.some((r) => r.valor_parado != null);
+            React.createElement(Secao, { n: 9, titulo: "Onde os leads est\u00E3o parados agora", nota: "Foto do momento, n\u00E3o do per\u00EDodo filtrado, e s\u00F3 do que continua aberto. O valor \u00E9 a soma do que est\u00E1 registrado nos leads da etapa \u2014 vale o que o preenchimento valer, por isso a coluna ao lado mostra quantos est\u00E3o sem valor nenhum. Ordenado por dinheiro, n\u00E3o por quantidade." }, (function () {
+                var abertas = d.funilAgora
+                    .filter(function (r) { return !r.ignorada; })
+                    .filter(function (r) { return !["ganho", "perdido"].includes(r.etapa_grupo); })
+                    .sort(function (a, b) { return (Number(b.valor_parado) || 0) - (Number(a.valor_parado) || 0); });
+                var totalLeads = abertas.reduce(function (s2, r) { return s2 + (Number(r.leads) || 0); }, 0);
+                var totalValor = abertas.reduce(function (s2, r) { return s2 + (Number(r.valor_parado) || 0); }, 0);
+                var totalSemValor = abertas.reduce(function (s2, r) { return s2 + (Number(r.sem_valor) || 0); }, 0);
+                var temValor = abertas.some(function (r) { return r.valor_parado != null; });
                 return (React.createElement(React.Fragment, null,
                     temValor && (React.createElement("div", { className: "grid-kpi", style: { marginBottom: 12 } },
-                        React.createElement(Kpi, { label: "Dinheiro parado", value: nReal(totalValor), sub: `Em ${nInt(totalLeads)} leads abertos` }),
+                        React.createElement(Kpi, { label: "Dinheiro parado", value: nReal(totalValor), sub: "Em ".concat(nInt(totalLeads), " leads abertos") }),
                         React.createElement(Kpi, { label: "Leads sem valor", value: nInt(totalSemValor), sub: "N\u00E3o somam no valor acima", tone: totalSemValor > totalLeads / 2 ? "bad" : undefined }))),
                     React.createElement(Card, { className: "p0 rolagem" },
                         React.createElement("table", null,
@@ -1110,14 +1349,14 @@ function Painel({ sessao }) {
                                     temValor && React.createElement(Th, { right: true }, "Dias sem mexer"),
                                     React.createElement(Th, { right: true }, "Mais antigo"))),
                             React.createElement("tbody", null,
-                                abertas.map((r) => (React.createElement("tr", { key: r.etapa || "—" },
+                                abertas.map(function (r) { return (React.createElement("tr", { key: r.etapa || "—" },
                                     React.createElement(Td, { bold: true }, r.etapa || "—"),
                                     React.createElement(Td, { color: T.muted }, r.etapa_grupo || "—"),
                                     React.createElement(Td, { right: true }, nInt(r.leads)),
                                     temValor && React.createElement(Td, { right: true, bold: true }, nReal(r.valor_parado)),
-                                    temValor && (React.createElement(Td, { right: true, color: T.muted }, r.sem_valor ? `${nInt(r.sem_valor)} de ${nInt(r.leads)}` : "—")),
+                                    temValor && (React.createElement(Td, { right: true, color: T.muted }, r.sem_valor ? "".concat(nInt(r.sem_valor), " de ").concat(nInt(r.leads)) : "—")),
                                     temValor && (React.createElement(Td, { right: true, color: Number(r.dias_sem_mexer) > 30 ? T.bad : T.ink }, r.dias_sem_mexer != null ? nInt(r.dias_sem_mexer) : "—")),
-                                    React.createElement(Td, { right: true, color: T.muted }, r.lead_mais_antigo ? brFull(r.lead_mais_antigo) : "—")))),
+                                    React.createElement(Td, { right: true, color: T.muted }, r.lead_mais_antigo ? brFull(r.lead_mais_antigo) : "—"))); }),
                                 React.createElement("tr", { style: { background: T.canvas } },
                                     React.createElement(Td, { bold: true }, "Total aberto"),
                                     React.createElement(Td, null),
@@ -1127,9 +1366,9 @@ function Painel({ sessao }) {
                                     temValor && React.createElement(Td, null),
                                     React.createElement(Td, null)))))));
             })()),
-            notaPreench.lista.length > 0 && (React.createElement(Secao, { n: 10, titulo: "Preenchimento \u2014 nota por SDR", nota: `A nota é campos preenchidos dividido por campos exigidos, em três camadas: todo lead exige unidade e serviço; lead agendado exige também data da visita e a nota para o closer; lead que virou venda exige o valor. Quem não agendou ou não vendeu não é cobrado por campo que ainda não existe. O desfecho da visita fica de fora — hoje ninguém tem essa tarefa.` },
+            notaPreench.lista.length > 0 && (React.createElement(Secao, { n: 10, titulo: "Preenchimento \u2014 nota por SDR", nota: "A nota \u00E9 campos preenchidos dividido por campos exigidos, em tr\u00EAs camadas: todo lead exige unidade e servi\u00E7o; lead agendado exige tamb\u00E9m data da visita e a nota para o closer; lead que virou venda exige o valor. Quem n\u00E3o agendou ou n\u00E3o vendeu n\u00E3o \u00E9 cobrado por campo que ainda n\u00E3o existe. O desfecho da visita fica de fora \u2014 hoje ningu\u00E9m tem essa tarefa." },
                 React.createElement("div", { className: "grid-kpi", style: { marginBottom: 12 } },
-                    React.createElement(Kpi, { label: "Nota do time", value: nPct(notaPreench.geral, 0), sub: `${nInt(notaPreench.tot.ok)} de ${nInt(notaPreench.tot.exigidos)} campos`, tone: notaPreench.geral >= 0.9 ? "good" : notaPreench.geral < 0.7 ? "bad" : undefined }),
+                    React.createElement(Kpi, { label: "Nota do time", value: nPct(notaPreench.geral, 0), sub: "".concat(nInt(notaPreench.tot.ok), " de ").concat(nInt(notaPreench.tot.exigidos), " campos"), tone: notaPreench.geral >= 0.9 ? "good" : notaPreench.geral < 0.7 ? "bad" : undefined }),
                     React.createElement(Kpi, { label: "Melhor", value: notaPreench.lista[0].nome, sub: nPct(notaPreench.lista[0].nota, 0), tone: "good" }),
                     React.createElement(Kpi, { label: "Pior", value: notaPreench.lista[notaPreench.lista.length - 1].nome, sub: nPct(notaPreench.lista[notaPreench.lista.length - 1].nota, 0), tone: "bad" })),
                 React.createElement(Card, { className: "p0 rolagem" },
@@ -1146,8 +1385,8 @@ function Painel({ sessao }) {
                                 React.createElement(Th, { right: true }, "Nota ao closer"),
                                 React.createElement(Th, { right: true }, "Vendas"),
                                 React.createElement(Th, { right: true }, "Valor preenchido"))),
-                        React.createElement("tbody", null, notaPreench.lista.map((x) => {
-                            const cel = (feitos, total) => total
+                        React.createElement("tbody", null, notaPreench.lista.map(function (x) {
+                            var cel = function (feitos, total) { return total
                                 ? React.createElement(Td, { right: true, color: div(feitos, total) >= 0.9 ? T.good
                                         : div(feitos, total) < 0.7 ? T.bad : T.ink },
                                     nPct(div(feitos, total), 0),
@@ -1155,7 +1394,7 @@ function Painel({ sessao }) {
                                         " \u00B7 ",
                                         nInt(total - feitos),
                                         " em branco"))
-                                : React.createElement(Td, { right: true, color: T.muted }, "\u2014");
+                                : React.createElement(Td, { right: true, color: T.muted }, "\u2014"); };
                             return (React.createElement("tr", { key: x.nome },
                                 React.createElement(Td, { bold: true }, x.nome),
                                 React.createElement(Td, { right: true, bold: true, color: x.nota >= 0.9 ? T.good : x.nota < 0.7 ? T.bad : T.ink }, nPct(x.nota, 0)),
@@ -1177,7 +1416,7 @@ function Painel({ sessao }) {
                     React.createElement(Kpi, { label: "Leads sem SDR", value: nInt(q.sem_sdr), sub: "Nunca distribu\u00EDdos", tone: q.sem_sdr > 0 ? "bad" : "good" }),
                     React.createElement(Kpi, { label: "Vendas sem valor", value: nInt(q.ganho_sem_valor), sub: "Fecharam com R$ 0", tone: q.ganho_sem_valor > 0 ? "bad" : "good" }),
                     React.createElement(Kpi, { label: "Valores em quarentena", value: nInt(q.valor_em_quarentena), sub: "Acima de R$ 100 mil, fora do c\u00E1lculo", tone: q.valor_em_quarentena > 0 ? "bad" : "good" })))),
-            React.createElement("footer", { style: { marginTop: 48, paddingTop: 18, borderTop: `1px solid ${T.hair}`,
+            React.createElement("footer", { style: { marginTop: 48, paddingTop: 18, borderTop: "1px solid ".concat(T.hair),
                     fontSize: 11.5, color: T.muted, lineHeight: 1.7, maxWidth: "80ch" } },
                 React.createElement("b", null, "De onde vem cada n\u00FAmero."),
                 " A carteira \u2014 leads, agendamentos, visitas, vendas e receita \u2014 vem do funil do CAR SERVICE no Kommo \u2014 que l\u00E1 dentro ainda se chama \"Auto Care\", id 13727267, um dos 29 funis da conta \u2014 e \u00E9 creditada ao dono do lead. O esfor\u00E7o \u2014 liga\u00E7\u00F5es, tempo ao telefone e taxa de atendimento \u2014 vem do discador API4COM, que \u00E9 quem sabe qual ramal discou; o Kommo n\u00E3o sabe, porque quem escreve a nota da liga\u00E7\u00E3o \u00E9 a integra\u00E7\u00E3o e n\u00E3o a pessoa. Por isso a se\u00E7\u00E3o 4 tem uma chave diferente da se\u00E7\u00E3o 3, e por isso trocar o API4COM por outro discador exige refazer essa parte. O WhatsApp vem do Kommo, onde o autor da mensagem \u00E9 confi\u00E1vel.",
@@ -1191,25 +1430,29 @@ function Painel({ sessao }) {
                 " Venda acima de R$ 100 mil entra na contagem, mas com receita zerada at\u00E9 algu\u00E9m conferir o valor \u2014 hoje h\u00E1 uma, de R$ 6,95 milh\u00F5es, que \u00E9 erro de digita\u00E7\u00E3o. Liga\u00E7\u00E3o para lead de outro funil \u2014 quase sempre o Remarketing, que a equipe trabalha quando n\u00E3o h\u00E1 lead novo \u2014 entra no esfor\u00E7o da se\u00E7\u00E3o 4 e aparece na coluna \"fora do funil\". Ela n\u00E3o entra em nenhuma outra se\u00E7\u00E3o: agendamento, visita e venda desses leads continuam invis\u00EDveis aqui, por decis\u00E3o de escopo. Mensagem sem autor \u00E9 do rob\u00F4 de triagem quando sai e \u00E9 o cliente quando entra \u2014 as duas s\u00E3o mostradas separadas, nunca somadas."))));
 }
 function App() {
-    const [sessao, setSessao] = useState(undefined);
-    useEffect(() => {
-        let vivo = true;
+    var _a = useState(undefined), sessao = _a[0], setSessao = _a[1];
+    useEffect(function () {
+        var vivo = true;
         /* Se a checagem de sessão não voltar em 8 segundos, cai na tela de
            login em vez de ficar em "Verificando". Rede lenta ou Supabase
            fora do ar não podem deixar a página presa para sempre. */
-        const prazo = setTimeout(() => {
+        var prazo = setTimeout(function () {
             if (vivo)
-                setSessao((x) => (x === undefined ? null : x));
+                setSessao(function (x) { return (x === undefined ? null : x); });
         }, 8000);
         db.auth.getSession()
-            .then(({ data }) => { var _a; if (vivo)
-            setSessao((_a = data.session) !== null && _a !== void 0 ? _a : null); })
-            .catch(() => { if (vivo)
+            .then(function (_a) {
+            var _b;
+            var data = _a.data;
+            if (vivo)
+                setSessao((_b = data.session) !== null && _b !== void 0 ? _b : null);
+        })
+            .catch(function () { if (vivo)
             setSessao(null); })
-            .finally(() => clearTimeout(prazo));
-        const { data: sub } = db.auth.onAuthStateChange((_e, s) => { if (vivo)
-            setSessao(s); });
-        return () => { vivo = false; clearTimeout(prazo); sub.subscription.unsubscribe(); };
+            .finally(function () { return clearTimeout(prazo); });
+        var sub = db.auth.onAuthStateChange(function (_e, s) { if (vivo)
+            setSessao(s); }).data;
+        return function () { vivo = false; clearTimeout(prazo); sub.subscription.unsubscribe(); };
     }, []);
     if (sessao === undefined) {
         return React.createElement("div", { style: { padding: 48, color: T.muted, fontFamily: F_UI } }, "Verificando o login\u2026");
@@ -1219,13 +1462,15 @@ function App() {
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
 
 }
+</script>
 
+<script>
 /* Carregamento do painel.
    Os gráficos são desenhados em SVG pelo próprio código — não há mais
    biblioteca de gráficos para baixar, então sobrou só React e o cliente
    do Supabase, que vêm de uma CDN só e são verificados abaixo. */
 (function () {
-  var VERSAO = "v12";
+  var VERSAO = "v13";
   console.log("Painel SDR " + VERSAO);
   var raiz = document.getElementById("root");
 
@@ -1236,6 +1481,20 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
       '<div style="font-weight:700;font-size:16px;margin-bottom:8px">' + titulo + '</div>' +
       '<div style="font-size:11px;color:#9AA5B4;margin-bottom:10px">Painel SDR ' + VERSAO + '</div>' +
       '<div style="font-size:13.5px;color:#3D454F">' + detalhe + '</div></div>';
+  }
+
+  /* O painel agora vive num bloco de script separado deste guarda. Se aquele
+     bloco não puder sequer ser LIDO pelo navegador — o caso da TV LG, cujo
+     Chromium é do ano do aparelho e não entende sintaxe recente — este
+     aqui continua vivo e consegue avisar. Antes os dois estavam no mesmo
+     bloco: o erro de sintaxe matava o painel E o aviso junto, e a tela
+     ficava branca sem uma palavra. */
+  if (typeof iniciarPainel !== "function") {
+    return parar("Este navegador não consegue abrir o painel",
+      "O código do painel não pôde ser lido por este navegador — quase sempre " +
+      "é o navegador embutido de uma TV, que é antigo e não entende a linguagem " +
+      "mais recente. Abra em um computador, celular, ou num aparelho ligado à TV " +
+      "(Chromecast, Fire Stick ou mini PC).");
   }
 
   if (!window.React || !window.ReactDOM) {
