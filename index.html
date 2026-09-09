@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Painel de SDR — CAR SERVICE</title>
-<meta name="painel-versao" content="v14">
+<meta name="painel-versao" content="v15">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -299,6 +299,10 @@ var CAMPOS = [
     "leads_recebidos", "leads_trabalhados", "leads_sem_atendimento",
     "agendamentos_marcados", "visitas_do_dia", "comparecimentos",
     "reagendamentos", "vendas", "perdidos", "receita",
+    /* A perda dividida em duas leituras. Um número só juntava
+       "descartamos na triagem o que chegou hoje" com "encerramos carteira
+       velha", que são conversas diferentes com o mesmo nome. */
+    "perdidos_do_dia", "perdidos_antigos", "dias_aberto_soma",
 ];
 function somar(linhas) {
     var o = {};
@@ -1037,7 +1041,12 @@ function Painel(_a) {
         { l: "Vendas", v: nInt(a.vendas), d: React.createElement(Delta, { atual: a.vendas, anterior: aPrev.vendas }) },
         { l: "Receita", v: nReal(a.receita), s: "Ticket m\u00E9dio ".concat(nReal(a.ticket)) },
         { l: "Conversão final", v: nPct(a.conversao_final), s: "Vendas ÷ leads recebidos" },
-        { l: "Leads perdidos", v: nInt(a.perdidos), s: "Encerrados sem conversão" },
+        { l: "Perdidos do dia", v: nInt(a.perdidos_do_dia),
+            s: "Entraram e foram descartados hoje" },
+        { l: "Carteira encerrada", v: nInt(a.perdidos_antigos),
+            s: a.perdidos_antigos
+                ? "De dias anteriores \u00B7 ".concat(nNum(div(a.dias_aberto_soma, a.perdidos_antigos), 0), " dias em aberto, em m\u00E9dia")
+                : "Nada de dias anteriores foi encerrado" },
     ];
     var funil = [
         { l: "Leads recebidos", v: a.leads_recebidos },
@@ -1486,7 +1495,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
    biblioteca de gráficos para baixar, então sobrou só React e o cliente
    do Supabase, que vêm de uma CDN só e são verificados abaixo. */
 (function () {
-  var VERSAO = "v14";
+  var VERSAO = "v15";
   console.log("Painel SDR " + VERSAO);
   var raiz = document.getElementById("root");
 
