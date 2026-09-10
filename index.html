@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR — CAR SERVICE</title>
-<meta name="painel-versao" content="v15">
+<title>Painel de SDR v17 — CAR SERVICE</title>
+<meta name="painel-versao" content="v8">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -153,7 +153,6 @@ const CONFIG = {
     };
   }
 })();
-
 </script>
 
 <script>
@@ -625,6 +624,10 @@ function usarDados(de, ate, prevDe) {
          saude  -> há quanto tempo cada FONTE não recebe dado novo */
     var _q = __read(useState([]), 2), falhas = _q[0], setFalhas = _q[1];
     var _r = __read(useState([]), 2), saude = _r[0], setSaude = _r[1];
+    /* Tarefas: o único dado do painel que fala do FUTURO. Tudo o mais aqui
+       mede o que já aconteceu. */
+    var _s = __read(useState([]), 2), tarefas = _s[0], setTarefas = _s[1];
+    var _t = __read(useState([]), 2), semTarefa = _t[0], setSemTarefa = _t[1];
     /* O Supabase corta em 1.000 linhas por consulta. A fato_dia tem uma linha
        por dia × SDR × unidade × serviço, então um mês passa desse teto e os
        totais sairiam menores sem ninguém perceber. Buscamos em páginas até
@@ -658,7 +661,7 @@ function usarDados(de, ate, prevDe) {
         });
     }); };
     var buscar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, es, vp, ce, rb, pr, opcional, _b, q, fa, ms, mt, sd, e_1;
+        var _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, es, vp, ce, rb, pr, opcional, _b, q, fa, ms, mt, sd, tf, lst, e_1;
         var _this = this;
         return __generator(this, function (_c) {
             switch (_c.label) {
@@ -761,13 +764,17 @@ function usarDados(de, ate, prevDe) {
                             opcional(function () { return db.from("metas_sdr").select("*"); }, []),
                             opcional(function () { return db.from("metas_taxa").select("*").limit(1); }, []),
                             opcional(function () { return db.from("saude_das_cargas").select("*"); }, []),
+                            opcional(function () { return db.from("tarefas_sdr").select("*"); }, []),
+                            opcional(function () { return db.from("leads_sem_tarefa").select("*"); }, []),
                         ])];
                 case 11:
-                    _b = __read.apply(void 0, [_c.sent(), 5]), q = _b[0], fa = _b[1], ms = _b[2], mt = _b[3], sd = _b[4];
+                    _b = __read.apply(void 0, [_c.sent(), 7]), q = _b[0], fa = _b[1], ms = _b[2], mt = _b[3], sd = _b[4], tf = _b[5], lst = _b[6];
                     setQualidade(q[0] || null);
                     setFunilAgora(fa);
                     setMetas({ sdr: ms, taxa: mt[0] || null });
                     setSaude(sd);
+                    setTarefas(tf);
+                    setSemTarefa(lst);
                     setFalhas(falhou_1);
                     setEstado({ carregando: false, erro: null, em: new Date() });
                     return [3 /*break*/, 13];
@@ -788,7 +795,7 @@ function usarDados(de, ate, prevDe) {
         var t = setInterval(function () { buscar(); }, 5 * 60 * 1000);
         return function () { return clearInterval(t); };
     }, [buscar]);
-    return { estado: estado, fato: fato, motivos: motivos, sla: sla, esforco: esforco, tempoAntigo: tempoAntigo, pendentes: pendentes, carteiraEsf: carteiraEsf, robo: robo, preench: preench, qualidade: qualidade, funilAgora: funilAgora, metas: metas, falhas: falhas, saude: saude, recarregar: buscar };
+    return { estado: estado, fato: fato, motivos: motivos, sla: sla, esforco: esforco, tempoAntigo: tempoAntigo, pendentes: pendentes, carteiraEsf: carteiraEsf, robo: robo, preench: preench, qualidade: qualidade, funilAgora: funilAgora, metas: metas, falhas: falhas, saude: saude, tarefas: tarefas, semTarefa: semTarefa, recarregar: buscar };
 }
 /* ===================== app ===================== */
 function Painel(_a) {
@@ -914,26 +921,74 @@ function Painel(_a) {
        "Descartado" (708, que significava qualquer coisa) com a lista nova
        tornava o gráfico ilegível e sugeria uma análise que não existe. */
     var motivos = useMemo(function () {
-        var atuais = new Map();
+        var antes = new Map();
+        var naLoja = new Map();
         var historico = 0;
         aplicar(d.motivos).forEach(function (r) {
             var n = Number(r.leads) || 0;
             // A coluna "atual" só existe depois do motivos_limpos.sql; sem ela
             // o painel se comporta como antes.
-            if (r.atual === false)
+            if (r.atual === false) {
                 historico += n;
-            else
-                atuais.set(r.motivo, (atuais.get(r.motivo) || 0) + n);
+                return;
+            }
+            /* A coluna "grupo" só existe depois do perda_do_sdr_x_perda_do_closer.
+               Sem ela tudo cai em "antes da loja", que é como o painel sempre se
+               comportou — nenhuma versão antiga quebra. */
+            var alvo = r.grupo === "na_loja" ? naLoja : antes;
+            alvo.set(r.motivo, (alvo.get(r.motivo) || 0) + n);
         });
+        var ordenar = function (m) { return __spreadArray([], __read(m.entries()), false).map(function (_a) {
+            var _b = __read(_a, 2), nome = _b[0], qtd = _b[1];
+            return ({ nome: nome, qtd: qtd });
+        })
+            .sort(function (x, y) { return y.qtd - x.qtd; }); };
+        var somar = function (m) { return __spreadArray([], __read(m.values()), false).reduce(function (a, b) { return a + b; }, 0); };
         return {
-            lista: __spreadArray([], __read(atuais.entries()), false).map(function (_a) {
-                var _b = __read(_a, 2), nome = _b[0], qtd = _b[1];
-                return ({ nome: nome, qtd: qtd });
-            })
-                .sort(function (x, y) { return y.qtd - x.qtd; }),
+            // "lista" continua existindo com o mesmo significado de antes.
+            lista: ordenar(antes),
+            naLoja: ordenar(naLoja),
+            totalAntes: somar(antes),
+            totalNaLoja: somar(naLoja),
             historico: historico,
         };
     }, [d.motivos, f]);
+    /* Tarefas: junta as duas fontes numa linha por pessoa.
+  
+       Não leva "aplicar" nem o filtro de período de propósito — as duas
+       views são foto do agora. E o lado "sem tarefa" é somado aqui, e não
+       no banco, porque a view leads_sem_tarefa quebra por etapa e unidade
+       para poder ser investigada; o painel só quer o total por pessoa.
+  
+       A união é pelo nome do SDR: alguém pode ter leads parados sem ter
+       nenhuma tarefa aberta, e vice-versa. Quem aparecer só de um lado
+       entra com zero do outro em vez de sumir. */
+    var tarefasLista = useMemo(function () {
+        var linhas = new Map();
+        (d.tarefas || []).forEach(function (r) {
+            linhas.set(r.sdr, {
+                sdr: r.sdr,
+                abertas: Number(r.abertas) || 0,
+                vencidas: Number(r.vencidas) || 0,
+                vence_hoje: Number(r.vence_hoje) || 0,
+                vence_7_dias: Number(r.vence_7_dias) || 0,
+                atraso_maximo_dias: Number(r.atraso_maximo_dias) || 0,
+                fora_do_escopo: Number(r.fora_do_escopo) || 0,
+                sem_tarefa: 0,
+            });
+        });
+        (d.semTarefa || []).forEach(function (r) {
+            if (!r.sdr)
+                return;
+            var at = linhas.get(r.sdr) || {
+                sdr: r.sdr, abertas: 0, vencidas: 0, vence_hoje: 0, vence_7_dias: 0,
+                atraso_maximo_dias: 0, fora_do_escopo: 0, sem_tarefa: 0,
+            };
+            at.sem_tarefa += Number(r.leads) || 0;
+            linhas.set(r.sdr, at);
+        });
+        return __spreadArray([], __read(linhas.values()), false).sort(function (x, y) { return y.vencidas - x.vencidas; });
+    }, [d.tarefas, d.semTarefa]);
     /* O espelho do esforço na chave da carteira: quanto trabalho os leads
        de cada pessoa receberam, de quantas mãos diferentes. */
     var carteiraEsfPorSdr = useMemo(function () {
@@ -1341,9 +1396,22 @@ function Painel(_a) {
                         React.createElement(Kpi, { label: "Tempo m\u00E9dio at\u00E9 ligar", value: tempoTot.medio == null ? "—" : "".concat(nNum(tempoTot.medio, 0), " min"), sub: "Da entrada do lead \u00E0 primeira discagem" }),
                         React.createElement(Kpi, { label: "Tempo m\u00E9dio at\u00E9 falar", value: tempoTot.medioAteFalar == null ? "—" : "".concat(nNum(tempoTot.medioAteFalar, 0), " min"), sub: "At\u00E9 uma conversa acima de ".concat(segConversa, "s") }),
                         React.createElement(Kpi, { label: "Ningu\u00E9m ligou", value: nInt(tempoTot.leads - tempoTot.com_medida), sub: "Leads sem nenhuma discagem registrada", tone: tempoTot.leads - tempoTot.com_medida > 0 ? "bad" : "good" })))),
-            React.createElement(Secao, { n: 8, titulo: "Por que perdemos", nota: "S\u00F3 a lista oficial de motivos do Kommo. Perdas registradas antes dela existir ficam na nota do rodap\u00E9 \u2014 o vocabul\u00E1rio antigo jogava quase tudo num motivo s\u00F3, ent\u00E3o somar os dois daria uma leitura que n\u00E3o existe." },
+            React.createElement(Secao, { n: 8, titulo: "Por que perdemos", nota: "Dois blocos, porque s\u00E3o dois jogos diferentes. Em cima, o lead que se perdeu ANTES de chegar na loja \u2014 \u00E9 a conta do SDR. Embaixo, o lead que chegou l\u00E1 dentro, sentou com o closer e n\u00E3o fechou \u2014 o SDR fez o trabalho dele at\u00E9 o fim. S\u00F3 a lista oficial de motivos do Kommo; o vocabul\u00E1rio antigo fica na nota do rodap\u00E9." },
                 React.createElement(Card, { className: "p16" },
+                    React.createElement("div", { style: { fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase",
+                            color: T.muted, fontWeight: 700, marginBottom: 10 } },
+                        "Perdemos antes da loja",
+                        motivos.totalAntes > 0 && (React.createElement("span", { style: { color: T.ink2, marginLeft: 8 } }, nInt(motivos.totalAntes)))),
                     motivos.lista.length === 0 ? (React.createElement("div", { style: { fontSize: 13, color: T.muted } }, "Nenhuma perda com motivo da lista oficial neste per\u00EDodo.")) : (React.createElement(BarrasHorizontais, { dados: motivos.lista })),
+                    React.createElement("div", { style: { marginTop: 20, paddingTop: 14, borderTop: "1px solid ".concat(T.hair) } },
+                        React.createElement("div", { style: { fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase",
+                                color: T.muted, fontWeight: 700, marginBottom: 10 } },
+                            "Chegou na loja e n\u00E3o fechou",
+                            motivos.totalNaLoja > 0 && (React.createElement("span", { style: { color: T.ink2, marginLeft: 8 } }, nInt(motivos.totalNaLoja)))),
+                        motivos.naLoja.length === 0 ? (React.createElement("div", { style: { fontSize: 12, color: T.muted, lineHeight: 1.6 } },
+                            "Nenhuma perda registrada com motivo de loja neste per\u00EDodo. Este bloco s\u00F3 enche quando o closer marca o motivo ",
+                            React.createElement("b", { style: { color: T.ink2 } }, "Veio em loja e n\u00E3o fechou"),
+                            " no Kommo \u2014 vazio aqui pode significar que n\u00E3o aconteceu, ou que aconteceu e ningu\u00E9m registrou.")) : (React.createElement(BarrasHorizontais, { dados: motivos.naLoja }))),
                     motivos.historico > 0 && (React.createElement("div", { style: { marginTop: 16, paddingTop: 12, borderTop: "1px solid ".concat(T.hair),
                             fontSize: 12, color: T.muted, lineHeight: 1.6 } },
                         "Mais ",
@@ -1441,6 +1509,28 @@ function Painel(_a) {
                     React.createElement(Kpi, { label: "Leads sem SDR", value: nInt(q.sem_sdr), sub: "Nunca distribu\u00EDdos", tone: q.sem_sdr > 0 ? "bad" : "good" }),
                     React.createElement(Kpi, { label: "Vendas sem valor", value: nInt(q.ganho_sem_valor), sub: "Fecharam com R$ 0", tone: q.ganho_sem_valor > 0 ? "bad" : "good" }),
                     React.createElement(Kpi, { label: "Valores em quarentena", value: nInt(q.valor_em_quarentena), sub: "Acima de R$ 100 mil, fora do c\u00E1lculo", tone: q.valor_em_quarentena > 0 ? "bad" : "good" })))),
+            tarefasLista.length > 0 && (React.createElement(Secao, { n: 12, titulo: "Tarefas \u2014 o pr\u00F3ximo passo", nota: "Foto do agora, n\u00E3o do per\u00EDodo: vencida \u00E9 uma condi\u00E7\u00E3o de hoje. S\u00F3 entra tarefa de lead vivo do CAR SERVICE \u2014 tarefa aberta em lead j\u00E1 perdido, j\u00E1 ganho ou de outro funil n\u00E3o \u00E9 cobran\u00E7a de resultado, \u00E9 faxina de CRM, e aparece na coluna separada. A \u00FAltima coluna \u00E9 a que ningu\u00E9m tem hoje: lead que j\u00E1 foi trabalhado, n\u00E3o foi ganho nem perdido, e n\u00E3o tem nenhuma tarefa marcada. Ele n\u00E3o est\u00E1 perdido; est\u00E1 parado." },
+                React.createElement(Card, { className: "p0 rolagem" },
+                    React.createElement("table", null,
+                        React.createElement("thead", null,
+                            React.createElement("tr", null,
+                                React.createElement(Th, null, "SDR"),
+                                React.createElement(Th, { right: true }, "Em aberto"),
+                                React.createElement(Th, { right: true }, "Vencidas"),
+                                React.createElement(Th, { right: true }, "Vence hoje"),
+                                React.createElement(Th, { right: true }, "Pr\u00F3x. 7 dias"),
+                                React.createElement(Th, { right: true }, "Atraso maior"),
+                                React.createElement(Th, { right: true }, "Leads sem tarefa"),
+                                React.createElement(Th, { right: true }, "Faxina de CRM"))),
+                        React.createElement("tbody", null, tarefasLista.map(function (r) { return (React.createElement("tr", { key: r.sdr },
+                            React.createElement(Td, { bold: true }, r.sdr),
+                            React.createElement(Td, { right: true }, nInt(r.abertas)),
+                            React.createElement(Td, { right: true, bold: r.vencidas > 0, color: r.vencidas > 0 ? T.bad : null }, nInt(r.vencidas)),
+                            React.createElement(Td, { right: true }, nInt(r.vence_hoje)),
+                            React.createElement(Td, { right: true }, nInt(r.vence_7_dias)),
+                            React.createElement(Td, { right: true }, r.atraso_maximo_dias ? nInt(r.atraso_maximo_dias) + "d" : "—"),
+                            React.createElement(Td, { right: true, bold: r.sem_tarefa > 0, color: r.sem_tarefa > 0 ? T.bad : null }, nInt(r.sem_tarefa)),
+                            React.createElement(Td, { right: true, color: T.muted }, nInt(r.fora_do_escopo)))); })))))),
             React.createElement("footer", { style: { marginTop: 48, paddingTop: 18, borderTop: "1px solid ".concat(T.hair),
                     fontSize: 11.5, color: T.muted, lineHeight: 1.7, maxWidth: "80ch" } },
                 React.createElement("b", null, "De onde vem cada n\u00FAmero."),
@@ -1485,7 +1575,6 @@ function App() {
     return sessao ? React.createElement(Painel, { sessao: sessao }) : React.createElement(Login, null);
 }
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
-
 }
 </script>
 
@@ -1495,7 +1584,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
    biblioteca de gráficos para baixar, então sobrou só React e o cliente
    do Supabase, que vêm de uma CDN só e são verificados abaixo. */
 (function () {
-  var VERSAO = "v15";
+  var VERSAO = "v4";
   console.log("Painel SDR " + VERSAO);
   var raiz = document.getElementById("root");
 
@@ -1559,7 +1648,6 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
     parar("Erro ao iniciar o painel", (e && e.message ? e.message : String(e)));
   }
 })();
-
 </script>
 </body>
 </html>
