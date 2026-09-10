@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v18 — CAR SERVICE</title>
-<meta name="painel-versao" content="v18">
+<title>Painel de SDR v19 — CAR SERVICE</title>
+<meta name="painel-versao" content="v19">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -570,10 +570,32 @@ function contasDaRotina(r, tarefas, semTarefa) {
     (r.visitasHoje || []).filter(function (x) { return noTime(x.sdr); }).forEach(function (x) {
         pegar(x.sdr).semDesfecho += Number(x.visitas_sem_desfecho) || 0;
     });
-    /* Tempo de resposta de hoje, só do time. */
-    var tempo = (r.tempoHoje || []).filter(function (x) { return noTime(x.sdr); });
+    /* Tempo de resposta de hoje, só do time.
+  
+       A view vem quebrada por data × SDR × unidade × serviço — é assim que
+       todas as views do painel são, para o filtro da aba principal poder
+       recortar. Renderizar essas linhas direto mostra a mesma pessoa cinco
+       vezes, uma por combinação, cada uma com "1 lead". Foi o que aconteceu
+       na primeira v18.
+  
+       A média tem que ser PONDERADA por com_medida, não simples: minutos_medio
+       só existe para os leads que receberam ligação. Média de médias daria
+       peso igual a uma linha de 1 lead e a uma de 20. */
+    var tempoCru = (r.tempoHoje || []).filter(function (x) { return noTime(x.sdr); });
+    var porTempo = new Map();
+    tempoCru.forEach(function (x) {
+        var at = porTempo.get(x.sdr)
+            || { sdr: x.sdr, leads: 0, nunca_ligaram: 0, com_medida: 0, somaMinutos: 0 };
+        var medidos = Number(x.com_medida) || 0;
+        at.leads += Number(x.leads) || 0;
+        at.nunca_ligaram += Number(x.nunca_ligaram) || 0;
+        at.com_medida += medidos;
+        at.somaMinutos += (Number(x.minutos_medio) || 0) * medidos;
+        porTempo.set(x.sdr, at);
+    });
+    var tempo = __spreadArray([], __read(porTempo.values()), false).map(function (x) { return (__assign(__assign({}, x), { minutos_medio: x.com_medida ? x.somaMinutos / x.com_medida : null })); });
     var leadsHoje = 0, semLigar = 0, ate5 = 0;
-    tempo.forEach(function (x) {
+    tempoCru.forEach(function (x) {
         leadsHoje += Number(x.leads) || 0;
         semLigar += Number(x.nunca_ligaram) || 0;
         ate5 += Number(x.ate_5min) || 0;
@@ -890,14 +912,18 @@ function AbaCoordenador(_a) {
                                     React.createElement(Th, { right: true }, "Sem ligar"),
                                     React.createElement(Th, { right: true }, "M\u00E9dia"))),
                             React.createElement("tbody", null, c.tempo.slice().sort(function (a, b) {
-                                return (Number(a.minutos_medio) || 0) - (Number(b.minutos_medio) || 0);
+                                if (a.minutos_medio == null)
+                                    return 1;
+                                if (b.minutos_medio == null)
+                                    return -1;
+                                return a.minutos_medio - b.minutos_medio;
                             }).map(function (r) { return (React.createElement("tr", { key: r.sdr },
                                 React.createElement(Td, { bold: true }, primeiroNome(r.sdr)),
                                 React.createElement(Td, { right: true }, nInt(r.leads)),
-                                React.createElement(Td, { right: true, color: Number(r.nunca_ligaram) > 0 ? T.bad : null }, nInt(r.nunca_ligaram)),
-                                React.createElement(Td, { right: true },
-                                    nInt(Math.round(Number(r.minutos_medio) || 0)),
-                                    " min"))); })))),
+                                React.createElement(Td, { right: true, bold: Number(r.nunca_ligaram) > 0, color: Number(r.nunca_ligaram) > 0 ? T.bad : null }, nInt(r.nunca_ligaram)),
+                                React.createElement(Td, { right: true, color: r.minutos_medio == null ? T.muted : null }, r.minutos_medio == null
+                                    ? "—"
+                                    : "".concat(nInt(Math.round(r.minutos_medio)), " min")))); })))),
                     React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 10 } },
                         nInt(c.ate5),
                         " lead(s) contatado(s) em at\u00E9 5 minutos hoje.")),
