@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v17 — CAR SERVICE</title>
-<meta name="painel-versao" content="v8">
+<title>Painel de SDR v18 — CAR SERVICE</title>
+<meta name="painel-versao" content="v18">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -43,6 +43,20 @@
   @media (max-width: 1000px) { .col2 { grid-template-columns: 1fr; } }
 
   .rolagem { overflow-x: auto; }
+
+  /* Aba do coordenador e modo TV. As colunas ficam aqui e não no JSX
+     porque precisam de media query, e estilo inline não tem media query.
+     Numa TV de sala a largura é sempre grande; o empilhamento abaixo de
+     900px é para quando o coordenador abre no celular. */
+  .duo2      { grid-template-columns: 1fr 1fr; }
+  .colsRotina{ grid-template-columns: 1.65fr 1fr; }
+  .tvcols2   { grid-template-columns: 1.45fr 1fr; }
+  .tvbot2    { grid-template-columns: 2.1fr 1fr; }
+  .tvpend2   { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 900px) {
+    .duo2, .colsRotina, .tvcols2, .tvbot2 { grid-template-columns: 1fr; }
+    .tvpend2 { grid-template-columns: repeat(2, 1fr); }
+  }
   table { border-collapse: collapse; width: 100%; min-width: 720px;
           font-variant-numeric: tabular-nums; }
   .dt { font-size: 13px; border: 1px solid #E2E2E2; border-radius: 8px; padding: 7px 10px;
@@ -463,6 +477,597 @@ var Secao = function (_a) {
         !nota && React.createElement("div", { style: { height: 14 } }),
         children));
 };
+/* ===================== a rotina do coordenador =====================
+
+   Estas duas telas — a aba do coordenador e o modo TV — respondem uma
+   pergunta diferente da aba principal. A principal é análise: escolhe um
+   período e olha. Estas são operação: é sempre ESTE mês e HOJE, porque é
+   disso que a reunião das 9h trata.
+
+   Por isso elas ignoram o filtro de propósito. Não é esquecimento.
+
+   O ritmo é medido só até ONTEM. Incluir o dia em curso puxaria a média
+   para baixo toda manhã e diria que o time está pior do que está — às
+   9h da manhã o dia sempre parece um desastre. */
+/* Dias de segunda a sábado, inclusive nas duas pontas. Domingo não conta
+   porque a loja não abre. */
+function diasUteis(a, b) {
+    var n = 0, x = parseISO(a);
+    var y = parseISO(b);
+    while (x <= y) {
+        if (x.getDay() !== 0)
+            n++;
+        x = new Date(x.getTime() + 86400000);
+    }
+    return n;
+}
+var META_PADRAO = {
+    faturamento: 1500000, os: 400,
+    ligacoes_dia: 100, falou_dia: 35, agendamentos_dia: 7, comparecimentos_dia: 5,
+};
+function contasDaRotina(r, tarefas, semTarefa) {
+    if (!r)
+        return null;
+    var meta = r.meta || META_PADRAO;
+    var equipe = r.equipe && r.equipe.length ? r.equipe : [];
+    var noTime = function (s) { return equipe.indexOf(s) >= 0; };
+    var fato = (r.fatoMes || []).filter(function (x) { return noTime(x.sdr); });
+    var mes = { os: 0, receita: 0 };
+    var ateOntem = { os: 0, receita: 0 };
+    var doDia = { os: 0, receita: 0, leads: 0, agend: 0, visitas: 0, compar: 0 };
+    fato.forEach(function (x) {
+        mes.os += Number(x.vendas) || 0;
+        mes.receita += Number(x.receita) || 0;
+        if (x.data < r.oDiaDeHoje) {
+            ateOntem.os += Number(x.vendas) || 0;
+            ateOntem.receita += Number(x.receita) || 0;
+        }
+        else {
+            doDia.os += Number(x.vendas) || 0;
+            doDia.receita += Number(x.receita) || 0;
+            doDia.leads += Number(x.leads_recebidos) || 0;
+            doDia.agend += Number(x.agendamentos_marcados) || 0;
+            doDia.visitas += Number(x.visitas_do_dia) || 0;
+            doDia.compar += Number(x.comparecimentos) || 0;
+        }
+    });
+    var ontem = addDays(r.oDiaDeHoje, -1);
+    var ultimoDoMes = iso(new Date(parseISO(r.inicioDoMes).getFullYear(), parseISO(r.inicioDoMes).getMonth() + 1, 0));
+    var trabalhados = Math.max(0, diasUteis(r.inicioDoMes, ontem));
+    var pelaFrente = Math.max(1, diasUteis(r.oDiaDeHoje, ultimoDoMes));
+    var pessoas = Math.max(1, equipe.length);
+    var faltaReceita = Math.max(0, Number(meta.faturamento) - mes.receita);
+    var faltaOs = Math.max(0, Number(meta.os) - mes.os);
+    /* Somar por pessoa, uma vez, e reaproveitar nas duas telas. */
+    var porPessoa = new Map();
+    var pegar = function (s) {
+        if (!porPessoa.has(s)) {
+            porPessoa.set(s, { sdr: s, ligou: 0, falou: 0, agendou: 0, compareceu: 0,
+                vendeu: 0, receita: 0, leadsHoje: 0, visitasHoje: 0,
+                recMes: 0, osMes: 0, semDesfecho: 0 });
+        }
+        return porPessoa.get(s);
+    };
+    equipe.forEach(pegar);
+    (r.esforcoHoje || []).filter(function (x) { return noTime(x.sdr); }).forEach(function (x) {
+        var p = pegar(x.sdr);
+        p.ligou += Number(x.ligacoes_tentadas) || 0;
+        p.falou += Number(x.pessoas_com_quem_falou) || 0;
+    });
+    fato.forEach(function (x) {
+        var p = pegar(x.sdr);
+        p.recMes += Number(x.receita) || 0;
+        p.osMes += Number(x.vendas) || 0;
+        if (x.data === r.oDiaDeHoje) {
+            p.agendou += Number(x.agendamentos_marcados) || 0;
+            p.compareceu += Number(x.comparecimentos) || 0;
+            p.vendeu += Number(x.vendas) || 0;
+            p.receita += Number(x.receita) || 0;
+            p.leadsHoje += Number(x.leads_recebidos) || 0;
+            p.visitasHoje += Number(x.visitas_do_dia) || 0;
+        }
+    });
+    (r.visitasHoje || []).filter(function (x) { return noTime(x.sdr); }).forEach(function (x) {
+        pegar(x.sdr).semDesfecho += Number(x.visitas_sem_desfecho) || 0;
+    });
+    /* Tempo de resposta de hoje, só do time. */
+    var tempo = (r.tempoHoje || []).filter(function (x) { return noTime(x.sdr); });
+    var leadsHoje = 0, semLigar = 0, ate5 = 0;
+    tempo.forEach(function (x) {
+        leadsHoje += Number(x.leads) || 0;
+        semLigar += Number(x.nunca_ligaram) || 0;
+        ate5 += Number(x.ate_5min) || 0;
+    });
+    /* Tarefa e lead parado entram na conta só de quem está no placar — a
+       mesma regra do resto. Somado aqui para as duas telas usarem o mesmo
+       número, em vez de cada uma refazer a soma do seu jeito. */
+    var tarefasVencidas = (tarefas || [])
+        .filter(function (x) { return noTime(x.sdr); })
+        .reduce(function (s, x) { return s + (Number(x.vencidas) || 0); }, 0);
+    var leadsSemTarefa = (semTarefa || [])
+        .filter(function (x) { return noTime(x.sdr); })
+        .reduce(function (s, x) { return s + (Number(x.leads) || 0); }, 0);
+    return {
+        meta: meta,
+        equipe: equipe,
+        pessoas: pessoas,
+        trabalhados: trabalhados,
+        pelaFrente: pelaFrente,
+        ultimoDoMes: ultimoDoMes,
+        mes: mes,
+        doDia: doDia,
+        tarefasVencidas: tarefasVencidas,
+        leadsSemTarefa: leadsSemTarefa,
+        faltaReceita: faltaReceita,
+        faltaOs: faltaOs,
+        precisaReceitaDia: faltaReceita / pelaFrente,
+        precisaOsDia: faltaOs / pelaFrente,
+        ritmoReceitaDia: trabalhados ? ateOntem.receita / trabalhados : 0,
+        ritmoOsDia: trabalhados ? ateOntem.os / trabalhados : 0,
+        /* A meta por pessoa por dia usa o mês INTEIRO no denominador, não os
+           dias que sobraram — é o alvo estável que o time persegue todo dia,
+           não um número que sobe conforme o mês vai acabando. */
+        metaVendaDia: Number(meta.os) / Math.max(1, trabalhados + pelaFrente) / pessoas,
+        metaReceitaDia: Number(meta.faturamento) / Math.max(1, trabalhados + pelaFrente) / pessoas,
+        pessoasLista: __spreadArray([], __read(porPessoa.values()), false),
+        tempo: tempo,
+        leadsHoje: leadsHoje,
+        semLigar: semLigar,
+        ate5: ate5,
+    };
+}
+var primeiroNome = function (s) { return String(s || "").split(" ")[0]; };
+/* ---------- peças das duas telas ---------- */
+/* Reaproveita a <Barra> que o painel já usa (recebe fração, não
+   porcentagem) — uma barra só no arquivo inteiro, com o mesmo desenho. */
+var Kv = function (_a) {
+    var l = _a.l, v = _a.v, cor = _a.cor;
+    return (React.createElement("div", null,
+        React.createElement(Label, null, l),
+        React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 18, fontWeight: 700, color: cor || T.ink,
+                lineHeight: 1.1, marginTop: 3, fontVariantNumeric: "tabular-nums" } }, v)));
+};
+/* Um bloco da rotina: hora, título e uma etiqueta com o número que
+   decide se aquele bloco precisa de ação hoje. */
+var Bloco = function (_a) {
+    var hora = _a.hora, titulo = _a.titulo, etiqueta = _a.etiqueta, alerta = _a.alerta, children = _a.children, nota = _a.nota;
+    return (React.createElement(Card, { className: "p16", style: { borderLeft: "4px solid ".concat(alerta ? T.bad : T.muted) } },
+        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, alignItems: "baseline",
+                justifyContent: "space-between", marginBottom: 12 } },
+            React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 11 } },
+                React.createElement("span", { style: { fontFamily: F_MARCA, fontSize: 17, fontWeight: 700 } }, hora),
+                React.createElement("span", { style: { fontSize: 14, fontWeight: 600 } }, titulo)),
+            etiqueta && React.createElement(Pill, { cor: alerta ? T.bad : T.warn }, etiqueta)),
+        children,
+        nota && React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 10, paddingTop: 10,
+                borderTop: "1px dashed ".concat(T.hair), lineHeight: 1.6 } }, nota)));
+};
+var Linha = function (_a) {
+    var children = _a.children, valor = _a.valor, cor = _a.cor, total = _a.total;
+    return (React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "space-between",
+            alignItems: "baseline", padding: "8px 0",
+            borderTop: total ? "1.5px solid ".concat(T.ink) : "1px solid ".concat(T.hair),
+            fontSize: 13.5, color: T.ink2 } },
+        React.createElement("span", null, children),
+        React.createElement("b", { style: { fontFamily: F_NUM, fontWeight: 700, color: cor || T.ink,
+                fontVariantNumeric: "tabular-nums", fontSize: 15 } }, valor)));
+};
+/* ---------- aba do coordenador ---------- */
+function AbaCoordenador(_a) {
+    var c = _a.c, funil = _a.funil, qualidade = _a.qualidade, tarefas = _a.tarefas, semTarefa = _a.semTarefa;
+    var f = {};
+    (funil || []).forEach(function (r) { f[r.etapa] = r; });
+    /* Às 08:00 tudo que já passou da primeira conversa vai para o closer.
+       O SDR não faz follow-up de orçamento; se o lead ficar com ele, para. */
+    var REPASSE = ["ENTRADA DE LEAD", "CONTATANDO", "NEGOCIANDO",
+        "NEGOCIAÇÃO POS VISITA NÃO FECHADO"];
+    var paraRepassar = REPASSE.map(function (e) { return f[e]; }).filter(Boolean);
+    var totalRepasse = paraRepassar.reduce(function (s, r) { return s + (Number(r.leads) || 0); }, 0);
+    var valorRepasse = paraRepassar.reduce(function (s, r) { return s + (Number(r.valor_parado) || 0); }, 0);
+    var tk = {};
+    (tarefas || []).forEach(function (r) { tk[r.sdr] = r; });
+    var st = {};
+    (semTarefa || []).forEach(function (r) { st[r.sdr] = (st[r.sdr] || 0) + (Number(r.leads) || 0); });
+    var totalVencidas = c.equipe.reduce(function (s, n) { return s + Number((tk[n] || {}).vencidas || 0); }, 0);
+    var totalSemTarefa = c.equipe.reduce(function (s, n) { return s + Number(st[n] || 0); }, 0);
+    var totalSemDesfecho = c.pessoasLista.reduce(function (s, p) { return s + p.semDesfecho; }, 0);
+    var falta = function (v, m, dinheiro) {
+        var d2 = m - v;
+        if (d2 <= 0)
+            return React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: T.good } }, "bateu");
+        return React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: T.bad } },
+            "faltam ",
+            dinheiro ? nReal(d2) : nNum(d2, 1));
+    };
+    var Cel = function (_a) {
+        var v = _a.v, m = _a.m, dinheiro = _a.dinheiro;
+        return (React.createElement(Td, { right: true },
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 } },
+                React.createElement("span", { style: { fontFamily: F_NUM, fontWeight: 700, fontSize: 14 } }, dinheiro ? nReal(v) : nInt(v)),
+                falta(v, m, dinheiro))));
+    };
+    var porLigacoes = c.pessoasLista.slice().sort(function (a, b) { return b.ligou - a.ligou; });
+    var porVencidas = c.pessoasLista.slice()
+        .sort(function (a, b) { return Number((tk[b.sdr] || {}).vencidas || 0) - Number((tk[a.sdr] || {}).vencidas || 0); });
+    return (React.createElement("div", null,
+        React.createElement(Card, { className: "p20" },
+            React.createElement("h2", { style: { fontFamily: F_MARCA, fontSize: 16, fontWeight: 700, margin: 0 } }, "M\u00EAs corrente \u2014 onde estamos"),
+            React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 5 } },
+                c.trabalhados,
+                " dias trabalhados \u00B7 ",
+                c.pelaFrente,
+                " pela frente, contando hoje e os s\u00E1bados \u00B7 ",
+                c.pessoas,
+                " ",
+                c.pessoas === 1 ? "pessoa atendendo" : "pessoas atendendo"),
+            React.createElement("div", { className: "duo2", style: { display: "grid", gap: 26, marginTop: 18 } }, [
+                { cap: "Faturamento", atual: c.mes.receita, meta: Number(c.meta.faturamento),
+                    principal: "".concat(nReal(c.mes.receita)), de: nReal(Number(c.meta.faturamento)),
+                    falta: nReal(c.faltaReceita), precisa: nReal(c.precisaReceitaDia),
+                    ritmo: nReal(c.ritmoReceitaDia) },
+                { cap: "O.S. fechadas", atual: c.mes.os, meta: Number(c.meta.os),
+                    principal: nInt(c.mes.os), de: "".concat(nInt(c.meta.os), " O.S."),
+                    falta: "".concat(nInt(c.faltaOs), " O.S."),
+                    precisa: "".concat(nInt(Math.ceil(c.precisaOsDia)), " \u00B7 ").concat(nInt(Math.ceil(c.precisaOsDia / c.pessoas)), " por SDR"),
+                    ritmo: nNum(c.ritmoOsDia, 1) },
+            ].map(function (b) {
+                var pct = b.meta ? (b.atual / b.meta) * 100 : 0;
+                /* Vermelho quando o ritmo não leva à meta. Não é decoração:
+                   é a única pergunta que esta seção responde. */
+                var noRitmo = b.cap === "Faturamento"
+                    ? c.ritmoReceitaDia >= c.precisaReceitaDia
+                    : c.ritmoOsDia >= c.precisaOsDia;
+                return (React.createElement("div", { key: b.cap },
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between",
+                            alignItems: "baseline", marginBottom: 8 } },
+                        React.createElement(Label, null, b.cap),
+                        React.createElement("span", { style: { fontFamily: F_MARCA, fontSize: 12, fontWeight: 700,
+                                color: noRitmo ? T.good : T.bad } },
+                            nNum(pct, 1),
+                            "% da meta")),
+                    React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 30, fontWeight: 700, lineHeight: 1.05,
+                            fontVariantNumeric: "tabular-nums" } },
+                        b.principal,
+                        " ",
+                        React.createElement("span", { style: { fontSize: 14, fontWeight: 600, color: T.muted } },
+                            "de ",
+                            b.de)),
+                    React.createElement("div", { style: { marginTop: 12 } },
+                        React.createElement(Barra, { pct: pct / 100, cor: noRitmo ? T.good : T.bad, alt: 20 })),
+                    React.createElement("div", { style: { display: "flex", gap: 24, marginTop: 12, flexWrap: "wrap" } },
+                        React.createElement(Kv, { l: "Falta", v: b.falta }),
+                        React.createElement(Kv, { l: "Precisa/dia", v: b.precisa }),
+                        React.createElement(Kv, { l: "Saindo/dia", v: b.ritmo, cor: noRitmo ? T.good : T.bad }))));
+            })),
+            React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 16, paddingTop: 12,
+                    borderTop: "1px dashed ".concat(T.hair), lineHeight: 1.6 } },
+                "Dias contados de segunda a s\u00E1bado. O ritmo atual \u00E9 o realizado ",
+                React.createElement("b", null, "at\u00E9 ontem"),
+                " dividido pelos dias j\u00E1 trabalhados \u2014 incluir o dia em curso diria toda manh\u00E3 que o time est\u00E1 pior do que est\u00E1. A meta vem de ",
+                React.createElement("code", null, "meta_do_mes"),
+                " no banco: para mudar, altera l\u00E1, sem republicar o painel.")),
+        React.createElement("div", { className: "colsRotina", style: { display: "grid", gap: 16, marginTop: 16,
+                alignItems: "start" } },
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12 } },
+                React.createElement(Bloco, { hora: "08:00", titulo: "Distribuir para os closers", alerta: totalRepasse > 0, etiqueta: "".concat(nReal(valorRepasse), " parados"), nota: "O SDR n\u00E3o faz follow-up de or\u00E7amento \u2014 se o lead ficar com ele, para. Tudo que passou da primeira conversa vai para o closer na abertura do dia." },
+                    paraRepassar.map(function (r) { return (React.createElement(Linha, { key: r.etapa, valor: nInt(r.leads), cor: Number(r.dias_sem_mexer) >= 5 ? T.bad : null },
+                        r.etapa,
+                        React.createElement("span", { style: { fontSize: 12, color: T.muted } },
+                            " · ",
+                            nInt(r.dias_sem_mexer),
+                            " dias sem mexer \u00B7 ",
+                            nReal(r.valor_parado)))); }),
+                    React.createElement(Linha, { total: true, valor: "".concat(nInt(totalRepasse), " leads \u00B7 ").concat(nReal(valorRepasse)), cor: T.bad },
+                        React.createElement("b", null, "A repassar para o closer"))),
+                React.createElement(Bloco, { hora: "09:00", titulo: "Reuni\u00E3o de time", etiqueta: "O dia at\u00E9 agora \u00D7 meta", nota: "Meta do dia: ".concat(nReal(c.metaReceitaDia), " e ").concat(nNum(c.metaVendaDia, 1), " vendas por pessoa \u2014 a meta do m\u00EAs dividida pelos dias \u00FAteis e pelas ").concat(c.pessoas, " pessoas que atendem. Liga\u00E7\u00F5es e conversas s\u00E3o meta fixa da casa.") },
+                    React.createElement("div", { className: "rolagem" },
+                        React.createElement("table", null,
+                            React.createElement("thead", null,
+                                React.createElement("tr", null,
+                                    React.createElement(Th, null, "SDR"),
+                                    React.createElement(Th, { right: true }, "Ligou"),
+                                    React.createElement(Th, { right: true }, "Falou"),
+                                    React.createElement(Th, { right: true }, "Agendou"),
+                                    React.createElement(Th, { right: true }, "Compareceu"),
+                                    React.createElement(Th, { right: true }, "Vendeu"),
+                                    React.createElement(Th, { right: true }, "Receita"))),
+                            React.createElement("tbody", null,
+                                React.createElement("tr", { style: { background: "#FFF8E1" } },
+                                    React.createElement(Td, { bold: true, color: T.warn }, "Meta do dia"),
+                                    React.createElement(Td, { right: true, color: T.warn }, nInt(c.meta.ligacoes_dia)),
+                                    React.createElement(Td, { right: true, color: T.warn }, nInt(c.meta.falou_dia)),
+                                    React.createElement(Td, { right: true, color: T.warn }, nInt(c.meta.agendamentos_dia)),
+                                    React.createElement(Td, { right: true, color: T.warn }, nInt(c.meta.comparecimentos_dia)),
+                                    React.createElement(Td, { right: true, color: T.warn }, nNum(c.metaVendaDia, 1)),
+                                    React.createElement(Td, { right: true, color: T.warn }, nReal(c.metaReceitaDia))),
+                                porLigacoes.map(function (p) { return (React.createElement("tr", { key: p.sdr },
+                                    React.createElement(Td, { bold: true }, primeiroNome(p.sdr)),
+                                    React.createElement(Cel, { v: p.ligou, m: Number(c.meta.ligacoes_dia) }),
+                                    React.createElement(Cel, { v: p.falou, m: Number(c.meta.falou_dia) }),
+                                    React.createElement(Cel, { v: p.agendou, m: Number(c.meta.agendamentos_dia) }),
+                                    React.createElement(Cel, { v: p.compareceu, m: Number(c.meta.comparecimentos_dia) }),
+                                    React.createElement(Cel, { v: p.vendeu, m: c.metaVendaDia }),
+                                    React.createElement(Cel, { v: p.receita, m: c.metaReceitaDia, dinheiro: true }))); }))))),
+                React.createElement(Bloco, { hora: "13:30", titulo: "Destravar", alerta: c.semLigar > 0, etiqueta: "".concat(nInt(c.semLigar), " leads sem liga\u00E7\u00E3o"), nota: "Reagendamento e negocia\u00E7\u00E3o futura continuam com o SDR \u2014 o resto j\u00E1 foi para o closer \u00E0s 08:00." },
+                    React.createElement(Linha, { valor: nInt(c.semLigar), cor: T.bad },
+                        "Leads que entraram hoje e ningu\u00E9m ligou",
+                        React.createElement("span", { style: { fontSize: 12, color: T.muted } },
+                            " · ",
+                            "de ",
+                            nInt(c.leadsHoje),
+                            " que entraram")),
+                    ["REAGENDAR", "NEGOCIAÇÕES FUTURAS"].map(function (e) { return f[e] && (React.createElement(Linha, { key: e, valor: nInt(f[e].leads) },
+                        e,
+                        React.createElement("span", { style: { fontSize: 12, color: T.muted } },
+                            " · ",
+                            nInt(f[e].dias_sem_mexer),
+                            " dias sem mexer \u00B7 ",
+                            nReal(f[e].valor_parado)))); })),
+                React.createElement(Bloco, { hora: "17:30", titulo: "Fechar o dia", alerta: totalVencidas > 0, etiqueta: "".concat(nInt(totalVencidas), " tarefas vencidas"), nota: "Vencida aqui s\u00F3 conta tarefa de lead vivo do CAR SERVICE. Tarefa aberta em lead j\u00E1 perdido ou de outro funil \u00E9 faxina de CRM, n\u00E3o cobran\u00E7a de resultado." },
+                    React.createElement("div", { className: "rolagem" },
+                        React.createElement("table", null,
+                            React.createElement("thead", null,
+                                React.createElement("tr", null,
+                                    React.createElement(Th, null, "SDR"),
+                                    React.createElement(Th, { right: true }, "Leads do dia"),
+                                    React.createElement(Th, { right: true }, "Visitas"),
+                                    React.createElement(Th, { right: true }, "Sem desfecho"),
+                                    React.createElement(Th, { right: true }, "Tarefas abertas"),
+                                    React.createElement(Th, { right: true }, "Vencidas"),
+                                    React.createElement(Th, { right: true }, "Atraso m\u00E1x."),
+                                    React.createElement(Th, { right: true }, "Leads sem tarefa"))),
+                            React.createElement("tbody", null, porVencidas.map(function (p) {
+                                var t = tk[p.sdr] || {};
+                                return (React.createElement("tr", { key: p.sdr },
+                                    React.createElement(Td, { bold: true }, primeiroNome(p.sdr)),
+                                    React.createElement(Td, { right: true }, nInt(p.leadsHoje)),
+                                    React.createElement(Td, { right: true }, nInt(p.visitasHoje)),
+                                    React.createElement(Td, { right: true, color: p.semDesfecho > 0 ? T.bad : null }, nInt(p.semDesfecho)),
+                                    React.createElement(Td, { right: true }, t.abertas == null ? "—" : nInt(t.abertas)),
+                                    React.createElement(Td, { right: true, bold: Number(t.vencidas) > 0, color: Number(t.vencidas) > 0 ? T.bad : null }, t.vencidas == null ? "—" : nInt(t.vencidas)),
+                                    React.createElement(Td, { right: true, color: Number(t.atraso_maximo_dias) > 7 ? T.bad : null }, t.atraso_maximo_dias == null ? "—" : nInt(t.atraso_maximo_dias) + " d"),
+                                    React.createElement(Td, { right: true, color: Number(st[p.sdr] || 0) > 25 ? T.bad : null }, nInt(st[p.sdr] || 0))));
+                            })))),
+                    React.createElement("div", { style: { marginTop: 12 } },
+                        React.createElement(Linha, { valor: nInt(totalVencidas), cor: T.bad }, "Tarefas vencidas no time"),
+                        React.createElement(Linha, { valor: nInt(totalSemTarefa), cor: T.bad }, "Leads sem nenhuma tarefa"),
+                        React.createElement(Linha, { total: true, valor: nInt((qualidade || {}).visita_sem_desfecho), cor: T.bad }, "Acumulado na base sem desfecho"))),
+                React.createElement(Bloco, { hora: "Sexta", titulo: "Fechar a semana", etiqueta: "Qualidade da base", nota: "\u00C9 a lista que o coordenador leva para o fechamento semanal com o supervisor." },
+                    React.createElement(Linha, { valor: nInt((qualidade || {}).sem_unidade), cor: T.bad },
+                        "Leads sem unidade preenchida",
+                        React.createElement("span", { style: { fontSize: 12, color: T.muted } },
+                            " · ",
+                            "de ",
+                            nInt((qualidade || {}).leads_total),
+                            " na base")),
+                    React.createElement(Linha, { valor: nInt((qualidade || {}).sem_servico), cor: T.bad }, "Leads sem servi\u00E7o preenchido"),
+                    React.createElement(Linha, { valor: nInt((qualidade || {}).ganho_sem_valor), cor: T.bad }, "Vendas ganhas sem valor lan\u00E7ado"),
+                    React.createElement(Linha, { valor: nInt((qualidade || {}).sem_sdr) }, "Leads sem SDR atribu\u00EDdo"))),
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12 } },
+                React.createElement(Card, { className: "p16" },
+                    React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700 } }, "Esfor\u00E7o de hoje"),
+                    React.createElement("div", { style: { fontSize: 12, color: T.muted, marginBottom: 14 } }, "Os dois n\u00FAmeros que o time controla 100%"),
+                    React.createElement("div", { style: { display: "flex", gap: 14, fontSize: 11.5, color: T.ink2, marginBottom: 12 } },
+                        React.createElement("span", null,
+                            React.createElement("span", { style: { display: "inline-block", width: 10, height: 10,
+                                    background: T.marca, borderRadius: 2, marginRight: 6 } }),
+                            "Liga\u00E7\u00F5es tentadas"),
+                        React.createElement("span", null,
+                            React.createElement("span", { style: { display: "inline-block", width: 10, height: 10,
+                                    background: T.ink, borderRadius: 2, marginRight: 6 } }),
+                            "Pessoas com quem falou")),
+                    (function () {
+                        var maior = Math.max.apply(Math, __spreadArray([1], __read(porLigacoes.map(function (p) { return p.ligou; })), false));
+                        return porLigacoes.map(function (p) {
+                            var baixo = p.ligou < Number(c.meta.ligacoes_dia) * 0.5;
+                            return (React.createElement("div", { key: p.sdr, style: { marginBottom: 13 } },
+                                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 13,
+                                        marginBottom: 5 } },
+                                    React.createElement("span", null, primeiroNome(p.sdr)),
+                                    React.createElement("b", { style: { fontFamily: F_NUM, fontVariantNumeric: "tabular-nums",
+                                            color: baixo ? T.bad : T.ink } },
+                                        nInt(p.ligou),
+                                        " \u00B7 ",
+                                        nInt(p.falou))),
+                                React.createElement("div", { style: { height: 9, background: T.canvas, borderRadius: 2,
+                                        overflow: "hidden", marginBottom: 3 } },
+                                    React.createElement("div", { style: { height: "100%", width: (p.ligou / maior * 100) + "%",
+                                            background: baixo ? T.bad : T.marca, borderRadius: 2 } })),
+                                React.createElement("div", { style: { height: 9, background: T.canvas, borderRadius: 2, overflow: "hidden" } },
+                                    React.createElement("div", { style: { height: "100%", width: (p.falou / maior * 100) + "%",
+                                            background: T.ink, borderRadius: 2 } }))));
+                        });
+                    })()),
+                React.createElement(Card, { className: "p16" },
+                    React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700 } }, "Tempo de resposta \u2014 hoje"),
+                    React.createElement("div", { style: { fontSize: 12, color: T.muted, marginBottom: 14 } }, "Minutos at\u00E9 o primeiro contato por liga\u00E7\u00E3o"),
+                    React.createElement("div", { className: "rolagem" },
+                        React.createElement("table", null,
+                            React.createElement("thead", null,
+                                React.createElement("tr", null,
+                                    React.createElement(Th, null, "SDR"),
+                                    React.createElement(Th, { right: true }, "Leads"),
+                                    React.createElement(Th, { right: true }, "Sem ligar"),
+                                    React.createElement(Th, { right: true }, "M\u00E9dia"))),
+                            React.createElement("tbody", null, c.tempo.slice().sort(function (a, b) {
+                                return (Number(a.minutos_medio) || 0) - (Number(b.minutos_medio) || 0);
+                            }).map(function (r) { return (React.createElement("tr", { key: r.sdr },
+                                React.createElement(Td, { bold: true }, primeiroNome(r.sdr)),
+                                React.createElement(Td, { right: true }, nInt(r.leads)),
+                                React.createElement(Td, { right: true, color: Number(r.nunca_ligaram) > 0 ? T.bad : null }, nInt(r.nunca_ligaram)),
+                                React.createElement(Td, { right: true },
+                                    nInt(Math.round(Number(r.minutos_medio) || 0)),
+                                    " min"))); })))),
+                    React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 10 } },
+                        nInt(c.ate5),
+                        " lead(s) contatado(s) em at\u00E9 5 minutos hoje.")),
+                React.createElement(Card, { className: "p16" },
+                    React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700 } }, "Tarefas por SDR"),
+                    React.createElement("div", { style: { fontSize: 12, color: T.muted, marginBottom: 14 } }, "Abertas, vencidas e o que vence hoje"),
+                    React.createElement("div", { className: "rolagem" },
+                        React.createElement("table", null,
+                            React.createElement("thead", null,
+                                React.createElement("tr", null,
+                                    React.createElement(Th, null, "SDR"),
+                                    React.createElement(Th, { right: true }, "Abertas"),
+                                    React.createElement(Th, { right: true }, "Vencidas"),
+                                    React.createElement(Th, { right: true }, "Vence hoje"))),
+                            React.createElement("tbody", null, (tarefas || []).slice()
+                                .sort(function (a, b) { return Number(b.vencidas) - Number(a.vencidas); }).map(function (t) { return (React.createElement("tr", { key: t.sdr },
+                                React.createElement(Td, { bold: true }, primeiroNome(t.sdr)),
+                                React.createElement(Td, { right: true }, nInt(t.abertas)),
+                                React.createElement(Td, { right: true, bold: Number(t.vencidas) > 0, color: Number(t.vencidas) > 0 ? T.bad : null }, nInt(t.vencidas)),
+                                React.createElement(Td, { right: true }, nInt(t.vence_hoje)))); })))))))));
+}
+/* ---------- modo TV ----------
+
+   Fundo escuro e números grandes porque a tela fica a metros de
+   distância, não a um braço. Nada aqui é clicável: quem está olhando
+   está de pé, do outro lado da sala. */
+function ModoTV(_a) {
+    var c = _a.c;
+    var pctRec = c.meta.faturamento ? (c.mes.receita / Number(c.meta.faturamento)) * 100 : 0;
+    var pctOs = c.meta.os ? (c.mes.os / Number(c.meta.os)) * 100 : 0;
+    var noRitmoRec = c.ritmoReceitaDia >= c.precisaReceitaDia;
+    var noRitmoOs = c.ritmoOsDia >= c.precisaOsDia;
+    var CINZA = "#8C939D", LINHA = "#242A33", FUNDO2 = "#1A1F27";
+    var VERDE = "#4FD1AC", VERMELHO = "#F2707A";
+    var rank = c.pessoasLista.slice().sort(function (a, b) { return b.recMes - a.recMes; });
+    var maiorRec = Math.max(1, rank.length ? rank[0].recMes : 1);
+    var porLigacoes = c.pessoasLista.slice().sort(function (a, b) { return b.ligou - a.ligou; });
+    var totalSemDesfecho = c.pessoasLista.reduce(function (s, p) { return s + p.semDesfecho; }, 0);
+    var Celula = function (_a) {
+        var v = _a.v, l = _a.l;
+        return (React.createElement("div", { style: { background: v === 0 ? "#16241F" : "#241A1C",
+                border: "1px solid ".concat(v === 0 ? "#1F4438" : "#4A2226"), borderRadius: 8, padding: "14px 16px" } },
+            React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 34, fontWeight: 700, lineHeight: 1,
+                    color: v === 0 ? VERDE : VERMELHO, fontVariantNumeric: "tabular-nums" } }, nInt(v)),
+            React.createElement("div", { style: { fontSize: 12.5, color: "#A9B0B8", marginTop: 8, lineHeight: 1.35 } }, l)));
+    };
+    return (React.createElement("div", { style: { background: T.ink, borderRadius: 10, padding: "30px 34px", color: "#fff",
+            display: "flex", flexDirection: "column", gap: 20 } },
+        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between",
+                alignItems: "baseline", borderBottom: "1px solid ".concat(LINHA), paddingBottom: 16 } },
+            React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 13, letterSpacing: ".16em",
+                    textTransform: "uppercase", color: CINZA, fontWeight: 700, display: "flex",
+                    alignItems: "center", gap: 9 } },
+                React.createElement("span", { style: { width: 10, height: 10, background: T.marca, borderRadius: 2 } }),
+                "The Wonder \u00B7 Time de SDR"),
+            React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 13, color: CINZA, fontWeight: 600 } },
+                "faltam ",
+                c.pelaFrente,
+                " dias (com s\u00E1bados)")),
+        React.createElement("div", null,
+            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 34, alignItems: "flex-end",
+                    justifyContent: "space-between", marginBottom: 14 } },
+                React.createElement("div", null,
+                    React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 12, letterSpacing: ".15em",
+                            textTransform: "uppercase", color: CINZA, fontWeight: 700, marginBottom: 8 } }, "Faturamento do m\u00EAs"),
+                    React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 52, fontWeight: 700, letterSpacing: "-.03em",
+                            lineHeight: 1, fontVariantNumeric: "tabular-nums" } }, nReal(c.mes.receita))),
+                React.createElement("div", null,
+                    React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 12, letterSpacing: ".15em",
+                            textTransform: "uppercase", color: CINZA, fontWeight: 700, marginBottom: 8 } }, "O.S. fechadas"),
+                    React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 52, fontWeight: 700, letterSpacing: "-.03em",
+                            lineHeight: 1, fontVariantNumeric: "tabular-nums" } },
+                        nInt(c.mes.os),
+                        " ",
+                        React.createElement("span", { style: { fontSize: 22, color: "#79808A", fontWeight: 700 } },
+                            "de ",
+                            nInt(c.meta.os)))),
+                React.createElement("div", { style: { textAlign: "right" } },
+                    React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 28, fontWeight: 700, lineHeight: 1,
+                            color: T.marca, fontVariantNumeric: "tabular-nums" } },
+                        nReal(c.precisaReceitaDia),
+                        " \u00B7 ",
+                        nInt(Math.ceil(c.precisaOsDia)),
+                        " O.S."),
+                    React.createElement("div", { style: { fontSize: 12.5, color: CINZA, marginTop: 7 } }, "precisa sair por dia")),
+                React.createElement("div", { style: { textAlign: "right" } },
+                    React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 28, fontWeight: 700, lineHeight: 1,
+                            color: noRitmoRec ? VERDE : VERMELHO, fontVariantNumeric: "tabular-nums" } },
+                        nReal(c.ritmoReceitaDia),
+                        " \u00B7 ",
+                        nNum(c.ritmoOsDia, 1),
+                        " O.S."),
+                    React.createElement("div", { style: { fontSize: 12.5, color: CINZA, marginTop: 7 } }, "o que est\u00E1 saindo por dia"))),
+            [{ pct: pctRec, ok: noRitmoRec,
+                    esq: "Faturamento \u00B7 ".concat(nNum(pctRec, 1), "% da meta de ").concat(nReal(Number(c.meta.faturamento))),
+                    dir: "faltam ".concat(nReal(c.faltaReceita)) },
+                { pct: pctOs, ok: noRitmoOs,
+                    esq: "O.S. \u00B7 ".concat(nNum(pctOs, 1), "% da meta de ").concat(nInt(c.meta.os)),
+                    dir: "faltam ".concat(nInt(c.faltaOs), " \u00B7 ").concat(nInt(Math.ceil(c.precisaOsDia / c.pessoas)), " por SDR por dia") },
+            ].map(function (b, i) { return (React.createElement("div", { key: i },
+                React.createElement("div", { style: { height: 20, background: LINHA, borderRadius: 5, overflow: "hidden" } },
+                    React.createElement("div", { style: { height: "100%", width: Math.min(100, b.pct) + "%",
+                            background: b.ok ? VERDE : T.marca, borderRadius: 5 } })),
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12.5,
+                        color: "#79808A", margin: "8px 0 12px" } },
+                    React.createElement("span", null, b.esq),
+                    React.createElement("span", null, b.dir)))); })),
+        React.createElement("div", { className: "tvcols2", style: { display: "grid", gap: 22 } },
+            React.createElement("div", { style: { background: FUNDO2, border: "1px solid ".concat(LINHA), borderRadius: 8,
+                    padding: "18px 20px" } },
+                React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 13, letterSpacing: ".14em",
+                        textTransform: "uppercase", color: T.marca, fontWeight: 700, marginBottom: 14 } }, "Placar de hoje"),
+                React.createElement("div", { className: "rolagem" },
+                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+                        React.createElement("thead", null,
+                            React.createElement("tr", null, [["SDR", null], ["Ligou", c.meta.ligacoes_dia], ["Falou", c.meta.falou_dia],
+                                ["Agendou", c.meta.agendamentos_dia], ["Vendeu", null]].map(function (_a, i) {
+                                var _b = __read(_a, 2), l = _b[0], m = _b[1];
+                                return (React.createElement("th", { key: l, style: { textAlign: i === 0 ? "left" : "right", fontSize: 11,
+                                        letterSpacing: ".1em", textTransform: "uppercase", color: "#79808A",
+                                        borderBottom: "1px solid #2C333D", paddingBottom: 9, fontWeight: 700 } },
+                                    l,
+                                    m != null && React.createElement("div", { style: { color: "#5C636D", fontWeight: 600 } },
+                                        "meta ",
+                                        nInt(m))));
+                            }))),
+                        React.createElement("tbody", null, porLigacoes.map(function (p) {
+                            var cor = p.ligou >= Number(c.meta.ligacoes_dia) ? VERDE
+                                : (p.ligou < Number(c.meta.ligacoes_dia) * 0.5 ? VERMELHO : "#E6E9ED");
+                            var td = { fontSize: 19, padding: "11px 0", borderBottom: "1px solid ".concat(LINHA),
+                                color: cor, fontVariantNumeric: "tabular-nums", fontFamily: F_NUM,
+                                fontWeight: 700, textAlign: "right" };
+                            return (React.createElement("tr", { key: p.sdr },
+                                React.createElement("td", { style: __assign(__assign({}, td), { textAlign: "left", fontSize: 18 }) }, primeiroNome(p.sdr)),
+                                React.createElement("td", { style: td }, nInt(p.ligou)),
+                                React.createElement("td", { style: td }, nInt(p.falou)),
+                                React.createElement("td", { style: __assign(__assign({}, td), { color: p.agendou ? cor : "#79808A" }) }, nInt(p.agendou)),
+                                React.createElement("td", { style: __assign(__assign({}, td), { color: p.vendeu ? cor : "#79808A" }) }, nInt(p.vendeu))));
+                        }))))),
+            React.createElement("div", { style: { background: FUNDO2, border: "1px solid ".concat(LINHA), borderRadius: 8,
+                    padding: "18px 20px" } },
+                React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 13, letterSpacing: ".14em",
+                        textTransform: "uppercase", color: T.marca, fontWeight: 700, marginBottom: 14 } }, "Ranking do m\u00EAs \u00B7 receita"),
+                rank.map(function (p, i) { return (React.createElement("div", { key: p.sdr, style: { marginBottom: 12 } },
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 15,
+                            color: "#C7CDD4", marginBottom: 5 } },
+                        React.createElement("span", null, primeiroNome(p.sdr)),
+                        React.createElement("b", { style: { fontFamily: F_NUM, fontWeight: 700, color: "#fff",
+                                fontVariantNumeric: "tabular-nums", fontSize: 17 } }, nReal(p.recMes))),
+                    React.createElement("div", { style: { height: 14, background: LINHA, borderRadius: 3, overflow: "hidden" } },
+                        React.createElement("div", { style: { height: "100%", width: (p.recMes / maiorRec * 100) + "%",
+                                background: i === 0 ? VERDE : T.marca, borderRadius: 3 } })))); }))),
+        React.createElement("div", { className: "tvbot2", style: { display: "grid", gap: 22 } },
+            React.createElement("div", { className: "tvpend2", style: { display: "grid", gap: 18 } },
+                React.createElement(Celula, { v: c.tarefasVencidas, l: "tarefas vencidas no time" }),
+                React.createElement(Celula, { v: c.leadsSemTarefa, l: "leads sem nenhuma tarefa" }),
+                React.createElement(Celula, { v: c.semLigar, l: "leads de hoje sem nenhuma liga\u00E7\u00E3o" }),
+                React.createElement(Celula, { v: totalSemDesfecho, l: "visitas de hoje sem desfecho" })),
+            React.createElement("div", { style: { background: FUNDO2, border: "1px solid ".concat(LINHA), borderRadius: 8,
+                    padding: "14px 18px", display: "flex", justifyContent: "space-between",
+                    alignItems: "center", gap: 14 } }, [["Leads hoje", c.doDia.leads], ["Agendou", c.doDia.agend],
+                ["Compareceu", c.doDia.compar], ["Vendas", c.doDia.os]].map(function (_a) {
+                var _b = __read(_a, 2), l = _b[0], v = _b[1];
+                return (React.createElement("div", { key: l, style: { textAlign: "center" } },
+                    React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 30, fontWeight: 700, lineHeight: 1,
+                            fontVariantNumeric: "tabular-nums" } }, nInt(v)),
+                    React.createElement("div", { style: { fontSize: 11.5, color: CINZA, marginTop: 7, letterSpacing: ".06em",
+                            textTransform: "uppercase", fontWeight: 600 } }, l)));
+            })))));
+}
 /* ===================== login ===================== */
 var ERROS = {
     "Invalid login credentials": "E-mail ou senha incorretos.",
@@ -628,6 +1233,10 @@ function usarDados(de, ate, prevDe) {
        mede o que já aconteceu. */
     var _s = __read(useState([]), 2), tarefas = _s[0], setTarefas = _s[1];
     var _t = __read(useState([]), 2), semTarefa = _t[0], setSemTarefa = _t[1];
+    /* Tudo que a aba do coordenador e a TV usam. Fica separado do resto
+       porque tem uma janela própria — mês corrente e hoje — que não muda
+       quando alguém mexe no filtro da aba principal. */
+    var _u = __read(useState(null), 2), rotina = _u[0], setRotina = _u[1];
     /* O Supabase corta em 1.000 linhas por consulta. A fato_dia tem uma linha
        por dia × SDR × unidade × serviço, então um mês passa desse teto e os
        totais sairiam menores sem ninguém perceber. Buscamos em páginas até
@@ -661,7 +1270,7 @@ function usarDados(de, ate, prevDe) {
         });
     }); };
     var buscar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, es, vp, ce, rb, pr, opcional, _b, q, fa, ms, mt, sd, tf, lst, e_1;
+        var _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, es, vp, ce, rb, pr, opcional, inicioDoMes_1, oDiaDeHoje_1, _b, q, fa, ms, mt, sd, tf, lst, mm, eq, fm, eh, th, vh, e_1;
         var _this = this;
         return __generator(this, function (_c) {
             switch (_c.label) {
@@ -758,6 +1367,8 @@ function usarDados(de, ate, prevDe) {
                             }
                         });
                     }); };
+                    inicioDoMes_1 = hoje().slice(0, 8) + "01";
+                    oDiaDeHoje_1 = hoje();
                     return [4 /*yield*/, Promise.all([
                             opcional(function () { return db.from("qualidade").select("*").limit(1); }, []),
                             opcional(function () { return db.from("funil_agora").select("*"); }, []),
@@ -766,15 +1377,29 @@ function usarDados(de, ate, prevDe) {
                             opcional(function () { return db.from("saude_das_cargas").select("*"); }, []),
                             opcional(function () { return db.from("tarefas_sdr").select("*"); }, []),
                             opcional(function () { return db.from("leads_sem_tarefa").select("*"); }, []),
+                            opcional(function () { return db.from("meta_do_mes").select("*").limit(1); }, []),
+                            opcional(function () { return db.from("equipe_sdr").select("sdr,ativo").eq("ativo", true); }, []),
+                            opcional(function () { return db.from("fato_dia").select("*")
+                                .gte("data", inicioDoMes_1).lte("data", oDiaDeHoje_1); }, []),
+                            opcional(function () { return db.from("esforco_dia").select("*").eq("data", oDiaDeHoje_1); }, []),
+                            opcional(function () { return db.from("tempo_resposta_dia").select("*").eq("data", oDiaDeHoje_1); }, []),
+                            opcional(function () { return db.from("visitas_pendentes_dia").select("*").eq("data", oDiaDeHoje_1); }, []),
                         ])];
                 case 11:
-                    _b = __read.apply(void 0, [_c.sent(), 7]), q = _b[0], fa = _b[1], ms = _b[2], mt = _b[3], sd = _b[4], tf = _b[5], lst = _b[6];
+                    _b = __read.apply(void 0, [_c.sent(), 13]), q = _b[0], fa = _b[1], ms = _b[2], mt = _b[3], sd = _b[4], tf = _b[5], lst = _b[6], mm = _b[7], eq = _b[8], fm = _b[9], eh = _b[10], th = _b[11], vh = _b[12];
                     setQualidade(q[0] || null);
                     setFunilAgora(fa);
                     setMetas({ sdr: ms, taxa: mt[0] || null });
                     setSaude(sd);
                     setTarefas(tf);
                     setSemTarefa(lst);
+                    setRotina({
+                        meta: mm[0] || null,
+                        equipe: (eq || []).map(function (x) { return x.sdr; }),
+                        fatoMes: fm, esforcoHoje: eh, tempoHoje: th, visitasHoje: vh,
+                        inicioDoMes: inicioDoMes_1,
+                        oDiaDeHoje: oDiaDeHoje_1,
+                    });
                     setFalhas(falhou_1);
                     setEstado({ carregando: false, erro: null, em: new Date() });
                     return [3 /*break*/, 13];
@@ -795,7 +1420,7 @@ function usarDados(de, ate, prevDe) {
         var t = setInterval(function () { buscar(); }, 5 * 60 * 1000);
         return function () { return clearInterval(t); };
     }, [buscar]);
-    return { estado: estado, fato: fato, motivos: motivos, sla: sla, esforco: esforco, tempoAntigo: tempoAntigo, pendentes: pendentes, carteiraEsf: carteiraEsf, robo: robo, preench: preench, qualidade: qualidade, funilAgora: funilAgora, metas: metas, falhas: falhas, saude: saude, tarefas: tarefas, semTarefa: semTarefa, recarregar: buscar };
+    return { estado: estado, fato: fato, motivos: motivos, sla: sla, esforco: esforco, tempoAntigo: tempoAntigo, pendentes: pendentes, carteiraEsf: carteiraEsf, robo: robo, preench: preench, qualidade: qualidade, funilAgora: funilAgora, metas: metas, falhas: falhas, saude: saude, tarefas: tarefas, semTarefa: semTarefa, rotina: rotina, recarregar: buscar };
 }
 /* ===================== app ===================== */
 function Painel(_a) {
@@ -810,6 +1435,27 @@ function Painel(_a) {
     var dias = Math.max(1, diasEntre(de, ate));
     var prevAte = addDays(de, -1), prevDe = addDays(prevAte, -(dias - 1));
     var d = usarDados(de, ate, prevDe);
+    /* A aba escolhida vive no endereço. #tv abre direto no modo TV, o que
+       transforma a tela da sala num favorito, e o botão voltar do navegador
+       passa a funcionar entre as abas. */
+    var abaDaURL = function () {
+        var h = String(window.location.hash || "").replace("#", "");
+        return (h === "coordenador" || h === "tv") ? h : "painel";
+    };
+    var _d = __read(useState(abaDaURL), 2), aba = _d[0], setAbaBruto = _d[1];
+    var setAba = function (v) {
+        setAbaBruto(v);
+        try {
+            window.location.hash = v === "painel" ? "" : v;
+        }
+        catch (e) { /* sem hash, segue */ }
+    };
+    useEffect(function () {
+        var ouvir = function () { return setAbaBruto(abaDaURL()); };
+        window.addEventListener("hashchange", ouvir);
+        return function () { return window.removeEventListener("hashchange", ouvir); };
+    }, []);
+    var rot = useMemo(function () { return contasDaRotina(d.rotina, d.tarefas, d.semTarefa); }, [d.rotina, d.tarefas, d.semTarefa]);
     var aplicar = function (linhas) { return linhas.filter(function (r) {
         return (f.unidade === "__all" || r.unidade === f.unidade) &&
             (f.servico === "__all" || r.servico === f.servico) &&
@@ -1169,380 +1815,392 @@ function Painel(_a) {
                             .slice().sort(function (x, y) { return y.min - x.min; })
                             .map(function (x) { return "".concat(x.fonte, " ").concat(idade(x.min)); }).join(" · "),
                         "."))))),
-            React.createElement(Card, { className: "p12", style: { position: "sticky", top: 54, zIndex: 20 } },
-                React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
-                    React.createElement(Select, { value: f.periodo, onChange: function (v) { return set("periodo", v); }, options: Object.entries(PERIODOS).map(function (_a) {
-                            var _b = __read(_a, 2), v = _b[0], l = _b[1];
-                            return ({ v: v, l: l });
-                        }) }),
-                    f.periodo === "custom" && (React.createElement(React.Fragment, null,
-                        React.createElement("input", { type: "date", value: f.de, onChange: function (e) { return set("de", e.target.value); }, className: "dt" }),
-                        React.createElement("span", { style: { color: T.muted, fontSize: 12 } }, "at\u00E9"),
-                        React.createElement("input", { type: "date", value: f.ate, onChange: function (e) { return set("ate", e.target.value); }, className: "dt" }))),
-                    React.createElement(Select, { value: f.unidade, onChange: function (v) { return set("unidade", v); }, options: __spreadArray([{ v: "__all", l: "Todas as unidades" }], __read(listas.unidades.map(function (u) { return ({ v: u, l: u }); })), false) }),
-                    React.createElement(Select, { value: f.servico, onChange: function (v) { return set("servico", v); }, options: __spreadArray([{ v: "__all", l: "Todos os serviços" }], __read(listas.servicos.map(function (s) { return ({ v: s, l: s }); })), false) }),
-                    React.createElement(Select, { value: f.sdr, onChange: function (v) { return set("sdr", v); }, options: __spreadArray([{ v: "__all", l: "Todos os SDRs" }], __read(listas.sdrs.map(function (s) { return ({ v: s, l: s }); })), false) }),
-                    React.createElement(Btn, { onClick: d.recarregar, style: { padding: "6px 11px" } }, "Atualizar"),
-                    React.createElement("div", { style: { marginLeft: "auto", fontSize: 12, color: T.muted, fontVariantNumeric: "tabular-nums" } },
-                        brFull(de),
-                        " \u2013 ",
-                        brFull(ate),
-                        " \u00B7 ",
-                        dias,
-                        " ",
-                        dias === 1 ? "dia" : "dias"))),
-            React.createElement(Secao, { n: 1, titulo: "Resultado \u2014 ".concat(rotulo) },
-                React.createElement("div", { className: "grid-kpi" }, KPIS.map(function (k) { return React.createElement(Kpi, { key: k.l, label: k.l, value: k.v, sub: k.s, foot: k.d, tone: k.tone }); }))),
-            React.createElement(Secao, { n: 2, titulo: "Funil", nota: "Cada etapa conta no dia em que aconteceu. Agendamento entra no dia em que o SDR marcou \u2014 n\u00E3o no dia da visita." },
-                React.createElement(Card, { className: "p20" },
-                    gargalo && (React.createElement("div", { style: { marginBottom: 14 } },
-                        React.createElement(Pill, { cor: T.warn },
-                            "Maior perda: ",
-                            funil[gargalo.i - 1].l,
-                            " \u2192 ",
-                            funil[gargalo.i].l,
-                            " \u00B7 \u2212",
-                            nInt(gargalo.perda)))),
-                    funil.map(function (e, i) {
-                        var passo = i > 0 ? perdas[i - 1] : null;
-                        var eh = gargalo && gargalo.i === i;
-                        return (React.createElement("div", { key: e.l },
-                            passo && (React.createElement("div", { style: { display: "flex", gap: 12, padding: "3px 0" } },
-                                React.createElement("div", { style: { width: 150 } }),
-                                React.createElement("div", { style: { fontSize: 11.5, color: passo.conv > 1 ? T.warn : (eh ? T.warn : T.muted),
-                                        fontWeight: eh || passo.conv > 1 ? 700 : 500, fontVariantNumeric: "tabular-nums" } }, passo.conv > 1
-                                    ? "\u2191 ".concat(nInt(-passo.perda), " a mais que a etapa anterior \u2014 falta registro acima")
-                                    : "\u2193 ".concat(nPct(passo.conv), " avan\u00E7am").concat(passo.perda > 0 ? " \u00B7 perde ".concat(nInt(passo.perda)) : "")))),
-                            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
-                                React.createElement("div", { style: { width: 150, fontSize: 12.5, color: T.ink2, textAlign: "right" } }, e.l),
-                                React.createElement("div", { style: { flex: 1 } },
-                                    React.createElement("div", { style: { width: "".concat(Math.max(4, div(e.v, topo) * 100), "%"), height: 34, borderRadius: 4,
-                                            background: eh ? T.marca : T.ink,
-                                            display: "flex", alignItems: "center", paddingLeft: 10, minWidth: 84, transition: "width .5s ease" } },
-                                        React.createElement("span", { style: { fontFamily: F_NUM, color: eh ? T.preto : "#fff", fontWeight: 700,
-                                                fontSize: 15, fontVariantNumeric: "tabular-nums" } }, nInt(e.v)))),
-                                React.createElement("div", { style: { width: 104, fontSize: 12, color: T.muted, textAlign: "right",
-                                        fontVariantNumeric: "tabular-nums" } },
-                                    nPct(div(e.v, topo)),
-                                    " do topo"))));
-                    }))),
-            React.createElement(Secao, { n: 3, titulo: "Carteira \u2014 por dono do lead", nota: "Tudo aqui \u00E9 creditado a quem o lead pertence. Marcou \u00E9 o dia em que a pessoa agendou; visitas \u00E9 a agenda da loja; automa\u00E7\u00E3o n\u00E3o conta. As duas \u00FAltimas colunas mostram quanto trabalho a carteira recebeu \u2014 de qualquer pessoa do time, n\u00E3o s\u00F3 do dono." },
-                React.createElement(Card, { className: "p0 rolagem" },
-                    React.createElement("table", null,
-                        React.createElement("thead", null,
-                            React.createElement("tr", null,
-                                React.createElement(Th, null, "SDR"),
-                                React.createElement(Th, { right: true }, "Leads"),
-                                React.createElement(Th, { right: true }, "Trab."),
-                                React.createElement(Th, { right: true }, "Marcou"),
-                                React.createElement(Th, { right: true }, "Taxa agend."),
-                                React.createElement(Th, { right: true }, "Visitas"),
-                                React.createElement(Th, { right: true }, "Compar."),
-                                React.createElement(Th, { right: true }, "% Show"),
-                                React.createElement(Th, { right: true }, "Vendas"),
-                                React.createElement(Th, { right: true }, "Receita"),
-                                React.createElement(Th, { right: true }, "Conv."),
-                                React.createElement(Th, { right: true }, "Lig. na carteira"),
-                                React.createElement(Th, { right: true }, "R$ por lig."))),
-                        React.createElement("tbody", null,
-                            __spreadArray([], __read(porSdr), false).sort(function (x, y) { return y.agendamentos_marcados - x.agendamentos_marcados; }).map(function (s) {
-                                var ce = carteiraEsfPorSdr.get(s.nome) || { ligacoes: 0, pessoas: 0 };
-                                return (React.createElement("tr", { key: s.nome },
-                                    React.createElement(Td, { bold: true }, s.nome),
-                                    React.createElement(Td, { right: true }, nInt(s.leads_recebidos)),
-                                    React.createElement(Td, { right: true }, nInt(s.leads_trabalhados)),
-                                    React.createElement(Td, { right: true, bold: true }, nInt(s.agendamentos_marcados)),
-                                    React.createElement(Td, { right: true, color: s.taxa_agendamento >= metaTaxa.taxa_agendamento / 100 ? T.good : T.bad }, nPct(s.taxa_agendamento)),
-                                    React.createElement(Td, { right: true }, nInt(s.visitas_do_dia)),
-                                    React.createElement(Td, { right: true }, nInt(s.comparecimentos)),
-                                    React.createElement(Td, { right: true, color: s.taxa_show >= metaTaxa.taxa_show / 100 ? T.good : T.bad }, nPct(s.taxa_show)),
-                                    React.createElement(Td, { right: true, bold: true }, nInt(s.vendas)),
-                                    React.createElement(Td, { right: true }, nReal(s.receita)),
-                                    React.createElement(Td, { right: true, color: s.conversao_final >= a.conversao_final ? T.good : T.bad }, nPct(s.conversao_final)),
-                                    React.createElement(Td, { right: true },
-                                        ce.ligacoes ? nInt(ce.ligacoes) : "—",
-                                        ce.pessoas > 1 && (React.createElement("span", { style: { color: T.muted, fontSize: 11 } },
-                                            " \u00B7 ",
-                                            ce.pessoas,
-                                            " pessoas"))),
-                                    React.createElement(Td, { right: true, bold: true }, ce.ligacoes ? nReal(div(s.receita, ce.ligacoes)) : "—")));
-                            }),
-                            React.createElement("tr", { style: { background: T.canvas } },
-                                React.createElement(Td, { bold: true }, "Total"),
-                                React.createElement(Td, { right: true, bold: true }, nInt(a.leads_recebidos)),
-                                React.createElement(Td, { right: true, bold: true }, nInt(a.leads_trabalhados)),
-                                React.createElement(Td, { right: true, bold: true }, nInt(a.agendamentos_marcados)),
-                                React.createElement(Td, { right: true, bold: true }, nPct(a.taxa_agendamento)),
-                                React.createElement(Td, { right: true, bold: true }, nInt(a.visitas_do_dia)),
-                                React.createElement(Td, { right: true, bold: true }, nInt(a.comparecimentos)),
-                                React.createElement(Td, { right: true, bold: true }, nPct(a.taxa_show)),
-                                React.createElement(Td, { right: true, bold: true }, nInt(a.vendas)),
-                                React.createElement(Td, { right: true, bold: true }, nReal(a.receita)),
-                                React.createElement(Td, { right: true, bold: true }, nPct(a.conversao_final)),
-                                React.createElement(Td, { right: true, bold: true }, ligacoesNaCarteiraTot ? nInt(ligacoesNaCarteiraTot) : "—"),
-                                React.createElement(Td, { right: true, bold: true }, ligacoesNaCarteiraTot ? nReal(div(a.receita, ligacoesNaCarteiraTot)) : "—"))))),
-                semSdr && semSdr.leads_recebidos > 0 && (React.createElement(Card, { className: "p16", style: { marginTop: 12, borderColor: "#F3D9DB" } },
-                    React.createElement("div", { style: { fontSize: 13, color: T.ink2, lineHeight: 1.6 } },
-                        React.createElement("b", { style: { color: T.bad } },
-                            "\u26A0 ",
-                            nInt(semSdr.leads_recebidos),
-                            " leads sem SDR"),
-                        " no per\u00EDodo \u2014 entraram e n\u00E3o foram distribu\u00EDdos a ningu\u00E9m. N\u00E3o entram no placar acima porque n\u00E3o s\u00E3o de ningu\u00E9m; entram no total.",
-                        semSdr.vendas > 0 && " Ainda assim, ".concat(nInt(semSdr.vendas), " viraram venda."))))),
-            esforcoPorSdr.length > 0 && (React.createElement(Secao, { n: 4, titulo: "Esfor\u00E7o \u2014 por quem executou", nota: "Chave diferente da se\u00E7\u00E3o 3: aqui o cr\u00E9dito \u00E9 de quem FEZ, n\u00E3o de quem \u00E9 dono do lead. A liga\u00E7\u00E3o vem do discador, que sabe qual ramal discou; o Kommo n\u00E3o sabe. \"Tentou\" conta toda discagem; \"atendeu\" usa o motivo real de encerramento, ent\u00E3o caixa postal n\u00E3o conta; \"falou com\" s\u00E3o pessoas em conversas acima de ".concat(segConversa, "s. Mensagem do rob\u00F4 de triagem fica fora: automa\u00E7\u00E3o n\u00E3o \u00E9 esfor\u00E7o de ningu\u00E9m. \"Fora do funil\" \u00E9 trabalho em lead de outro funil, quase sempre o Remarketing, que a equipe atende quando n\u00E3o h\u00E1 lead novo entrando \u2014 conta como esfor\u00E7o porque a pessoa fez, mas o resultado dele n\u00E3o aparece nas se\u00E7\u00F5es de carteira.") },
-                React.createElement("div", { className: "grid-kpi", style: { marginBottom: 16 } },
-                    React.createElement(Kpi, { label: "Liga\u00E7\u00F5es tentadas", value: nInt(esf.ligacoes_tentadas), sub: esf.ligacoes_fora
-                            ? "".concat(nInt(esf.ligacoes_fora), " fora do CAR SERVICE (").concat(nPct(esf.pct_fora, 0), ")")
-                            : "Inclui caixa postal e não atendida" }),
-                    React.createElement(Kpi, { label: "Falou com", value: nInt(esf.pessoas_com_quem_falou), sub: "Pessoas, em liga\u00E7\u00F5es acima de ".concat(segConversa, "s") }),
-                    React.createElement(Kpi, { label: "Taxa de atendimento", value: nPct(esf.taxa_atendimento), sub: "Pelo motivo real de encerramento" }),
-                    React.createElement(Kpi, { label: "Discagens por conversa", value: nNum(esf.discagens_por_conversa, 1), sub: "Quanto custa cada conversa" }),
-                    React.createElement(Kpi, { label: "Horas ao telefone", value: nNum(esf.horas, 1), sub: "Soma da dura\u00E7\u00E3o das liga\u00E7\u00F5es" }),
-                    React.createElement(Kpi, { label: "WhatsApp de pessoa", value: nInt(esf.whatsapp_enviados), sub: roboEnviou
-                            ? "\u00C0 parte: o rob\u00F4 enviou ".concat(nInt(roboEnviou), " e o cliente respondeu ").concat(nInt(clienteRespondeu))
-                            : "Digitadas por gente" })),
-                React.createElement(Card, { className: "p0 rolagem" },
-                    React.createElement("table", null,
-                        React.createElement("thead", null,
-                            React.createElement("tr", null,
-                                React.createElement(Th, null, "Executor"),
-                                React.createElement(Th, { right: true }, "Tentou"),
-                                React.createElement(Th, { right: true }, "Fora do funil"),
-                                React.createElement(Th, { right: true }, "% atendeu"),
-                                React.createElement(Th, { right: true }, "Falou com"),
-                                React.createElement(Th, { right: true }, "Disc./conversa"),
-                                React.createElement(Th, { right: true }, "Zap"),
-                                React.createElement(Th, { right: true }, "Horas ao telefone"))),
-                        React.createElement("tbody", null,
-                            __spreadArray([], __read(esforcoPorSdr), false).sort(function (x, y) { return y.ligacoes_tentadas - x.ligacoes_tentadas; }).map(function (s) { return (React.createElement("tr", { key: s.nome },
-                                React.createElement(Td, { bold: true }, s.nome),
-                                React.createElement(Td, { right: true }, nInt(s.ligacoes_tentadas)),
-                                React.createElement(Td, { right: true, color: T.muted }, s.ligacoes_fora ? "".concat(nInt(s.ligacoes_fora), " \u00B7 ").concat(nPct(s.pct_fora, 0)) : "—"),
-                                React.createElement(Td, { right: true }, nPct(s.taxa_atendimento)),
-                                React.createElement(Td, { right: true }, nInt(s.pessoas_com_quem_falou)),
-                                React.createElement(Td, { right: true, color: s.discagens_por_conversa > esf.discagens_por_conversa ? T.bad : T.good }, nNum(s.discagens_por_conversa, 1)),
-                                React.createElement(Td, { right: true }, nInt(s.whatsapp_enviados)),
-                                React.createElement(Td, { right: true }, nNum(s.horas, 1)))); }),
-                            React.createElement("tr", { style: { background: T.canvas } },
-                                React.createElement(Td, { bold: true }, "Total"),
-                                React.createElement(Td, { right: true, bold: true }, nInt(esf.ligacoes_tentadas)),
-                                React.createElement(Td, { right: true, bold: true, color: T.muted }, esf.ligacoes_fora ? "".concat(nInt(esf.ligacoes_fora), " \u00B7 ").concat(nPct(esf.pct_fora, 0)) : "—"),
-                                React.createElement(Td, { right: true, bold: true }, nPct(esf.taxa_atendimento)),
-                                React.createElement(Td, { right: true, bold: true }, nInt(esf.pessoas_com_quem_falou)),
-                                React.createElement(Td, { right: true, bold: true }, nNum(esf.discagens_por_conversa, 1)),
-                                React.createElement(Td, { right: true, bold: true }, nInt(esf.whatsapp_enviados)),
-                                React.createElement(Td, { right: true, bold: true }, nNum(esf.horas, 1)))))),
-                React.createElement(Card, { className: "p16", style: { marginTop: 12, fontSize: 12.5, color: T.ink2, lineHeight: 1.6 } }, "Esfor\u00E7o \u00E9 insumo, n\u00E3o resultado \u2014 quem mais disca n\u00E3o \u00E9 necessariamente quem mais traz. Para juntar as duas coisas, compare esta tabela com a da se\u00E7\u00E3o 3: l\u00E1 est\u00E1 o que a carteira de cada um produziu, aqui est\u00E1 o que cada um fez. Quando os dois nomes n\u00E3o batem, \u00E9 gente trabalhando lead de outro \u2014 normal em cobertura, problema se for rotina."))),
-            React.createElement(Secao, { n: 5, titulo: "Evolu\u00E7\u00E3o no per\u00EDodo" },
-                React.createElement(Card, { className: "p16" },
-                    React.createElement(GraficoEvolucao, { dados: serie }))),
-            React.createElement(Secao, { n: 6, titulo: "Por unidade e por servi\u00E7o" },
-                React.createElement("div", { className: "col2" }, [["Unidade", porUnidade], ["Serviço", porServico]].map(function (_a) {
-                    var _b = __read(_a, 2), titulo = _b[0], dados = _b[1];
-                    return (React.createElement(Card, { key: titulo, className: "p0 rolagem" },
-                        React.createElement("table", null,
-                            React.createElement("thead", null,
-                                React.createElement("tr", null,
-                                    React.createElement(Th, null, titulo),
-                                    React.createElement(Th, { right: true }, "Leads"),
-                                    React.createElement(Th, { right: true }, "Marcou"),
-                                    React.createElement(Th, { right: true }, "Compar."),
-                                    React.createElement(Th, { right: true }, "Vendas"),
-                                    React.createElement(Th, { right: true }, "Conv."))),
-                            React.createElement("tbody", null, __spreadArray([], __read(dados), false).sort(function (x, y) { return y.leads_recebidos - x.leads_recebidos; }).map(function (r) { return (React.createElement("tr", { key: r.nome },
-                                React.createElement(Td, { bold: true }, r.nome),
-                                React.createElement(Td, { right: true }, nInt(r.leads_recebidos)),
-                                React.createElement(Td, { right: true }, nInt(r.agendamentos_marcados)),
-                                React.createElement(Td, { right: true }, nInt(r.comparecimentos)),
-                                React.createElement(Td, { right: true, bold: true }, nInt(r.vendas)),
-                                React.createElement(Td, { right: true, color: r.conversao_final >= a.conversao_final ? T.good : T.bad }, nPct(r.conversao_final)))); })))));
-                }))),
-            React.createElement(Secao, { n: 7, titulo: "Tempo at\u00E9 a primeira liga\u00E7\u00E3o", nota: d.tempoAntigo
-                    ? "Medida antiga, pela saída do lead da etapa de entrada. Rode o filtro_usuarios.sql para passar a medir pela ligação de verdade."
-                    : "Da entrada do lead até a primeira ligação DISCADA — vale a discagem, não o atendimento: o SDR controla quando liga, não se o cliente atende. Isto não é o que a casa chama de SLA; SLA aqui quer dizer que o lead atende aos padrões mínimos para ser atendido." },
-                React.createElement("div", { className: "col2" },
-                    React.createElement(Card, { className: "p16" },
-                        React.createElement(Label, null,
-                            "Distribui\u00E7\u00E3o \u2014 base de ",
-                            nInt(tempoTot.com_medida),
-                            " leads que receberam liga\u00E7\u00E3o, de ",
-                            nInt(tempoTot.leads),
-                            " recebidos"),
-                        React.createElement("div", { style: { display: "grid", gap: 14, marginTop: 16 } }, [
-                            { l: "Até 5 minutos", n: tempoTot.ate_5min },
-                            { l: "Até 15 minutos", n: tempoTot.ate_5min + tempoTot.ate_15min, meta: (metaTaxa.resposta_ate_15_min || metaTaxa.sla_ate_15) / 100 },
-                            { l: "Até 1 hora", n: tempoTot.ate_5min + tempoTot.ate_15min + tempoTot.ate_60min },
-                            { l: "Acima de 1 hora", n: tempoTot.acima_de_1h, ruim: true },
-                        ].map(function (i) {
-                            var p = div(i.n, tempoTot.com_medida);
-                            var cor = i.ruim ? T.bad : i.meta ? (p >= i.meta ? T.good : T.bad) : T.ink;
-                            return (React.createElement("div", { key: i.l },
-                                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 } },
-                                    React.createElement("span", { style: { fontSize: 13, color: T.ink2 } }, i.l),
-                                    React.createElement("span", { style: { fontFamily: F_NUM, fontWeight: 700, fontSize: 15, color: cor,
+            React.createElement("div", { style: { display: "flex", gap: 4, background: T.surface, border: "1px solid ".concat(T.hair),
+                    borderRadius: 8, padding: 4, marginBottom: 16, width: "fit-content" } }, [["painel", "Painel"], ["coordenador", "Coordenador"], ["tv", "Modo TV"]].map(function (_a) {
+                var _b = __read(_a, 2), v = _b[0], l = _b[1];
+                return (React.createElement("button", { key: v, onClick: function () { return setAba(v); }, style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700, padding: "8px 16px",
+                        border: 0, borderRadius: 5, cursor: "pointer",
+                        background: aba === v ? T.ink : "transparent",
+                        color: aba === v ? "#fff" : T.ink2 } }, l));
+            })),
+            aba !== "painel" && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
+            aba === "coordenador" && rot && React.createElement(AbaCoordenador, { c: rot, funil: d.funilAgora, qualidade: d.qualidade, tarefas: d.tarefas, semTarefa: d.semTarefa }),
+            aba === "tv" && rot && React.createElement(ModoTV, { c: rot }),
+            aba === "painel" && (React.createElement(React.Fragment, null,
+                React.createElement(Card, { className: "p12", style: { position: "sticky", top: 54, zIndex: 20 } },
+                    React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                        React.createElement(Select, { value: f.periodo, onChange: function (v) { return set("periodo", v); }, options: Object.entries(PERIODOS).map(function (_a) {
+                                var _b = __read(_a, 2), v = _b[0], l = _b[1];
+                                return ({ v: v, l: l });
+                            }) }),
+                        f.periodo === "custom" && (React.createElement(React.Fragment, null,
+                            React.createElement("input", { type: "date", value: f.de, onChange: function (e) { return set("de", e.target.value); }, className: "dt" }),
+                            React.createElement("span", { style: { color: T.muted, fontSize: 12 } }, "at\u00E9"),
+                            React.createElement("input", { type: "date", value: f.ate, onChange: function (e) { return set("ate", e.target.value); }, className: "dt" }))),
+                        React.createElement(Select, { value: f.unidade, onChange: function (v) { return set("unidade", v); }, options: __spreadArray([{ v: "__all", l: "Todas as unidades" }], __read(listas.unidades.map(function (u) { return ({ v: u, l: u }); })), false) }),
+                        React.createElement(Select, { value: f.servico, onChange: function (v) { return set("servico", v); }, options: __spreadArray([{ v: "__all", l: "Todos os serviços" }], __read(listas.servicos.map(function (s) { return ({ v: s, l: s }); })), false) }),
+                        React.createElement(Select, { value: f.sdr, onChange: function (v) { return set("sdr", v); }, options: __spreadArray([{ v: "__all", l: "Todos os SDRs" }], __read(listas.sdrs.map(function (s) { return ({ v: s, l: s }); })), false) }),
+                        React.createElement(Btn, { onClick: d.recarregar, style: { padding: "6px 11px" } }, "Atualizar"),
+                        React.createElement("div", { style: { marginLeft: "auto", fontSize: 12, color: T.muted, fontVariantNumeric: "tabular-nums" } },
+                            brFull(de),
+                            " \u2013 ",
+                            brFull(ate),
+                            " \u00B7 ",
+                            dias,
+                            " ",
+                            dias === 1 ? "dia" : "dias"))),
+                React.createElement(Secao, { n: 1, titulo: "Resultado \u2014 ".concat(rotulo) },
+                    React.createElement("div", { className: "grid-kpi" }, KPIS.map(function (k) { return React.createElement(Kpi, { key: k.l, label: k.l, value: k.v, sub: k.s, foot: k.d, tone: k.tone }); }))),
+                React.createElement(Secao, { n: 2, titulo: "Funil", nota: "Cada etapa conta no dia em que aconteceu. Agendamento entra no dia em que o SDR marcou \u2014 n\u00E3o no dia da visita." },
+                    React.createElement(Card, { className: "p20" },
+                        gargalo && (React.createElement("div", { style: { marginBottom: 14 } },
+                            React.createElement(Pill, { cor: T.warn },
+                                "Maior perda: ",
+                                funil[gargalo.i - 1].l,
+                                " \u2192 ",
+                                funil[gargalo.i].l,
+                                " \u00B7 \u2212",
+                                nInt(gargalo.perda)))),
+                        funil.map(function (e, i) {
+                            var passo = i > 0 ? perdas[i - 1] : null;
+                            var eh = gargalo && gargalo.i === i;
+                            return (React.createElement("div", { key: e.l },
+                                passo && (React.createElement("div", { style: { display: "flex", gap: 12, padding: "3px 0" } },
+                                    React.createElement("div", { style: { width: 150 } }),
+                                    React.createElement("div", { style: { fontSize: 11.5, color: passo.conv > 1 ? T.warn : (eh ? T.warn : T.muted),
+                                            fontWeight: eh || passo.conv > 1 ? 700 : 500, fontVariantNumeric: "tabular-nums" } }, passo.conv > 1
+                                        ? "\u2191 ".concat(nInt(-passo.perda), " a mais que a etapa anterior \u2014 falta registro acima")
+                                        : "\u2193 ".concat(nPct(passo.conv), " avan\u00E7am").concat(passo.perda > 0 ? " \u00B7 perde ".concat(nInt(passo.perda)) : "")))),
+                                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+                                    React.createElement("div", { style: { width: 150, fontSize: 12.5, color: T.ink2, textAlign: "right" } }, e.l),
+                                    React.createElement("div", { style: { flex: 1 } },
+                                        React.createElement("div", { style: { width: "".concat(Math.max(4, div(e.v, topo) * 100), "%"), height: 34, borderRadius: 4,
+                                                background: eh ? T.marca : T.ink,
+                                                display: "flex", alignItems: "center", paddingLeft: 10, minWidth: 84, transition: "width .5s ease" } },
+                                            React.createElement("span", { style: { fontFamily: F_NUM, color: eh ? T.preto : "#fff", fontWeight: 700,
+                                                    fontSize: 15, fontVariantNumeric: "tabular-nums" } }, nInt(e.v)))),
+                                    React.createElement("div", { style: { width: 104, fontSize: 12, color: T.muted, textAlign: "right",
                                             fontVariantNumeric: "tabular-nums" } },
-                                        nPct(p),
-                                        " ",
-                                        React.createElement("span", { style: { color: T.muted, fontWeight: 400, fontSize: 12 } },
-                                            "(",
-                                            nInt(i.n),
-                                            ")"))),
-                                React.createElement(Barra, { pct: p, cor: cor }),
-                                i.meta && React.createElement("div", { style: { fontSize: 11, color: T.muted, marginTop: 4 } },
-                                    "Meta: ",
-                                    nPct(i.meta, 0))));
+                                        nPct(div(e.v, topo)),
+                                        " do topo"))));
                         }))),
-                    React.createElement("div", { className: "grid-kpi-2" },
-                        React.createElement(Kpi, { label: "Tempo m\u00E9dio at\u00E9 ligar", value: tempoTot.medio == null ? "—" : "".concat(nNum(tempoTot.medio, 0), " min"), sub: "Da entrada do lead \u00E0 primeira discagem" }),
-                        React.createElement(Kpi, { label: "Tempo m\u00E9dio at\u00E9 falar", value: tempoTot.medioAteFalar == null ? "—" : "".concat(nNum(tempoTot.medioAteFalar, 0), " min"), sub: "At\u00E9 uma conversa acima de ".concat(segConversa, "s") }),
-                        React.createElement(Kpi, { label: "Ningu\u00E9m ligou", value: nInt(tempoTot.leads - tempoTot.com_medida), sub: "Leads sem nenhuma discagem registrada", tone: tempoTot.leads - tempoTot.com_medida > 0 ? "bad" : "good" })))),
-            React.createElement(Secao, { n: 8, titulo: "Por que perdemos", nota: "Dois blocos, porque s\u00E3o dois jogos diferentes. Em cima, o lead que se perdeu ANTES de chegar na loja \u2014 \u00E9 a conta do SDR. Embaixo, o lead que chegou l\u00E1 dentro, sentou com o closer e n\u00E3o fechou \u2014 o SDR fez o trabalho dele at\u00E9 o fim. S\u00F3 a lista oficial de motivos do Kommo; o vocabul\u00E1rio antigo fica na nota do rodap\u00E9." },
-                React.createElement(Card, { className: "p16" },
-                    React.createElement("div", { style: { fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase",
-                            color: T.muted, fontWeight: 700, marginBottom: 10 } },
-                        "Perdemos antes da loja",
-                        motivos.totalAntes > 0 && (React.createElement("span", { style: { color: T.ink2, marginLeft: 8 } }, nInt(motivos.totalAntes)))),
-                    motivos.lista.length === 0 ? (React.createElement("div", { style: { fontSize: 13, color: T.muted } }, "Nenhuma perda com motivo da lista oficial neste per\u00EDodo.")) : (React.createElement(BarrasHorizontais, { dados: motivos.lista })),
-                    React.createElement("div", { style: { marginTop: 20, paddingTop: 14, borderTop: "1px solid ".concat(T.hair) } },
-                        React.createElement("div", { style: { fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase",
-                                color: T.muted, fontWeight: 700, marginBottom: 10 } },
-                            "Chegou na loja e n\u00E3o fechou",
-                            motivos.totalNaLoja > 0 && (React.createElement("span", { style: { color: T.ink2, marginLeft: 8 } }, nInt(motivos.totalNaLoja)))),
-                        motivos.naLoja.length === 0 ? (React.createElement("div", { style: { fontSize: 12, color: T.muted, lineHeight: 1.6 } },
-                            "Nenhuma perda registrada com motivo de loja neste per\u00EDodo. Este bloco s\u00F3 enche quando o closer marca o motivo ",
-                            React.createElement("b", { style: { color: T.ink2 } }, "Veio em loja e n\u00E3o fechou"),
-                            " no Kommo \u2014 vazio aqui pode significar que n\u00E3o aconteceu, ou que aconteceu e ningu\u00E9m registrou.")) : (React.createElement(BarrasHorizontais, { dados: motivos.naLoja }))),
-                    motivos.historico > 0 && (React.createElement("div", { style: { marginTop: 16, paddingTop: 12, borderTop: "1px solid ".concat(T.hair),
-                            fontSize: 12, color: T.muted, lineHeight: 1.6 } },
-                        "Mais ",
-                        React.createElement("b", { style: { color: T.ink2 } }, nInt(motivos.historico)),
-                        " perdas no per\u00EDodo registradas antes da lista oficial de motivos. Ficam fora do gr\u00E1fico porque o vocabul\u00E1rio antigo n\u00E3o distinguia os casos. Este n\u00FAmero encolhe sozinho conforme os leads novos s\u00E3o fechados.")))),
-            React.createElement(Secao, { n: 9, titulo: "Onde os leads est\u00E3o parados agora", nota: "Foto do momento, n\u00E3o do per\u00EDodo filtrado, e s\u00F3 do que continua aberto. O valor \u00E9 a soma do que est\u00E1 registrado nos leads da etapa \u2014 vale o que o preenchimento valer, por isso a coluna ao lado mostra quantos est\u00E3o sem valor nenhum. Ordenado por dinheiro, n\u00E3o por quantidade." }, (function () {
-                var abertas = d.funilAgora
-                    .filter(function (r) { return !r.ignorada; })
-                    .filter(function (r) { return !["ganho", "perdido"].includes(r.etapa_grupo); })
-                    .sort(function (a, b) { return (Number(b.valor_parado) || 0) - (Number(a.valor_parado) || 0); });
-                var totalLeads = abertas.reduce(function (s2, r) { return s2 + (Number(r.leads) || 0); }, 0);
-                var totalValor = abertas.reduce(function (s2, r) { return s2 + (Number(r.valor_parado) || 0); }, 0);
-                var totalSemValor = abertas.reduce(function (s2, r) { return s2 + (Number(r.sem_valor) || 0); }, 0);
-                var temValor = abertas.some(function (r) { return r.valor_parado != null; });
-                return (React.createElement(React.Fragment, null,
-                    temValor && (React.createElement("div", { className: "grid-kpi", style: { marginBottom: 12 } },
-                        React.createElement(Kpi, { label: "Dinheiro parado", value: nReal(totalValor), sub: "Em ".concat(nInt(totalLeads), " leads abertos") }),
-                        React.createElement(Kpi, { label: "Leads sem valor", value: nInt(totalSemValor), sub: "N\u00E3o somam no valor acima", tone: totalSemValor > totalLeads / 2 ? "bad" : undefined }))),
+                React.createElement(Secao, { n: 3, titulo: "Carteira \u2014 por dono do lead", nota: "Tudo aqui \u00E9 creditado a quem o lead pertence. Marcou \u00E9 o dia em que a pessoa agendou; visitas \u00E9 a agenda da loja; automa\u00E7\u00E3o n\u00E3o conta. As duas \u00FAltimas colunas mostram quanto trabalho a carteira recebeu \u2014 de qualquer pessoa do time, n\u00E3o s\u00F3 do dono." },
                     React.createElement(Card, { className: "p0 rolagem" },
                         React.createElement("table", null,
                             React.createElement("thead", null,
                                 React.createElement("tr", null,
-                                    React.createElement(Th, null, "Etapa"),
-                                    React.createElement(Th, null, "Grupo"),
+                                    React.createElement(Th, null, "SDR"),
                                     React.createElement(Th, { right: true }, "Leads"),
-                                    temValor && React.createElement(Th, { right: true }, "Valor parado"),
-                                    temValor && React.createElement(Th, { right: true }, "Sem valor"),
-                                    temValor && React.createElement(Th, { right: true }, "Dias sem mexer"),
-                                    React.createElement(Th, { right: true }, "Mais antigo"))),
+                                    React.createElement(Th, { right: true }, "Trab."),
+                                    React.createElement(Th, { right: true }, "Marcou"),
+                                    React.createElement(Th, { right: true }, "Taxa agend."),
+                                    React.createElement(Th, { right: true }, "Visitas"),
+                                    React.createElement(Th, { right: true }, "Compar."),
+                                    React.createElement(Th, { right: true }, "% Show"),
+                                    React.createElement(Th, { right: true }, "Vendas"),
+                                    React.createElement(Th, { right: true }, "Receita"),
+                                    React.createElement(Th, { right: true }, "Conv."),
+                                    React.createElement(Th, { right: true }, "Lig. na carteira"),
+                                    React.createElement(Th, { right: true }, "R$ por lig."))),
                             React.createElement("tbody", null,
-                                abertas.map(function (r) { return (React.createElement("tr", { key: r.etapa || "—" },
-                                    React.createElement(Td, { bold: true }, r.etapa || "—"),
-                                    React.createElement(Td, { color: T.muted }, r.etapa_grupo || "—"),
-                                    React.createElement(Td, { right: true }, nInt(r.leads)),
-                                    temValor && React.createElement(Td, { right: true, bold: true }, nReal(r.valor_parado)),
-                                    temValor && (React.createElement(Td, { right: true, color: T.muted }, r.sem_valor ? "".concat(nInt(r.sem_valor), " de ").concat(nInt(r.leads)) : "—")),
-                                    temValor && (React.createElement(Td, { right: true, color: Number(r.dias_sem_mexer) > 30 ? T.bad : T.ink }, r.dias_sem_mexer != null ? nInt(r.dias_sem_mexer) : "—")),
-                                    React.createElement(Td, { right: true, color: T.muted }, r.lead_mais_antigo ? brFull(r.lead_mais_antigo) : "—"))); }),
+                                __spreadArray([], __read(porSdr), false).sort(function (x, y) { return y.agendamentos_marcados - x.agendamentos_marcados; }).map(function (s) {
+                                    var ce = carteiraEsfPorSdr.get(s.nome) || { ligacoes: 0, pessoas: 0 };
+                                    return (React.createElement("tr", { key: s.nome },
+                                        React.createElement(Td, { bold: true }, s.nome),
+                                        React.createElement(Td, { right: true }, nInt(s.leads_recebidos)),
+                                        React.createElement(Td, { right: true }, nInt(s.leads_trabalhados)),
+                                        React.createElement(Td, { right: true, bold: true }, nInt(s.agendamentos_marcados)),
+                                        React.createElement(Td, { right: true, color: s.taxa_agendamento >= metaTaxa.taxa_agendamento / 100 ? T.good : T.bad }, nPct(s.taxa_agendamento)),
+                                        React.createElement(Td, { right: true }, nInt(s.visitas_do_dia)),
+                                        React.createElement(Td, { right: true }, nInt(s.comparecimentos)),
+                                        React.createElement(Td, { right: true, color: s.taxa_show >= metaTaxa.taxa_show / 100 ? T.good : T.bad }, nPct(s.taxa_show)),
+                                        React.createElement(Td, { right: true, bold: true }, nInt(s.vendas)),
+                                        React.createElement(Td, { right: true }, nReal(s.receita)),
+                                        React.createElement(Td, { right: true, color: s.conversao_final >= a.conversao_final ? T.good : T.bad }, nPct(s.conversao_final)),
+                                        React.createElement(Td, { right: true },
+                                            ce.ligacoes ? nInt(ce.ligacoes) : "—",
+                                            ce.pessoas > 1 && (React.createElement("span", { style: { color: T.muted, fontSize: 11 } },
+                                                " \u00B7 ",
+                                                ce.pessoas,
+                                                " pessoas"))),
+                                        React.createElement(Td, { right: true, bold: true }, ce.ligacoes ? nReal(div(s.receita, ce.ligacoes)) : "—")));
+                                }),
                                 React.createElement("tr", { style: { background: T.canvas } },
-                                    React.createElement(Td, { bold: true }, "Total aberto"),
-                                    React.createElement(Td, null),
-                                    React.createElement(Td, { right: true, bold: true }, nInt(totalLeads)),
-                                    temValor && React.createElement(Td, { right: true, bold: true }, nReal(totalValor)),
-                                    temValor && React.createElement(Td, { right: true, bold: true }, nInt(totalSemValor)),
-                                    temValor && React.createElement(Td, null),
-                                    React.createElement(Td, null)))))));
-            })()),
-            notaPreench.lista.length > 0 && (React.createElement(Secao, { n: 10, titulo: "Preenchimento \u2014 nota por SDR", nota: "A nota \u00E9 campos preenchidos dividido por campos exigidos, em tr\u00EAs camadas: todo lead exige unidade e servi\u00E7o; lead agendado exige tamb\u00E9m data da visita e a nota para o closer; lead que virou venda exige o valor. Quem n\u00E3o agendou ou n\u00E3o vendeu n\u00E3o \u00E9 cobrado por campo que ainda n\u00E3o existe. O desfecho da visita fica de fora \u2014 hoje ningu\u00E9m tem essa tarefa." },
-                React.createElement("div", { className: "grid-kpi", style: { marginBottom: 12 } },
-                    React.createElement(Kpi, { label: "Nota do time", value: nPct(notaPreench.geral, 0), sub: "".concat(nInt(notaPreench.tot.ok), " de ").concat(nInt(notaPreench.tot.exigidos), " campos"), tone: notaPreench.geral >= 0.9 ? "good" : notaPreench.geral < 0.7 ? "bad" : undefined }),
-                    React.createElement(Kpi, { label: "Melhor", value: notaPreench.lista[0].nome, sub: nPct(notaPreench.lista[0].nota, 0), tone: "good" }),
-                    React.createElement(Kpi, { label: "Pior", value: notaPreench.lista[notaPreench.lista.length - 1].nome, sub: nPct(notaPreench.lista[notaPreench.lista.length - 1].nota, 0), tone: "bad" })),
-                React.createElement(Card, { className: "p0 rolagem" },
-                    React.createElement("table", null,
-                        React.createElement("thead", null,
-                            React.createElement("tr", null,
-                                React.createElement(Th, null, "SDR"),
-                                React.createElement(Th, { right: true }, "Nota"),
-                                React.createElement(Th, { right: true }, "Leads"),
-                                React.createElement(Th, { right: true }, "Unidade"),
-                                React.createElement(Th, { right: true }, "Servi\u00E7o"),
-                                React.createElement(Th, { right: true }, "Agendados"),
-                                React.createElement(Th, { right: true }, "Data da visita"),
-                                React.createElement(Th, { right: true }, "Nota ao closer"),
-                                React.createElement(Th, { right: true }, "Vendas"),
-                                React.createElement(Th, { right: true }, "Valor preenchido"))),
-                        React.createElement("tbody", null, notaPreench.lista.map(function (x) {
-                            var cel = function (feitos, total) { return total
-                                ? React.createElement(Td, { right: true, color: div(feitos, total) >= 0.9 ? T.good
-                                        : div(feitos, total) < 0.7 ? T.bad : T.ink },
-                                    nPct(div(feitos, total), 0),
-                                    React.createElement("span", { style: { color: T.muted, fontSize: 11 } },
-                                        " \u00B7 ",
-                                        nInt(total - feitos),
-                                        " em branco"))
-                                : React.createElement(Td, { right: true, color: T.muted }, "\u2014"); };
-                            return (React.createElement("tr", { key: x.nome },
-                                React.createElement(Td, { bold: true }, x.nome),
-                                React.createElement(Td, { right: true, bold: true, color: x.nota >= 0.9 ? T.good : x.nota < 0.7 ? T.bad : T.ink }, nPct(x.nota, 0)),
-                                React.createElement(Td, { right: true }, nInt(x.leads)),
-                                cel(x.com_unidade, x.leads),
-                                cel(x.com_servico, x.leads),
-                                React.createElement(Td, { right: true }, nInt(x.agendados)),
-                                cel(x.com_data, x.agendados),
-                                cel(x.com_nota, x.agendados),
-                                React.createElement(Td, { right: true }, nInt(x.ganhos)),
-                                cel(x.com_valor, x.ganhos)));
-                        })))),
-                React.createElement(Card, { className: "p16", style: { marginTop: 12, fontSize: 12.5, color: T.ink2, lineHeight: 1.6 } }, "\"Nota ao closer\" mede se existe uma nota escrita por gente no lead. A qualidade do que foi escrito \u00E9 outra conversa, que nenhum painel resolve \u2014 esta coluna serve para achar quem n\u00E3o escreve nada."))),
-            q && (React.createElement(Secao, { n: 11, titulo: "Qualidade do preenchimento no CRM", nota: "Os mesmos buracos, vistos por campo em vez de por pessoa. As visitas sem desfecho aparecem aqui e n\u00E3o na nota acima de prop\u00F3sito: hoje ningu\u00E9m tem essa tarefa, e cobrar de quem n\u00E3o a recebeu destruiria a confian\u00E7a na nota." },
-                React.createElement("div", { className: "grid-kpi" },
-                    React.createElement(Kpi, { label: "Visitas sem desfecho", value: nInt(q.visita_sem_desfecho), sub: "J\u00E1 passaram e ningu\u00E9m marcou", tone: q.visita_sem_desfecho > 0 ? "bad" : "good" }),
-                    React.createElement(Kpi, { label: "Leads sem unidade", value: nInt(q.sem_unidade), sub: "N\u00E3o d\u00E1 para atribuir \u00E0 loja", tone: q.sem_unidade > 0 ? "bad" : "good" }),
-                    React.createElement(Kpi, { label: "Leads sem servi\u00E7o", value: nInt(q.sem_servico), sub: "N\u00E3o entram na an\u00E1lise por produto", tone: q.sem_servico > 0 ? "bad" : "good" }),
-                    React.createElement(Kpi, { label: "Leads sem SDR", value: nInt(q.sem_sdr), sub: "Nunca distribu\u00EDdos", tone: q.sem_sdr > 0 ? "bad" : "good" }),
-                    React.createElement(Kpi, { label: "Vendas sem valor", value: nInt(q.ganho_sem_valor), sub: "Fecharam com R$ 0", tone: q.ganho_sem_valor > 0 ? "bad" : "good" }),
-                    React.createElement(Kpi, { label: "Valores em quarentena", value: nInt(q.valor_em_quarentena), sub: "Acima de R$ 100 mil, fora do c\u00E1lculo", tone: q.valor_em_quarentena > 0 ? "bad" : "good" })))),
-            tarefasLista.length > 0 && (React.createElement(Secao, { n: 12, titulo: "Tarefas \u2014 o pr\u00F3ximo passo", nota: "Foto do agora, n\u00E3o do per\u00EDodo: vencida \u00E9 uma condi\u00E7\u00E3o de hoje. S\u00F3 entra tarefa de lead vivo do CAR SERVICE \u2014 tarefa aberta em lead j\u00E1 perdido, j\u00E1 ganho ou de outro funil n\u00E3o \u00E9 cobran\u00E7a de resultado, \u00E9 faxina de CRM, e aparece na coluna separada. A \u00FAltima coluna \u00E9 a que ningu\u00E9m tem hoje: lead que j\u00E1 foi trabalhado, n\u00E3o foi ganho nem perdido, e n\u00E3o tem nenhuma tarefa marcada. Ele n\u00E3o est\u00E1 perdido; est\u00E1 parado." },
-                React.createElement(Card, { className: "p0 rolagem" },
-                    React.createElement("table", null,
-                        React.createElement("thead", null,
-                            React.createElement("tr", null,
-                                React.createElement(Th, null, "SDR"),
-                                React.createElement(Th, { right: true }, "Em aberto"),
-                                React.createElement(Th, { right: true }, "Vencidas"),
-                                React.createElement(Th, { right: true }, "Vence hoje"),
-                                React.createElement(Th, { right: true }, "Pr\u00F3x. 7 dias"),
-                                React.createElement(Th, { right: true }, "Atraso maior"),
-                                React.createElement(Th, { right: true }, "Leads sem tarefa"),
-                                React.createElement(Th, { right: true }, "Faxina de CRM"))),
-                        React.createElement("tbody", null, tarefasLista.map(function (r) { return (React.createElement("tr", { key: r.sdr },
-                            React.createElement(Td, { bold: true }, r.sdr),
-                            React.createElement(Td, { right: true }, nInt(r.abertas)),
-                            React.createElement(Td, { right: true, bold: r.vencidas > 0, color: r.vencidas > 0 ? T.bad : null }, nInt(r.vencidas)),
-                            React.createElement(Td, { right: true }, nInt(r.vence_hoje)),
-                            React.createElement(Td, { right: true }, nInt(r.vence_7_dias)),
-                            React.createElement(Td, { right: true }, r.atraso_maximo_dias ? nInt(r.atraso_maximo_dias) + "d" : "—"),
-                            React.createElement(Td, { right: true, bold: r.sem_tarefa > 0, color: r.sem_tarefa > 0 ? T.bad : null }, nInt(r.sem_tarefa)),
-                            React.createElement(Td, { right: true, color: T.muted }, nInt(r.fora_do_escopo)))); })))))),
-            React.createElement("footer", { style: { marginTop: 48, paddingTop: 18, borderTop: "1px solid ".concat(T.hair),
-                    fontSize: 11.5, color: T.muted, lineHeight: 1.7, maxWidth: "80ch" } },
-                React.createElement("b", null, "De onde vem cada n\u00FAmero."),
-                " A carteira \u2014 leads, agendamentos, visitas, vendas e receita \u2014 vem do funil do CAR SERVICE no Kommo \u2014 que l\u00E1 dentro ainda se chama \"Auto Care\", id 13727267, um dos 29 funis da conta \u2014 e \u00E9 creditada ao dono do lead. O esfor\u00E7o \u2014 liga\u00E7\u00F5es, tempo ao telefone e taxa de atendimento \u2014 vem do discador API4COM, que \u00E9 quem sabe qual ramal discou; o Kommo n\u00E3o sabe, porque quem escreve a nota da liga\u00E7\u00E3o \u00E9 a integra\u00E7\u00E3o e n\u00E3o a pessoa. Por isso a se\u00E7\u00E3o 4 tem uma chave diferente da se\u00E7\u00E3o 3, e por isso trocar o API4COM por outro discador exige refazer essa parte. O WhatsApp vem do Kommo, onde o autor da mensagem \u00E9 confi\u00E1vel.",
-                React.createElement("br", null),
-                React.createElement("br", null),
-                React.createElement("b", null, "Como o dia \u00E9 contado."),
-                " Sempre no fuso de S\u00E3o Paulo. Agendamento conta no dia em que uma pessoa marcou; visita, no dia agendado; venda, na data da venda; perda, na data de fechamento. Movimenta\u00E7\u00E3o feita por automa\u00E7\u00E3o n\u00E3o conta como produtividade de ningu\u00E9m. A etapa \"AGENTE DE IA\" fica fora dos n\u00FAmeros do per\u00EDodo, mas aparece na se\u00E7\u00E3o 9, que \u00E9 uma foto do funil aberto agora.",
-                React.createElement("br", null),
-                React.createElement("br", null),
-                React.createElement("b", null, "O que o painel n\u00E3o v\u00EA."),
-                " Venda acima de R$ 100 mil entra na contagem, mas com receita zerada at\u00E9 algu\u00E9m conferir o valor \u2014 hoje h\u00E1 uma, de R$ 6,95 milh\u00F5es, que \u00E9 erro de digita\u00E7\u00E3o. Liga\u00E7\u00E3o para lead de outro funil \u2014 quase sempre o Remarketing, que a equipe trabalha quando n\u00E3o h\u00E1 lead novo \u2014 entra no esfor\u00E7o da se\u00E7\u00E3o 4 e aparece na coluna \"fora do funil\". Ela n\u00E3o entra em nenhuma outra se\u00E7\u00E3o: agendamento, visita e venda desses leads continuam invis\u00EDveis aqui, por decis\u00E3o de escopo. Mensagem sem autor \u00E9 do rob\u00F4 de triagem quando sai e \u00E9 o cliente quando entra \u2014 as duas s\u00E3o mostradas separadas, nunca somadas."))));
+                                    React.createElement(Td, { bold: true }, "Total"),
+                                    React.createElement(Td, { right: true, bold: true }, nInt(a.leads_recebidos)),
+                                    React.createElement(Td, { right: true, bold: true }, nInt(a.leads_trabalhados)),
+                                    React.createElement(Td, { right: true, bold: true }, nInt(a.agendamentos_marcados)),
+                                    React.createElement(Td, { right: true, bold: true }, nPct(a.taxa_agendamento)),
+                                    React.createElement(Td, { right: true, bold: true }, nInt(a.visitas_do_dia)),
+                                    React.createElement(Td, { right: true, bold: true }, nInt(a.comparecimentos)),
+                                    React.createElement(Td, { right: true, bold: true }, nPct(a.taxa_show)),
+                                    React.createElement(Td, { right: true, bold: true }, nInt(a.vendas)),
+                                    React.createElement(Td, { right: true, bold: true }, nReal(a.receita)),
+                                    React.createElement(Td, { right: true, bold: true }, nPct(a.conversao_final)),
+                                    React.createElement(Td, { right: true, bold: true }, ligacoesNaCarteiraTot ? nInt(ligacoesNaCarteiraTot) : "—"),
+                                    React.createElement(Td, { right: true, bold: true }, ligacoesNaCarteiraTot ? nReal(div(a.receita, ligacoesNaCarteiraTot)) : "—"))))),
+                    semSdr && semSdr.leads_recebidos > 0 && (React.createElement(Card, { className: "p16", style: { marginTop: 12, borderColor: "#F3D9DB" } },
+                        React.createElement("div", { style: { fontSize: 13, color: T.ink2, lineHeight: 1.6 } },
+                            React.createElement("b", { style: { color: T.bad } },
+                                "\u26A0 ",
+                                nInt(semSdr.leads_recebidos),
+                                " leads sem SDR"),
+                            " no per\u00EDodo \u2014 entraram e n\u00E3o foram distribu\u00EDdos a ningu\u00E9m. N\u00E3o entram no placar acima porque n\u00E3o s\u00E3o de ningu\u00E9m; entram no total.",
+                            semSdr.vendas > 0 && " Ainda assim, ".concat(nInt(semSdr.vendas), " viraram venda."))))),
+                esforcoPorSdr.length > 0 && (React.createElement(Secao, { n: 4, titulo: "Esfor\u00E7o \u2014 por quem executou", nota: "Chave diferente da se\u00E7\u00E3o 3: aqui o cr\u00E9dito \u00E9 de quem FEZ, n\u00E3o de quem \u00E9 dono do lead. A liga\u00E7\u00E3o vem do discador, que sabe qual ramal discou; o Kommo n\u00E3o sabe. \"Tentou\" conta toda discagem; \"atendeu\" usa o motivo real de encerramento, ent\u00E3o caixa postal n\u00E3o conta; \"falou com\" s\u00E3o pessoas em conversas acima de ".concat(segConversa, "s. Mensagem do rob\u00F4 de triagem fica fora: automa\u00E7\u00E3o n\u00E3o \u00E9 esfor\u00E7o de ningu\u00E9m. \"Fora do funil\" \u00E9 trabalho em lead de outro funil, quase sempre o Remarketing, que a equipe atende quando n\u00E3o h\u00E1 lead novo entrando \u2014 conta como esfor\u00E7o porque a pessoa fez, mas o resultado dele n\u00E3o aparece nas se\u00E7\u00F5es de carteira.") },
+                    React.createElement("div", { className: "grid-kpi", style: { marginBottom: 16 } },
+                        React.createElement(Kpi, { label: "Liga\u00E7\u00F5es tentadas", value: nInt(esf.ligacoes_tentadas), sub: esf.ligacoes_fora
+                                ? "".concat(nInt(esf.ligacoes_fora), " fora do CAR SERVICE (").concat(nPct(esf.pct_fora, 0), ")")
+                                : "Inclui caixa postal e não atendida" }),
+                        React.createElement(Kpi, { label: "Falou com", value: nInt(esf.pessoas_com_quem_falou), sub: "Pessoas, em liga\u00E7\u00F5es acima de ".concat(segConversa, "s") }),
+                        React.createElement(Kpi, { label: "Taxa de atendimento", value: nPct(esf.taxa_atendimento), sub: "Pelo motivo real de encerramento" }),
+                        React.createElement(Kpi, { label: "Discagens por conversa", value: nNum(esf.discagens_por_conversa, 1), sub: "Quanto custa cada conversa" }),
+                        React.createElement(Kpi, { label: "Horas ao telefone", value: nNum(esf.horas, 1), sub: "Soma da dura\u00E7\u00E3o das liga\u00E7\u00F5es" }),
+                        React.createElement(Kpi, { label: "WhatsApp de pessoa", value: nInt(esf.whatsapp_enviados), sub: roboEnviou
+                                ? "\u00C0 parte: o rob\u00F4 enviou ".concat(nInt(roboEnviou), " e o cliente respondeu ").concat(nInt(clienteRespondeu))
+                                : "Digitadas por gente" })),
+                    React.createElement(Card, { className: "p0 rolagem" },
+                        React.createElement("table", null,
+                            React.createElement("thead", null,
+                                React.createElement("tr", null,
+                                    React.createElement(Th, null, "Executor"),
+                                    React.createElement(Th, { right: true }, "Tentou"),
+                                    React.createElement(Th, { right: true }, "Fora do funil"),
+                                    React.createElement(Th, { right: true }, "% atendeu"),
+                                    React.createElement(Th, { right: true }, "Falou com"),
+                                    React.createElement(Th, { right: true }, "Disc./conversa"),
+                                    React.createElement(Th, { right: true }, "Zap"),
+                                    React.createElement(Th, { right: true }, "Horas ao telefone"))),
+                            React.createElement("tbody", null,
+                                __spreadArray([], __read(esforcoPorSdr), false).sort(function (x, y) { return y.ligacoes_tentadas - x.ligacoes_tentadas; }).map(function (s) { return (React.createElement("tr", { key: s.nome },
+                                    React.createElement(Td, { bold: true }, s.nome),
+                                    React.createElement(Td, { right: true }, nInt(s.ligacoes_tentadas)),
+                                    React.createElement(Td, { right: true, color: T.muted }, s.ligacoes_fora ? "".concat(nInt(s.ligacoes_fora), " \u00B7 ").concat(nPct(s.pct_fora, 0)) : "—"),
+                                    React.createElement(Td, { right: true }, nPct(s.taxa_atendimento)),
+                                    React.createElement(Td, { right: true }, nInt(s.pessoas_com_quem_falou)),
+                                    React.createElement(Td, { right: true, color: s.discagens_por_conversa > esf.discagens_por_conversa ? T.bad : T.good }, nNum(s.discagens_por_conversa, 1)),
+                                    React.createElement(Td, { right: true }, nInt(s.whatsapp_enviados)),
+                                    React.createElement(Td, { right: true }, nNum(s.horas, 1)))); }),
+                                React.createElement("tr", { style: { background: T.canvas } },
+                                    React.createElement(Td, { bold: true }, "Total"),
+                                    React.createElement(Td, { right: true, bold: true }, nInt(esf.ligacoes_tentadas)),
+                                    React.createElement(Td, { right: true, bold: true, color: T.muted }, esf.ligacoes_fora ? "".concat(nInt(esf.ligacoes_fora), " \u00B7 ").concat(nPct(esf.pct_fora, 0)) : "—"),
+                                    React.createElement(Td, { right: true, bold: true }, nPct(esf.taxa_atendimento)),
+                                    React.createElement(Td, { right: true, bold: true }, nInt(esf.pessoas_com_quem_falou)),
+                                    React.createElement(Td, { right: true, bold: true }, nNum(esf.discagens_por_conversa, 1)),
+                                    React.createElement(Td, { right: true, bold: true }, nInt(esf.whatsapp_enviados)),
+                                    React.createElement(Td, { right: true, bold: true }, nNum(esf.horas, 1)))))),
+                    React.createElement(Card, { className: "p16", style: { marginTop: 12, fontSize: 12.5, color: T.ink2, lineHeight: 1.6 } }, "Esfor\u00E7o \u00E9 insumo, n\u00E3o resultado \u2014 quem mais disca n\u00E3o \u00E9 necessariamente quem mais traz. Para juntar as duas coisas, compare esta tabela com a da se\u00E7\u00E3o 3: l\u00E1 est\u00E1 o que a carteira de cada um produziu, aqui est\u00E1 o que cada um fez. Quando os dois nomes n\u00E3o batem, \u00E9 gente trabalhando lead de outro \u2014 normal em cobertura, problema se for rotina."))),
+                React.createElement(Secao, { n: 5, titulo: "Evolu\u00E7\u00E3o no per\u00EDodo" },
+                    React.createElement(Card, { className: "p16" },
+                        React.createElement(GraficoEvolucao, { dados: serie }))),
+                React.createElement(Secao, { n: 6, titulo: "Por unidade e por servi\u00E7o" },
+                    React.createElement("div", { className: "col2" }, [["Unidade", porUnidade], ["Serviço", porServico]].map(function (_a) {
+                        var _b = __read(_a, 2), titulo = _b[0], dados = _b[1];
+                        return (React.createElement(Card, { key: titulo, className: "p0 rolagem" },
+                            React.createElement("table", null,
+                                React.createElement("thead", null,
+                                    React.createElement("tr", null,
+                                        React.createElement(Th, null, titulo),
+                                        React.createElement(Th, { right: true }, "Leads"),
+                                        React.createElement(Th, { right: true }, "Marcou"),
+                                        React.createElement(Th, { right: true }, "Compar."),
+                                        React.createElement(Th, { right: true }, "Vendas"),
+                                        React.createElement(Th, { right: true }, "Conv."))),
+                                React.createElement("tbody", null, __spreadArray([], __read(dados), false).sort(function (x, y) { return y.leads_recebidos - x.leads_recebidos; }).map(function (r) { return (React.createElement("tr", { key: r.nome },
+                                    React.createElement(Td, { bold: true }, r.nome),
+                                    React.createElement(Td, { right: true }, nInt(r.leads_recebidos)),
+                                    React.createElement(Td, { right: true }, nInt(r.agendamentos_marcados)),
+                                    React.createElement(Td, { right: true }, nInt(r.comparecimentos)),
+                                    React.createElement(Td, { right: true, bold: true }, nInt(r.vendas)),
+                                    React.createElement(Td, { right: true, color: r.conversao_final >= a.conversao_final ? T.good : T.bad }, nPct(r.conversao_final)))); })))));
+                    }))),
+                React.createElement(Secao, { n: 7, titulo: "Tempo at\u00E9 a primeira liga\u00E7\u00E3o", nota: d.tempoAntigo
+                        ? "Medida antiga, pela saída do lead da etapa de entrada. Rode o filtro_usuarios.sql para passar a medir pela ligação de verdade."
+                        : "Da entrada do lead até a primeira ligação DISCADA — vale a discagem, não o atendimento: o SDR controla quando liga, não se o cliente atende. Isto não é o que a casa chama de SLA; SLA aqui quer dizer que o lead atende aos padrões mínimos para ser atendido." },
+                    React.createElement("div", { className: "col2" },
+                        React.createElement(Card, { className: "p16" },
+                            React.createElement(Label, null,
+                                "Distribui\u00E7\u00E3o \u2014 base de ",
+                                nInt(tempoTot.com_medida),
+                                " leads que receberam liga\u00E7\u00E3o, de ",
+                                nInt(tempoTot.leads),
+                                " recebidos"),
+                            React.createElement("div", { style: { display: "grid", gap: 14, marginTop: 16 } }, [
+                                { l: "Até 5 minutos", n: tempoTot.ate_5min },
+                                { l: "Até 15 minutos", n: tempoTot.ate_5min + tempoTot.ate_15min, meta: (metaTaxa.resposta_ate_15_min || metaTaxa.sla_ate_15) / 100 },
+                                { l: "Até 1 hora", n: tempoTot.ate_5min + tempoTot.ate_15min + tempoTot.ate_60min },
+                                { l: "Acima de 1 hora", n: tempoTot.acima_de_1h, ruim: true },
+                            ].map(function (i) {
+                                var p = div(i.n, tempoTot.com_medida);
+                                var cor = i.ruim ? T.bad : i.meta ? (p >= i.meta ? T.good : T.bad) : T.ink;
+                                return (React.createElement("div", { key: i.l },
+                                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 } },
+                                        React.createElement("span", { style: { fontSize: 13, color: T.ink2 } }, i.l),
+                                        React.createElement("span", { style: { fontFamily: F_NUM, fontWeight: 700, fontSize: 15, color: cor,
+                                                fontVariantNumeric: "tabular-nums" } },
+                                            nPct(p),
+                                            " ",
+                                            React.createElement("span", { style: { color: T.muted, fontWeight: 400, fontSize: 12 } },
+                                                "(",
+                                                nInt(i.n),
+                                                ")"))),
+                                    React.createElement(Barra, { pct: p, cor: cor }),
+                                    i.meta && React.createElement("div", { style: { fontSize: 11, color: T.muted, marginTop: 4 } },
+                                        "Meta: ",
+                                        nPct(i.meta, 0))));
+                            }))),
+                        React.createElement("div", { className: "grid-kpi-2" },
+                            React.createElement(Kpi, { label: "Tempo m\u00E9dio at\u00E9 ligar", value: tempoTot.medio == null ? "—" : "".concat(nNum(tempoTot.medio, 0), " min"), sub: "Da entrada do lead \u00E0 primeira discagem" }),
+                            React.createElement(Kpi, { label: "Tempo m\u00E9dio at\u00E9 falar", value: tempoTot.medioAteFalar == null ? "—" : "".concat(nNum(tempoTot.medioAteFalar, 0), " min"), sub: "At\u00E9 uma conversa acima de ".concat(segConversa, "s") }),
+                            React.createElement(Kpi, { label: "Ningu\u00E9m ligou", value: nInt(tempoTot.leads - tempoTot.com_medida), sub: "Leads sem nenhuma discagem registrada", tone: tempoTot.leads - tempoTot.com_medida > 0 ? "bad" : "good" })))),
+                React.createElement(Secao, { n: 8, titulo: "Por que perdemos", nota: "Dois blocos, porque s\u00E3o dois jogos diferentes. Em cima, o lead que se perdeu ANTES de chegar na loja \u2014 \u00E9 a conta do SDR. Embaixo, o lead que chegou l\u00E1 dentro, sentou com o closer e n\u00E3o fechou \u2014 o SDR fez o trabalho dele at\u00E9 o fim. S\u00F3 a lista oficial de motivos do Kommo; o vocabul\u00E1rio antigo fica na nota do rodap\u00E9." },
+                    React.createElement(Card, { className: "p16" },
+                        React.createElement("div", { style: { fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase",
+                                color: T.muted, fontWeight: 700, marginBottom: 10 } },
+                            "Perdemos antes da loja",
+                            motivos.totalAntes > 0 && (React.createElement("span", { style: { color: T.ink2, marginLeft: 8 } }, nInt(motivos.totalAntes)))),
+                        motivos.lista.length === 0 ? (React.createElement("div", { style: { fontSize: 13, color: T.muted } }, "Nenhuma perda com motivo da lista oficial neste per\u00EDodo.")) : (React.createElement(BarrasHorizontais, { dados: motivos.lista })),
+                        React.createElement("div", { style: { marginTop: 20, paddingTop: 14, borderTop: "1px solid ".concat(T.hair) } },
+                            React.createElement("div", { style: { fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase",
+                                    color: T.muted, fontWeight: 700, marginBottom: 10 } },
+                                "Chegou na loja e n\u00E3o fechou",
+                                motivos.totalNaLoja > 0 && (React.createElement("span", { style: { color: T.ink2, marginLeft: 8 } }, nInt(motivos.totalNaLoja)))),
+                            motivos.naLoja.length === 0 ? (React.createElement("div", { style: { fontSize: 12, color: T.muted, lineHeight: 1.6 } },
+                                "Nenhuma perda registrada com motivo de loja neste per\u00EDodo. Este bloco s\u00F3 enche quando o closer marca o motivo ",
+                                React.createElement("b", { style: { color: T.ink2 } }, "Veio em loja e n\u00E3o fechou"),
+                                " no Kommo \u2014 vazio aqui pode significar que n\u00E3o aconteceu, ou que aconteceu e ningu\u00E9m registrou.")) : (React.createElement(BarrasHorizontais, { dados: motivos.naLoja }))),
+                        motivos.historico > 0 && (React.createElement("div", { style: { marginTop: 16, paddingTop: 12, borderTop: "1px solid ".concat(T.hair),
+                                fontSize: 12, color: T.muted, lineHeight: 1.6 } },
+                            "Mais ",
+                            React.createElement("b", { style: { color: T.ink2 } }, nInt(motivos.historico)),
+                            " perdas no per\u00EDodo registradas antes da lista oficial de motivos. Ficam fora do gr\u00E1fico porque o vocabul\u00E1rio antigo n\u00E3o distinguia os casos. Este n\u00FAmero encolhe sozinho conforme os leads novos s\u00E3o fechados.")))),
+                React.createElement(Secao, { n: 9, titulo: "Onde os leads est\u00E3o parados agora", nota: "Foto do momento, n\u00E3o do per\u00EDodo filtrado, e s\u00F3 do que continua aberto. O valor \u00E9 a soma do que est\u00E1 registrado nos leads da etapa \u2014 vale o que o preenchimento valer, por isso a coluna ao lado mostra quantos est\u00E3o sem valor nenhum. Ordenado por dinheiro, n\u00E3o por quantidade." }, (function () {
+                    var abertas = d.funilAgora
+                        .filter(function (r) { return !r.ignorada; })
+                        .filter(function (r) { return !["ganho", "perdido"].includes(r.etapa_grupo); })
+                        .sort(function (a, b) { return (Number(b.valor_parado) || 0) - (Number(a.valor_parado) || 0); });
+                    var totalLeads = abertas.reduce(function (s2, r) { return s2 + (Number(r.leads) || 0); }, 0);
+                    var totalValor = abertas.reduce(function (s2, r) { return s2 + (Number(r.valor_parado) || 0); }, 0);
+                    var totalSemValor = abertas.reduce(function (s2, r) { return s2 + (Number(r.sem_valor) || 0); }, 0);
+                    var temValor = abertas.some(function (r) { return r.valor_parado != null; });
+                    return (React.createElement(React.Fragment, null,
+                        temValor && (React.createElement("div", { className: "grid-kpi", style: { marginBottom: 12 } },
+                            React.createElement(Kpi, { label: "Dinheiro parado", value: nReal(totalValor), sub: "Em ".concat(nInt(totalLeads), " leads abertos") }),
+                            React.createElement(Kpi, { label: "Leads sem valor", value: nInt(totalSemValor), sub: "N\u00E3o somam no valor acima", tone: totalSemValor > totalLeads / 2 ? "bad" : undefined }))),
+                        React.createElement(Card, { className: "p0 rolagem" },
+                            React.createElement("table", null,
+                                React.createElement("thead", null,
+                                    React.createElement("tr", null,
+                                        React.createElement(Th, null, "Etapa"),
+                                        React.createElement(Th, null, "Grupo"),
+                                        React.createElement(Th, { right: true }, "Leads"),
+                                        temValor && React.createElement(Th, { right: true }, "Valor parado"),
+                                        temValor && React.createElement(Th, { right: true }, "Sem valor"),
+                                        temValor && React.createElement(Th, { right: true }, "Dias sem mexer"),
+                                        React.createElement(Th, { right: true }, "Mais antigo"))),
+                                React.createElement("tbody", null,
+                                    abertas.map(function (r) { return (React.createElement("tr", { key: r.etapa || "—" },
+                                        React.createElement(Td, { bold: true }, r.etapa || "—"),
+                                        React.createElement(Td, { color: T.muted }, r.etapa_grupo || "—"),
+                                        React.createElement(Td, { right: true }, nInt(r.leads)),
+                                        temValor && React.createElement(Td, { right: true, bold: true }, nReal(r.valor_parado)),
+                                        temValor && (React.createElement(Td, { right: true, color: T.muted }, r.sem_valor ? "".concat(nInt(r.sem_valor), " de ").concat(nInt(r.leads)) : "—")),
+                                        temValor && (React.createElement(Td, { right: true, color: Number(r.dias_sem_mexer) > 30 ? T.bad : T.ink }, r.dias_sem_mexer != null ? nInt(r.dias_sem_mexer) : "—")),
+                                        React.createElement(Td, { right: true, color: T.muted }, r.lead_mais_antigo ? brFull(r.lead_mais_antigo) : "—"))); }),
+                                    React.createElement("tr", { style: { background: T.canvas } },
+                                        React.createElement(Td, { bold: true }, "Total aberto"),
+                                        React.createElement(Td, null),
+                                        React.createElement(Td, { right: true, bold: true }, nInt(totalLeads)),
+                                        temValor && React.createElement(Td, { right: true, bold: true }, nReal(totalValor)),
+                                        temValor && React.createElement(Td, { right: true, bold: true }, nInt(totalSemValor)),
+                                        temValor && React.createElement(Td, null),
+                                        React.createElement(Td, null)))))));
+                })()),
+                notaPreench.lista.length > 0 && (React.createElement(Secao, { n: 10, titulo: "Preenchimento \u2014 nota por SDR", nota: "A nota \u00E9 campos preenchidos dividido por campos exigidos, em tr\u00EAs camadas: todo lead exige unidade e servi\u00E7o; lead agendado exige tamb\u00E9m data da visita e a nota para o closer; lead que virou venda exige o valor. Quem n\u00E3o agendou ou n\u00E3o vendeu n\u00E3o \u00E9 cobrado por campo que ainda n\u00E3o existe. O desfecho da visita fica de fora \u2014 hoje ningu\u00E9m tem essa tarefa." },
+                    React.createElement("div", { className: "grid-kpi", style: { marginBottom: 12 } },
+                        React.createElement(Kpi, { label: "Nota do time", value: nPct(notaPreench.geral, 0), sub: "".concat(nInt(notaPreench.tot.ok), " de ").concat(nInt(notaPreench.tot.exigidos), " campos"), tone: notaPreench.geral >= 0.9 ? "good" : notaPreench.geral < 0.7 ? "bad" : undefined }),
+                        React.createElement(Kpi, { label: "Melhor", value: notaPreench.lista[0].nome, sub: nPct(notaPreench.lista[0].nota, 0), tone: "good" }),
+                        React.createElement(Kpi, { label: "Pior", value: notaPreench.lista[notaPreench.lista.length - 1].nome, sub: nPct(notaPreench.lista[notaPreench.lista.length - 1].nota, 0), tone: "bad" })),
+                    React.createElement(Card, { className: "p0 rolagem" },
+                        React.createElement("table", null,
+                            React.createElement("thead", null,
+                                React.createElement("tr", null,
+                                    React.createElement(Th, null, "SDR"),
+                                    React.createElement(Th, { right: true }, "Nota"),
+                                    React.createElement(Th, { right: true }, "Leads"),
+                                    React.createElement(Th, { right: true }, "Unidade"),
+                                    React.createElement(Th, { right: true }, "Servi\u00E7o"),
+                                    React.createElement(Th, { right: true }, "Agendados"),
+                                    React.createElement(Th, { right: true }, "Data da visita"),
+                                    React.createElement(Th, { right: true }, "Nota ao closer"),
+                                    React.createElement(Th, { right: true }, "Vendas"),
+                                    React.createElement(Th, { right: true }, "Valor preenchido"))),
+                            React.createElement("tbody", null, notaPreench.lista.map(function (x) {
+                                var cel = function (feitos, total) { return total
+                                    ? React.createElement(Td, { right: true, color: div(feitos, total) >= 0.9 ? T.good
+                                            : div(feitos, total) < 0.7 ? T.bad : T.ink },
+                                        nPct(div(feitos, total), 0),
+                                        React.createElement("span", { style: { color: T.muted, fontSize: 11 } },
+                                            " \u00B7 ",
+                                            nInt(total - feitos),
+                                            " em branco"))
+                                    : React.createElement(Td, { right: true, color: T.muted }, "\u2014"); };
+                                return (React.createElement("tr", { key: x.nome },
+                                    React.createElement(Td, { bold: true }, x.nome),
+                                    React.createElement(Td, { right: true, bold: true, color: x.nota >= 0.9 ? T.good : x.nota < 0.7 ? T.bad : T.ink }, nPct(x.nota, 0)),
+                                    React.createElement(Td, { right: true }, nInt(x.leads)),
+                                    cel(x.com_unidade, x.leads),
+                                    cel(x.com_servico, x.leads),
+                                    React.createElement(Td, { right: true }, nInt(x.agendados)),
+                                    cel(x.com_data, x.agendados),
+                                    cel(x.com_nota, x.agendados),
+                                    React.createElement(Td, { right: true }, nInt(x.ganhos)),
+                                    cel(x.com_valor, x.ganhos)));
+                            })))),
+                    React.createElement(Card, { className: "p16", style: { marginTop: 12, fontSize: 12.5, color: T.ink2, lineHeight: 1.6 } }, "\"Nota ao closer\" mede se existe uma nota escrita por gente no lead. A qualidade do que foi escrito \u00E9 outra conversa, que nenhum painel resolve \u2014 esta coluna serve para achar quem n\u00E3o escreve nada."))),
+                q && (React.createElement(Secao, { n: 11, titulo: "Qualidade do preenchimento no CRM", nota: "Os mesmos buracos, vistos por campo em vez de por pessoa. As visitas sem desfecho aparecem aqui e n\u00E3o na nota acima de prop\u00F3sito: hoje ningu\u00E9m tem essa tarefa, e cobrar de quem n\u00E3o a recebeu destruiria a confian\u00E7a na nota." },
+                    React.createElement("div", { className: "grid-kpi" },
+                        React.createElement(Kpi, { label: "Visitas sem desfecho", value: nInt(q.visita_sem_desfecho), sub: "J\u00E1 passaram e ningu\u00E9m marcou", tone: q.visita_sem_desfecho > 0 ? "bad" : "good" }),
+                        React.createElement(Kpi, { label: "Leads sem unidade", value: nInt(q.sem_unidade), sub: "N\u00E3o d\u00E1 para atribuir \u00E0 loja", tone: q.sem_unidade > 0 ? "bad" : "good" }),
+                        React.createElement(Kpi, { label: "Leads sem servi\u00E7o", value: nInt(q.sem_servico), sub: "N\u00E3o entram na an\u00E1lise por produto", tone: q.sem_servico > 0 ? "bad" : "good" }),
+                        React.createElement(Kpi, { label: "Leads sem SDR", value: nInt(q.sem_sdr), sub: "Nunca distribu\u00EDdos", tone: q.sem_sdr > 0 ? "bad" : "good" }),
+                        React.createElement(Kpi, { label: "Vendas sem valor", value: nInt(q.ganho_sem_valor), sub: "Fecharam com R$ 0", tone: q.ganho_sem_valor > 0 ? "bad" : "good" }),
+                        React.createElement(Kpi, { label: "Valores em quarentena", value: nInt(q.valor_em_quarentena), sub: "Acima de R$ 100 mil, fora do c\u00E1lculo", tone: q.valor_em_quarentena > 0 ? "bad" : "good" })))),
+                tarefasLista.length > 0 && (React.createElement(Secao, { n: 12, titulo: "Tarefas \u2014 o pr\u00F3ximo passo", nota: "Foto do agora, n\u00E3o do per\u00EDodo: vencida \u00E9 uma condi\u00E7\u00E3o de hoje. S\u00F3 entra tarefa de lead vivo do CAR SERVICE \u2014 tarefa aberta em lead j\u00E1 perdido, j\u00E1 ganho ou de outro funil n\u00E3o \u00E9 cobran\u00E7a de resultado, \u00E9 faxina de CRM, e aparece na coluna separada. A \u00FAltima coluna \u00E9 a que ningu\u00E9m tem hoje: lead que j\u00E1 foi trabalhado, n\u00E3o foi ganho nem perdido, e n\u00E3o tem nenhuma tarefa marcada. Ele n\u00E3o est\u00E1 perdido; est\u00E1 parado." },
+                    React.createElement(Card, { className: "p0 rolagem" },
+                        React.createElement("table", null,
+                            React.createElement("thead", null,
+                                React.createElement("tr", null,
+                                    React.createElement(Th, null, "SDR"),
+                                    React.createElement(Th, { right: true }, "Em aberto"),
+                                    React.createElement(Th, { right: true }, "Vencidas"),
+                                    React.createElement(Th, { right: true }, "Vence hoje"),
+                                    React.createElement(Th, { right: true }, "Pr\u00F3x. 7 dias"),
+                                    React.createElement(Th, { right: true }, "Atraso maior"),
+                                    React.createElement(Th, { right: true }, "Leads sem tarefa"),
+                                    React.createElement(Th, { right: true }, "Faxina de CRM"))),
+                            React.createElement("tbody", null, tarefasLista.map(function (r) { return (React.createElement("tr", { key: r.sdr },
+                                React.createElement(Td, { bold: true }, r.sdr),
+                                React.createElement(Td, { right: true }, nInt(r.abertas)),
+                                React.createElement(Td, { right: true, bold: r.vencidas > 0, color: r.vencidas > 0 ? T.bad : null }, nInt(r.vencidas)),
+                                React.createElement(Td, { right: true }, nInt(r.vence_hoje)),
+                                React.createElement(Td, { right: true }, nInt(r.vence_7_dias)),
+                                React.createElement(Td, { right: true }, r.atraso_maximo_dias ? nInt(r.atraso_maximo_dias) + "d" : "—"),
+                                React.createElement(Td, { right: true, bold: r.sem_tarefa > 0, color: r.sem_tarefa > 0 ? T.bad : null }, nInt(r.sem_tarefa)),
+                                React.createElement(Td, { right: true, color: T.muted }, nInt(r.fora_do_escopo)))); })))))),
+                React.createElement("footer", { style: { marginTop: 48, paddingTop: 18, borderTop: "1px solid ".concat(T.hair),
+                        fontSize: 11.5, color: T.muted, lineHeight: 1.7, maxWidth: "80ch" } },
+                    React.createElement("b", null, "De onde vem cada n\u00FAmero."),
+                    " A carteira \u2014 leads, agendamentos, visitas, vendas e receita \u2014 vem do funil do CAR SERVICE no Kommo \u2014 que l\u00E1 dentro ainda se chama \"Auto Care\", id 13727267, um dos 29 funis da conta \u2014 e \u00E9 creditada ao dono do lead. O esfor\u00E7o \u2014 liga\u00E7\u00F5es, tempo ao telefone e taxa de atendimento \u2014 vem do discador API4COM, que \u00E9 quem sabe qual ramal discou; o Kommo n\u00E3o sabe, porque quem escreve a nota da liga\u00E7\u00E3o \u00E9 a integra\u00E7\u00E3o e n\u00E3o a pessoa. Por isso a se\u00E7\u00E3o 4 tem uma chave diferente da se\u00E7\u00E3o 3, e por isso trocar o API4COM por outro discador exige refazer essa parte. O WhatsApp vem do Kommo, onde o autor da mensagem \u00E9 confi\u00E1vel.",
+                    React.createElement("br", null),
+                    React.createElement("br", null),
+                    React.createElement("b", null, "Como o dia \u00E9 contado."),
+                    " Sempre no fuso de S\u00E3o Paulo. Agendamento conta no dia em que uma pessoa marcou; visita, no dia agendado; venda, na data da venda; perda, na data de fechamento. Movimenta\u00E7\u00E3o feita por automa\u00E7\u00E3o n\u00E3o conta como produtividade de ningu\u00E9m. A etapa \"AGENTE DE IA\" fica fora dos n\u00FAmeros do per\u00EDodo, mas aparece na se\u00E7\u00E3o 9, que \u00E9 uma foto do funil aberto agora.",
+                    React.createElement("br", null),
+                    React.createElement("br", null),
+                    React.createElement("b", null, "O que o painel n\u00E3o v\u00EA."),
+                    " Venda acima de R$ 100 mil entra na contagem, mas com receita zerada at\u00E9 algu\u00E9m conferir o valor \u2014 hoje h\u00E1 uma, de R$ 6,95 milh\u00F5es, que \u00E9 erro de digita\u00E7\u00E3o. Liga\u00E7\u00E3o para lead de outro funil \u2014 quase sempre o Remarketing, que a equipe trabalha quando n\u00E3o h\u00E1 lead novo \u2014 entra no esfor\u00E7o da se\u00E7\u00E3o 4 e aparece na coluna \"fora do funil\". Ela n\u00E3o entra em nenhuma outra se\u00E7\u00E3o: agendamento, visita e venda desses leads continuam invis\u00EDveis aqui, por decis\u00E3o de escopo. Mensagem sem autor \u00E9 do rob\u00F4 de triagem quando sai e \u00E9 o cliente quando entra \u2014 as duas s\u00E3o mostradas separadas, nunca somadas."))))));
 }
 function App() {
     var _a = __read(useState(undefined), 2), sessao = _a[0], setSessao = _a[1];
