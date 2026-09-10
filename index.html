@@ -2,616 +2,1651 @@
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Painel de SDR — Coordenador</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel de SDR v17 — CAR SERVICE</title>
+<meta name="painel-versao" content="v8">
 <style>
-  :root{
-    --ink:#12161C; --ink-2:#4A5159; --ink-3:#8B939D;
-    --canvas:#F3F4F6; --surface:#FFFFFF; --hairline:#E4E7EB;
-    --accent:#E8A33D; --accent-deep:#A8720F; --accent-soft:#FDF6EA; --accent-line:#F0DDBB;
-    --good:#0F8C6C; --good-soft:#E9F5F1; --good-line:#C6E5DB;
-    --bad:#C6303B; --bad-soft:#FBEBEC; --bad-line:#F2CFD1;
-    --r:6px;
-    --ui:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
-    --dis:"Archivo","Inter",system-ui,sans-serif;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--canvas);color:var(--ink);font-family:var(--ui);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
-  img{max-width:100%}
-  [hidden]{display:none!important}
-  .wrap{max-width:1280px;margin:0 auto;padding-block:20px 40px;padding-left:20px;padding-right:20px}
-  h1,h2,h3,.tabs button,.chip,th{font-family:var(--dis)}
-  .num{font-variant-numeric:tabular-nums}
+/* Poppins nos títulos e números; a fonte do sistema no texto denso.
+   A Aeonik saiu por licença — ela é comercial e este painel é servido na
+   web. Poppins é geométrica como o símbolo da marca e livre para uso web.
+   Vai embutida no arquivo, só com os caracteres usados: 7 KB por peso,
+   sem requisição externa, funciona em rede bloqueada.
 
-  header{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end;justify-content:space-between;margin-bottom:18px}
-  .brand{display:flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);font-weight:600;margin-bottom:8px}
-  .brand i{width:9px;height:9px;background:var(--accent);border-radius:2px;display:block}
-  h1{font-size:26px;font-weight:800;letter-spacing:-.02em;line-height:1.15}
-  .snap{font-size:12.5px;color:var(--ink-3);margin-top:5px}
-  .snap b{color:var(--ink-2)}
-  .tabs{display:flex;gap:4px;background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r);padding:4px}
-  .tabs button{font-family:var(--dis);font-size:13px;font-weight:700;padding:8px 16px;border:0;border-radius:4px;background:transparent;color:var(--ink-2);cursor:pointer}
-  .tabs button[aria-selected="true"]{background:var(--ink);color:#fff}
-  .tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+   A divisão não é preguiça: Poppins é larga e de formas circulares, ótima
+   em tamanho grande e ruim em tabela densa. Nas colunas de número quem
+   trabalha é a fonte do sistema, que foi desenhada para isso. */
+@font-face { font-family: "PoppinsMarca"; font-weight: 500; font-style: normal; font-display: swap;
+  src: url(data:font/woff;base64,d09GRgABAAAAABtMAAwAAAAAJ9AABAEGAAAAAAAAAAAAAAAAAAAAAAAAAABHUE9TAAAa/AAAACAAAAAgRHZMdUdTVUIAABscAAAALgAAADAfSCdrT1MvMgAAGRAAAABNAAAAYFnZfhxjbWFwAAAZYAAAALYAAAEETvZvoGdseWYAAAEcAAAUzgAAH+hxEEUBaGVhZAAAFyQAAAA2AAAANhqoJGdoaGVhAAAY8AAAACAAAAAkDFQCWWhtdHgAABdcAAABkgAAAiw2Fx0dbG9jYQAAFgwAAAEYAAABGGhJb9htYXhwAAAV7AAAAB0AAAAgAKEBCG5hbWUAABoYAAAA0AAAAYYgPTeGcG9zdAAAGugAAAATAAAAIP+4ADJ4nI1ZC3gT15W+98q2sI0BW5YF2MYWsi2/ZMkazciyZEuWLcvvl+T3+wl2bGPL2ARIwQZKIVlCXjSUvDZASZOGTdrdFAhLutlAm0DT0DTNF5qm26+hsElomra7zfLQeM+dGQuZ0Hz15zuaOXPvOf953HPPvYMIapm/jj4hJ5AMLUdIIdPIYtJYE8cY45SxYZpfR3VHqTMzk9ZkZq4hJ/h4/Ae/MzMpKZM2RNBaUoeTZYkwVg5j5RotA23v0pooHpos8W34g15JCMmyyWUUT++wnFFq5Bqz0FhGaIxcaEq1Rs6QR1J3fSd9LP0stCdeTj30knZMexbaN/nrZ1PP4vPHB07B38DxgR/B38BxYI1s88+TZNkKlIKykBGhlLAwuVLDpqWxTFycis0hoI6ZZZTwoElL0yrXECUCeliYMoZjTUAgybndRUVdG7fIsjOKvdaNXUUt98i3yDI1xd58/qFcXRZzwZire6zFFlZfHz7QAEr+JlpT5fSMhdfXL+n2JOWGf7BCU+nEUTnLzoeasvl+S3q6btkFFIoy5/9KviDnUCTYdiXgy0YoZsG0a9PYVKzBIcpYxgg4NCjoBUeJQMtsLC5upI308ZMTeD+/zr5GbUfzjcXOxkZncWOL3W4nPo+nvNzrLd/vLyMn85pbsnTNfKtEa6Z/CHygASTXyU9RGspBSK0No2Kon83ClYqOk2u4NM3aMGVsnEoF7pCrUsxa+sSQgSbjTHmFr7ChPnGlviXf6skI8eE0tTojSXvSvbVt1fP8jrKTM1W2JmOuqddRNqnWFKTmlGXqagypGdqEeDbzxPShjO95q0/puxkXhACNG7RXiBshavZK0QJv7psvxb+QHaOxGAeOizEzyjCijI1RKTV/GJ4cn5naOLpupgOvPfYCzumLHOE/eOpx/spIJIyMh5ET4kgVy8WwJqKFAIhRxhK5ft3oxqmZ8cnhvlcjR/Dqx5/C6SORffy7Lxzjf9tF8djxevwK+R2KhgeVXCXXqjRmudasNavA2XiPbu/eHJ+yQ+Ez7NmTMx3bGUeeq2OYhraHH+5oZHIb2h55BHgMoREyQNaDrxHWQPxBYEPQgfHOj5yHf2x5552ed96h0kLnp9GbaC/V3izTKN7cXOHey1/DsWh+HjXjfPwXfAg8dj+ifQ0wO19HD1CucUHzsk2ak/LAZIS+BfP1+IzsZcoXQ2ThM/wXE3i57OWbz4Z00xiwIUJKyBXgFb84DlPSqOOpr+MgFjnWNr1//zRt+KDSYbc7lLFFdntRLNG88cbxl86de6l+wu2eqPf6Skt9XpCrA6R+cgniHSlYJloTrbs4RSbX+7VkEt4aUQRZRf4brQZtC8GlVBSEmiQ+TC5XK9Xs1p4NFZYCaxEZl+0cHNtaPlijwwX86ic892zMt5VU2n2b7x0o++awK73bI1rlFokjn8J8F/WgnORK4YcqpGUERags8ALHLQh17BwqHTI5c6xObqRi9IHQ8ZAKe4GztWN1fH1joSWvMGwD2bHe2MQVtiwPiemusHawG9azxcVsqbULm/IMFgvNeTB/yCC5iCJQFGjEYiYaEhr4WyFjcnDd/Z2dE6HXrh1swr/ns/oPHsRn+Wco4goYVUI+RMnwoFZyC6DvQEtBRqtJDP8DpUfvHdZZJhvGdkVtiKyyuN1lpbnFy0fxSbLppwlpZeMFFVPO0Va9ucldVp2bib8LyEQZn4Gl08AjArdFgtLYFWojJEHB05JEfCrfVFtDVg/kOwct5tGqddN6TAamIoZ/1Fjrtpe7XaQrZ/M/ZRsso5Wl4/b2Y/fh8dHa4+UuV31NUUk91SwdpEaQ91GYGHVqVk0i+E+n8Cr+Qfx7MuffTqZ7aZYumP+cOCH6KDrI0jELaYe6LggipKQUKQ1RiMFYa7nRmuoxzqK3OJ0zlZXTTmcejiwtsJWWWywV5zx1rpLaeif+wQTXxrJtXF6jStntKBrguAFI7sqf22wWo91hfLOowOIuy7M56YyoRpjkQxwJFuMkgRIMKT4FBy2EEMXynjPP7VzZzBSNFMxN7pnKGum6Z6N8+LSr3A7mKnvMNPGttanscOX4zldOzx31TjS+UFnoqq51FNTC7BZmM9GjtTRLwZoJV3wU6MmQET4GuhYocfgoIIuKp7btQ7vxB6SKzqxULeRkFS67cuWhq1d3fwx/0GszepPsI5Hi+othHoVCI/v810gstMieno97eiifCeBzReSjYFSw8k48RPmQKsoG+KTPX8dXyetIhTSAS0gLdDFfCEqlhvqKBOUfPLp1diSkP1Tdu66A4wrv4QaLuxfKhNcnegeHap8ylbO2fJOty+TPC6oYSudZ2WmyG1mQm0oKmFi4iiEBi49M8rokX3wyqxZcA1gWvSKvHWs2rytl8uVJXUx1s93nbtaE9xtlyvg0Lv6xfTOnRw7u63Yvb58cO9r2zWsHqlzprCGrSJOjJ7u9jw/UPdKhy0jP6ayr2lVrNfK/V65Yvbpy3LR998TZe2d3a6q0DY8P7L+2138htz7HUMB6c/RmarO1cDlIToLlI8A7arlGwSg0WpkMf85/ZNx0fdf1exsmfQ8+SE76yz7DxfwZOgcqYYwLaq0VaBUdj0T11dFqaR6kLmStGPFHyeAva8zrXfynONw9ZHJwPL8vz27P2/eeszT/24dwe18h25hLThjqjbY6RQ5j0LO8LM/I2C5Rr6fO3yAXyH+gRJolqedo/ROU6M2MFOyp3Ud6NxzX7o3vsbtGCwpGXfae+L3a4xv6DnfjNw63jw2YucKN1dUb7Zx5YLT98BBoTzV5BjSJQIrbftREMxLwaAY/9Vx7+3MbPv54y44dWyYnyYnGZ0ZGnvSQE/5ju+7dvIenixTlgi+ADWF1UyhpGoW1IFqtPPPFF3gZP4tnSfvPOn/VSU52Sn0vg8RwIdJpb1hp8GX+0pUrPnKi8+1O/iK8FbX+HWithn6L1YXUpFxGAjEE9iDOgMqdG6P4m3h7ZOeBdlBbNAj+k4kt9FVWThWub21vrd9TD7oPUXtI2MkMSKTrPSBRQ2PgSmZ8/CmfD7tB03JsoKD493GmNAKdESptpIDeZ3y0i4A5G+bfT+CO5oNocU2WFoVo/JPJjo7JKazLzs4BVpGdo6OdOZxZh/9XwtAteAGpsQAAMxjj8/xfAcGy/fy78Gjm34Jxb8ByepT/rmTH78EYyAVQXKmjmTOf8Ud8HR1AEt/KtHC7VNQKtgOUrUIh0/req/2Vb+v//FXQ6zd8Cm1w/19EvWCN3eBJ8I5aI0DB0QzZ7eOfByTNPiL3X4eZcIOEQeykzl8nn4GHltP9QMjtAlSIIaFEuO02rD1CndF3pKvrSJ/oKfEqbz9CfUE9cqS93z4N4VlIg3TaLkVnrqBFLNhciExAREWE0VIb5hXJNY43bfN9UbfB/Ipjbts2/K9dVv4KOWHuyp+0cj4hK6bO7yB/A5wKmhVDtWFBkSPMVhWKW0hSImAyuEXH9S4A9pQ/5z8awAvXbbuiAqB7ntD/AD84bQ8Al1DbAPUyyMNILQtgBlEKvJAZ8L/9c7MAu7bhRX5um6PIUbQNx/GfkhN5XfklG2L53+FJB8cVgE/ywc7JgD+b1o6BiAKwWmFPFJQRqKlVsC+iDvh0wrElxG6xOjMKuJJGm23UPTgn3yZzcrmFWpvJ1VxgGauQ57bZdPkWnSZ75bKY1JoiW5thsCWNM+qTM1YuU6TVOtkuC40KLWi0FDQSVieqj4YlS0/5XoX56j9G2jqFyghQDkMfBZ0V4loPcbxQDkT/u6ei0uOruK+ycmsZxLGrtq6uFp/m3Y0z+fkzjfgUcICR5DBwkCoQiFZymL+5i7+x5efviFPM/xpxUlmK+XnZe1J0Q2jL5DLoTKP7vZ/PPfLE7LnNDz05+/DDwphl/r9giNjzhPO/TRihjkWkX5rvkOgh38sYWKrw/R/MPvXo9g8uzT792Hbczn/31i3cjjt4nsqD+UxqYMwSKg9qRCqO1FzxXd3+7LNUGeh7mv8+bkQif3xLzG9mWhLTSkp5ClYODjv51/D5/v5WfLO/FXo+BjudAdjpSFalmRAPDA5elB3rutXZHSKs+Efn64lD3AuE0pxwkX9vAme/FNJ981l4Owsc6kQOoRpasrMMrrsILF7tlh0RdkTb5sfJi/MfCONpTfGi/930kRH6JoLUoKuyBCGLKbXs1Y/IYe9YrzhfviTtxIBi6NomrTgCc8mXd24zUl2byop6E6emEgcc7hkXfkNflZ1dpddXZ8EVD8+6mbQ6/6UGral8p8fszc7yWCxNuuxGC5VVCbJmyeUFWcHlNDVJdMgdsn49WFg+U1KyqczRnwgZqVZfnZ1VLYiq1mM/Uzrn8ewsN2rryGX+z7s9Wdlei6UxW9dkEdfRLyGbGOgOJuaOWQNVSWARdW2pHdip2rrcaSz1eEr7k7eu3NVXu8WFh+dKu1sycvpbWweavf3uucbbtrq8yFbRX2+rcm44aWoqod9RtukuttJrcYQ/wZP+FWOJskoAvwqtoVWnOi4Y9kI+0woC5aQkhG8PbXF0pG1dtbO39htu1zfqa7aUbMItRVbvEkxWOeuqq3pBica50pKtdSn2qkoHtdFKuBhlIcIOWpzoDK0WlWAlKGKMQ1NFRYOjpswhWJs4fL5T293crTVoBUvwXwhRk4T0tJKgEbN4X8QGIY27wyx4uD9hyrHZO/FYxGRUo9XVmNhvB/NAYP042EDEQEPpYtWmkuG2LNZb16FlwUyeWffHwZYSV7Fi8EqsWNOAHmL9SzMx3bTh5/otkxUOR6XPl9jKEgM3UsmfxqaK2toK/mfksl+TJu6zEXpbRoRTHxR8mqYCPkNSmZznIxMLdXG5/xKhtpi/zN+QRqoWj1RAA5MKuTHAob7aqtUkBvHxp9SX98QnkUcXVmQN6BIh5ithVkC6SuUP/czne/NprOD/+Mc/Qrg3/Pl2bXI5qDa57E+AZ7EieAv8o/mqTRYbByIYrjLtOqtgIslOCU25zvUJq0YK7rBWwGpa+9q0PNZoRQH7G/6+/Q+vy1/g25x7p/0pJ2r/NIj3FuCynMZ73NfVF8y1bWUVs7W1sxVVO2uzqw05EDOV2e2ucAhw747S0h1e7w53f6bXZvNkZnpsrb008/A3IPMY7pZ5BJhfyTwDEJE089j7kr6SeW6Z3LM08zBp/AsyXf23FmUeOjdu3DWjRn9NlnD0x09NxQ8VuafvkiVMqXW3fombUr+SJcS6sA9kLRW0UgbM/r7Hkljs8vkI1s+UePnfEm0dPfOZ/xJ2lAZ6AgMWvn2E8fdKCxU10bvrbGRGVpBjYK2OwhqLqdfeNRXik3E5OkNyjs5WnYdN3Y5wfb1Ro09NTFoTE53s5LLLM7sbUrPXJsStiY5aoXaw+opMkJ8AaJvIy4GqgQKGakE6dFNeTNSUtlU3FBVN7YaM805SfHdZPc7t3LuX7iRK5/+PFMKEixVq3IX0QosOsfoghb745twiKY6J1n+paK0WQg2X8G/TUMOMsA6Cg1jgAlVHqoKBaoLByU9ufnfPL7YM4deFCS30kenhbqHe0CzUG/rv37thw70vbpya3jThoxLw4/ww0fIuWtpAUSOOxZ/A2DvrDfMP5zZNbPqhcMUq/pPTp/FyvPL0aWEM7ydWGCMXKiGFUG5Y+X+Zmbi0/YlnifbW+3gpWcN34KN0zwF9XoC+4eI+gFVooN54+Qa/4+ZNvK2zsxOPdXaKlUAJfkH2PZQLlqa1rlZIS2KAxMapbh+9ycUpJXrCZBaiYZuBWRLuKSnOTk4Kw+EMyzLhOCwpObu4xBO+hDHgZ0MN2pSeNs5d15+YvLIuuiOfKYkkkSVMfkd03crkxP46N9fWk6I1hAKS4fn96EOZmuYoFUTmhz7fpIyevLYBwt0iQgQQBEhStgQIwpES/RoAkBaOBI0CXApfiZu+HmHpPwqwCeZrBBnFOZA1v5K/jUH3Oo1m1Spoj0q/ZFT8vd3oNxMoIp8m52Dmr7lrLRV0ZKhM0lXnZDkUra3RjkxDja7DlpFptWZm2Ehpfc6alQb+cI4qUe81sQU2k8lmNQH3BOC+n7yGotCqO3IYG3z4lrC+gfUacpvYhkG8Mi9da2bT0y2kszernmXrs/vqWKuV5Sz57B1VoZw1X/3oI3J6zLtlfh6ZcBg6hw8Kp10hOErS7SnQbbl4Dr34iDJYfpKxmeOajUwLxzXl4rXWjAxLXgbVq0GX7eFYj07XwIFGnCnfyoAk4URGdhx+1wqnaw70EXr4LvTeRfQHAvRZdDaIPhSgz6GX0cO0DuTF8xSoU1KEwxO50rgo1uDmzvQn7WJ/2hO/N+XgQH5ZmXnXWAL8mVse8tx56tLJmTvuWZJlNhqtZSuUyhUT4V1PdA8Fn7/QLwTCmYmgTZqkzW4BtUh/IECfRWMCfRk8fSb0z5T6hwh0YRcu0A0iHS8Joj8QoM+iPwXRhwL0OfShYJWt6H5iJ5U0T6VqxY8mZpVchf928GDldw6UHzhQeeDx++H+oHh/kOog7PkE2ZyE6ZIgQ6RPB+hd6IwkG6pliK61qAjRczQH+iVCd6H3BtPJjQB9Fr0aRP9VgD6HjglfWahnaYUPOTHlH3QsDVH87eStcZONQV4tWW9ZvA1obq7qXZIRcOn4ksrNNY23NwQSphJBB5ekwysBrCWCDi5JhycFuuhP2n87ojVCbwilCjWPLBWotZJFf4zCA3RZgD4LGgfo5LcB+hx6RKALa6PAvVFCc06QKq6ZlwP0LvQ8ul03aoPqRu3C2kdqcDrgDxUzgkr5nf3795OjTa0eT6u4j+zCbeCLhQykCj6TlHYjmhibTpEQu1wZFa2SOZbAw5qYGMVS+kAOWZcujYhQKvOtUUsjw+OUlGczzifj+JDwBYzuWsf9n+BDPT3iG5nr9huZyx8jvVmF30LvSqdyGjNz4L7hOvzW55RbMry5JL1h5JpOeENOfE5tDmPwbuGNXBylkkZuEkd/LvSC8XhfoBdwMEtc/ixy+lyQMoAu4BF8kdYIXNCHB81/WjVVXF5VVd4FjTXFXFVlNleKXxCIFz0A1fhy9BbYHn7xo0IcLEeSBYTvh5Ke+C/8INXz/wE+85pSAAB4nGNgZGBg6GaYwMDDUMrAxgDiIQAzAxMAKDMBqgAAAAAAAAAAAAAeADEAYQCuAPMBOgFHAWQBggGkAbkBxwHPAeUB9QIhAjACWgKYArMC5QMgAzQDfgO2A8IDzgPeA/IEAgQ3BJwEtgTtBRsFPgVUBWgFnAW1BcIF3gX4BgcGIwY5BmoGjQbFBu0HLgdAB2EHdgeUB64HxAfZB+sH+ggLCBgIJQhbCJEIuwjxCSMJQAmGCakJxgnsCgMKEApGCmkKmArOCwQLGwtbC3kLnAuuC8wL5gv8DBAMVQxhDKYMywz6DSMNMA05DWUNcQ19DYkNlQ3YDeQN8A38DggOFA4gDjoORg5SDl4Oag52DoIOwA7MDtgO4w7vDvsPBw8TDx8PLA88D2YPcw+AD40Pmg+tD8AP1w/nD/QAAQAAAAQBBk/OKv5fDzz1AAMD6AAAAADYpKnCAAAAANsWNsz95/26CewENQAAAAcAAgAAAAAAAHicTZFBSJRRFIW/e98YMogGA5EmzTAyJZLyM7jQmDApBmrMRS0colrEILmLEFGUUdtErV22lNnUqkUQtQkMIkhw1Tow2rSxDGpTnf+NAy0O59377n33nPvsECwjTFO3SxTDPfL+hEoYYMR/M8RzivaNNeGU/WLKPzDPZ7r8CnMckLhzwTep2B1GfZqyX1fuEWO+zlV/KCQMe1M1q1zjJ4klFLzB3XCMFZ/lvg8wnDGq/oqiL1ELXZT8HTXvEcJR/JaadSse55yv6PxG+QeK98THdX9DnBMvK3eL86o76y80+yW58JWcb0nXbfp8jLJ9Ycs/sm37bITTNPlD1lvqbam3HrnkC5RshpPx/DjOrlj3330faevI9KlWefk6E/tUZxviE4zaIoO6q/pFsmGSrP3Q+1XxJ2nP0LTLLIhv2oRy78nbMwa1xyyHjMtXPu7hP0T/Pe19aHZv6rcDf81q9JmidaS9g3rbR/Sivqi1g1SfkHqxsnQ0pHGHufBUf/qdfqFgLfqFgu3SUE+S/vc/8IlgKQAAeJxjYGRgYJH6t4ghhfPa3+c/QznfMABFUEA3ALATB7Z4nGNgYY5m/MLAysDA1MUUwcDA4A2hGeMYjBi9gHwGNgY4YGZAAp4hbv4MBxgUFNRYpP4tYkhhyWcqBgozguSY1Jl2AikFBhYAAQoKxAAAAHicnc69CoFxFAbwx8cdeIdXUSeDa3AzkpRByhVYGCyiFLGIsmB5FymTMogySUqGvwyilJJF6nF6yQU4p/Ox/E4HgBeAT8vS7nGnHzedMYhuNuJIII8BHIwxwQxzLLHCBlvssMcRJ1xwxQNPvMSSoIQlIlFSL4jK5E9OVS5Urr/SqDyrvLsyILaEPpIHGs0RHQ7ZZ49ddthmi002WGeNVVZYZolFFkzOZE3GpE3K/f2veANA8lQRAAB4nG2OPQ4BcRDFf8siFOIAWygpfEQUQiUSiUKIqHQ+F8HKssVex0GcwKG8/dtihUwm8+bNvJkH5FiQxrLzwEP5wRaOug9OUeQZ4zRdXjG2EzsZClY2xlkcq8QAjyshPgdc9twp06JpssxczFZ1arau2rlwM70v5qjZ2ij6BKp7cb6ZV8yluxQ3OWkoXGmjjYAVdak8zmIjbicc6O5G2lDc96/qz++xvm7UBbowE3aFTiylHsnvkAm9P46Tqmjeloumoi0/nUT3rasldW9EaznieJxjYGYAg/9bGYwYsAAALMIB6gAAAQAAAAoAHAAeAAFERkxUAAgABAAAAAD//wAAAAAAAHicY2BkYGDgYtBh0GNgdnHzCWEQSUktM2KQA5KJDHIMLEBZhv//GeAAAKU8BvYAAA==) format("woff"); }
+@font-face { font-family: "PoppinsMarca"; font-weight: 700; font-style: normal; font-display: swap;
+  src: url(data:font/woff;base64,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) format("woff"); }
 
-  .pace{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r);padding:20px 22px;margin-bottom:16px}
-  .pace h2{font-size:15px;font-weight:700}
-  .duo{display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-top:16px}
-  .half .hh{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
-  .half .cap{font-family:var(--dis);font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
-  .half .pct{font-family:var(--dis);font-size:12px;font-weight:700;color:var(--bad)}
-  .half .mainv{font-family:var(--dis);font-size:30px;font-weight:800;letter-spacing:-.025em;line-height:1.05;font-variant-numeric:tabular-nums}
-  .half .mainv small{font-size:14px;font-weight:600;color:var(--ink-3)}
-  .trio{display:flex;gap:24px;margin-top:12px;flex-wrap:wrap}
-  .kv .l{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:600;font-family:var(--dis)}
-  .kv .v{font-family:var(--dis);font-size:18px;font-weight:800;letter-spacing:-.02em;line-height:1.1;margin-top:3px;font-variant-numeric:tabular-nums}
-  .kv .v small{font-size:12px;font-weight:600;color:var(--ink-3)}
-  .kv .v.bad{color:var(--bad)}
-  .track{height:22px;background:var(--canvas);border-radius:4px;overflow:hidden;margin-top:12px}
-  .track .fill{height:100%;background:var(--accent);border-radius:4px}
-  .track .fill.bad{background:var(--bad)}
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { background: #EEEEEE; color: #1A1A1A; }
+  body { margin: 0;
+         font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+                      Helvetica, Arial, sans-serif;
+         -webkit-font-smoothing: antialiased; }
+  h2, p { margin: 0; }
+  input, select, button { font-family: inherit; color-scheme: light; }
 
-  .cols{display:grid;grid-template-columns:1.65fr 1fr;gap:16px;align-items:start}
-  .stack{display:flex;flex-direction:column;gap:12px}
+  .wrap { max-width: 1560px; margin: 0 auto; }
+  .card { background: #FFFFFF; border: 1px solid #E2E2E2; border-radius: 10px; }
+  .p0 { padding: 0; } .p12 { padding: 12px; } .p16 { padding: 16px; }
+  .p20 { padding: 20px; } .p24 { padding: 24px; } .p28 { padding: 28px; }
 
-  .blk{background:var(--surface);border:1px solid var(--hairline);border-left:4px solid var(--ink-3);border-radius:var(--r);padding:16px 18px}
-  .blk.alert{border-left-color:var(--bad)}
-  .blk.now{border-left-color:var(--accent);box-shadow:0 0 0 1px var(--accent-line)}
-  .blk .hd{display:flex;flex-wrap:wrap;gap:10px;align-items:baseline;justify-content:space-between;margin-bottom:12px}
-  .blk .hr{display:flex;align-items:baseline;gap:11px}
-  .blk .time{font-family:var(--dis);font-size:17px;font-weight:800}
-  .blk .ttl{font-size:14px;font-weight:600}
-  .chip{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;padding:4px 9px;border-radius:4px;background:var(--canvas);color:var(--ink-3);border:1px solid var(--hairline)}
-  .chip.bad{background:var(--bad-soft);color:var(--bad);border-color:var(--bad-line)}
-  .chip.good{background:var(--good-soft);color:var(--good);border-color:var(--good-line)}
-  .chip.acc{background:var(--accent-soft);color:var(--accent-deep);border-color:var(--accent-line)}
+  .grid-kpi { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); }
+  .grid-kpi-2 { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+                align-content: start; }
+  .col2 { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+  .mini4 { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  @media (max-width: 1000px) { .col2 { grid-template-columns: 1fr; } }
 
-  .rows{display:flex;flex-direction:column}
-  .row{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:baseline;padding:8px 0;border-top:1px solid var(--hairline);font-size:13.5px;color:var(--ink-2)}
-  .row:first-child{border-top:0;padding-top:0}
-  .row.tot{border-top:1.5px solid var(--ink)}
-  .row b{font-family:var(--dis);font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;font-size:15px}
-  .row b.bad{color:var(--bad)}
-  .row .meta{font-size:12px;color:var(--ink-3)}
-  .hint{font-size:12px;color:var(--ink-3);margin-top:10px;padding-top:10px;border-top:1px dashed var(--hairline)}
-  .hint code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--ink-2);background:var(--canvas);padding:1px 5px;border-radius:3px}
+  .rolagem { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 720px;
+          font-variant-numeric: tabular-nums; }
+  .dt { font-size: 13px; border: 1px solid #E2E2E2; border-radius: 8px; padding: 7px 10px;
+        background: #fff; color: #1A1A1A; }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: .92em; }
+  svg text { font-family: ui-sans-serif, system-ui, sans-serif; }
 
-  .side{background:var(--surface);border:1px solid var(--hairline);border-radius:var(--r);padding:16px 18px}
-  .side h3{font-size:13px;font-weight:700;margin-bottom:3px}
-  .side .sub{font-size:12px;color:var(--ink-3);margin-bottom:14px}
-  .legend{display:flex;gap:14px;font-size:11.5px;color:var(--ink-2);margin-bottom:12px}
-  .legend span{display:flex;align-items:center;gap:6px}
-  .legend i{width:10px;height:10px;border-radius:2px;display:block}
-  .sw-a{background:var(--accent)} .sw-i{background:var(--ink)}
-  .eff{display:flex;flex-direction:column;gap:13px}
-  .eff .p{display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px}
-  .eff .p b{font-family:var(--dis);font-variant-numeric:tabular-nums;font-weight:700}
-  .eff .b1,.eff .b2{height:9px;border-radius:2px;background:var(--canvas);overflow:hidden}
-  .eff .b1{margin-bottom:3px}
-  .eff .b1 i,.eff .b2 i{display:block;height:100%;border-radius:2px}
-  .eff .b1 i{background:var(--accent)} .eff .b2 i{background:var(--ink)}
-  .eff .low b{color:var(--bad)}
-
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  th{text-align:left;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:700;padding-bottom:8px;border-bottom:1.5px solid var(--ink)}
-  th.r,td.r{text-align:right}
-  td{padding:8px 0;border-bottom:1px solid var(--hairline);color:var(--ink-2);font-variant-numeric:tabular-nums}
-  td.k{color:var(--ink);font-weight:600}
-  tr:last-child td{border-bottom:0}
-  tr.meta td{background:var(--accent-soft);color:var(--accent-deep);font-family:var(--dis);font-weight:700;border-bottom:1.5px solid var(--accent-line)}
-  tr.meta td.k{color:var(--accent-deep)}
-  .scroll{overflow-x:auto}
-  .cell2{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
-  .cell2 .a{font-family:var(--dis);font-weight:700;color:var(--ink);font-size:14px}
-  .cell2 .g{font-size:11px;font-weight:700;color:var(--bad);font-family:var(--dis)}
-  .cell2 .g.ok{color:var(--good)}
-  .warn{color:var(--bad);font-weight:800}
-
-  /* TV */
-  #v-tv{background:var(--ink);border-radius:var(--r);padding:30px 34px;color:#fff;display:flex;flex-direction:column;gap:20px}
-  #v-tv .tvhd{display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:baseline;border-bottom:1px solid #242A33;padding-bottom:16px}
-  #v-tv .tvhd .l{font-family:var(--dis);font-size:13px;letter-spacing:.16em;text-transform:uppercase;color:#8C939D;font-weight:700;display:flex;align-items:center;gap:9px}
-  #v-tv .tvhd .l i{width:10px;height:10px;background:var(--accent);border-radius:2px;display:block}
-  #v-tv .tvhd .r{font-family:var(--dis);font-size:13px;color:#8C939D;font-weight:600}
-  #v-tv .tvhd .r b{color:#4FD1AC}
-  .tvmeta{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-end;justify-content:space-between}
-  .tvmeta .mainv{font-family:var(--dis);font-size:clamp(38px,6vw,68px);font-weight:800;letter-spacing:-.035em;line-height:1;font-variant-numeric:tabular-nums}
-  .tvmeta .mainv span{font-size:.42em;color:#79808A;font-weight:700}
-  .tvmeta .cap{font-family:var(--dis);font-size:12px;letter-spacing:.15em;text-transform:uppercase;color:#8C939D;font-weight:700;margin-bottom:8px}
-  .tvmeta .cell{text-align:right}
-  .tvmeta .cell .v{font-family:var(--dis);font-size:clamp(20px,2.8vw,32px);font-weight:800;letter-spacing:-.02em;line-height:1;font-variant-numeric:tabular-nums}
-  .tvmeta .cell .v.bad{color:#F2707A} .tvmeta .cell .v.acc{color:var(--accent)}
-  .tvmeta .cell .l{font-size:12.5px;color:#8C939D;margin-top:7px}
-  .tvbar{height:20px;background:#242A33;border-radius:4px;overflow:hidden}
-  .tvbar i{display:block;height:100%;background:var(--accent);border-radius:4px}
-  .tvscale{display:flex;justify-content:space-between;font-size:12.5px;color:#79808A;margin:8px 0 12px}
-  .tvcols{display:grid;grid-template-columns:1.45fr 1fr;gap:22px}
-  .tvcard{background:#1A1F27;border:1px solid #242A33;border-radius:var(--r);padding:18px 20px}
-  .tvcard h3{font-family:var(--dis);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:14px}
-  .tvtab{width:100%;border-collapse:collapse}
-  .tvtab th{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#79808A;border-bottom:1px solid #2C333D;padding-bottom:9px;font-weight:700}
-  .tvtab th span{color:#5C636D;font-weight:600}
-  .tvtab td{font-size:19px;padding:11px 0;border-bottom:1px solid #242A33;color:#E6E9ED;font-variant-numeric:tabular-nums;font-family:var(--dis);font-weight:700}
-  .tvtab td.k{font-weight:600;font-size:18px}
-  .tvtab td.dim{color:#79808A}
-  .tvtab tr:last-child td{border-bottom:0}
-  .tvtab tr.warn td{color:#F2707A}
-  .tvtab tr.top td{color:#4FD1AC}
-  .tvrank{display:flex;flex-direction:column;gap:12px}
-  .tvrank .r1{display:flex;justify-content:space-between;font-size:15px;color:#C7CDD4;margin-bottom:5px}
-  .tvrank .r1 b{font-family:var(--dis);font-weight:800;color:#fff;font-variant-numeric:tabular-nums;font-size:17px}
-  .tvrank .tr{height:14px;background:#242A33;border-radius:3px;overflow:hidden}
-  .tvrank .tr i{display:block;height:100%;background:var(--accent);border-radius:3px}
-  .tvrank .lead .tr i{background:#4FD1AC}
-  .tvbot{display:grid;grid-template-columns:2.1fr 1fr;gap:22px}
-  .tvpend{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
-  .pcell{background:#241A1C;border:1px solid #4A2226;border-radius:var(--r);padding:14px 16px}
-  .pcell.ok{background:#16241F;border-color:#1F4438}
-  .pcell .v{font-family:var(--dis);font-size:clamp(26px,3.4vw,38px);font-weight:800;line-height:1;color:#F2707A;font-variant-numeric:tabular-nums}
-  .pcell.ok .v{color:#4FD1AC}
-  .pcell .l{font-size:12.5px;color:#A9B0B8;margin-top:8px;line-height:1.35}
-  .tvag{background:#1A1F27;border:1px solid #242A33;border-radius:var(--r);padding:14px 18px;display:flex;justify-content:space-between;align-items:center;gap:14px}
-  .tvag .a{text-align:center}
-  .tvag .a .v{font-family:var(--dis);font-size:clamp(22px,2.8vw,32px);font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
-  .tvag .a .l{font-size:11.5px;color:#8C939D;margin-top:7px;letter-spacing:.06em;text-transform:uppercase;font-weight:600}
-
-  .loading{padding:40px;text-align:center;color:var(--ink-3);font-family:var(--dis);font-weight:600}
-  .err{background:var(--bad-soft);border:1px solid var(--bad-line);color:var(--bad);padding:12px 14px;border-radius:var(--r);font-size:13px;margin-bottom:14px}
-
-  @media (max-width:900px){
-    .cols,.duo,.tvcols,.tvbot{grid-template-columns:1fr}
-    .tvpend{grid-template-columns:repeat(2,1fr)}
-    #v-tv{padding:20px}
-  }
-  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+  /* O amarelo da marca só aparece como preenchimento ou atrás de texto
+     preto — sobre branco ele tem contraste 1.6:1 e seria ilegível. */
+  .foco { outline: 2px solid #FFBF00; outline-offset: 2px; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div>
-      <div class="brand"><i></i> The Wonder · Painel de SDR</div>
-      <h1>Coordenador</h1>
-      <div class="snap" id="snap">carregando…</div>
-    </div>
-    <div class="tabs" role="tablist">
-      <button role="tab" id="t-coord" aria-selected="true" aria-controls="v-coord">Aba do coordenador</button>
-      <button role="tab" id="t-tv" aria-selected="false" aria-controls="v-tv">Modo TV</button>
-    </div>
-  </header>
 
-  <div id="erro"></div>
-
-  <main id="v-coord" role="tabpanel" aria-labelledby="t-coord">
-    <div class="loading" id="load-coord">Carregando dados do painel…</div>
-    <div id="coord-body" hidden>
-
-      <section class="pace">
-        <h2>Mês corrente — onde estamos</h2>
-        <div class="snap" id="pace-sub"></div>
-        <div class="duo">
-          <div class="half">
-            <div class="hh"><span class="cap">Faturamento</span><span class="pct" id="fat-pct"></span></div>
-            <div class="mainv" id="fat-main"></div>
-            <div class="track"><div class="fill bad" id="fat-bar" style="width:0"></div></div>
-            <div class="trio">
-              <div class="kv"><div class="l">Falta</div><div class="v" id="fat-falta"></div></div>
-              <div class="kv"><div class="l">Precisa/dia</div><div class="v" id="fat-prec"></div></div>
-              <div class="kv"><div class="l">Saindo/dia</div><div class="v bad" id="fat-ritmo"></div></div>
-            </div>
-          </div>
-          <div class="half">
-            <div class="hh"><span class="cap">O.S. fechadas</span><span class="pct" id="os-pct"></span></div>
-            <div class="mainv" id="os-main"></div>
-            <div class="track"><div class="fill bad" id="os-bar" style="width:0"></div></div>
-            <div class="trio">
-              <div class="kv"><div class="l">Faltam</div><div class="v" id="os-falta"></div></div>
-              <div class="kv"><div class="l">Precisa/dia</div><div class="v" id="os-prec"></div></div>
-              <div class="kv"><div class="l">Saindo/dia</div><div class="v bad" id="os-ritmo"></div></div>
-            </div>
-          </div>
-        </div>
-        <div class="hint">Dias contados de segunda a sábado. Ritmo atual = realizado até ontem ÷ dias já trabalhados. Meta de O.S. no piso da faixa de 400 a 500.</div>
-      </section>
-
-      <div class="cols">
-        <div class="stack">
-
-          <article class="blk alert" id="b8">
-            <div class="hd"><div class="hr"><span class="time">08:00</span><span class="ttl">Distribuir para os closers</span></div><span class="chip bad" id="b8-chip"></span></div>
-            <div class="rows" id="b8-rows"></div>
-            <div class="hint">O SDR não faz follow-up de orçamento — se o lead ficar com ele, para. Tudo que passou da primeira conversa vai para o closer na abertura do dia. Fonte: <code>funil_agora</code>.</div>
-          </article>
-
-          <article class="blk now">
-            <div class="hd"><div class="hr"><span class="time">09:00</span><span class="ttl">Reunião de time</span></div><span class="chip acc">O dia até agora × meta</span></div>
-            <div class="scroll"><table id="b9-tab"></table></div>
-            <div class="hint" id="b9-hint"></div>
-          </article>
-
-          <article class="blk alert" id="b13">
-            <div class="hd"><div class="hr"><span class="time">13:30</span><span class="ttl">Destravar</span></div><span class="chip bad" id="b13-chip"></span></div>
-            <div class="rows" id="b13-rows"></div>
-            <div class="hint">Reagendamento e negociação futura continuam com o SDR — o resto já foi para o closer às 08:00. Fontes: <code>tempo_resposta_dia</code> e <code>funil_agora</code>.</div>
-          </article>
-
-          <article class="blk alert" id="b17">
-            <div class="hd"><div class="hr"><span class="time">17:30</span><span class="ttl">Fechar o dia</span></div><span class="chip bad" id="b17-chip"></span></div>
-            <div class="scroll"><table id="b17-tab"></table></div>
-            <div class="rows" id="b17-rows" style="margin-top:12px"></div>
-            <div class="hint" id="b17-hint"></div>
-          </article>
-
-          <article class="blk">
-            <div class="hd"><div class="hr"><span class="time">Sexta</span><span class="ttl">Fechar a semana</span></div><span class="chip">Qualidade da base</span></div>
-            <div class="rows" id="bq-rows"></div>
-            <div class="hint">Fonte: <code>qualidade</code>. É a lista que o coordenador leva para o fechamento semanal com o supervisor.</div>
-          </article>
-
-        </div>
-
-        <div class="stack">
-          <section class="side">
-            <h3>Esforço de hoje</h3>
-            <div class="sub">Os dois KPIs que o time controla 100%</div>
-            <div class="legend"><span><i class="sw-a"></i> Ligações tentadas</span><span><i class="sw-i"></i> Pessoas com quem falou</span></div>
-            <div class="eff" id="eff"></div>
-            <div class="hint">Fonte: <code>esforco_dia</code> · discador API4COM.</div>
-          </section>
-
-          <section class="side">
-            <h3>Tempo de resposta — hoje</h3>
-            <div class="sub">Minutos até o 1º contato por ligação</div>
-            <div class="scroll"><table id="tr-tab"></table></div>
-            <div class="hint" id="tr-hint"></div>
-          </section>
-
-          <section class="side">
-            <h3>Tarefas por SDR</h3>
-            <div class="sub">Abertas, vencidas e o que vence hoje</div>
-            <div class="scroll"><table id="tk-tab"></table></div>
-            <div class="hint">Fonte: <code>tarefas_sdr</code>.</div>
-          </section>
-        </div>
-      </div>
-    </div>
-  </main>
-
-  <main id="v-tv" role="tabpanel" aria-labelledby="t-tv" hidden>
-    <div class="tvhd">
-      <div class="l"><i></i> The Wonder · Time de SDR</div>
-      <div class="r" id="tv-hd-r"></div>
-    </div>
-    <div>
-      <div class="tvmeta" style="margin-bottom:14px">
-        <div><div class="cap">Faturamento do mês</div><div class="mainv" id="tv-fat"></div></div>
-        <div><div class="cap">O.S. fechadas</div><div class="mainv" id="tv-os"></div></div>
-        <div class="cell"><div class="v acc" id="tv-prec"></div><div class="l">precisa sair por dia</div></div>
-        <div class="cell"><div class="v bad" id="tv-ritmo"></div><div class="l">o que está saindo por dia</div></div>
-      </div>
-      <div class="tvbar"><i id="tv-bar-fat" style="width:0"></i></div>
-      <div class="tvscale"><span id="tv-sc-fat-l"></span><span id="tv-sc-fat-r"></span></div>
-      <div class="tvbar"><i id="tv-bar-os" style="width:0"></i></div>
-      <div class="tvscale" style="margin-bottom:0"><span id="tv-sc-os-l"></span><span id="tv-sc-os-r"></span></div>
-    </div>
-    <div class="tvcols">
-      <div class="tvcard"><h3>Placar de hoje</h3><div class="scroll"><table class="tvtab" id="tv-hoje"></table></div></div>
-      <div class="tvcard"><h3>Ranking do mês · receita</h3><div class="tvrank" id="tv-rank"></div></div>
-    </div>
-    <div class="tvbot">
-      <div class="tvpend" id="tv-pend"></div>
-      <div class="tvag" id="tv-ag"></div>
-    </div>
-  </main>
-</div>
+<div id="root"><div style="padding:48px;color:#666666">Iniciando o painel…</div></div>
 
 <script>
-(function(){
-  "use strict";
-  var URL_BASE = "https://phwetkvuzxpkdwdzncfm.supabase.co/rest/v1/";
-  var KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBod2V0a3Z1enhwa2R3ZHpuY2ZtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg1MzExNDgsImV4cCI6MjEwNDEwNzE0OH0.eyozIA1XQjOgzT198pHK3Kvr53-yQC5UV3EBrhXIxQQ";
-  var META_FAT = 1500000, META_OS = 400;
-  var META_LIG = 100, META_FALOU = 35, META_AGEND = 7, META_COMPAR = 5;
-  var TZ = "America/Sao_Paulo";
-  var REFRESH_MS = 120000;
+/* =====================================================================
+   CONFIGURAÇÃO — preencha os dois valores abaixo antes de publicar.
 
-  function get(path){
-    return fetch(URL_BASE + path, {headers:{apikey:KEY, Authorization:"Bearer "+KEY, "Accept-Profile":"comercial"}})
-      .then(function(r){ if(!r.ok) throw new Error(path+" → "+r.status); return r.json(); });
-  }
-  function hojeISO(){
-    var p = new Intl.DateTimeFormat("en-CA",{timeZone:TZ,year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
-    return p;
-  }
-  function agoraHM(){
-    return new Intl.DateTimeFormat("pt-BR",{timeZone:TZ,hour:"2-digit",minute:"2-digit"}).format(new Date());
-  }
-  function d(iso){ var a=iso.split("-"); return new Date(Date.UTC(+a[0],+a[1]-1,+a[2])); }
-  function iso(dt){ return dt.toISOString().slice(0,10); }
-  // dias de segunda a sábado (exclui domingo), inclusive nas duas pontas
-  function diasUteis(a,b){
-    var n=0, x=d(a), y=d(b);
-    while(x<=y){ if(x.getUTCDay()!==0) n++; x=new Date(x.getTime()+86400000); }
-    return n;
-  }
-  function brl(v){ return "R$ " + Math.round(v).toLocaleString("pt-BR"); }
-  function nz(v){ return v==null?0:v; }
-  function el(id){ return document.getElementById(id); }
-  function txt(id,v){ var e=el(id); if(e) e.textContent=v; }
-  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}); }
-  function primeiro(nome){ return String(nome||"").split(" ")[0]; }
+   Os dois ficam em: Supabase → Project Settings → API
+     url     = Project URL
+     anonKey = a chave "anon public"
 
-  function somaPor(rows, chave, campos){
-    var m = {};
-    rows.forEach(function(r){
-      var k = r[chave]; if(!m[k]){ m[k]={}; campos.forEach(function(c){m[k][c]=0;}); }
-      campos.forEach(function(c){ m[k][c] += Number(nz(r[c])); });
-    });
-    return m;
-  }
+   A chave anon é pública por natureza e não dá acesso a nada sozinha:
+   quem protege os dados é o login e a RLS do banco. Pode ficar aqui.
+   NUNCA coloque a chave "service_role" neste arquivo.
+   ===================================================================== */
+const CONFIG = {
+  url: "https://phwetkvuzxpkdwdzncfm.supabase.co",
+  anonKey: "sb_publishable_4qczIhXxqTVAD3eZKjrjug_KC9H4aQ5",
+};
+</script>
 
-  function carregar(){
-    var hoje = hojeISO();
-    var ini = hoje.slice(0,8)+"01";
-    var ontem = iso(new Date(d(hoje).getTime()-86400000));
-    var fimMes = iso(new Date(Date.UTC(+hoje.slice(0,4), +hoje.slice(5,7), 0)));
-    var d3 = iso(new Date(d(hoje).getTime()+2*86400000));
+<script src="https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    Promise.all([
-      get("equipe_sdr?select=sdr,ativo&ativo=is.true"),
-      get("fato_dia?select=data,sdr,leads_recebidos,agendamentos_marcados,visitas_do_dia,comparecimentos,vendas,receita&data=gte."+ini+"&data=lte."+hoje),
-      get("esforco_dia?select=sdr,ligacoes_tentadas,pessoas_com_quem_falou&data=eq."+hoje),
-      get("tempo_resposta_dia?select=sdr,leads,nunca_ligaram,ate_5min,minutos_medio&data=eq."+hoje),
-      get("visitas_pendentes_dia?select=sdr,visitas_sem_desfecho&data=eq."+hoje),
-      get("funil_agora?select=etapa,leads,valor_parado,dias_sem_mexer,lead_mais_antigo"),
-      get("qualidade?select=*"),
-      get("tarefas_sdr?select=*"),
-      get("leads_sem_tarefa?select=sdr,etapa,leads,parado_ha_dias")
-    ]).then(function(r){
-      render({
-        equipe:r[0], fato:r[1], esforco:r[2], tempo:r[3], visitas:r[4],
-        funil:r[5], qualidade:r[6][0]||{}, tarefas:r[7], semTarefa:r[8],
-        hoje:hoje, ini:ini, ontem:ontem, fimMes:fimMes, d3:d3
-      });
-    }).catch(function(e){
-      el("erro").innerHTML = '<div class="err">Não consegui ler o banco: '+esc(e.message)+'. A tela volta a atualizar sozinha na próxima tentativa.</div>';
-      el("load-coord").textContent = "Sem dados no momento.";
-    });
+<script>
+/* Compatibilidade com o navegador da TV.
+   O painel vive numa TV LG na sala dos SDRs, e o navegador dela é um
+   Chromium travado no ano do aparelho — em muitos modelos, 2016. Ele não
+   conhece métodos que o Chrome ganhou de 2016 para cá.
+
+   Isto não é "boa prática por precaução": em 08/09/2026 a TV mostrou
+   página em branco por causa disso. Cada função abaixo é usada de
+   verdade pelo painel; nenhuma está aqui por enfeite. */
+(function () {
+  // Usado em br(), para a data no formato 08/09
+  if (!String.prototype.padStart) {
+    String.prototype.padStart = function (alvo, preencher) {
+      var s = String(this);
+      preencher = preencher === undefined ? " " : String(preencher);
+      if (s.length >= alvo || !preencher) return s;
+      var falta = alvo - s.length, enche = "";
+      while (enche.length < falta) enche += preencher;
+      return enche.slice(0, falta) + s;
+    };
   }
 
-  function render(D){
-    var ativos = D.equipe.map(function(e){return e.sdr;});
-    var noTime = function(s){ return ativos.indexOf(s)>=0; };
-    var fato = D.fato.filter(function(r){ return noTime(r.sdr); });
+  // Usado para montar a lista de períodos do filtro
+  if (!Object.entries) {
+    Object.entries = function (o) {
+      var r = [];
+      for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) r.push([k, o[k]]);
+      return r;
+    };
+  }
+  if (!Object.values) {
+    Object.values = function (o) {
+      var r = [];
+      for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) r.push(o[k]);
+      return r;
+    };
+  }
 
-    var mes = {os:0, rec:0};
-    var ateOntem = {os:0, rec:0}, hojeTot = {os:0, rec:0, leads:0, agend:0, vis:0, comp:0};
-    fato.forEach(function(r){
-      mes.os += nz(r.vendas); mes.rec += Number(nz(r.receita));
-      if(r.data < D.hoje){ ateOntem.os += nz(r.vendas); ateOntem.rec += Number(nz(r.receita)); }
-      else {
-        hojeTot.os += nz(r.vendas); hojeTot.rec += Number(nz(r.receita));
-        hojeTot.leads += nz(r.leads_recebidos); hojeTot.agend += nz(r.agendamentos_marcados);
-        hojeTot.vis += nz(r.visitas_do_dia); hojeTot.comp += nz(r.comparecimentos);
+  // Usado no filtro de etapas da seção 9
+  if (!Array.prototype.includes) {
+    Array.prototype.includes = function (x) { return this.indexOf(x) !== -1; };
+  }
+  if (!String.prototype.includes) {
+    String.prototype.includes = function (x) { return this.indexOf(x) !== -1; };
+  }
+
+  // Usado na leitura da saude_das_cargas
+  if (!Number.isFinite) {
+    Number.isFinite = function (n) { return typeof n === "number" && isFinite(n); };
+  }
+  if (!Number.isNaN) {
+    Number.isNaN = function (n) { return n !== n; };
+  }
+
+  if (!Object.assign) {
+    Object.assign = function (alvo) {
+      for (var i = 1; i < arguments.length; i++) {
+        var f = arguments[i];
+        if (!f) continue;
+        for (var k in f) if (Object.prototype.hasOwnProperty.call(f, k)) alvo[k] = f[k];
       }
-    });
-
-    var trabalhados = diasUteis(D.ini, D.ontem);
-    var pelaFrente = diasUteis(D.hoje, D.fimMes);
-    var pessoas = ativos.length || 5;
-
-    txt("snap", "Dados ao vivo do painel · atualizado às " + agoraHM());
-    txt("pace-sub", trabalhados + " dias trabalhados · " + pelaFrente + " pela frente, contando hoje e os sábados · " + pessoas + " pessoas atendendo");
-
-    // faturamento
-    var faltaF = Math.max(0, META_FAT - mes.rec), precF = pelaFrente? faltaF/pelaFrente : 0;
-    var ritmoF = trabalhados? ateOntem.rec/trabalhados : 0;
-    txt("fat-pct", (mes.rec/META_FAT*100).toFixed(1).replace(".",",")+"% da meta");
-    el("fat-main").innerHTML = brl(mes.rec)+' <small>de '+brl(META_FAT)+'</small>';
-    el("fat-bar").style.width = Math.min(100, mes.rec/META_FAT*100)+"%";
-    txt("fat-falta", brl(faltaF)); txt("fat-prec", brl(precF)); txt("fat-ritmo", brl(ritmoF));
-
-    // O.S.
-    var faltaO = Math.max(0, META_OS - mes.os), precO = pelaFrente? faltaO/pelaFrente : 0;
-    var ritmoO = trabalhados? ateOntem.os/trabalhados : 0;
-    txt("os-pct", (mes.os/META_OS*100).toFixed(1).replace(".",",")+"% da meta");
-    el("os-main").innerHTML = mes.os+' <small>de '+META_OS+' O.S.</small>';
-    el("os-bar").style.width = Math.min(100, mes.os/META_OS*100)+"%";
-    txt("os-falta", faltaO+" O.S.");
-    el("os-prec").innerHTML = Math.ceil(precO)+' <small>· '+Math.ceil(precO/pessoas)+' por SDR</small>';
-    txt("os-ritmo", ritmoO.toFixed(1).replace(".",","));
-
-    // ---- 08:00 distribuir
-    var f = {}; D.funil.forEach(function(r){ f[r.etapa]=r; });
-    var repasse = ["ENTRADA DE LEAD","CONTATANDO","NEGOCIANDO","NEGOCIAÇÃO POS VISITA NÃO FECHADO"];
-    var totL=0, totV=0, h8="";
-    repasse.forEach(function(et){
-      var r=f[et]; if(!r) return;
-      totL += nz(r.leads); totV += Number(nz(r.valor_parado));
-      h8 += '<div class="row"><span>'+esc(et)+'<span class="meta"> · '+nz(r.dias_sem_mexer)+' dias sem mexer · '+brl(nz(r.valor_parado))+'</span></span><b'+(nz(r.dias_sem_mexer)>=5?' class="bad"':'')+'>'+nz(r.leads)+'</b></div>';
-    });
-    h8 += '<div class="row tot"><span><b style="font-size:13.5px">A repassar para o closer</b></span><b class="bad">'+totL+' leads · '+brl(totV)+'</b></div>';
-    el("b8-rows").innerHTML = h8;
-    txt("b8-chip", brl(totV)+" parados");
-
-    // ---- 09:00 reunião
-    var fatHoje = somaPor(fato.filter(function(r){return r.data===D.hoje;}), "sdr", ["agendamentos_marcados","comparecimentos","vendas","receita"]);
-    var esf = somaPor(D.esforco.filter(function(r){return noTime(r.sdr);}), "sdr", ["ligacoes_tentadas","pessoas_com_quem_falou"]);
-    var metaVendaDia = META_OS/ (trabalhados+pelaFrente) / pessoas;
-    var metaRecDia = META_FAT/ (trabalhados+pelaFrente) / pessoas;
-    function gap(v, m, money){
-      var falta = m - v;
-      if(falta<=0) return '<span class="g ok">bateu</span>';
-      return '<span class="g">faltam '+(money?brl(falta):(Math.round(falta*10)/10).toString().replace(".",","))+'</span>';
-    }
-    function cel(v,m,money){
-      return '<td class="r"><div class="cell2"><span class="a">'+(money?brl(v):v)+'</span>'+gap(v,m,money)+'</div></td>';
-    }
-    var h9 = '<thead><tr><th>SDR</th><th class="r">Ligou</th><th class="r">Falou</th><th class="r">Agendou</th><th class="r">Compareceu</th><th class="r">Vendeu</th><th class="r">Receita</th></tr></thead><tbody>';
-    h9 += '<tr class="meta"><td class="k">Meta do dia</td><td class="r">'+META_LIG+'</td><td class="r">'+META_FALOU+'</td><td class="r">'+META_AGEND+'</td><td class="r">'+META_COMPAR+'</td><td class="r">'+(Math.round(metaVendaDia*10)/10).toString().replace(".",",")+'</td><td class="r">'+brl(metaRecDia)+'</td></tr>';
-    ativos.slice().sort(function(a,b){ return (nz(esf[b]&&esf[b].ligacoes_tentadas)) - (nz(esf[a]&&esf[a].ligacoes_tentadas)); }).forEach(function(s){
-      var e = esf[s]||{}, x = fatHoje[s]||{};
-      h9 += '<tr><td class="k">'+esc(primeiro(s))+'</td>'
-        + cel(nz(e.ligacoes_tentadas), META_LIG)
-        + cel(nz(e.pessoas_com_quem_falou), META_FALOU)
-        + cel(nz(x.agendamentos_marcados), META_AGEND)
-        + cel(nz(x.comparecimentos), META_COMPAR)
-        + cel(nz(x.vendas), metaVendaDia)
-        + cel(Number(nz(x.receita)), metaRecDia, true)
-        + '</tr>';
-    });
-    h9 += '</tbody>';
-    el("b9-tab").innerHTML = h9;
-    el("b9-hint").innerHTML = 'Meta do dia: '+brl(metaRecDia)+' e '+(Math.round(metaVendaDia*10)/10).toString().replace(".",",")+' vendas por pessoa — R$ '+META_FAT.toLocaleString("pt-BR")+' ÷ '+(trabalhados+pelaFrente)+' dias ÷ '+pessoas+' que atendem. Ligações e conversas são meta fixa da casa. Fonte: <code>fato_dia</code> e <code>esforco_dia</code>.';
-
-    // ---- 13:30 destravar
-    var tHoje = D.tempo.filter(function(r){return noTime(r.sdr);});
-    var leadsHoje=0, semLigar=0, ate5=0;
-    tHoje.forEach(function(r){ leadsHoje+=nz(r.leads); semLigar+=nz(r.nunca_ligaram); ate5+=nz(r.ate_5min); });
-    var h13 = '<div class="row"><span>Leads que entraram hoje e ninguém ligou<span class="meta"> · de '+leadsHoje+' que entraram</span></span><b class="bad">'+semLigar+'</b></div>';
-    ["REAGENDAR","NEGOCIAÇÕES FUTURAS"].forEach(function(et){
-      var r=f[et]; if(!r) return;
-      h13 += '<div class="row"><span>'+esc(et)+'<span class="meta"> · '+nz(r.dias_sem_mexer)+' dias sem mexer · '+brl(nz(r.valor_parado))+'</span></span><b>'+nz(r.leads)+'</b></div>';
-    });
-    el("b13-rows").innerHTML = h13;
-    txt("b13-chip", semLigar+" leads sem ligação");
-
-    // ---- 17:30 fechar o dia
-    var vis = {}; D.visitas.forEach(function(r){ vis[r.sdr]=nz(r.visitas_sem_desfecho); });
-    var tk = {}; D.tarefas.forEach(function(r){ tk[r.sdr]=r; });
-    var st = {}; D.semTarefa.forEach(function(r){ st[r.sdr]=(st[r.sdr]||0)+nz(r.leads); });
-    var fatHojeFull = somaPor(fato.filter(function(r){return r.data===D.hoje;}), "sdr", ["leads_recebidos","visitas_do_dia"]);
-    var totVenc=0, totSem=0;
-    var nomes = ativos.slice().sort(function(a,b){ return nz(tk[b]&&tk[b].vencidas) - nz(tk[a]&&tk[a].vencidas); });
-    var h17 = '<thead><tr><th>SDR</th><th class="r">Leads do dia</th><th class="r">Visitas</th><th class="r">Sem desfecho</th><th class="r">Tarefas abertas</th><th class="r">Vencidas</th><th class="r">Atraso máx.</th><th class="r">Leads sem tarefa</th></tr></thead><tbody>';
-    nomes.forEach(function(s){
-      var t = tk[s]||{}, x = fatHojeFull[s]||{};
-      totVenc += nz(t.vencidas); totSem += nz(st[s]);
-      h17 += '<tr><td class="k">'+esc(primeiro(s))+'</td>'
-        +'<td class="r">'+nz(x.leads_recebidos)+'</td>'
-        +'<td class="r">'+nz(x.visitas_do_dia)+'</td>'
-        +'<td class="r'+(nz(vis[s])>0?' warn':'')+'">'+nz(vis[s])+'</td>'
-        +'<td class="r">'+(t.abertas==null?"—":t.abertas)+'</td>'
-        +'<td class="r'+(nz(t.vencidas)>0?' warn':'')+'">'+(t.vencidas==null?"—":t.vencidas)+'</td>'
-        +'<td class="r'+(nz(t.atraso_maximo_dias)>7?' warn':'')+'">'+(t.atraso_maximo_dias==null?"—":t.atraso_maximo_dias+" d")+'</td>'
-        +'<td class="r'+(nz(st[s])>25?' warn':'')+'">'+nz(st[s])+'</td></tr>';
-    });
-    h17 += '</tbody>';
-    el("b17-tab").innerHTML = h17;
-    el("b17-rows").innerHTML =
-      '<div class="row"><span>Tarefas vencidas no time</span><b class="bad">'+totVenc+'</b></div>'
-     +'<div class="row"><span>Leads sem nenhuma tarefa</span><b class="bad">'+totSem+'</b></div>'
-     +'<div class="row tot"><span>Acumulado na base sem desfecho</span><b class="bad">'+nz(D.qualidade.visita_sem_desfecho)+'</b></div>';
-    txt("b17-chip", totVenc+" tarefas vencidas");
-    var porEtapa = {}; D.semTarefa.forEach(function(r){ porEtapa[r.etapa]=(porEtapa[r.etapa]||0)+nz(r.leads); });
-    var etapasTxt = Object.keys(porEtapa).sort(function(a,b){return porEtapa[b]-porEtapa[a];}).slice(0,7)
-      .map(function(k){ return esc(k)+" "+porEtapa[k]; }).join(" · ");
-    el("b17-hint").innerHTML = 'Sem tarefa por etapa: '+etapasTxt+'. Fontes: <code>tarefas_sdr</code>, <code>leads_sem_tarefa</code>, <code>visitas_pendentes_dia</code>.';
-
-    // ---- qualidade
-    var q = D.qualidade;
-    el("bq-rows").innerHTML =
-      '<div class="row"><span>Leads sem unidade preenchida<span class="meta"> · de '+nz(q.leads_total)+' na base</span></span><b class="bad">'+nz(q.sem_unidade)+'</b></div>'
-     +'<div class="row"><span>Leads sem serviço preenchido</span><b class="bad">'+nz(q.sem_servico)+'</b></div>'
-     +'<div class="row"><span>Vendas ganhas sem valor lançado</span><b class="bad">'+nz(q.ganho_sem_valor)+'</b></div>'
-     +'<div class="row"><span>Leads sem SDR atribuído</span><b>'+nz(q.sem_sdr)+'</b></div>';
-
-    // ---- esforço lateral
-    var maxLig = 1;
-    ativos.forEach(function(s){ maxLig = Math.max(maxLig, nz(esf[s]&&esf[s].ligacoes_tentadas)); });
-    var he = "";
-    ativos.slice().sort(function(a,b){ return nz(esf[b]&&esf[b].ligacoes_tentadas) - nz(esf[a]&&esf[a].ligacoes_tentadas); }).forEach(function(s){
-      var e = esf[s]||{}, t=nz(e.ligacoes_tentadas), fl=nz(e.pessoas_com_quem_falou);
-      var baixo = t < META_LIG*0.5;
-      he += '<div'+(baixo?' class="low"':'')+'><div class="p"><span>'+esc(primeiro(s))+'</span><b>'+t+' · '+fl+'</b></div>'
-         +'<div class="b1"><i style="width:'+(t/maxLig*100)+'%'+(baixo?';background:var(--bad)':'')+'"></i></div>'
-         +'<div class="b2"><i style="width:'+(fl/maxLig*100)+'%"></i></div></div>';
-    });
-    el("eff").innerHTML = he;
-
-    // ---- tempo de resposta
-    var htr = '<thead><tr><th>SDR</th><th class="r">Leads</th><th class="r">Sem ligar</th><th class="r">Média</th></tr></thead><tbody>';
-    tHoje.sort(function(a,b){ return nz(a.minutos_medio)-nz(b.minutos_medio); }).forEach(function(r){
-      htr += '<tr><td class="k">'+esc(primeiro(r.sdr))+'</td><td class="r">'+nz(r.leads)+'</td><td class="r'+(nz(r.nunca_ligaram)>0?' warn':'')+'">'+nz(r.nunca_ligaram)+'</td><td class="r">'+Math.round(nz(r.minutos_medio))+' min</td></tr>';
-    });
-    htr += '</tbody>';
-    el("tr-tab").innerHTML = htr;
-    el("tr-hint").textContent = ate5 + " lead(s) contatado(s) em até 5 minutos hoje.";
-
-    // ---- tarefas lateral
-    var htk = '<thead><tr><th>SDR</th><th class="r">Abertas</th><th class="r">Vencidas</th><th class="r">Vence hoje</th></tr></thead><tbody>';
-    D.tarefas.slice().sort(function(a,b){return nz(b.vencidas)-nz(a.vencidas);}).forEach(function(t){
-      htk += '<tr><td class="k">'+esc(primeiro(t.sdr))+'</td><td class="r">'+nz(t.abertas)+'</td><td class="r'+(nz(t.vencidas)>0?' warn':'')+'">'+nz(t.vencidas)+'</td><td class="r">'+nz(t.vence_hoje)+'</td></tr>';
-    });
-    htk += '</tbody>';
-    el("tk-tab").innerHTML = htk;
-
-    // =========== MODO TV ===========
-    txt("tv-hd-r", "Atualizado " + agoraHM() + " · faltam " + pelaFrente + " dias (com sábados)");
-    el("tv-fat").innerHTML = brl(mes.rec);
-    el("tv-os").innerHTML = mes.os + ' <span>de ' + META_OS + '</span>';
-    txt("tv-prec", brl(precF) + " · " + Math.ceil(precO) + " O.S.");
-    txt("tv-ritmo", brl(ritmoF) + " · " + ritmoO.toFixed(1).replace(".",",") + " O.S.");
-    el("tv-bar-fat").style.width = Math.min(100, mes.rec/META_FAT*100)+"%";
-    el("tv-bar-os").style.width = Math.min(100, mes.os/META_OS*100)+"%";
-    txt("tv-sc-fat-l", "Faturamento · " + (mes.rec/META_FAT*100).toFixed(1).replace(".",",") + "% da meta de " + brl(META_FAT));
-    txt("tv-sc-fat-r", "faltam " + brl(faltaF));
-    txt("tv-sc-os-l", "O.S. · " + (mes.os/META_OS*100).toFixed(1).replace(".",",") + "% da meta de " + META_OS);
-    txt("tv-sc-os-r", "faltam " + faltaO + " · " + Math.ceil(precO/pessoas) + " por SDR por dia");
-
-    var hv = '<thead><tr><th>SDR</th><th class="r">Ligou<br><span>meta '+META_LIG+'</span></th><th class="r">Falou<br><span>meta '+META_FALOU+'</span></th><th class="r">Agendou<br><span>meta '+META_AGEND+'</span></th><th class="r">Vendeu</th></tr></thead><tbody>';
-    ativos.slice().sort(function(a,b){ return nz(esf[b]&&esf[b].ligacoes_tentadas) - nz(esf[a]&&esf[a].ligacoes_tentadas); }).forEach(function(s){
-      var e=esf[s]||{}, x=fatHoje[s]||{}, t=nz(e.ligacoes_tentadas);
-      var cls = t>=META_LIG ? "top" : (t < META_LIG*0.5 ? "warn" : "");
-      hv += '<tr'+(cls?' class="'+cls+'"':'')+'><td class="k">'+esc(primeiro(s))+'</td><td class="r">'+t+'</td><td class="r">'+nz(e.pessoas_com_quem_falou)+'</td><td class="r'+(nz(x.agendamentos_marcados)?'':' dim')+'">'+nz(x.agendamentos_marcados)+'</td><td class="r'+(nz(x.vendas)?'':' dim')+'">'+nz(x.vendas)+'</td></tr>';
-    });
-    hv += '</tbody>';
-    el("tv-hoje").innerHTML = hv;
-
-    var porSdr = somaPor(fato, "sdr", ["vendas","receita"]);
-    var rank = ativos.map(function(s){ return {sdr:s, rec:Number(nz(porSdr[s]&&porSdr[s].receita)), os:nz(porSdr[s]&&porSdr[s].vendas)}; })
-      .sort(function(a,b){ return b.rec-a.rec; });
-    var maxRec = Math.max(1, rank.length?rank[0].rec:1);
-    el("tv-rank").innerHTML = rank.map(function(r,i){
-      return '<div'+(i===0?' class="lead"':'')+'><div class="r1"><span>'+esc(primeiro(r.sdr))+'</span><b>'+brl(r.rec)+'</b></div><div class="tr"><i style="width:'+(r.rec/maxRec*100)+'%"></i></div></div>';
-    }).join("");
-
-    var totVis = 0; D.visitas.forEach(function(r){ totVis += nz(r.visitas_sem_desfecho); });
-    el("tv-pend").innerHTML =
-       cellP(totVenc, "tarefas vencidas no time")
-     + cellP(totSem, "leads sem nenhuma tarefa")
-     + cellP(semLigar, "leads de hoje sem nenhuma ligação")
-     + cellP(totVis, "visitas de hoje sem desfecho");
-
-    el("tv-ag").innerHTML =
-       '<div class="a"><div class="v">'+hojeTot.leads+'</div><div class="l">Leads hoje</div></div>'
-     + '<div class="a"><div class="v">'+hojeTot.agend+'</div><div class="l">Agendou</div></div>'
-     + '<div class="a"><div class="v">'+hojeTot.comp+'</div><div class="l">Compareceu</div></div>'
-     + '<div class="a"><div class="v">'+hojeTot.os+'</div><div class="l">Vendas</div></div>';
-
-    el("erro").innerHTML = "";
-    el("load-coord").hidden = true;
-    el("coord-body").hidden = false;
+      return alvo;
+    };
   }
 
-  function cellP(v, l){
-    return '<div class="pcell'+(v===0?' ok':'')+'"><div class="v">'+v+'</div><div class="l">'+l+'</div></div>';
+  if (!Array.prototype.find) {
+    Array.prototype.find = function (fn) {
+      for (var i = 0; i < this.length; i++) if (fn(this[i], i, this)) return this[i];
+      return undefined;
+    };
+  }
+})();
+</script>
+
+<script>
+function iniciarPainel() {
+"use strict";
+/* Painel de SDR — The Wonder / Car Service
+   Lê as views do Supabase. Sem lançamento manual: o dado vem do Kommo. */
+var __assign = (this && this.__assign) || function () {
+    __assign = Object.assign || function(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
+                t[p] = s[p];
+        }
+        return t;
+    };
+    return __assign.apply(this, arguments);
+};
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __generator = (this && this.__generator) || function (thisArg, body) {
+    var _ = { label: 0, sent: function() { if (t[0] & 1) throw t[1]; return t[1]; }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
+    return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() { return this; }), g;
+    function verb(n) { return function (v) { return step([n, v]); }; }
+    function step(op) {
+        if (f) throw new TypeError("Generator is already executing.");
+        while (g && (g = 0, op[0] && (_ = 0)), _) try {
+            if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
+            if (y = 0, t) op = [op[0] & 2, t.value];
+            switch (op[0]) {
+                case 0: case 1: t = op; break;
+                case 4: _.label++; return { value: op[1], done: false };
+                case 5: _.label++; y = op[1]; op = [0]; continue;
+                case 7: op = _.ops.pop(); _.trys.pop(); continue;
+                default:
+                    if (!(t = _.trys, t = t.length > 0 && t[t.length - 1]) && (op[0] === 6 || op[0] === 2)) { _ = 0; continue; }
+                    if (op[0] === 3 && (!t || (op[1] > t[0] && op[1] < t[3]))) { _.label = op[1]; break; }
+                    if (op[0] === 6 && _.label < t[1]) { _.label = t[1]; t = op; break; }
+                    if (t && _.label < t[2]) { _.label = t[2]; _.ops.push(op); break; }
+                    if (t[2]) _.ops.pop();
+                    _.trys.pop(); continue;
+            }
+            op = body.call(thisArg, _);
+        } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
+        if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
+    }
+};
+var __read = (this && this.__read) || function (o, n) {
+    var m = typeof Symbol === "function" && o[Symbol.iterator];
+    if (!m) return o;
+    var i = m.call(o), r, ar = [], e;
+    try {
+        while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+    }
+    catch (error) { e = { error: error }; }
+    finally {
+        try {
+            if (r && !r.done && (m = i["return"])) m.call(i);
+        }
+        finally { if (e) throw e.error; }
+    }
+    return ar;
+};
+var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
+    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+        if (ar || !(i in from)) {
+            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+            ar[i] = from[i];
+        }
+    }
+    return to.concat(ar || Array.prototype.slice.call(from));
+};
+var useState = React.useState, useEffect = React.useEffect, useMemo = React.useMemo, useCallback = React.useCallback;
+/* Sem biblioteca de gráficos. Foram três rodadas de problema com CDN —
+   uma fonte que aceitava a conexão e nunca respondia, depois o PropTypes
+   que o React 18 deixou de embutir. Os dois gráficos deste painel são
+   simples o bastante para desenhar em SVG, e assim não dependem de rede
+   nem de versão de terceiro. */
+var db = window.supabase.createClient(CONFIG.url, CONFIG.anonKey, {
+    db: { schema: "comercial" },
+});
+/* ===================== tokens da marca =====================
+   Paleta The Wonder: amarelo #FFBF00, preto e escala de cinza.
+
+   Regra de uso que vem do contraste, não do gosto: o amarelo tem 1,6:1
+   sobre branco — ilegível como texto. Ele entra como preenchimento, ou
+   como fundo atrás de texto preto (12,7:1). Verde e vermelho não são da
+   marca, mas indicam estado; ficam nos tons mais escuros que passam em
+   contraste sobre branco (5,3:1 e 6,2:1) e nunca aparecem sozinhos —
+   sempre com número, seta ou rótulo ao lado. */
+var T = {
+    ink: "#1A1A1A", ink2: "#4D4D4D", muted: "#666666", hair: "#E2E2E2",
+    canvas: "#EEEEEE", surface: "#FFFFFF",
+    marca: "#FFBF00", preto: "#000000",
+    good: "#0B7A5A", bad: "#C1121F", warn: "#8A5A00",
+};
+/* Duas famílias com papéis distintos: a de marca aparece em título,
+   número grande e rótulo; a do sistema carrega tabela e texto corrido,
+   onde legibilidade em corpo pequeno vale mais que personalidade. */
+var F_MARCA = '"PoppinsMarca", ui-sans-serif, system-ui, sans-serif';
+var F_UI = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+var F_NUM = F_MARCA;
+/* O símbolo da marca, vetorizado do manual. Caminho único, sem imagem. */
+var Marca = function (_a) {
+    var _b = _a.tam, tam = _b === void 0 ? 24 : _b, _c = _a.cor, cor = _c === void 0 ? "#000000" : _c;
+    return (React.createElement("svg", { width: tam, height: tam, viewBox: "0 0 360 360", fill: cor, role: "img", "aria-label": "The Wonder", style: { display: "block" } },
+        React.createElement("path", { d: "M360 72L288 0L216 72L288 216L180 108L72 216L144 72L72 0L0 72L72 180L0 288L72 360L180 252L288 360L360 288L288 180Z" })));
+};
+/* O bloco amarelo com o símbolo preto — o uso de app do manual. */
+var Selo = function (_a) {
+    var _b = _a.tam, tam = _b === void 0 ? 34 : _b;
+    return (React.createElement("div", { style: { width: tam, height: tam, background: T.marca, borderRadius: 8,
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } },
+        React.createElement(Marca, { tam: Math.round(tam * 0.6), cor: T.preto })));
+};
+/* ===================== helpers ===================== */
+var iso = function (d) { return "".concat(d.getFullYear(), "-").concat(String(d.getMonth() + 1).padStart(2, "0"), "-").concat(String(d.getDate()).padStart(2, "0")); };
+var hoje = function () { return iso(new Date()); };
+var parseISO = function (s) { var _a = __read(String(s).split("-").map(Number), 3), y = _a[0], m = _a[1], d = _a[2]; return new Date(y, m - 1, d); };
+var addDays = function (s, n) { var d = parseISO(s); d.setDate(d.getDate() + n); return iso(d); };
+var diasEntre = function (a, b) { return Math.round((parseISO(b) - parseISO(a)) / 86400000) + 1; };
+var br = function (s) { var d = parseISO(s); return "".concat(String(d.getDate()).padStart(2, "0"), "/").concat(String(d.getMonth() + 1).padStart(2, "0")); };
+var brFull = function (s) { return parseISO(s).toLocaleDateString("pt-BR"); };
+var div = function (a, b) { return (b ? a / b : 0); };
+var nInt = function (n) { return (Number(n) || 0).toLocaleString("pt-BR"); };
+var nPct = function (n, d) {
+    if (d === void 0) { d = 1; }
+    return "".concat(((Number(n) || 0) * 100).toFixed(d).replace(".", ","), "%");
+};
+var nNum = function (n, d) {
+    if (d === void 0) { d = 1; }
+    return (Number(n) || 0).toFixed(d).replace(".", ",");
+};
+var nReal = function (n) { return (Number(n) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }); };
+var CAMPOS = [
+    "leads_recebidos", "leads_trabalhados", "leads_sem_atendimento",
+    "agendamentos_marcados", "visitas_do_dia", "comparecimentos",
+    "reagendamentos", "vendas", "perdidos", "receita",
+    /* A perda dividida em duas leituras. Um número só juntava
+       "descartamos na triagem o que chegou hoje" com "encerramos carteira
+       velha", que são conversas diferentes com o mesmo nome. */
+    "perdidos_do_dia", "perdidos_antigos", "dias_aberto_soma",
+];
+function somar(linhas) {
+    var o = {};
+    CAMPOS.forEach(function (k) { return (o[k] = 0); });
+    linhas.forEach(function (r) { return CAMPOS.forEach(function (k) { return (o[k] += Number(r[k]) || 0); }); });
+    o.pct_trabalhados = div(o.leads_trabalhados, o.leads_recebidos);
+    o.taxa_agendamento = div(o.agendamentos_marcados, o.leads_recebidos);
+    o.taxa_show = div(o.comparecimentos, o.visitas_do_dia);
+    o.taxa_fechamento = div(o.vendas, o.comparecimentos);
+    o.conversao_final = div(o.vendas, o.leads_recebidos);
+    o.ticket = div(o.receita, o.vendas);
+    return o;
+}
+/* Esforço: o que a pessoa fez, não o que aconteceu com o lead.
+   ligacoes_tentadas conta toda discagem, inclusive caixa postal — é o
+   indicador de atividade. pessoas_com_quem_falou conta lead distinto com
+   ligação acima do limite de conversa — é o indicador de resultado do
+   telefone. whatsapp_bot fica separado de propósito: é cobertura da
+   automação, não trabalho de SDR. */
+var CAMPOS_ESFORCO = [
+    "ligacoes_tentadas", "ligacoes_atendidas", "ligacoes_recebidas",
+    "conversas", "pessoas_com_quem_falou",
+    "whatsapp_enviados", "whatsapp_bot", "whatsapp_recebidos",
+    "tentativas", "leads_tocados", "leads_com_contato", "segundos_ao_telefone",
+    /* Trabalho feito fora do funil do CAR SERVICE — Remarketing, na maior
+       parte. Conta como esforço porque a pessoa fez; fica identificado
+       porque o resultado dele não aparece nas seções de carteira. */
+    "ligacoes_fora", "whatsapp_fora", "segundos_fora",
+];
+function somarEsforco(linhas) {
+    var o = {};
+    CAMPOS_ESFORCO.forEach(function (k) { return (o[k] = 0); });
+    linhas.forEach(function (r) { return CAMPOS_ESFORCO.forEach(function (k) { return (o[k] += Number(r[k]) || 0); }); });
+    o.taxa_atendimento = div(o.ligacoes_atendidas, o.ligacoes_tentadas);
+    o.discagens_por_conversa = div(o.ligacoes_tentadas, o.pessoas_com_quem_falou);
+    o.horas = o.segundos_ao_telefone / 3600;
+    o.zap_por_ligacao = div(o.whatsapp_enviados, o.ligacoes_tentadas);
+    o.horas_fora = o.segundos_fora / 3600;
+    o.pct_fora = div(o.ligacoes_fora, o.ligacoes_tentadas);
+    return o;
+}
+var CAMPOS_TEMPO = [
+    "leads", "com_medida", "nunca_ligaram",
+    "ate_5min", "ate_15min", "ate_60min", "acima_de_1h",
+];
+var PERIODOS = {
+    hoje: "Hoje", ontem: "Ontem", "7d": "Últimos 7 dias", "30d": "Últimos 30 dias",
+    mes: "Mês atual", mesPassado: "Mês passado", custom: "Período personalizado",
+};
+function faixa(f) {
+    var t = hoje();
+    switch (f.periodo) {
+        case "hoje": return [t, t];
+        case "ontem": return [addDays(t, -1), addDays(t, -1)];
+        case "7d": return [addDays(t, -6), t];
+        case "30d": return [addDays(t, -29), t];
+        case "mes": return [t.slice(0, 8) + "01", t];
+        case "mesPassado": {
+            var p = addDays(t.slice(0, 8) + "01", -1);
+            return [p.slice(0, 8) + "01", p];
+        }
+        default: return [f.de, f.ate];
+    }
+}
+/* ===================== UI ===================== */
+var Card = function (_a) {
+    var children = _a.children, _b = _a.className, className = _b === void 0 ? "" : _b, _c = _a.style, style = _c === void 0 ? {} : _c;
+    return (React.createElement("div", { className: "card " + className, style: style }, children));
+};
+var Label = function (_a) {
+    var children = _a.children, _b = _a.style, style = _b === void 0 ? {} : _b;
+    return (React.createElement("div", { style: __assign({ fontFamily: F_MARCA, fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", color: T.muted, fontWeight: 500 }, style) }, children));
+};
+var Metric = function (_a) {
+    var value = _a.value, _b = _a.size, size = _b === void 0 ? 30 : _b, _c = _a.color, color = _c === void 0 ? T.ink : _c;
+    return (React.createElement("div", { style: { fontFamily: F_NUM, fontSize: size, fontWeight: 700, color: color, lineHeight: 1.1,
+            fontVariantNumeric: "tabular-nums", letterSpacing: "-.01em" } }, value));
+};
+function Delta(_a) {
+    var atual = _a.atual, anterior = _a.anterior;
+    if (anterior == null || anterior === 0)
+        return React.createElement("span", { style: { fontSize: 11, color: T.muted } }, "sem base anterior");
+    var v = (atual - anterior) / Math.abs(anterior);
+    var cor = Math.abs(v) < 0.005 ? T.muted : v > 0 ? T.good : T.bad;
+    return (React.createElement("span", { style: { fontSize: 11.5, color: cor, fontWeight: 600, fontVariantNumeric: "tabular-nums" } },
+        v > 0 ? "▲" : v < 0 ? "▼" : "•",
+        " ",
+        nPct(Math.abs(v), 0),
+        React.createElement("span", { style: { color: T.muted, fontWeight: 400 } }, " vs. anterior")));
+}
+function Kpi(_a) {
+    var label = _a.label, value = _a.value, sub = _a.sub, foot = _a.foot, tone = _a.tone;
+    var cor = tone === "bad" ? T.bad : tone === "good" ? T.good : T.ink;
+    return (React.createElement(Card, { className: "p16", style: tone === "bad" ? { borderColor: "#F0C3C6" } : {} },
+        React.createElement(Label, null, label),
+        React.createElement("div", { style: { marginTop: 8 } },
+            React.createElement(Metric, { value: value, color: cor })),
+        sub && React.createElement("div", { style: { fontSize: 12, color: T.ink2, marginTop: 2 } }, sub),
+        foot && React.createElement("div", { style: { marginTop: 4 } }, foot)));
+}
+var Barra = function (_a) {
+    var pct = _a.pct, _b = _a.cor, cor = _b === void 0 ? T.ink : _b, _c = _a.alt, alt = _c === void 0 ? 8 : _c;
+    return (React.createElement("div", { style: { background: T.canvas, borderRadius: 99, height: alt, overflow: "hidden" } },
+        React.createElement("div", { style: { width: "".concat(Math.max(0, Math.min(1, pct || 0)) * 100, "%"), height: "100%",
+                background: cor, borderRadius: 99, transition: "width .4s ease" } })));
+};
+var Th = function (_a) {
+    var children = _a.children, right = _a.right, w = _a.w;
+    return (React.createElement("th", { style: { textAlign: right ? "right" : "left", padding: "9px 10px", fontSize: 10.5,
+            letterSpacing: ".06em", textTransform: "uppercase", color: T.muted, fontWeight: 600,
+            borderBottom: "1px solid ".concat(T.hair), whiteSpace: "nowrap", width: w,
+            background: T.surface, position: "sticky", top: 0 } }, children));
+};
+var Td = function (_a) {
+    var children = _a.children, right = _a.right, bold = _a.bold, color = _a.color, _b = _a.style, style = _b === void 0 ? {} : _b;
+    return (React.createElement("td", { style: __assign({ textAlign: right ? "right" : "left", padding: "9px 10px", fontSize: 13, color: color || T.ink, fontWeight: bold ? 700 : 400, fontVariantNumeric: "tabular-nums", borderBottom: "1px solid ".concat(T.hair), whiteSpace: "nowrap" }, style) }, children));
+};
+var Select = function (_a) {
+    var value = _a.value, onChange = _a.onChange, options = _a.options, _b = _a.style, style = _b === void 0 ? {} : _b;
+    return (React.createElement("select", { value: value, onChange: function (e) { return onChange(e.target.value); }, style: __assign({ fontFamily: F_UI, fontSize: 13, color: T.ink, background: T.surface, border: "1px solid ".concat(T.hair), borderRadius: 6, padding: "7px 9px", outline: "none" }, style) }, options.map(function (o) { return React.createElement("option", { key: o.v, value: o.v }, o.l); })));
+};
+function Btn(_a) {
+    var children = _a.children, onClick = _a.onClick, _b = _a.kind, kind = _b === void 0 ? "ghost" : _b, _c = _a.style, style = _c === void 0 ? {} : _c, type = _a.type;
+    var kinds = {
+        solid: { background: T.ink, color: "#fff", borderColor: T.ink },
+        accent: { background: T.marca, color: T.preto, borderColor: T.marca },
+        ghost: {},
+    };
+    return (React.createElement("button", { type: type, onClick: onClick, style: __assign(__assign({ fontFamily: F_UI, fontSize: 13, fontWeight: 600, borderRadius: 6, padding: "8px 14px", cursor: "pointer", border: "1px solid ".concat(T.hair), background: T.surface, color: T.ink }, kinds[kind]), style) }, children));
+}
+var Pill = function (_a) {
+    var children = _a.children, cor = _a.cor;
+    return (React.createElement("span", { style: { fontSize: 11, fontWeight: 600, color: cor, background: cor + "14",
+            border: "1px solid ".concat(cor, "33"), borderRadius: 99, padding: "2px 8px", whiteSpace: "nowrap" } }, children));
+};
+function Dica(_a) {
+    var active = _a.active, payload = _a.payload, label = _a.label, pct = _a.pct;
+    if (!active || !payload || !payload.length)
+        return null;
+    return (React.createElement("div", { style: { background: T.ink, color: "#fff", borderRadius: 6, padding: "8px 10px",
+            fontSize: 12, fontFamily: F_UI } },
+        React.createElement("div", { style: { opacity: .7, marginBottom: 4 } }, label),
+        payload.map(function (p, i) { return (React.createElement("div", { key: i, style: { fontVariantNumeric: "tabular-nums" } },
+            React.createElement("span", { style: { color: p.color } }, "\u25A0"),
+            " ",
+            p.name,
+            ": ",
+            React.createElement("b", null, pct ? nPct(p.value / 100) : nInt(p.value)))); })));
+}
+var Secao = function (_a) {
+    var n = _a.n, titulo = _a.titulo, children = _a.children, nota = _a.nota;
+    return (React.createElement("section", { style: { marginTop: 40 } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 11, marginBottom: 5 } },
+            React.createElement("span", { style: { fontFamily: F_MARCA, background: T.marca, color: T.preto, fontSize: 11.5,
+                    fontWeight: 700, borderRadius: 6, padding: "3px 7px", lineHeight: 1.2 } }, String(n).padStart(2, "0")),
+            React.createElement("h2", { style: { fontFamily: F_MARCA, color: T.ink, fontSize: 18.5, fontWeight: 700,
+                    margin: 0, letterSpacing: "-.005em" } }, titulo)),
+        nota && React.createElement("p", { style: { fontSize: 12.5, color: T.muted, margin: "0 0 14px", maxWidth: "72ch" } }, nota),
+        !nota && React.createElement("div", { style: { height: 14 } }),
+        children));
+};
+/* ===================== login ===================== */
+var ERROS = {
+    "Invalid login credentials": "E-mail ou senha incorretos.",
+    "Email not confirmed": "Este usuário ainda não foi confirmado. Peça para quem administra o painel marcar a confirmação.",
+    "email rate limit exceeded": "Limite de e-mails do Supabase atingido. Isso não afeta o login por senha.",
+};
+function Login() {
+    var _this = this;
+    var _a = __read(useState(""), 2), email = _a[0], setEmail = _a[1];
+    var _b = __read(useState(""), 2), senha = _b[0], setSenha = _b[1];
+    var _c = __read(useState(null), 2), estado = _c[0], setEstado = _c[1];
+    var entrar = function (e) { return __awaiter(_this, void 0, void 0, function () {
+        var error;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    e.preventDefault();
+                    if (!email.trim() || !senha)
+                        return [2 /*return*/];
+                    setEstado({ tipo: "carregando", txt: "Entrando…" });
+                    return [4 /*yield*/, db.auth.signInWithPassword({
+                            email: email.trim(), password: senha,
+                        })];
+                case 1:
+                    error = (_a.sent()).error;
+                    if (error)
+                        setEstado({ tipo: "erro", txt: ERROS[error.message] || error.message });
+                    return [2 /*return*/];
+            }
+        });
+    }); };
+    var campo = {
+        width: "100%", fontFamily: F_UI, fontSize: 14.5, padding: "12px 14px",
+        border: "1px solid ".concat(T.hair), borderRadius: 8, outline: "none",
+        background: T.surface, color: T.ink,
+    };
+    /* Amarelo cobrindo a tela, o símbolo em preto e um cartão branco por
+       cima — é o padrão do manual da marca para aplicação em tela. O texto
+       do cartão fica preto sobre branco; nada de texto sobre o amarelo,
+       que tem contraste de 1,6:1 e seria ilegível. */
+    return (React.createElement("div", { style: { minHeight: "100vh", background: T.marca, display: "grid",
+            placeItems: "center", padding: 24 } },
+        React.createElement("div", { style: { width: "100%", maxWidth: 400 } },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14, marginBottom: 22 } },
+                React.createElement(Marca, { tam: 44, cor: T.preto }),
+                React.createElement("div", { style: { lineHeight: 1.15 } },
+                    React.createElement("div", { style: { fontSize: 20, fontWeight: 700, color: T.preto,
+                            fontFamily: F_MARCA } }, "Car Service"),
+                    React.createElement("div", { style: { fontSize: 13, color: "rgba(0,0,0,.72)" } }, "Painel de SDR"))),
+            React.createElement(Card, { className: "p28", style: { border: "none", borderRadius: 12 } },
+                React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 17, fontWeight: 700 } }, "Entrar"),
+                React.createElement("p", { style: { fontSize: 13.5, color: T.ink2, lineHeight: 1.6, marginTop: 8 } }, "Use seu e-mail da empresa e a senha cadastrada pelo administrador."),
+                React.createElement("form", { onSubmit: entrar, style: { marginTop: 20, display: "grid", gap: 10 } },
+                    React.createElement("input", { type: "email", value: email, onChange: function (e) { return setEmail(e.target.value); }, placeholder: "voce@thew.com.br", required: true, autoComplete: "username", style: campo }),
+                    React.createElement("input", { type: "password", value: senha, onChange: function (e) { return setSenha(e.target.value); }, placeholder: "senha", required: true, autoComplete: "current-password", style: campo }),
+                    React.createElement("button", { type: "submit", disabled: estado && estado.tipo === "carregando", style: { width: "100%", marginTop: 4, padding: "13px 16px", border: "none",
+                            borderRadius: 8, background: T.preto, color: "#fff", fontSize: 14.5,
+                            fontWeight: 700, cursor: "pointer", fontFamily: F_UI } }, estado && estado.tipo === "carregando" ? "Entrando…" : "Entrar")),
+                estado && estado.tipo !== "carregando" && (React.createElement("div", { style: { marginTop: 14, fontSize: 13, lineHeight: 1.5,
+                        color: estado.tipo === "erro" ? T.bad : T.ink2 } },
+                    estado.tipo === "erro" ? "\u26A0 " : "",
+                    estado.txt))),
+            React.createElement("div", { style: { marginTop: 16, fontSize: 12, color: "rgba(0,0,0,.75)", lineHeight: 1.6 } }, "Os n\u00FAmeros v\u00EAm direto do Kommo e do discador. Nada aqui \u00E9 lan\u00E7ado \u00E0 m\u00E3o."))));
+}
+/* ===================== gráficos ===================== */
+/* Evolução no período: barras de leads e agendamentos, linhas de visitas
+   e vendas. SVG puro, sem dependência externa. O viewBox faz a escala;
+   a altura é fixa para o texto não deformar. */
+/* Evolução: quatro mini-gráficos em vez de um só com quatro séries.
+
+   Duas razões. A primeira é de escala — leads vêm em dezenas por dia e
+   vendas em unidades; no mesmo eixo a linha de vendas fica colada no
+   zero e não diz nada. A segunda é de cor: a marca é amarelo mais cinza,
+   e quatro séries pedem quatro matizes que não existem aqui. Separando
+   os painéis, cada métrica tem sua escala, uma cor só, e o título
+   identifica a série sem precisar de legenda. */
+function MiniGrafico(_a) {
+    var titulo = _a.titulo, chave = _a.chave, dados = _a.dados, sufixo = _a.sufixo;
+    var valores = dados.map(function (d) { return Number(d[chave]) || 0; });
+    var total = valores.reduce(function (a, b) { return a + b; }, 0);
+    var teto = Math.max.apply(Math, __spreadArray([1], __read(valores), false));
+    var H = 54, W = 300;
+    var faixa = W / Math.max(1, dados.length);
+    var larg = Math.max(1.5, Math.min(14, faixa - 2));
+    return (React.createElement(Card, { className: "p16" },
+        React.createElement(Label, null, titulo),
+        React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 8, margin: "8px 0 10px" } },
+            React.createElement(Metric, { value: nInt(total), size: 26 }),
+            sufixo && React.createElement("span", { style: { fontSize: 12, color: T.muted } }, sufixo)),
+        React.createElement("svg", { viewBox: "0 0 ".concat(W, " ").concat(H), width: "100%", height: H, style: { display: "block", overflow: "visible" }, "aria-hidden": "true" },
+            React.createElement("line", { x1: "0", x2: W, y1: H, y2: H, stroke: T.hair, strokeWidth: "1" }),
+            dados.map(function (d, i) {
+                var v = Number(d[chave]) || 0;
+                var alt = (v / teto) * (H - 4);
+                var ultimo = i === dados.length - 1;
+                return (React.createElement("rect", { key: i, x: i * faixa + (faixa - larg) / 2, y: H - alt, width: larg, height: Math.max(v > 0 ? 1.5 : 0, alt), rx: "2", fill: ultimo ? T.marca : T.ink },
+                    React.createElement("title", null, "".concat(d.dia, " \u00B7 ").concat(nInt(v)))));
+            })),
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginTop: 6,
+                fontSize: 10.5, color: T.muted } },
+            React.createElement("span", null, dados[0] ? dados[0].dia : ""),
+            React.createElement("span", null, dados.length > 1 ? dados[dados.length - 1].dia : ""))));
+}
+function GraficoEvolucao(_a) {
+    var dados = _a.dados;
+    if (!dados.length) {
+        return React.createElement(Card, { className: "p20", style: { fontSize: 13, color: T.muted } }, "Sem movimento no per\u00EDodo.");
+    }
+    var painel = [
+        { titulo: "Leads recebidos", chave: "Leads" },
+        { titulo: "Agendamentos marcados", chave: "Agend. marcados" },
+        { titulo: "Visitas do dia", chave: "Visitas do dia" },
+        { titulo: "Vendas", chave: "Vendas" },
+    ];
+    return (React.createElement("div", null,
+        React.createElement("div", { className: "mini4" }, painel.map(function (p) { return (React.createElement(MiniGrafico, { key: p.chave, titulo: p.titulo, chave: p.chave, dados: dados, sufixo: "no per\u00EDodo" })); })),
+        React.createElement("div", { style: { marginTop: 10, fontSize: 11.5, color: T.muted } }, "Cada painel tem a pr\u00F3pria escala \u2014 servem para ver o ritmo de cada m\u00E9trica, n\u00E3o para comparar tamanhos entre eles. A \u00FAltima barra \u00E9 o dia mais recente.")));
+}
+/* Barras horizontais. Divs em vez de SVG: o texto quebra sozinho e a
+   largura acompanha a tela sem cálculo. */
+function BarrasHorizontais(_a) {
+    var dados = _a.dados;
+    var teto = Math.max.apply(Math, __spreadArray([1], __read(dados.map(function (d) { return d.qtd; })), false));
+    var total = dados.reduce(function (s, d) { return s + d.qtd; }, 0);
+    return (React.createElement("div", { style: { display: "grid", gap: 10 } }, dados.map(function (d, i) { return (React.createElement("div", { key: d.nome, style: { display: "flex", alignItems: "center", gap: 12 } },
+        React.createElement("div", { style: { width: 210, fontSize: 12.5, color: T.ink2, textAlign: "right",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, title: d.nome }, d.nome),
+        React.createElement("div", { style: { flex: 1, background: T.canvas, borderRadius: 4, height: 22 } },
+            React.createElement("div", { style: { width: "".concat(Math.max(1.5, (d.qtd / teto) * 100), "%"), height: "100%",
+                    background: T.ink, borderRadius: 4,
+                    transition: "width .4s ease" } })),
+        React.createElement("div", { style: { width: 96, fontSize: 12.5, textAlign: "right", color: T.ink,
+                fontVariantNumeric: "tabular-nums" } },
+            React.createElement("b", null, nInt(d.qtd)),
+            React.createElement("span", { style: { color: T.muted } },
+                " \u00B7 ",
+                nPct(div(d.qtd, total), 0))))); })));
+}
+/* ===================== dados ===================== */
+function usarDados(de, ate, prevDe) {
+    var _this = this;
+    var _a = __read(useState({ carregando: true, erro: null }), 2), estado = _a[0], setEstado = _a[1];
+    var _b = __read(useState([]), 2), fato = _b[0], setFato = _b[1];
+    var _c = __read(useState([]), 2), motivos = _c[0], setMotivos = _c[1];
+    var _d = __read(useState([]), 2), sla = _d[0], setSla = _d[1];
+    var _f = __read(useState([]), 2), esforco = _f[0], setEsforco = _f[1];
+    var _g = __read(useState(false), 2), tempoAntigo = _g[0], setTempoAntigo = _g[1];
+    var _h = __read(useState([]), 2), pendentes = _h[0], setPendentes = _h[1];
+    var _j = __read(useState([]), 2), carteiraEsf = _j[0], setCarteiraEsf = _j[1];
+    var _k = __read(useState([]), 2), robo = _k[0], setRobo = _k[1];
+    var _l = __read(useState([]), 2), preench = _l[0], setPreench = _l[1];
+    var _m = __read(useState(null), 2), qualidade = _m[0], setQualidade = _m[1];
+    var _o = __read(useState([]), 2), funilAgora = _o[0], setFunilAgora = _o[1];
+    var _p = __read(useState({ sdr: [], taxa: null }), 2), metas = _p[0], setMetas = _p[1];
+    /* Duas listas novas, as duas nascidas do dia 08/09, quando o painel
+       mostrou zero ligações com cara de "hoje ninguém trabalhou" enquanto
+       a verdade era que a carga automática estava tomando 401 havia dias.
+         falhas -> consulta que quebrou de verdade (antes virava zero mudo)
+         saude  -> há quanto tempo cada FONTE não recebe dado novo */
+    var _q = __read(useState([]), 2), falhas = _q[0], setFalhas = _q[1];
+    var _r = __read(useState([]), 2), saude = _r[0], setSaude = _r[1];
+    /* Tarefas: o único dado do painel que fala do FUTURO. Tudo o mais aqui
+       mede o que já aconteceu. */
+    var _s = __read(useState([]), 2), tarefas = _s[0], setTarefas = _s[1];
+    var _t = __read(useState([]), 2), semTarefa = _t[0], setSemTarefa = _t[1];
+    /* O Supabase corta em 1.000 linhas por consulta. A fato_dia tem uma linha
+       por dia × SDR × unidade × serviço, então um mês passa desse teto e os
+       totais sairiam menores sem ninguém perceber. Buscamos em páginas até
+       acabar. */
+    var PAGINA = 1000;
+    var buscarTudo = function (montar) { return __awaiter(_this, void 0, void 0, function () {
+        var todas, i, _a, data, error, lote;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
+                case 0:
+                    todas = [];
+                    i = 0;
+                    _b.label = 1;
+                case 1:
+                    if (!(i < 40)) return [3 /*break*/, 4];
+                    return [4 /*yield*/, montar().range(i * PAGINA, (i + 1) * PAGINA - 1)];
+                case 2:
+                    _a = _b.sent(), data = _a.data, error = _a.error;
+                    if (error)
+                        throw new Error(error.message);
+                    lote = data || [];
+                    todas.push.apply(todas, __spreadArray([], __read(lote), false));
+                    if (lote.length < PAGINA)
+                        return [3 /*break*/, 4];
+                    _b.label = 3;
+                case 3:
+                    i++;
+                    return [3 /*break*/, 1];
+                case 4: return [2 /*return*/, todas];
+            }
+        });
+    }); };
+    var buscar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
+        var _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, es, vp, ce, rb, pr, opcional, _b, q, fa, ms, mt, sd, tf, lst, e_1;
+        var _this = this;
+        return __generator(this, function (_c) {
+            switch (_c.label) {
+                case 0:
+                    setEstado({ carregando: true, erro: null });
+                    _c.label = 1;
+                case 1:
+                    _c.trys.push([1, 12, , 13]);
+                    return [4 /*yield*/, Promise.all([
+                            buscarTudo(function () { return db.from("fato_dia").select("*").gte("data", prevDe).lte("data", ate).order("data"); }),
+                            buscarTudo(function () { return db.from("motivos_dia").select("*").gte("data", de).lte("data", ate).order("data"); }),
+                        ])];
+                case 2:
+                    _a = __read.apply(void 0, [_c.sent(), 2]), f = _a[0], m = _a[1];
+                    setFato(f);
+                    setMotivos(m);
+                    falhou_1 = [];
+                    viewAusente_1 = function (m) {
+                        return /does not exist|could not find the table|schema cache|não existe/i.test(String(m || ""));
+                    };
+                    buscarSePuder = function (nome, montar) { return __awaiter(_this, void 0, void 0, function () {
+                        var e_2, m_1;
+                        return __generator(this, function (_a) {
+                            switch (_a.label) {
+                                case 0:
+                                    _a.trys.push([0, 2, , 3]);
+                                    return [4 /*yield*/, buscarTudo(montar)];
+                                case 1: return [2 /*return*/, _a.sent()];
+                                case 2:
+                                    e_2 = _a.sent();
+                                    m_1 = e_2 && e_2.message ? e_2.message : String(e_2);
+                                    if (!viewAusente_1(m_1))
+                                        falhou_1.push({ nome: nome, m: m_1 });
+                                    return [2 /*return*/, null];
+                                case 3: return [2 /*return*/];
+                            }
+                        });
+                    }); };
+                    return [4 /*yield*/, buscarSePuder("Tempo de resposta", function () { return db.from("tempo_resposta_dia")
+                            .select("*").gte("data", de).lte("data", ate).order("data"); })];
+                case 3:
+                    s = _c.sent();
+                    antiga = false;
+                    if (!(s === null)) return [3 /*break*/, 5];
+                    antiga = true;
+                    return [4 /*yield*/, buscarSePuder("Tempo de resposta (medida antiga)", function () { return db.from("sla_dia")
+                            .select("*").gte("data", de).lte("data", ate).order("data"); })];
+                case 4:
+                    v = (_c.sent()) || [];
+                    s = v.map(function (r) { return (__assign(__assign({}, r), { ate_5min: r.sla_5, ate_15min: r.sla_15, ate_60min: r.sla_60, acima_de_1h: r.sla_acima, nunca_ligaram: 0 })); });
+                    _c.label = 5;
+                case 5:
+                    setSla(s);
+                    setTempoAntigo(antiga);
+                    return [4 /*yield*/, buscarSePuder("Esforço", function () { return db.from("esforco_dia")
+                            .select("*").gte("data", de).lte("data", ate).order("data"); })];
+                case 6:
+                    es = _c.sent();
+                    setEsforco(es || []);
+                    return [4 /*yield*/, buscarSePuder("Visitas sem desfecho", function () { return db.from("visitas_pendentes_dia")
+                            .select("*").gte("data", de).lte("data", ate).order("data"); })];
+                case 7:
+                    vp = _c.sent();
+                    setPendentes(vp || []);
+                    return [4 /*yield*/, buscarSePuder("Esforço na carteira", function () { return db.from("carteira_esforco_dia")
+                            .select("*").gte("data", de).lte("data", ate).order("data"); })];
+                case 8:
+                    ce = _c.sent();
+                    setCarteiraEsf(ce || []);
+                    return [4 /*yield*/, buscarSePuder("Robô de triagem", function () { return db.from("robo_dia")
+                            .select("*").gte("data", de).lte("data", ate).order("data"); })];
+                case 9:
+                    rb = _c.sent();
+                    setRobo(rb || []);
+                    return [4 /*yield*/, buscarSePuder("Nota de preenchimento", function () { return db.from("preenchimento_sdr")
+                            .select("*").gte("data", de).lte("data", ate).order("data"); })];
+                case 10:
+                    pr = _c.sent();
+                    setPreench(pr || []);
+                    opcional = function (fn, padrao) { return __awaiter(_this, void 0, void 0, function () {
+                        var _a, data, error, e_3;
+                        return __generator(this, function (_b) {
+                            switch (_b.label) {
+                                case 0:
+                                    _b.trys.push([0, 2, , 3]);
+                                    return [4 /*yield*/, fn()];
+                                case 1:
+                                    _a = _b.sent(), data = _a.data, error = _a.error;
+                                    return [2 /*return*/, error ? padrao : (data !== null && data !== void 0 ? data : padrao)];
+                                case 2:
+                                    e_3 = _b.sent();
+                                    return [2 /*return*/, padrao];
+                                case 3: return [2 /*return*/];
+                            }
+                        });
+                    }); };
+                    return [4 /*yield*/, Promise.all([
+                            opcional(function () { return db.from("qualidade").select("*").limit(1); }, []),
+                            opcional(function () { return db.from("funil_agora").select("*"); }, []),
+                            opcional(function () { return db.from("metas_sdr").select("*"); }, []),
+                            opcional(function () { return db.from("metas_taxa").select("*").limit(1); }, []),
+                            opcional(function () { return db.from("saude_das_cargas").select("*"); }, []),
+                            opcional(function () { return db.from("tarefas_sdr").select("*"); }, []),
+                            opcional(function () { return db.from("leads_sem_tarefa").select("*"); }, []),
+                        ])];
+                case 11:
+                    _b = __read.apply(void 0, [_c.sent(), 7]), q = _b[0], fa = _b[1], ms = _b[2], mt = _b[3], sd = _b[4], tf = _b[5], lst = _b[6];
+                    setQualidade(q[0] || null);
+                    setFunilAgora(fa);
+                    setMetas({ sdr: ms, taxa: mt[0] || null });
+                    setSaude(sd);
+                    setTarefas(tf);
+                    setSemTarefa(lst);
+                    setFalhas(falhou_1);
+                    setEstado({ carregando: false, erro: null, em: new Date() });
+                    return [3 /*break*/, 13];
+                case 12:
+                    e_1 = _c.sent();
+                    setEstado({ carregando: false, erro: e_1.message || String(e_1) });
+                    return [3 /*break*/, 13];
+                case 13: return [2 /*return*/];
+            }
+        });
+    }); }, [de, ate, prevDe]);
+    useEffect(function () { buscar(); }, [buscar]);
+    /* O painel fica ligado numa TV: ninguém vai apertar "Atualizar". A cada
+       5 minutos ele busca sozinho. Como o filtro "Hoje" recalcula a data a
+       cada render, a virada da meia-noite se resolve na atualização
+       seguinte — não é preciso recarregar a página. */
+    useEffect(function () {
+        var t = setInterval(function () { buscar(); }, 5 * 60 * 1000);
+        return function () { return clearInterval(t); };
+    }, [buscar]);
+    return { estado: estado, fato: fato, motivos: motivos, sla: sla, esforco: esforco, tempoAntigo: tempoAntigo, pendentes: pendentes, carteiraEsf: carteiraEsf, robo: robo, preench: preench, qualidade: qualidade, funilAgora: funilAgora, metas: metas, falhas: falhas, saude: saude, tarefas: tarefas, semTarefa: semTarefa, recarregar: buscar };
+}
+/* ===================== app ===================== */
+function Painel(_a) {
+    var sessao = _a.sessao;
+    /* Abre em "Hoje": o painel vive numa TV na sala dos SDRs, e o que
+       interessa lá é o dia corrente. Quem quiser o mês troca no filtro. */
+    var _b = __read(useState({
+        periodo: "hoje", de: addDays(hoje(), -29), ate: hoje(),
+        unidade: "__all", servico: "__all", sdr: "__all",
+    }), 2), f = _b[0], setF = _b[1];
+    var _c = __read(faixa(f), 2), de = _c[0], ate = _c[1];
+    var dias = Math.max(1, diasEntre(de, ate));
+    var prevAte = addDays(de, -1), prevDe = addDays(prevAte, -(dias - 1));
+    var d = usarDados(de, ate, prevDe);
+    var aplicar = function (linhas) { return linhas.filter(function (r) {
+        return (f.unidade === "__all" || r.unidade === f.unidade) &&
+            (f.servico === "__all" || r.servico === f.servico) &&
+            (f.sdr === "__all" || r.sdr === f.sdr);
+    }); };
+    var noPeriodo = useMemo(function () { return aplicar(d.fato.filter(function (r) { return r.data >= de && r.data <= ate; })); }, [d.fato, f, de, ate]);
+    var noAnterior = useMemo(function () { return aplicar(d.fato.filter(function (r) { return r.data >= prevDe && r.data <= prevAte; })); }, [d.fato, f, prevDe, prevAte]);
+    var a = useMemo(function () { return somar(noPeriodo); }, [noPeriodo]);
+    var aPrev = useMemo(function () { return somar(noAnterior); }, [noAnterior]);
+    var listas = useMemo(function () {
+        var u = new Set(), s = new Set(), r = new Set();
+        d.fato.forEach(function (x) { if (x.unidade)
+            u.add(x.unidade); if (x.servico)
+            s.add(x.servico); if (x.sdr)
+            r.add(x.sdr); });
+        return { unidades: __spreadArray([], __read(u), false).sort(), servicos: __spreadArray([], __read(s), false).sort(), sdrs: __spreadArray([], __read(r), false).sort() };
+    }, [d.fato]);
+    var porChave = function (chave) {
+        var m = new Map();
+        noPeriodo.forEach(function (r) {
+            var k = r[chave] || "—";
+            if (!m.has(k))
+                m.set(k, []);
+            m.get(k).push(r);
+        });
+        return __spreadArray([], __read(m.entries()), false).map(function (_a) {
+            var _b = __read(_a, 2), nome = _b[0], linhas = _b[1];
+            return (__assign({ nome: nome }, somar(linhas)));
+        });
+    };
+    /* "Sem SDR" não é uma pessoa: é lead que nunca foi distribuído. Ele fica
+       fora do placar e aparece embaixo, como pendência. Misturado na tabela,
+       ele entrava no ranking como se fosse alguém com desempenho ruim. */
+    var porSdrTudo = useMemo(function () { return porChave("sdr"); }, [noPeriodo]);
+    var porSdr = useMemo(function () { return porSdrTudo.filter(function (x) { return x.nome !== "Sem SDR"; }); }, [porSdrTudo]);
+    var semSdr = useMemo(function () { return porSdrTudo.find(function (x) { return x.nome === "Sem SDR"; }) || null; }, [porSdrTudo]);
+    var porUnidade = useMemo(function () { return porChave("unidade"); }, [noPeriodo]);
+    var porServico = useMemo(function () { return porChave("servico"); }, [noPeriodo]);
+    var serie = useMemo(function () {
+        var m = new Map();
+        noPeriodo.forEach(function (r) {
+            if (!m.has(r.data))
+                m.set(r.data, []);
+            m.get(r.data).push(r);
+        });
+        return __spreadArray([], __read(m.entries()), false).sort(function (x, y) { return x[0].localeCompare(y[0]); })
+            .map(function (_a) {
+            var _b = __read(_a, 2), data = _b[0], linhas = _b[1];
+            var t = somar(linhas);
+            return { dia: br(data), Leads: t.leads_recebidos, "Agend. marcados": t.agendamentos_marcados,
+                "Visitas do dia": t.visitas_do_dia, Vendas: t.vendas };
+        });
+    }, [noPeriodo]);
+    /* Tempo de resposta. NÃO chamar de SLA: aqui "SLA" quer dizer que o lead
+       atende aos padrões mínimos para ser atendido, que é outra coisa. */
+    var tempoTot = useMemo(function () {
+        var o = { soma: 0, n: 0, somaFalar: 0, nFalar: 0 };
+        CAMPOS_TEMPO.forEach(function (k) { return (o[k] = 0); });
+        aplicar(d.sla).forEach(function (r) {
+            CAMPOS_TEMPO.forEach(function (k) { return (o[k] += Number(r[k]) || 0); });
+            var base = Number(r.com_medida) || 0;
+            /* A base do "até falar" é MENOR: nem toda ligação vira conversa.
+               Ponderar as duas médias pelo mesmo número inclinava o resultado
+               para os dias em que se ligou muito e se falou pouco. A coluna
+               com_medida_falar veio na correção de 08/09; sem ela, cai no
+               com_medida como antes para o painel não quebrar. */
+            var baseFalar = r.com_medida_falar != null ? Number(r.com_medida_falar) || 0 : base;
+            if (r.minutos_medio != null) {
+                o.soma += Number(r.minutos_medio) * base;
+                o.n += base;
+            }
+            if (r.minutos_ate_falar != null) {
+                o.somaFalar += Number(r.minutos_ate_falar) * baseFalar;
+                o.nFalar += baseFalar;
+            }
+        });
+        o.medio = o.n ? o.soma / o.n : null;
+        o.medioAteFalar = o.nFalar ? o.somaFalar / o.nFalar : null;
+        return o;
+    }, [d.sla, f]);
+    /* Esforço: agregado e por pessoa. Vem da esforco_dia, que só existe
+       depois da carga de atividades — por isso o bloco some sozinho quando
+       não há dado, em vez de mostrar uma tabela de zeros. */
+    var esforcoNoPeriodo = useMemo(function () { return aplicar(d.esforco); }, [d.esforco, f]);
+    var esf = useMemo(function () { return somarEsforco(esforcoNoPeriodo); }, [esforcoNoPeriodo]);
+    var esforcoPorSdr = useMemo(function () {
+        var m = new Map();
+        esforcoNoPeriodo.forEach(function (r) {
+            var k = r.sdr || "—";
+            if (!m.has(k))
+                m.set(k, []);
+            m.get(k).push(r);
+        });
+        /* Junta com o resultado do mesmo SDR: é o cruzamento que responde
+           "quem liga muito converte muito?". */
+        var res = new Map(porSdr.map(function (x) { return [x.nome, x]; }));
+        return __spreadArray([], __read(m.entries()), false).map(function (_a) {
+            var _b = __read(_a, 2), nome = _b[0], linhas = _b[1];
+            var e = somarEsforco(linhas);
+            var r = res.get(nome);
+            return __assign(__assign({ nome: nome }, e), { vendas: r ? r.vendas : 0, receita: r ? r.receita : 0, marcou: r ? r.agendamentos_marcados : 0, 
+                /* Estas duas cruzam esforço com RESULTADO, e o resultado só existe
+                   no CAR SERVICE. Por isso dividem pelas ligações de dentro do
+                   funil, não pelo total — senão comparariam bases diferentes. */
+                por_agendamento: div(e.ligacoes_tentadas - e.ligacoes_fora, r ? r.agendamentos_marcados : 0), reais_por_ligacao: div(r ? r.receita : 0, e.ligacoes_tentadas - e.ligacoes_fora) });
+        }).filter(function (x) { return x.ligacoes_tentadas > 0 || x.whatsapp_enviados > 0; });
+    }, [esforcoNoPeriodo, porSdr]);
+    /* O vocabulário antigo sai do gráfico e vira nota de rodapé. Misturar
+       "Descartado" (708, que significava qualquer coisa) com a lista nova
+       tornava o gráfico ilegível e sugeria uma análise que não existe. */
+    var motivos = useMemo(function () {
+        var antes = new Map();
+        var naLoja = new Map();
+        var historico = 0;
+        aplicar(d.motivos).forEach(function (r) {
+            var n = Number(r.leads) || 0;
+            // A coluna "atual" só existe depois do motivos_limpos.sql; sem ela
+            // o painel se comporta como antes.
+            if (r.atual === false) {
+                historico += n;
+                return;
+            }
+            /* A coluna "grupo" só existe depois do perda_do_sdr_x_perda_do_closer.
+               Sem ela tudo cai em "antes da loja", que é como o painel sempre se
+               comportou — nenhuma versão antiga quebra. */
+            var alvo = r.grupo === "na_loja" ? naLoja : antes;
+            alvo.set(r.motivo, (alvo.get(r.motivo) || 0) + n);
+        });
+        var ordenar = function (m) { return __spreadArray([], __read(m.entries()), false).map(function (_a) {
+            var _b = __read(_a, 2), nome = _b[0], qtd = _b[1];
+            return ({ nome: nome, qtd: qtd });
+        })
+            .sort(function (x, y) { return y.qtd - x.qtd; }); };
+        var somar = function (m) { return __spreadArray([], __read(m.values()), false).reduce(function (a, b) { return a + b; }, 0); };
+        return {
+            // "lista" continua existindo com o mesmo significado de antes.
+            lista: ordenar(antes),
+            naLoja: ordenar(naLoja),
+            totalAntes: somar(antes),
+            totalNaLoja: somar(naLoja),
+            historico: historico,
+        };
+    }, [d.motivos, f]);
+    /* Tarefas: junta as duas fontes numa linha por pessoa.
+  
+       Não leva "aplicar" nem o filtro de período de propósito — as duas
+       views são foto do agora. E o lado "sem tarefa" é somado aqui, e não
+       no banco, porque a view leads_sem_tarefa quebra por etapa e unidade
+       para poder ser investigada; o painel só quer o total por pessoa.
+  
+       A união é pelo nome do SDR: alguém pode ter leads parados sem ter
+       nenhuma tarefa aberta, e vice-versa. Quem aparecer só de um lado
+       entra com zero do outro em vez de sumir. */
+    var tarefasLista = useMemo(function () {
+        var linhas = new Map();
+        (d.tarefas || []).forEach(function (r) {
+            linhas.set(r.sdr, {
+                sdr: r.sdr,
+                abertas: Number(r.abertas) || 0,
+                vencidas: Number(r.vencidas) || 0,
+                vence_hoje: Number(r.vence_hoje) || 0,
+                vence_7_dias: Number(r.vence_7_dias) || 0,
+                atraso_maximo_dias: Number(r.atraso_maximo_dias) || 0,
+                fora_do_escopo: Number(r.fora_do_escopo) || 0,
+                sem_tarefa: 0,
+            });
+        });
+        (d.semTarefa || []).forEach(function (r) {
+            if (!r.sdr)
+                return;
+            var at = linhas.get(r.sdr) || {
+                sdr: r.sdr, abertas: 0, vencidas: 0, vence_hoje: 0, vence_7_dias: 0,
+                atraso_maximo_dias: 0, fora_do_escopo: 0, sem_tarefa: 0,
+            };
+            at.sem_tarefa += Number(r.leads) || 0;
+            linhas.set(r.sdr, at);
+        });
+        return __spreadArray([], __read(linhas.values()), false).sort(function (x, y) { return y.vencidas - x.vencidas; });
+    }, [d.tarefas, d.semTarefa]);
+    /* O espelho do esforço na chave da carteira: quanto trabalho os leads
+       de cada pessoa receberam, de quantas mãos diferentes. */
+    var carteiraEsfPorSdr = useMemo(function () {
+        var m = new Map();
+        aplicar(d.carteiraEsf).forEach(function (r) {
+            var k = r.sdr || "—";
+            var o = m.get(k) || { ligacoes: 0, pessoas: 0, zap_robo: 0 };
+            o.ligacoes += Number(r.ligacoes_na_carteira) || 0;
+            o.pessoas = Math.max(o.pessoas, Number(r.pessoas_que_ligaram) || 0);
+            o.zap_robo += Number(r.zap_do_robo) || 0;
+            m.set(k, o);
+        });
+        return m;
+    }, [d.carteiraEsf, f]);
+    var ligacoesNaCarteiraTot = useMemo(function () { return aplicar(d.carteiraEsf).reduce(function (s2, r) { return s2 + (Number(r.ligacoes_na_carteira) || 0); }, 0); }, [d.carteiraEsf, f]);
+    /* O robô, separado de quem responde a ele.
+       Até 08/09 esta conta somava as duas direções e o painel dizia "o robô
+       mandou 4.006" — sendo que 2.596 daquelas mensagens foram o CLIENTE
+       respondendo. Mensagem recebida também chega sem autor, e era isso que
+       confundia a view. */
+    var roboEnviou = useMemo(function () { return aplicar(d.robo).reduce(function (s2, r) { return s2 + (Number(r.enviadas_pelo_robo) || 0); }, 0); }, [d.robo, f]);
+    var clienteRespondeu = useMemo(function () { return aplicar(d.robo).reduce(function (s2, r) { return s2 + (Number(r.recebidas_do_cliente) || 0); }, 0); }, [d.robo, f]);
+    /* Visitas vencidas que ninguém marcou o desfecho. Enquanto isso existir,
+       a taxa de comparecimento divide por um total que inclui visitas sobre
+       as quais o CRM não sabe nada — e sai menor do que a realidade. */
+    var semDesfecho = useMemo(function () { return aplicar(d.pendentes).reduce(function (s, r) { return s + (Number(r.visitas_sem_desfecho) || 0); }, 0); }, [d.pendentes, f]);
+    var visitasApuradas = Math.max(0, a.visitas_do_dia - semDesfecho);
+    var showApurado = div(a.comparecimentos, visitasApuradas);
+    var duvidaGrande = semDesfecho > 0 && semDesfecho >= a.visitas_do_dia * 0.1;
+    /* A nota é campos preenchidos ÷ campos exigidos, somando o período
+       inteiro antes de dividir. Média de médias daria peso igual a um dia
+       de 2 leads e a um de 60. */
+    var notaPreench = useMemo(function () {
+        var m = new Map();
+        aplicar(d.preench).forEach(function (r) {
+            var k = r.sdr || "—";
+            var o = m.get(k) || { nome: k, leads: 0, agendados: 0, ganhos: 0, com_unidade: 0,
+                com_servico: 0, com_data: 0, com_nota: 0, com_valor: 0, exigidos: 0, ok: 0 };
+            o.leads += Number(r.leads) || 0;
+            o.agendados += Number(r.agendados) || 0;
+            o.ganhos += Number(r.ganhos) || 0;
+            o.com_unidade += Number(r.com_unidade) || 0;
+            o.com_servico += Number(r.com_servico) || 0;
+            o.com_data += Number(r.com_data) || 0;
+            o.com_nota += Number(r.com_nota) || 0;
+            o.com_valor += Number(r.com_valor) || 0;
+            o.exigidos += Number(r.campos_exigidos) || 0;
+            o.ok += Number(r.campos_ok) || 0;
+            m.set(k, o);
+        });
+        var lista = __spreadArray([], __read(m.values()), false).filter(function (x) { return x.exigidos > 0; })
+            .map(function (x) { return (__assign(__assign({}, x), { nota: div(x.ok, x.exigidos) })); })
+            .sort(function (a, b) { return b.nota - a.nota; });
+        var tot = lista.reduce(function (o, x) { return ({
+            exigidos: o.exigidos + x.exigidos, ok: o.ok + x.ok,
+            leads: o.leads + x.leads, agendados: o.agendados + x.agendados,
+        }); }, { exigidos: 0, ok: 0, leads: 0, agendados: 0 });
+        return { lista: lista, geral: div(tot.ok, tot.exigidos), tot: tot };
+    }, [d.preench, f]);
+    /* A IDADE DO DADO, que é diferente da hora do carregamento.
+       No dia 08/09 o painel exibia "atualizado 10:47" com ligação de vinte
+       horas antes: o relógio dizia que a TELA estava viva, não que o DADO
+       estava. Agora quem manda é a saude_das_cargas.
+       Fora do expediente o atraso é normal e não vira alarme. */
+    var horaSP = new Date().getHours();
+    var emExpediente = horaSP >= 8 && horaSP < 21;
+    var frescor = useMemo(function () {
+        var linhas = (d.saude || [])
+            .map(function (r) { return ({ fonte: r.fonte, min: Number(r.atraso_min) }); })
+            .filter(function (x) { return Number.isFinite(x.min); });
+        if (!linhas.length)
+            return null;
+        return { linhas: linhas, pior: linhas.reduce(function (m, x) { return (x.min > m.min ? x : m); }) };
+    }, [d.saude]);
+    var LIMITE_MIN = 75; // a carga roda de hora em hora
+    var dadoVelho = !!(frescor && emExpediente && frescor.pior.min > LIMITE_MIN);
+    var idade = function (min) { return (min >= 120 ? "".concat(Math.round(min / 60), "h") : "".concat(Math.round(min), " min")); };
+    var metaTaxa = d.metas.taxa || { taxa_agendamento: 25, taxa_show: 70, pct_trabalhados: 95, sla_ate_15: 80 };
+    /* Quantos segundos de ligação contam como conversa. Vem do banco para
+       poder mudar sem republicar o painel. */
+    var segConversa = Number(metaTaxa.segundos_conversa || 30);
+    var reaisPorLigacaoGeral = div(a.receita, esf.ligacoes_tentadas - esf.ligacoes_fora);
+    var rotulo = f.periodo === "custom" ? "".concat(brFull(de), " a ").concat(brFull(ate)) : PERIODOS[f.periodo];
+    var set = function (k, v) { return setF(function (x) {
+        var _a;
+        return (__assign(__assign({}, x), (_a = {}, _a[k] = v, _a)));
+    }); };
+    var KPIS = [
+        { l: "Leads recebidos", v: nInt(a.leads_recebidos), d: React.createElement(Delta, { atual: a.leads_recebidos, anterior: aPrev.leads_recebidos }) },
+        { l: "Leads trabalhados", v: nInt(a.leads_trabalhados), s: "".concat(nPct(a.pct_trabalhados), " dos recebidos"),
+            tone: a.pct_trabalhados >= metaTaxa.pct_trabalhados / 100 ? "good" : undefined },
+        { l: "Sem atendimento", v: nInt(a.leads_sem_atendimento), s: "Parados na entrada do funil",
+            tone: a.leads_sem_atendimento > 0 ? "bad" : "good" },
+        { l: "Agendamentos marcados", v: nInt(a.agendamentos_marcados), s: "No dia em que o SDR marcou",
+            d: React.createElement(Delta, { atual: a.agendamentos_marcados, anterior: aPrev.agendamentos_marcados }) },
+        { l: "Taxa de agendamento", v: nPct(a.taxa_agendamento), s: "Meta: ".concat(metaTaxa.taxa_agendamento, "%"),
+            tone: a.taxa_agendamento >= metaTaxa.taxa_agendamento / 100 ? "good" : "bad" },
+        { l: "Visitas do dia", v: nInt(a.visitas_do_dia), s: "Agenda da loja no período" },
+        { l: "Comparecimentos", v: nInt(a.comparecimentos), d: React.createElement(Delta, { atual: a.comparecimentos, anterior: aPrev.comparecimentos }) },
+        { l: "Taxa de show", v: nPct(a.taxa_show),
+            s: semDesfecho > 0
+                ? "".concat(nInt(semDesfecho), " visitas sem desfecho \u2014 entre as preenchidas d\u00E1 ").concat(nPct(showApurado))
+                : "Meta: ".concat(metaTaxa.taxa_show, "%"),
+            tone: duvidaGrande ? "bad" : (a.taxa_show >= metaTaxa.taxa_show / 100 ? "good" : "bad") },
+        { l: "Vendas", v: nInt(a.vendas), d: React.createElement(Delta, { atual: a.vendas, anterior: aPrev.vendas }) },
+        { l: "Receita", v: nReal(a.receita), s: "Ticket m\u00E9dio ".concat(nReal(a.ticket)) },
+        { l: "Conversão final", v: nPct(a.conversao_final), s: "Vendas ÷ leads recebidos" },
+        { l: "Perdidos do dia", v: nInt(a.perdidos_do_dia),
+            s: "Entraram e foram descartados hoje" },
+        { l: "Carteira encerrada", v: nInt(a.perdidos_antigos),
+            s: a.perdidos_antigos
+                ? "De dias anteriores \u00B7 ".concat(nNum(div(a.dias_aberto_soma, a.perdidos_antigos), 0), " dias em aberto, em m\u00E9dia")
+                : "Nada de dias anteriores foi encerrado" },
+    ];
+    var funil = [
+        { l: "Leads recebidos", v: a.leads_recebidos },
+        { l: "Leads trabalhados", v: a.leads_trabalhados },
+        { l: "Agendamentos", v: a.agendamentos_marcados },
+        { l: "Comparecimentos", v: a.comparecimentos },
+        { l: "Vendas", v: a.vendas },
+    ];
+    var topo = funil[0].v || 1;
+    var perdas = funil.slice(1).map(function (e, i) { return ({ i: i + 1, perda: funil[i].v - e.v, conv: div(e.v, funil[i].v) }); });
+    var comPerda = perdas.filter(function (p) { return p.perda > 0; });
+    var gargalo = comPerda.length ? comPerda.reduce(function (m, p) { return (p.perda > m.perda ? p : m); }) : null;
+    var q = d.qualidade;
+    return (React.createElement("div", { style: { background: T.canvas, minHeight: "100vh", fontFamily: F_UI, color: T.ink } },
+        React.createElement("header", { style: { background: T.preto, position: "sticky", top: 0, zIndex: 30 } },
+            React.createElement("div", { className: "wrap", style: { display: "flex", alignItems: "center", justifyContent: "space-between",
+                    flexWrap: "wrap", gap: 12, padding: "11px 24px" } },
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 13, flexWrap: "wrap" } },
+                    React.createElement(Selo, { tam: 32 }),
+                    React.createElement("div", { style: { lineHeight: 1.2 } },
+                        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 15, fontWeight: 700, color: "#fff" } }, "Car Service"),
+                        React.createElement("div", { style: { fontSize: 11.5, color: "rgba(255,255,255,.6)" } }, "Performance de SDR")),
+                    React.createElement("span", { style: { marginLeft: 6, fontSize: 11, padding: "3px 9px", borderRadius: 99,
+                            background: d.estado.carregando ? "rgba(255,255,255,.14)"
+                                : dadoVelho ? "rgba(193,18,31,.30)" : "rgba(255,191,0,.16)",
+                            color: d.estado.carregando ? "rgba(255,255,255,.7)"
+                                : dadoVelho ? "#FFC9CD" : T.marca,
+                            fontWeight: dadoVelho ? 700 : 500, whiteSpace: "nowrap" } }, d.estado.carregando
+                        ? "atualizando…"
+                        : dadoVelho
+                            ? "\u26A0 ".concat(frescor.pior.fonte, " parado h\u00E1 ").concat(idade(frescor.pior.min))
+                            : d.estado.em
+                                ? "atualizado ".concat(d.estado.em.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }))
+                                : "ao vivo")),
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+                    React.createElement("span", { style: { fontSize: 12, color: "rgba(255,255,255,.55)" } }, sessao.user.email),
+                    React.createElement("button", { onClick: function () { return db.auth.signOut(); }, style: { background: "transparent",
+                            border: "1px solid rgba(255,255,255,.28)", color: "rgba(255,255,255,.85)",
+                            borderRadius: 7, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: F_UI } }, "Sair")))),
+        React.createElement("main", { className: "wrap", style: { padding: "24px 24px 80px" } },
+            d.estado.erro && (React.createElement(Card, { className: "p16", style: { borderColor: "#F0C3C6", background: "#FDF3F3", marginBottom: 16 } },
+                React.createElement("div", { style: { fontSize: 13, color: T.bad, fontWeight: 600 } },
+                    "N\u00E3o consegui ler os dados: ",
+                    d.estado.erro),
+                React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 6 } },
+                    "Confira se o schema ",
+                    React.createElement("code", null, "comercial"),
+                    " est\u00E1 exposto em Project Settings \u2192 API."))),
+            d.falhas.length > 0 && (React.createElement(Card, { className: "p16", style: { borderColor: "#F0C3C6", background: "#FDF3F3", marginBottom: 16 } },
+                React.createElement("div", { style: { fontSize: 13, color: T.bad, fontWeight: 600 } }, d.falhas.length === 1 ? "Uma seção não carregou" : "".concat(d.falhas.length, " se\u00E7\u00F5es n\u00E3o carregaram")),
+                React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 6, lineHeight: 1.6 } },
+                    d.falhas.map(function (x) { return x.nome; }).join(", "),
+                    " \u2014 os n\u00FAmeros dessas se\u00E7\u00F5es est\u00E3o incompletos ou zerados por falha de leitura, n\u00E3o por falta de trabalho. Aperte Atualizar; se persistir, \u00E9 o banco."))),
+            dadoVelho && (React.createElement(Card, { className: "p16", style: { borderColor: "#F0C3C6", background: "#FDF3F3", marginBottom: 16 } },
+                React.createElement("div", { style: { fontSize: 13, color: T.bad, fontWeight: 600 } },
+                    "\u26A0 Dado desatualizado \u2014 ",
+                    frescor.pior.fonte,
+                    " n\u00E3o recebe nada h\u00E1 ",
+                    idade(frescor.pior.min)),
+                React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 6, lineHeight: 1.6 } },
+                    "A tela est\u00E1 atualizando normalmente; quem parou foi a carga autom\u00E1tica. Os n\u00FAmeros abaixo dessa fonte est\u00E3o menores que a realidade.",
+                    frescor.linhas.length > 1 && (React.createElement("span", null,
+                        " Idade de cada fonte: ",
+                        frescor.linhas
+                            .slice().sort(function (x, y) { return y.min - x.min; })
+                            .map(function (x) { return "".concat(x.fonte, " ").concat(idade(x.min)); }).join(" · "),
+                        "."))))),
+            React.createElement(Card, { className: "p12", style: { position: "sticky", top: 54, zIndex: 20 } },
+                React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement(Select, { value: f.periodo, onChange: function (v) { return set("periodo", v); }, options: Object.entries(PERIODOS).map(function (_a) {
+                            var _b = __read(_a, 2), v = _b[0], l = _b[1];
+                            return ({ v: v, l: l });
+                        }) }),
+                    f.periodo === "custom" && (React.createElement(React.Fragment, null,
+                        React.createElement("input", { type: "date", value: f.de, onChange: function (e) { return set("de", e.target.value); }, className: "dt" }),
+                        React.createElement("span", { style: { color: T.muted, fontSize: 12 } }, "at\u00E9"),
+                        React.createElement("input", { type: "date", value: f.ate, onChange: function (e) { return set("ate", e.target.value); }, className: "dt" }))),
+                    React.createElement(Select, { value: f.unidade, onChange: function (v) { return set("unidade", v); }, options: __spreadArray([{ v: "__all", l: "Todas as unidades" }], __read(listas.unidades.map(function (u) { return ({ v: u, l: u }); })), false) }),
+                    React.createElement(Select, { value: f.servico, onChange: function (v) { return set("servico", v); }, options: __spreadArray([{ v: "__all", l: "Todos os serviços" }], __read(listas.servicos.map(function (s) { return ({ v: s, l: s }); })), false) }),
+                    React.createElement(Select, { value: f.sdr, onChange: function (v) { return set("sdr", v); }, options: __spreadArray([{ v: "__all", l: "Todos os SDRs" }], __read(listas.sdrs.map(function (s) { return ({ v: s, l: s }); })), false) }),
+                    React.createElement(Btn, { onClick: d.recarregar, style: { padding: "6px 11px" } }, "Atualizar"),
+                    React.createElement("div", { style: { marginLeft: "auto", fontSize: 12, color: T.muted, fontVariantNumeric: "tabular-nums" } },
+                        brFull(de),
+                        " \u2013 ",
+                        brFull(ate),
+                        " \u00B7 ",
+                        dias,
+                        " ",
+                        dias === 1 ? "dia" : "dias"))),
+            React.createElement(Secao, { n: 1, titulo: "Resultado \u2014 ".concat(rotulo) },
+                React.createElement("div", { className: "grid-kpi" }, KPIS.map(function (k) { return React.createElement(Kpi, { key: k.l, label: k.l, value: k.v, sub: k.s, foot: k.d, tone: k.tone }); }))),
+            React.createElement(Secao, { n: 2, titulo: "Funil", nota: "Cada etapa conta no dia em que aconteceu. Agendamento entra no dia em que o SDR marcou \u2014 n\u00E3o no dia da visita." },
+                React.createElement(Card, { className: "p20" },
+                    gargalo && (React.createElement("div", { style: { marginBottom: 14 } },
+                        React.createElement(Pill, { cor: T.warn },
+                            "Maior perda: ",
+                            funil[gargalo.i - 1].l,
+                            " \u2192 ",
+                            funil[gargalo.i].l,
+                            " \u00B7 \u2212",
+                            nInt(gargalo.perda)))),
+                    funil.map(function (e, i) {
+                        var passo = i > 0 ? perdas[i - 1] : null;
+                        var eh = gargalo && gargalo.i === i;
+                        return (React.createElement("div", { key: e.l },
+                            passo && (React.createElement("div", { style: { display: "flex", gap: 12, padding: "3px 0" } },
+                                React.createElement("div", { style: { width: 150 } }),
+                                React.createElement("div", { style: { fontSize: 11.5, color: passo.conv > 1 ? T.warn : (eh ? T.warn : T.muted),
+                                        fontWeight: eh || passo.conv > 1 ? 700 : 500, fontVariantNumeric: "tabular-nums" } }, passo.conv > 1
+                                    ? "\u2191 ".concat(nInt(-passo.perda), " a mais que a etapa anterior \u2014 falta registro acima")
+                                    : "\u2193 ".concat(nPct(passo.conv), " avan\u00E7am").concat(passo.perda > 0 ? " \u00B7 perde ".concat(nInt(passo.perda)) : "")))),
+                            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+                                React.createElement("div", { style: { width: 150, fontSize: 12.5, color: T.ink2, textAlign: "right" } }, e.l),
+                                React.createElement("div", { style: { flex: 1 } },
+                                    React.createElement("div", { style: { width: "".concat(Math.max(4, div(e.v, topo) * 100), "%"), height: 34, borderRadius: 4,
+                                            background: eh ? T.marca : T.ink,
+                                            display: "flex", alignItems: "center", paddingLeft: 10, minWidth: 84, transition: "width .5s ease" } },
+                                        React.createElement("span", { style: { fontFamily: F_NUM, color: eh ? T.preto : "#fff", fontWeight: 700,
+                                                fontSize: 15, fontVariantNumeric: "tabular-nums" } }, nInt(e.v)))),
+                                React.createElement("div", { style: { width: 104, fontSize: 12, color: T.muted, textAlign: "right",
+                                        fontVariantNumeric: "tabular-nums" } },
+                                    nPct(div(e.v, topo)),
+                                    " do topo"))));
+                    }))),
+            React.createElement(Secao, { n: 3, titulo: "Carteira \u2014 por dono do lead", nota: "Tudo aqui \u00E9 creditado a quem o lead pertence. Marcou \u00E9 o dia em que a pessoa agendou; visitas \u00E9 a agenda da loja; automa\u00E7\u00E3o n\u00E3o conta. As duas \u00FAltimas colunas mostram quanto trabalho a carteira recebeu \u2014 de qualquer pessoa do time, n\u00E3o s\u00F3 do dono." },
+                React.createElement(Card, { className: "p0 rolagem" },
+                    React.createElement("table", null,
+                        React.createElement("thead", null,
+                            React.createElement("tr", null,
+                                React.createElement(Th, null, "SDR"),
+                                React.createElement(Th, { right: true }, "Leads"),
+                                React.createElement(Th, { right: true }, "Trab."),
+                                React.createElement(Th, { right: true }, "Marcou"),
+                                React.createElement(Th, { right: true }, "Taxa agend."),
+                                React.createElement(Th, { right: true }, "Visitas"),
+                                React.createElement(Th, { right: true }, "Compar."),
+                                React.createElement(Th, { right: true }, "% Show"),
+                                React.createElement(Th, { right: true }, "Vendas"),
+                                React.createElement(Th, { right: true }, "Receita"),
+                                React.createElement(Th, { right: true }, "Conv."),
+                                React.createElement(Th, { right: true }, "Lig. na carteira"),
+                                React.createElement(Th, { right: true }, "R$ por lig."))),
+                        React.createElement("tbody", null,
+                            __spreadArray([], __read(porSdr), false).sort(function (x, y) { return y.agendamentos_marcados - x.agendamentos_marcados; }).map(function (s) {
+                                var ce = carteiraEsfPorSdr.get(s.nome) || { ligacoes: 0, pessoas: 0 };
+                                return (React.createElement("tr", { key: s.nome },
+                                    React.createElement(Td, { bold: true }, s.nome),
+                                    React.createElement(Td, { right: true }, nInt(s.leads_recebidos)),
+                                    React.createElement(Td, { right: true }, nInt(s.leads_trabalhados)),
+                                    React.createElement(Td, { right: true, bold: true }, nInt(s.agendamentos_marcados)),
+                                    React.createElement(Td, { right: true, color: s.taxa_agendamento >= metaTaxa.taxa_agendamento / 100 ? T.good : T.bad }, nPct(s.taxa_agendamento)),
+                                    React.createElement(Td, { right: true }, nInt(s.visitas_do_dia)),
+                                    React.createElement(Td, { right: true }, nInt(s.comparecimentos)),
+                                    React.createElement(Td, { right: true, color: s.taxa_show >= metaTaxa.taxa_show / 100 ? T.good : T.bad }, nPct(s.taxa_show)),
+                                    React.createElement(Td, { right: true, bold: true }, nInt(s.vendas)),
+                                    React.createElement(Td, { right: true }, nReal(s.receita)),
+                                    React.createElement(Td, { right: true, color: s.conversao_final >= a.conversao_final ? T.good : T.bad }, nPct(s.conversao_final)),
+                                    React.createElement(Td, { right: true },
+                                        ce.ligacoes ? nInt(ce.ligacoes) : "—",
+                                        ce.pessoas > 1 && (React.createElement("span", { style: { color: T.muted, fontSize: 11 } },
+                                            " \u00B7 ",
+                                            ce.pessoas,
+                                            " pessoas"))),
+                                    React.createElement(Td, { right: true, bold: true }, ce.ligacoes ? nReal(div(s.receita, ce.ligacoes)) : "—")));
+                            }),
+                            React.createElement("tr", { style: { background: T.canvas } },
+                                React.createElement(Td, { bold: true }, "Total"),
+                                React.createElement(Td, { right: true, bold: true }, nInt(a.leads_recebidos)),
+                                React.createElement(Td, { right: true, bold: true }, nInt(a.leads_trabalhados)),
+                                React.createElement(Td, { right: true, bold: true }, nInt(a.agendamentos_marcados)),
+                                React.createElement(Td, { right: true, bold: true }, nPct(a.taxa_agendamento)),
+                                React.createElement(Td, { right: true, bold: true }, nInt(a.visitas_do_dia)),
+                                React.createElement(Td, { right: true, bold: true }, nInt(a.comparecimentos)),
+                                React.createElement(Td, { right: true, bold: true }, nPct(a.taxa_show)),
+                                React.createElement(Td, { right: true, bold: true }, nInt(a.vendas)),
+                                React.createElement(Td, { right: true, bold: true }, nReal(a.receita)),
+                                React.createElement(Td, { right: true, bold: true }, nPct(a.conversao_final)),
+                                React.createElement(Td, { right: true, bold: true }, ligacoesNaCarteiraTot ? nInt(ligacoesNaCarteiraTot) : "—"),
+                                React.createElement(Td, { right: true, bold: true }, ligacoesNaCarteiraTot ? nReal(div(a.receita, ligacoesNaCarteiraTot)) : "—"))))),
+                semSdr && semSdr.leads_recebidos > 0 && (React.createElement(Card, { className: "p16", style: { marginTop: 12, borderColor: "#F3D9DB" } },
+                    React.createElement("div", { style: { fontSize: 13, color: T.ink2, lineHeight: 1.6 } },
+                        React.createElement("b", { style: { color: T.bad } },
+                            "\u26A0 ",
+                            nInt(semSdr.leads_recebidos),
+                            " leads sem SDR"),
+                        " no per\u00EDodo \u2014 entraram e n\u00E3o foram distribu\u00EDdos a ningu\u00E9m. N\u00E3o entram no placar acima porque n\u00E3o s\u00E3o de ningu\u00E9m; entram no total.",
+                        semSdr.vendas > 0 && " Ainda assim, ".concat(nInt(semSdr.vendas), " viraram venda."))))),
+            esforcoPorSdr.length > 0 && (React.createElement(Secao, { n: 4, titulo: "Esfor\u00E7o \u2014 por quem executou", nota: "Chave diferente da se\u00E7\u00E3o 3: aqui o cr\u00E9dito \u00E9 de quem FEZ, n\u00E3o de quem \u00E9 dono do lead. A liga\u00E7\u00E3o vem do discador, que sabe qual ramal discou; o Kommo n\u00E3o sabe. \"Tentou\" conta toda discagem; \"atendeu\" usa o motivo real de encerramento, ent\u00E3o caixa postal n\u00E3o conta; \"falou com\" s\u00E3o pessoas em conversas acima de ".concat(segConversa, "s. Mensagem do rob\u00F4 de triagem fica fora: automa\u00E7\u00E3o n\u00E3o \u00E9 esfor\u00E7o de ningu\u00E9m. \"Fora do funil\" \u00E9 trabalho em lead de outro funil, quase sempre o Remarketing, que a equipe atende quando n\u00E3o h\u00E1 lead novo entrando \u2014 conta como esfor\u00E7o porque a pessoa fez, mas o resultado dele n\u00E3o aparece nas se\u00E7\u00F5es de carteira.") },
+                React.createElement("div", { className: "grid-kpi", style: { marginBottom: 16 } },
+                    React.createElement(Kpi, { label: "Liga\u00E7\u00F5es tentadas", value: nInt(esf.ligacoes_tentadas), sub: esf.ligacoes_fora
+                            ? "".concat(nInt(esf.ligacoes_fora), " fora do CAR SERVICE (").concat(nPct(esf.pct_fora, 0), ")")
+                            : "Inclui caixa postal e não atendida" }),
+                    React.createElement(Kpi, { label: "Falou com", value: nInt(esf.pessoas_com_quem_falou), sub: "Pessoas, em liga\u00E7\u00F5es acima de ".concat(segConversa, "s") }),
+                    React.createElement(Kpi, { label: "Taxa de atendimento", value: nPct(esf.taxa_atendimento), sub: "Pelo motivo real de encerramento" }),
+                    React.createElement(Kpi, { label: "Discagens por conversa", value: nNum(esf.discagens_por_conversa, 1), sub: "Quanto custa cada conversa" }),
+                    React.createElement(Kpi, { label: "Horas ao telefone", value: nNum(esf.horas, 1), sub: "Soma da dura\u00E7\u00E3o das liga\u00E7\u00F5es" }),
+                    React.createElement(Kpi, { label: "WhatsApp de pessoa", value: nInt(esf.whatsapp_enviados), sub: roboEnviou
+                            ? "\u00C0 parte: o rob\u00F4 enviou ".concat(nInt(roboEnviou), " e o cliente respondeu ").concat(nInt(clienteRespondeu))
+                            : "Digitadas por gente" })),
+                React.createElement(Card, { className: "p0 rolagem" },
+                    React.createElement("table", null,
+                        React.createElement("thead", null,
+                            React.createElement("tr", null,
+                                React.createElement(Th, null, "Executor"),
+                                React.createElement(Th, { right: true }, "Tentou"),
+                                React.createElement(Th, { right: true }, "Fora do funil"),
+                                React.createElement(Th, { right: true }, "% atendeu"),
+                                React.createElement(Th, { right: true }, "Falou com"),
+                                React.createElement(Th, { right: true }, "Disc./conversa"),
+                                React.createElement(Th, { right: true }, "Zap"),
+                                React.createElement(Th, { right: true }, "Horas ao telefone"))),
+                        React.createElement("tbody", null,
+                            __spreadArray([], __read(esforcoPorSdr), false).sort(function (x, y) { return y.ligacoes_tentadas - x.ligacoes_tentadas; }).map(function (s) { return (React.createElement("tr", { key: s.nome },
+                                React.createElement(Td, { bold: true }, s.nome),
+                                React.createElement(Td, { right: true }, nInt(s.ligacoes_tentadas)),
+                                React.createElement(Td, { right: true, color: T.muted }, s.ligacoes_fora ? "".concat(nInt(s.ligacoes_fora), " \u00B7 ").concat(nPct(s.pct_fora, 0)) : "—"),
+                                React.createElement(Td, { right: true }, nPct(s.taxa_atendimento)),
+                                React.createElement(Td, { right: true }, nInt(s.pessoas_com_quem_falou)),
+                                React.createElement(Td, { right: true, color: s.discagens_por_conversa > esf.discagens_por_conversa ? T.bad : T.good }, nNum(s.discagens_por_conversa, 1)),
+                                React.createElement(Td, { right: true }, nInt(s.whatsapp_enviados)),
+                                React.createElement(Td, { right: true }, nNum(s.horas, 1)))); }),
+                            React.createElement("tr", { style: { background: T.canvas } },
+                                React.createElement(Td, { bold: true }, "Total"),
+                                React.createElement(Td, { right: true, bold: true }, nInt(esf.ligacoes_tentadas)),
+                                React.createElement(Td, { right: true, bold: true, color: T.muted }, esf.ligacoes_fora ? "".concat(nInt(esf.ligacoes_fora), " \u00B7 ").concat(nPct(esf.pct_fora, 0)) : "—"),
+                                React.createElement(Td, { right: true, bold: true }, nPct(esf.taxa_atendimento)),
+                                React.createElement(Td, { right: true, bold: true }, nInt(esf.pessoas_com_quem_falou)),
+                                React.createElement(Td, { right: true, bold: true }, nNum(esf.discagens_por_conversa, 1)),
+                                React.createElement(Td, { right: true, bold: true }, nInt(esf.whatsapp_enviados)),
+                                React.createElement(Td, { right: true, bold: true }, nNum(esf.horas, 1)))))),
+                React.createElement(Card, { className: "p16", style: { marginTop: 12, fontSize: 12.5, color: T.ink2, lineHeight: 1.6 } }, "Esfor\u00E7o \u00E9 insumo, n\u00E3o resultado \u2014 quem mais disca n\u00E3o \u00E9 necessariamente quem mais traz. Para juntar as duas coisas, compare esta tabela com a da se\u00E7\u00E3o 3: l\u00E1 est\u00E1 o que a carteira de cada um produziu, aqui est\u00E1 o que cada um fez. Quando os dois nomes n\u00E3o batem, \u00E9 gente trabalhando lead de outro \u2014 normal em cobertura, problema se for rotina."))),
+            React.createElement(Secao, { n: 5, titulo: "Evolu\u00E7\u00E3o no per\u00EDodo" },
+                React.createElement(Card, { className: "p16" },
+                    React.createElement(GraficoEvolucao, { dados: serie }))),
+            React.createElement(Secao, { n: 6, titulo: "Por unidade e por servi\u00E7o" },
+                React.createElement("div", { className: "col2" }, [["Unidade", porUnidade], ["Serviço", porServico]].map(function (_a) {
+                    var _b = __read(_a, 2), titulo = _b[0], dados = _b[1];
+                    return (React.createElement(Card, { key: titulo, className: "p0 rolagem" },
+                        React.createElement("table", null,
+                            React.createElement("thead", null,
+                                React.createElement("tr", null,
+                                    React.createElement(Th, null, titulo),
+                                    React.createElement(Th, { right: true }, "Leads"),
+                                    React.createElement(Th, { right: true }, "Marcou"),
+                                    React.createElement(Th, { right: true }, "Compar."),
+                                    React.createElement(Th, { right: true }, "Vendas"),
+                                    React.createElement(Th, { right: true }, "Conv."))),
+                            React.createElement("tbody", null, __spreadArray([], __read(dados), false).sort(function (x, y) { return y.leads_recebidos - x.leads_recebidos; }).map(function (r) { return (React.createElement("tr", { key: r.nome },
+                                React.createElement(Td, { bold: true }, r.nome),
+                                React.createElement(Td, { right: true }, nInt(r.leads_recebidos)),
+                                React.createElement(Td, { right: true }, nInt(r.agendamentos_marcados)),
+                                React.createElement(Td, { right: true }, nInt(r.comparecimentos)),
+                                React.createElement(Td, { right: true, bold: true }, nInt(r.vendas)),
+                                React.createElement(Td, { right: true, color: r.conversao_final >= a.conversao_final ? T.good : T.bad }, nPct(r.conversao_final)))); })))));
+                }))),
+            React.createElement(Secao, { n: 7, titulo: "Tempo at\u00E9 a primeira liga\u00E7\u00E3o", nota: d.tempoAntigo
+                    ? "Medida antiga, pela saída do lead da etapa de entrada. Rode o filtro_usuarios.sql para passar a medir pela ligação de verdade."
+                    : "Da entrada do lead até a primeira ligação DISCADA — vale a discagem, não o atendimento: o SDR controla quando liga, não se o cliente atende. Isto não é o que a casa chama de SLA; SLA aqui quer dizer que o lead atende aos padrões mínimos para ser atendido." },
+                React.createElement("div", { className: "col2" },
+                    React.createElement(Card, { className: "p16" },
+                        React.createElement(Label, null,
+                            "Distribui\u00E7\u00E3o \u2014 base de ",
+                            nInt(tempoTot.com_medida),
+                            " leads que receberam liga\u00E7\u00E3o, de ",
+                            nInt(tempoTot.leads),
+                            " recebidos"),
+                        React.createElement("div", { style: { display: "grid", gap: 14, marginTop: 16 } }, [
+                            { l: "Até 5 minutos", n: tempoTot.ate_5min },
+                            { l: "Até 15 minutos", n: tempoTot.ate_5min + tempoTot.ate_15min, meta: (metaTaxa.resposta_ate_15_min || metaTaxa.sla_ate_15) / 100 },
+                            { l: "Até 1 hora", n: tempoTot.ate_5min + tempoTot.ate_15min + tempoTot.ate_60min },
+                            { l: "Acima de 1 hora", n: tempoTot.acima_de_1h, ruim: true },
+                        ].map(function (i) {
+                            var p = div(i.n, tempoTot.com_medida);
+                            var cor = i.ruim ? T.bad : i.meta ? (p >= i.meta ? T.good : T.bad) : T.ink;
+                            return (React.createElement("div", { key: i.l },
+                                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 } },
+                                    React.createElement("span", { style: { fontSize: 13, color: T.ink2 } }, i.l),
+                                    React.createElement("span", { style: { fontFamily: F_NUM, fontWeight: 700, fontSize: 15, color: cor,
+                                            fontVariantNumeric: "tabular-nums" } },
+                                        nPct(p),
+                                        " ",
+                                        React.createElement("span", { style: { color: T.muted, fontWeight: 400, fontSize: 12 } },
+                                            "(",
+                                            nInt(i.n),
+                                            ")"))),
+                                React.createElement(Barra, { pct: p, cor: cor }),
+                                i.meta && React.createElement("div", { style: { fontSize: 11, color: T.muted, marginTop: 4 } },
+                                    "Meta: ",
+                                    nPct(i.meta, 0))));
+                        }))),
+                    React.createElement("div", { className: "grid-kpi-2" },
+                        React.createElement(Kpi, { label: "Tempo m\u00E9dio at\u00E9 ligar", value: tempoTot.medio == null ? "—" : "".concat(nNum(tempoTot.medio, 0), " min"), sub: "Da entrada do lead \u00E0 primeira discagem" }),
+                        React.createElement(Kpi, { label: "Tempo m\u00E9dio at\u00E9 falar", value: tempoTot.medioAteFalar == null ? "—" : "".concat(nNum(tempoTot.medioAteFalar, 0), " min"), sub: "At\u00E9 uma conversa acima de ".concat(segConversa, "s") }),
+                        React.createElement(Kpi, { label: "Ningu\u00E9m ligou", value: nInt(tempoTot.leads - tempoTot.com_medida), sub: "Leads sem nenhuma discagem registrada", tone: tempoTot.leads - tempoTot.com_medida > 0 ? "bad" : "good" })))),
+            React.createElement(Secao, { n: 8, titulo: "Por que perdemos", nota: "Dois blocos, porque s\u00E3o dois jogos diferentes. Em cima, o lead que se perdeu ANTES de chegar na loja \u2014 \u00E9 a conta do SDR. Embaixo, o lead que chegou l\u00E1 dentro, sentou com o closer e n\u00E3o fechou \u2014 o SDR fez o trabalho dele at\u00E9 o fim. S\u00F3 a lista oficial de motivos do Kommo; o vocabul\u00E1rio antigo fica na nota do rodap\u00E9." },
+                React.createElement(Card, { className: "p16" },
+                    React.createElement("div", { style: { fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase",
+                            color: T.muted, fontWeight: 700, marginBottom: 10 } },
+                        "Perdemos antes da loja",
+                        motivos.totalAntes > 0 && (React.createElement("span", { style: { color: T.ink2, marginLeft: 8 } }, nInt(motivos.totalAntes)))),
+                    motivos.lista.length === 0 ? (React.createElement("div", { style: { fontSize: 13, color: T.muted } }, "Nenhuma perda com motivo da lista oficial neste per\u00EDodo.")) : (React.createElement(BarrasHorizontais, { dados: motivos.lista })),
+                    React.createElement("div", { style: { marginTop: 20, paddingTop: 14, borderTop: "1px solid ".concat(T.hair) } },
+                        React.createElement("div", { style: { fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase",
+                                color: T.muted, fontWeight: 700, marginBottom: 10 } },
+                            "Chegou na loja e n\u00E3o fechou",
+                            motivos.totalNaLoja > 0 && (React.createElement("span", { style: { color: T.ink2, marginLeft: 8 } }, nInt(motivos.totalNaLoja)))),
+                        motivos.naLoja.length === 0 ? (React.createElement("div", { style: { fontSize: 12, color: T.muted, lineHeight: 1.6 } },
+                            "Nenhuma perda registrada com motivo de loja neste per\u00EDodo. Este bloco s\u00F3 enche quando o closer marca o motivo ",
+                            React.createElement("b", { style: { color: T.ink2 } }, "Veio em loja e n\u00E3o fechou"),
+                            " no Kommo \u2014 vazio aqui pode significar que n\u00E3o aconteceu, ou que aconteceu e ningu\u00E9m registrou.")) : (React.createElement(BarrasHorizontais, { dados: motivos.naLoja }))),
+                    motivos.historico > 0 && (React.createElement("div", { style: { marginTop: 16, paddingTop: 12, borderTop: "1px solid ".concat(T.hair),
+                            fontSize: 12, color: T.muted, lineHeight: 1.6 } },
+                        "Mais ",
+                        React.createElement("b", { style: { color: T.ink2 } }, nInt(motivos.historico)),
+                        " perdas no per\u00EDodo registradas antes da lista oficial de motivos. Ficam fora do gr\u00E1fico porque o vocabul\u00E1rio antigo n\u00E3o distinguia os casos. Este n\u00FAmero encolhe sozinho conforme os leads novos s\u00E3o fechados.")))),
+            React.createElement(Secao, { n: 9, titulo: "Onde os leads est\u00E3o parados agora", nota: "Foto do momento, n\u00E3o do per\u00EDodo filtrado, e s\u00F3 do que continua aberto. O valor \u00E9 a soma do que est\u00E1 registrado nos leads da etapa \u2014 vale o que o preenchimento valer, por isso a coluna ao lado mostra quantos est\u00E3o sem valor nenhum. Ordenado por dinheiro, n\u00E3o por quantidade." }, (function () {
+                var abertas = d.funilAgora
+                    .filter(function (r) { return !r.ignorada; })
+                    .filter(function (r) { return !["ganho", "perdido"].includes(r.etapa_grupo); })
+                    .sort(function (a, b) { return (Number(b.valor_parado) || 0) - (Number(a.valor_parado) || 0); });
+                var totalLeads = abertas.reduce(function (s2, r) { return s2 + (Number(r.leads) || 0); }, 0);
+                var totalValor = abertas.reduce(function (s2, r) { return s2 + (Number(r.valor_parado) || 0); }, 0);
+                var totalSemValor = abertas.reduce(function (s2, r) { return s2 + (Number(r.sem_valor) || 0); }, 0);
+                var temValor = abertas.some(function (r) { return r.valor_parado != null; });
+                return (React.createElement(React.Fragment, null,
+                    temValor && (React.createElement("div", { className: "grid-kpi", style: { marginBottom: 12 } },
+                        React.createElement(Kpi, { label: "Dinheiro parado", value: nReal(totalValor), sub: "Em ".concat(nInt(totalLeads), " leads abertos") }),
+                        React.createElement(Kpi, { label: "Leads sem valor", value: nInt(totalSemValor), sub: "N\u00E3o somam no valor acima", tone: totalSemValor > totalLeads / 2 ? "bad" : undefined }))),
+                    React.createElement(Card, { className: "p0 rolagem" },
+                        React.createElement("table", null,
+                            React.createElement("thead", null,
+                                React.createElement("tr", null,
+                                    React.createElement(Th, null, "Etapa"),
+                                    React.createElement(Th, null, "Grupo"),
+                                    React.createElement(Th, { right: true }, "Leads"),
+                                    temValor && React.createElement(Th, { right: true }, "Valor parado"),
+                                    temValor && React.createElement(Th, { right: true }, "Sem valor"),
+                                    temValor && React.createElement(Th, { right: true }, "Dias sem mexer"),
+                                    React.createElement(Th, { right: true }, "Mais antigo"))),
+                            React.createElement("tbody", null,
+                                abertas.map(function (r) { return (React.createElement("tr", { key: r.etapa || "—" },
+                                    React.createElement(Td, { bold: true }, r.etapa || "—"),
+                                    React.createElement(Td, { color: T.muted }, r.etapa_grupo || "—"),
+                                    React.createElement(Td, { right: true }, nInt(r.leads)),
+                                    temValor && React.createElement(Td, { right: true, bold: true }, nReal(r.valor_parado)),
+                                    temValor && (React.createElement(Td, { right: true, color: T.muted }, r.sem_valor ? "".concat(nInt(r.sem_valor), " de ").concat(nInt(r.leads)) : "—")),
+                                    temValor && (React.createElement(Td, { right: true, color: Number(r.dias_sem_mexer) > 30 ? T.bad : T.ink }, r.dias_sem_mexer != null ? nInt(r.dias_sem_mexer) : "—")),
+                                    React.createElement(Td, { right: true, color: T.muted }, r.lead_mais_antigo ? brFull(r.lead_mais_antigo) : "—"))); }),
+                                React.createElement("tr", { style: { background: T.canvas } },
+                                    React.createElement(Td, { bold: true }, "Total aberto"),
+                                    React.createElement(Td, null),
+                                    React.createElement(Td, { right: true, bold: true }, nInt(totalLeads)),
+                                    temValor && React.createElement(Td, { right: true, bold: true }, nReal(totalValor)),
+                                    temValor && React.createElement(Td, { right: true, bold: true }, nInt(totalSemValor)),
+                                    temValor && React.createElement(Td, null),
+                                    React.createElement(Td, null)))))));
+            })()),
+            notaPreench.lista.length > 0 && (React.createElement(Secao, { n: 10, titulo: "Preenchimento \u2014 nota por SDR", nota: "A nota \u00E9 campos preenchidos dividido por campos exigidos, em tr\u00EAs camadas: todo lead exige unidade e servi\u00E7o; lead agendado exige tamb\u00E9m data da visita e a nota para o closer; lead que virou venda exige o valor. Quem n\u00E3o agendou ou n\u00E3o vendeu n\u00E3o \u00E9 cobrado por campo que ainda n\u00E3o existe. O desfecho da visita fica de fora \u2014 hoje ningu\u00E9m tem essa tarefa." },
+                React.createElement("div", { className: "grid-kpi", style: { marginBottom: 12 } },
+                    React.createElement(Kpi, { label: "Nota do time", value: nPct(notaPreench.geral, 0), sub: "".concat(nInt(notaPreench.tot.ok), " de ").concat(nInt(notaPreench.tot.exigidos), " campos"), tone: notaPreench.geral >= 0.9 ? "good" : notaPreench.geral < 0.7 ? "bad" : undefined }),
+                    React.createElement(Kpi, { label: "Melhor", value: notaPreench.lista[0].nome, sub: nPct(notaPreench.lista[0].nota, 0), tone: "good" }),
+                    React.createElement(Kpi, { label: "Pior", value: notaPreench.lista[notaPreench.lista.length - 1].nome, sub: nPct(notaPreench.lista[notaPreench.lista.length - 1].nota, 0), tone: "bad" })),
+                React.createElement(Card, { className: "p0 rolagem" },
+                    React.createElement("table", null,
+                        React.createElement("thead", null,
+                            React.createElement("tr", null,
+                                React.createElement(Th, null, "SDR"),
+                                React.createElement(Th, { right: true }, "Nota"),
+                                React.createElement(Th, { right: true }, "Leads"),
+                                React.createElement(Th, { right: true }, "Unidade"),
+                                React.createElement(Th, { right: true }, "Servi\u00E7o"),
+                                React.createElement(Th, { right: true }, "Agendados"),
+                                React.createElement(Th, { right: true }, "Data da visita"),
+                                React.createElement(Th, { right: true }, "Nota ao closer"),
+                                React.createElement(Th, { right: true }, "Vendas"),
+                                React.createElement(Th, { right: true }, "Valor preenchido"))),
+                        React.createElement("tbody", null, notaPreench.lista.map(function (x) {
+                            var cel = function (feitos, total) { return total
+                                ? React.createElement(Td, { right: true, color: div(feitos, total) >= 0.9 ? T.good
+                                        : div(feitos, total) < 0.7 ? T.bad : T.ink },
+                                    nPct(div(feitos, total), 0),
+                                    React.createElement("span", { style: { color: T.muted, fontSize: 11 } },
+                                        " \u00B7 ",
+                                        nInt(total - feitos),
+                                        " em branco"))
+                                : React.createElement(Td, { right: true, color: T.muted }, "\u2014"); };
+                            return (React.createElement("tr", { key: x.nome },
+                                React.createElement(Td, { bold: true }, x.nome),
+                                React.createElement(Td, { right: true, bold: true, color: x.nota >= 0.9 ? T.good : x.nota < 0.7 ? T.bad : T.ink }, nPct(x.nota, 0)),
+                                React.createElement(Td, { right: true }, nInt(x.leads)),
+                                cel(x.com_unidade, x.leads),
+                                cel(x.com_servico, x.leads),
+                                React.createElement(Td, { right: true }, nInt(x.agendados)),
+                                cel(x.com_data, x.agendados),
+                                cel(x.com_nota, x.agendados),
+                                React.createElement(Td, { right: true }, nInt(x.ganhos)),
+                                cel(x.com_valor, x.ganhos)));
+                        })))),
+                React.createElement(Card, { className: "p16", style: { marginTop: 12, fontSize: 12.5, color: T.ink2, lineHeight: 1.6 } }, "\"Nota ao closer\" mede se existe uma nota escrita por gente no lead. A qualidade do que foi escrito \u00E9 outra conversa, que nenhum painel resolve \u2014 esta coluna serve para achar quem n\u00E3o escreve nada."))),
+            q && (React.createElement(Secao, { n: 11, titulo: "Qualidade do preenchimento no CRM", nota: "Os mesmos buracos, vistos por campo em vez de por pessoa. As visitas sem desfecho aparecem aqui e n\u00E3o na nota acima de prop\u00F3sito: hoje ningu\u00E9m tem essa tarefa, e cobrar de quem n\u00E3o a recebeu destruiria a confian\u00E7a na nota." },
+                React.createElement("div", { className: "grid-kpi" },
+                    React.createElement(Kpi, { label: "Visitas sem desfecho", value: nInt(q.visita_sem_desfecho), sub: "J\u00E1 passaram e ningu\u00E9m marcou", tone: q.visita_sem_desfecho > 0 ? "bad" : "good" }),
+                    React.createElement(Kpi, { label: "Leads sem unidade", value: nInt(q.sem_unidade), sub: "N\u00E3o d\u00E1 para atribuir \u00E0 loja", tone: q.sem_unidade > 0 ? "bad" : "good" }),
+                    React.createElement(Kpi, { label: "Leads sem servi\u00E7o", value: nInt(q.sem_servico), sub: "N\u00E3o entram na an\u00E1lise por produto", tone: q.sem_servico > 0 ? "bad" : "good" }),
+                    React.createElement(Kpi, { label: "Leads sem SDR", value: nInt(q.sem_sdr), sub: "Nunca distribu\u00EDdos", tone: q.sem_sdr > 0 ? "bad" : "good" }),
+                    React.createElement(Kpi, { label: "Vendas sem valor", value: nInt(q.ganho_sem_valor), sub: "Fecharam com R$ 0", tone: q.ganho_sem_valor > 0 ? "bad" : "good" }),
+                    React.createElement(Kpi, { label: "Valores em quarentena", value: nInt(q.valor_em_quarentena), sub: "Acima de R$ 100 mil, fora do c\u00E1lculo", tone: q.valor_em_quarentena > 0 ? "bad" : "good" })))),
+            tarefasLista.length > 0 && (React.createElement(Secao, { n: 12, titulo: "Tarefas \u2014 o pr\u00F3ximo passo", nota: "Foto do agora, n\u00E3o do per\u00EDodo: vencida \u00E9 uma condi\u00E7\u00E3o de hoje. S\u00F3 entra tarefa de lead vivo do CAR SERVICE \u2014 tarefa aberta em lead j\u00E1 perdido, j\u00E1 ganho ou de outro funil n\u00E3o \u00E9 cobran\u00E7a de resultado, \u00E9 faxina de CRM, e aparece na coluna separada. A \u00FAltima coluna \u00E9 a que ningu\u00E9m tem hoje: lead que j\u00E1 foi trabalhado, n\u00E3o foi ganho nem perdido, e n\u00E3o tem nenhuma tarefa marcada. Ele n\u00E3o est\u00E1 perdido; est\u00E1 parado." },
+                React.createElement(Card, { className: "p0 rolagem" },
+                    React.createElement("table", null,
+                        React.createElement("thead", null,
+                            React.createElement("tr", null,
+                                React.createElement(Th, null, "SDR"),
+                                React.createElement(Th, { right: true }, "Em aberto"),
+                                React.createElement(Th, { right: true }, "Vencidas"),
+                                React.createElement(Th, { right: true }, "Vence hoje"),
+                                React.createElement(Th, { right: true }, "Pr\u00F3x. 7 dias"),
+                                React.createElement(Th, { right: true }, "Atraso maior"),
+                                React.createElement(Th, { right: true }, "Leads sem tarefa"),
+                                React.createElement(Th, { right: true }, "Faxina de CRM"))),
+                        React.createElement("tbody", null, tarefasLista.map(function (r) { return (React.createElement("tr", { key: r.sdr },
+                            React.createElement(Td, { bold: true }, r.sdr),
+                            React.createElement(Td, { right: true }, nInt(r.abertas)),
+                            React.createElement(Td, { right: true, bold: r.vencidas > 0, color: r.vencidas > 0 ? T.bad : null }, nInt(r.vencidas)),
+                            React.createElement(Td, { right: true }, nInt(r.vence_hoje)),
+                            React.createElement(Td, { right: true }, nInt(r.vence_7_dias)),
+                            React.createElement(Td, { right: true }, r.atraso_maximo_dias ? nInt(r.atraso_maximo_dias) + "d" : "—"),
+                            React.createElement(Td, { right: true, bold: r.sem_tarefa > 0, color: r.sem_tarefa > 0 ? T.bad : null }, nInt(r.sem_tarefa)),
+                            React.createElement(Td, { right: true, color: T.muted }, nInt(r.fora_do_escopo)))); })))))),
+            React.createElement("footer", { style: { marginTop: 48, paddingTop: 18, borderTop: "1px solid ".concat(T.hair),
+                    fontSize: 11.5, color: T.muted, lineHeight: 1.7, maxWidth: "80ch" } },
+                React.createElement("b", null, "De onde vem cada n\u00FAmero."),
+                " A carteira \u2014 leads, agendamentos, visitas, vendas e receita \u2014 vem do funil do CAR SERVICE no Kommo \u2014 que l\u00E1 dentro ainda se chama \"Auto Care\", id 13727267, um dos 29 funis da conta \u2014 e \u00E9 creditada ao dono do lead. O esfor\u00E7o \u2014 liga\u00E7\u00F5es, tempo ao telefone e taxa de atendimento \u2014 vem do discador API4COM, que \u00E9 quem sabe qual ramal discou; o Kommo n\u00E3o sabe, porque quem escreve a nota da liga\u00E7\u00E3o \u00E9 a integra\u00E7\u00E3o e n\u00E3o a pessoa. Por isso a se\u00E7\u00E3o 4 tem uma chave diferente da se\u00E7\u00E3o 3, e por isso trocar o API4COM por outro discador exige refazer essa parte. O WhatsApp vem do Kommo, onde o autor da mensagem \u00E9 confi\u00E1vel.",
+                React.createElement("br", null),
+                React.createElement("br", null),
+                React.createElement("b", null, "Como o dia \u00E9 contado."),
+                " Sempre no fuso de S\u00E3o Paulo. Agendamento conta no dia em que uma pessoa marcou; visita, no dia agendado; venda, na data da venda; perda, na data de fechamento. Movimenta\u00E7\u00E3o feita por automa\u00E7\u00E3o n\u00E3o conta como produtividade de ningu\u00E9m. A etapa \"AGENTE DE IA\" fica fora dos n\u00FAmeros do per\u00EDodo, mas aparece na se\u00E7\u00E3o 9, que \u00E9 uma foto do funil aberto agora.",
+                React.createElement("br", null),
+                React.createElement("br", null),
+                React.createElement("b", null, "O que o painel n\u00E3o v\u00EA."),
+                " Venda acima de R$ 100 mil entra na contagem, mas com receita zerada at\u00E9 algu\u00E9m conferir o valor \u2014 hoje h\u00E1 uma, de R$ 6,95 milh\u00F5es, que \u00E9 erro de digita\u00E7\u00E3o. Liga\u00E7\u00E3o para lead de outro funil \u2014 quase sempre o Remarketing, que a equipe trabalha quando n\u00E3o h\u00E1 lead novo \u2014 entra no esfor\u00E7o da se\u00E7\u00E3o 4 e aparece na coluna \"fora do funil\". Ela n\u00E3o entra em nenhuma outra se\u00E7\u00E3o: agendamento, visita e venda desses leads continuam invis\u00EDveis aqui, por decis\u00E3o de escopo. Mensagem sem autor \u00E9 do rob\u00F4 de triagem quando sai e \u00E9 o cliente quando entra \u2014 as duas s\u00E3o mostradas separadas, nunca somadas."))));
+}
+function App() {
+    var _a = __read(useState(undefined), 2), sessao = _a[0], setSessao = _a[1];
+    useEffect(function () {
+        var vivo = true;
+        /* Se a checagem de sessão não voltar em 8 segundos, cai na tela de
+           login em vez de ficar em "Verificando". Rede lenta ou Supabase
+           fora do ar não podem deixar a página presa para sempre. */
+        var prazo = setTimeout(function () {
+            if (vivo)
+                setSessao(function (x) { return (x === undefined ? null : x); });
+        }, 8000);
+        db.auth.getSession()
+            .then(function (_a) {
+            var _b;
+            var data = _a.data;
+            if (vivo)
+                setSessao((_b = data.session) !== null && _b !== void 0 ? _b : null);
+        })
+            .catch(function () { if (vivo)
+            setSessao(null); })
+            .finally(function () { return clearTimeout(prazo); });
+        var sub = db.auth.onAuthStateChange(function (_e, s) { if (vivo)
+            setSessao(s); }).data;
+        return function () { vivo = false; clearTimeout(prazo); sub.subscription.unsubscribe(); };
+    }, []);
+    if (sessao === undefined) {
+        return React.createElement("div", { style: { padding: 48, color: T.muted, fontFamily: F_UI } }, "Verificando o login\u2026");
+    }
+    return sessao ? React.createElement(Painel, { sessao: sessao }) : React.createElement(Login, null);
+}
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+}
+</script>
+
+<script>
+/* Carregamento do painel.
+   Os gráficos são desenhados em SVG pelo próprio código — não há mais
+   biblioteca de gráficos para baixar, então sobrou só React e o cliente
+   do Supabase, que vêm de uma CDN só e são verificados abaixo. */
+(function () {
+  var VERSAO = "v4";
+  console.log("Painel SDR " + VERSAO);
+  var raiz = document.getElementById("root");
+
+  function parar(titulo, detalhe) {
+    raiz.innerHTML =
+      '<div style="max-width:560px;margin:64px auto;padding:24px;background:#fff;' +
+      'border:1px solid #E4E7EB;border-radius:8px;line-height:1.6">' +
+      '<div style="font-weight:700;font-size:16px;margin-bottom:8px">' + titulo + '</div>' +
+      '<div style="font-size:11px;color:#9AA5B4;margin-bottom:10px">Painel SDR ' + VERSAO + '</div>' +
+      '<div style="font-size:13.5px;color:#3D454F">' + detalhe + '</div></div>';
   }
 
-  var tabs=[el("t-coord"), el("t-tv")], views=[el("v-coord"), el("v-tv")];
-  tabs.forEach(function(t,i){
-    t.addEventListener("click", function(){
-      tabs.forEach(function(x,j){ x.setAttribute("aria-selected", String(i===j)); views[j].hidden = (i!==j); });
-      try{ localStorage.setItem("aba", String(i)); }catch(e){}
-    });
-  });
-  try{ var a=localStorage.getItem("aba"); if(a==="1"){ tabs[1].click(); } }catch(e){}
+  /* O painel agora vive num bloco de script separado deste guarda. Se aquele
+     bloco não puder sequer ser LIDO pelo navegador — o caso da TV LG, cujo
+     Chromium é do ano do aparelho e não entende sintaxe recente — este
+     aqui continua vivo e consegue avisar. Antes os dois estavam no mesmo
+     bloco: o erro de sintaxe matava o painel E o aviso junto, e a tela
+     ficava branca sem uma palavra. */
+  if (typeof iniciarPainel !== "function") {
+    return parar("Este navegador não consegue abrir o painel",
+      "O código do painel não pôde ser lido por este navegador — quase sempre " +
+      "é o navegador embutido de uma TV, que é antigo e não entende a linguagem " +
+      "mais recente. Abra em um computador, celular, ou num aparelho ligado à TV " +
+      "(Chromecast, Fire Stick ou mini PC).");
+  }
 
-  carregar();
-  setInterval(carregar, REFRESH_MS);
+  if (!window.React || !window.ReactDOM) {
+    return parar("O painel não carregou",
+      "Não foi possível baixar o <b>React</b>. Normalmente é bloqueio de CDN na rede. " +
+      "Tente recarregar, ou abra fora da rede corporativa.");
+  }
+  if (!window.supabase) {
+    return parar("O painel não carregou",
+      "Não foi possível baixar o <b>cliente do Supabase</b>. Tente recarregar, " +
+      "ou abra fora da rede corporativa.");
+  }
+  if (!CONFIG.anonKey || CONFIG.anonKey.indexOf("COLE_AQUI") === 0) {
+    return parar("Falta configurar a chave",
+      "Abra o <code>index.html</code>, procure por <code>anonKey</code> e cole a chave " +
+      "<b>anon public</b> do projeto — em Supabase → Project Settings → API.");
+  }
+
+  /* Rede de segurança final: se em 20 segundos nada tiver sido desenhado,
+     mostra o diagnóstico em vez de deixar a pessoa olhando "Carregando".
+     A tela vira a informação de que eu preciso para consertar. */
+  var vigia = setTimeout(function () {
+    if (window.__painelDesenhou) return;
+    parar("O painel travou ao carregar",
+      "Nada foi desenhado em 20 segundos. Diagnóstico: " +
+      "React " + (window.React ? "ok" : "FALTOU") + " · " +
+      "Supabase " + (window.supabase ? "ok" : "FALTOU") +
+      ". Tente Ctrl+Shift+R. Se persistir, mande um print desta tela.");
+  }, 20000);
+
+  try {
+    iniciarPainel();
+    window.__painelDesenhou = true;
+    clearTimeout(vigia);
+  } catch (e) {
+    clearTimeout(vigia);
+    parar("Erro ao iniciar o painel", (e && e.message ? e.message : String(e)));
+  }
 })();
 </script>
 </body>
