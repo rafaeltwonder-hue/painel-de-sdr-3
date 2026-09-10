@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v19 — CAR SERVICE</title>
-<meta name="painel-versao" content="v19">
+<title>Painel de SDR v20 — CAR SERVICE</title>
+<meta name="painel-versao" content="v20">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -311,7 +311,11 @@ var nReal = function (n) { return (Number(n) || 0).toLocaleString("pt-BR", { sty
 var CAMPOS = [
     "leads_recebidos", "leads_trabalhados", "leads_sem_atendimento",
     "agendamentos_marcados", "visitas_do_dia", "comparecimentos",
-    "reagendamentos", "vendas", "perdidos", "receita",
+    /* Os quatro desfechos possíveis da visita, como o Kommo os oferece:
+       Compareceu, Reagendar, Cancelou e vazio. O cancelamento era o único
+       invisível no painel — e cancelar não é a mesma falha que não
+       aparecer: uma foi avisada, a outra não. */
+    "reagendamentos", "cancelamentos", "vendas", "perdidos", "receita",
     /* A perda dividida em duas leituras. Um número só juntava
        "descartamos na triagem o que chegou hoje" com "encerramos carteira
        velha", que são conversas diferentes com o mesmo nome. */
@@ -1765,6 +1769,12 @@ function Painel(_a) {
                 ? "".concat(nInt(semDesfecho), " visitas sem desfecho \u2014 entre as preenchidas d\u00E1 ").concat(nPct(showApurado))
                 : "Meta: ".concat(metaTaxa.taxa_show, "%"),
             tone: duvidaGrande ? "bad" : (a.taxa_show >= metaTaxa.taxa_show / 100 ? "good" : "bad") },
+        /* Cancelou e não apareceu são falhas diferentes. Separar é o que
+           permite cobrar a coisa certa: cancelamento alto é problema de
+           qualificação; não comparecimento sem aviso é problema de lembrete. */
+        { l: "Cancelaram a visita", v: nInt(a.cancelamentos),
+            s: "O cliente avisou que não vem",
+            tone: a.cancelamentos > 0 ? "bad" : "good" },
         { l: "Vendas", v: nInt(a.vendas), d: React.createElement(Delta, { atual: a.vendas, anterior: aPrev.vendas }) },
         { l: "Receita", v: nReal(a.receita), s: "Ticket m\u00E9dio ".concat(nReal(a.ticket)) },
         { l: "Conversão final", v: nPct(a.conversao_final), s: "Vendas ÷ leads recebidos" },
