@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v20 — CAR SERVICE</title>
-<meta name="painel-versao" content="v20">
+<title>Painel de SDR v21 — CAR SERVICE</title>
+<meta name="painel-versao" content="v21">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -246,7 +246,7 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
     }
     return to.concat(ar || Array.prototype.slice.call(from));
 };
-var useState = React.useState, useEffect = React.useEffect, useMemo = React.useMemo, useCallback = React.useCallback;
+var useState = React.useState, useEffect = React.useEffect, useMemo = React.useMemo, useCallback = React.useCallback, useRef = React.useRef, useLayoutEffect = React.useLayoutEffect;
 /* Sem biblioteca de gráficos. Foram três rodadas de problema com CDN —
    uma fonte que aceitava a conexão e nunca respondia, depois o PropTypes
    que o React 18 deixou de embutir. Os dois gráficos deste painel são
@@ -949,6 +949,92 @@ function AbaCoordenador(_a) {
                                 React.createElement(Td, { right: true, bold: Number(t.vencidas) > 0, color: Number(t.vencidas) > 0 ? T.bad : null }, nInt(t.vencidas)),
                                 React.createElement(Td, { right: true }, nInt(t.vence_hoje)))); })))))))));
 }
+/* ---------- a tela cheia da TV ----------
+
+   O PROBLEMA QUE ISTO RESOLVE
+   O Modo TV é mais alto do que a tela. Espelhando o tablet na TV da sala,
+   o placar cortava na terceira pessoa e os quatro cartões de baixo nem
+   apareciam — e numa TV ninguém rola a página. Medido em 11/09 na TV da
+   sala: de 6 SDRs apareciam 3.
+
+   COMO RESOLVE
+   1. Some com o cabeçalho do painel e com as abas. Numa TV eles não
+      servem para nada e comiam uns 120px de altura.
+   2. Desenha o conteúdo numa largura fixa de 1600px e ENCOLHE tudo por
+      transform até caber na tela, seja ela qual for. É por isso que
+      funciona igual no tablet, na TV e num monitor de 4K.
+   3. Oferece o botão de tela cheia, que tira a barra do navegador — as
+      abas e a barra de endereço comem outros 180px na foto que o Rafael
+      mandou.
+
+   offsetHeight NÃO é afetado por transform: ele devolve o tamanho de
+   layout. Por isso dá para medir e escalar o mesmo elemento sem entrar
+   num laço de medição. */
+var LARGURA_TV = 1600;
+function TelaTVCheia(_a) {
+    var c = _a.c, carregando = _a.carregando, onSair = _a.onSair;
+    var alvo = useRef(null);
+    var caixa = useRef(null);
+    var _b = __read(useState(1), 2), escala = _b[0], setEscala = _b[1];
+    var _c = __read(useState(false), 2), cheia = _c[0], setCheia = _c[1];
+    useLayoutEffect(function () {
+        function medir() {
+            var el = alvo.current;
+            if (!el)
+                return;
+            var larg = el.offsetWidth, alt = el.offsetHeight;
+            if (!larg || !alt)
+                return;
+            /* Cabe na largura E na altura. O teto de 1 é de propósito: em tela
+               muito grande, esticar além do tamanho natural deixa tudo borrado
+               e espaçado demais. */
+            var e = Math.min(window.innerWidth / larg, window.innerHeight / alt, 1);
+            setEscala(e > 0.15 ? e : 0.15);
+        }
+        medir();
+        window.addEventListener("resize", medir);
+        var t = setInterval(medir, 2000); // dado novo muda a altura
+        return function () { window.removeEventListener("resize", medir); clearInterval(t); };
+    }, [c]);
+    useEffect(function () {
+        function mudou() { setCheia(!!document.fullscreenElement); }
+        document.addEventListener("fullscreenchange", mudou);
+        return function () { document.removeEventListener("fullscreenchange", mudou); };
+    }, []);
+    function telaCheia() {
+        var el = caixa.current || document.documentElement;
+        try {
+            if (document.fullscreenElement) {
+                if (document.exitFullscreen)
+                    document.exitFullscreen();
+            }
+            else if (el.requestFullscreen) {
+                el.requestFullscreen();
+            }
+            else if (el.webkitRequestFullscreen) {
+                el.webkitRequestFullscreen();
+            }
+        }
+        catch (e) { /* navegador sem tela cheia: segue sem */ }
+    }
+    var botao = {
+        background: "rgba(255,255,255,.10)", border: "1px solid rgba(255,255,255,.22)",
+        color: "rgba(255,255,255,.8)", borderRadius: 7, padding: "6px 11px",
+        fontSize: 12, cursor: "pointer", fontFamily: F_UI,
+    };
+    return (React.createElement("div", { ref: caixa, style: { position: "fixed", top: 0, right: 0, bottom: 0, left: 0,
+            background: T.ink, overflow: "hidden", display: "flex",
+            alignItems: "center", justifyContent: "center" } },
+        React.createElement("div", { ref: alvo, style: { width: LARGURA_TV, flex: "0 0 auto",
+                transform: "scale(" + escala + ")", transformOrigin: "center center" } }, carregando || !c
+            ? React.createElement("div", { style: { color: "rgba(255,255,255,.6)", fontFamily: F_MARCA,
+                    fontSize: 22, textAlign: "center", padding: 60 } }, "Carregando o placar\u2026")
+            : React.createElement(ModoTV, { c: c })),
+        React.createElement("div", { style: { position: "absolute", top: 10, right: 12, display: "flex", gap: 8,
+                opacity: .45 } },
+            React.createElement("button", { style: botao, onClick: telaCheia }, cheia ? "Sair da tela cheia" : "Tela cheia"),
+            React.createElement("button", { style: botao, onClick: onSair }, "Voltar ao painel"))));
+}
 /* ---------- modo TV ----------
 
    Fundo escuro e números grandes porque a tela fica a metros de
@@ -1035,7 +1121,7 @@ function ModoTV(_a) {
                         color: "#79808A", margin: "8px 0 12px" } },
                     React.createElement("span", null, b.esq),
                     React.createElement("span", null, b.dir)))); })),
-        React.createElement("div", { className: "tvcols2", style: { display: "grid", gap: 22 } },
+        React.createElement("div", { style: { display: "grid", gap: 22, gridTemplateColumns: "1.45fr 1fr" } },
             React.createElement("div", { style: { background: FUNDO2, border: "1px solid ".concat(LINHA), borderRadius: 8,
                     padding: "18px 20px" } },
                 React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 13, letterSpacing: ".14em",
@@ -1080,8 +1166,8 @@ function ModoTV(_a) {
                     React.createElement("div", { style: { height: 14, background: LINHA, borderRadius: 3, overflow: "hidden" } },
                         React.createElement("div", { style: { height: "100%", width: (p.recMes / maiorRec * 100) + "%",
                                 background: i === 0 ? VERDE : T.marca, borderRadius: 3 } })))); }))),
-        React.createElement("div", { className: "tvbot2", style: { display: "grid", gap: 22 } },
-            React.createElement("div", { className: "tvpend2", style: { display: "grid", gap: 18 } },
+        React.createElement("div", { style: { display: "grid", gap: 22, gridTemplateColumns: "2.1fr 1fr" } },
+            React.createElement("div", { style: { display: "grid", gap: 18, gridTemplateColumns: "repeat(4, 1fr)" } },
                 React.createElement(Celula, { v: c.tarefasVencidas, l: "tarefas vencidas no time" }),
                 React.createElement(Celula, { v: c.leadsSemTarefa, l: "leads sem nenhuma tarefa" }),
                 React.createElement(Celula, { v: c.semLigar, l: "leads de hoje sem nenhuma liga\u00E7\u00E3o" }),
@@ -1797,6 +1883,11 @@ function Painel(_a) {
     var comPerda = perdas.filter(function (p) { return p.perda > 0; });
     var gargalo = comPerda.length ? comPerda.reduce(function (m, p) { return (p.perda > m.perda ? p : m); }) : null;
     var q = d.qualidade;
+    /* O Modo TV sai do layout normal por completo: sem cabeçalho, sem abas,
+       sem margem. Numa TV cada pixel de altura é placar que aparece. */
+    if (aba === "tv") {
+        return React.createElement(TelaTVCheia, { c: rot, carregando: d.estado.carregando, onSair: function () { setAba("painel"); } });
+    }
     return (React.createElement("div", { style: { background: T.canvas, minHeight: "100vh", fontFamily: F_UI, color: T.ink } },
         React.createElement("header", { style: { background: T.preto, position: "sticky", top: 0, zIndex: 30 } },
             React.createElement("div", { className: "wrap", style: { display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -1861,7 +1952,6 @@ function Painel(_a) {
             })),
             aba !== "painel" && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
             aba === "coordenador" && rot && React.createElement(AbaCoordenador, { c: rot, funil: d.funilAgora, qualidade: d.qualidade, tarefas: d.tarefas, semTarefa: d.semTarefa }),
-            aba === "tv" && rot && React.createElement(ModoTV, { c: rot }),
             aba === "painel" && (React.createElement(React.Fragment, null,
                 React.createElement(Card, { className: "p12", style: { position: "sticky", top: 54, zIndex: 20 } },
                     React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
