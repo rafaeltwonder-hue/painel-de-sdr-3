@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v21 — CAR SERVICE</title>
-<meta name="painel-versao" content="v21">
+<title>Painel de SDR v22 — CAR SERVICE</title>
+<meta name="painel-versao" content="v22">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -611,7 +611,7 @@ function contasDaRotina(r, tarefas, semTarefa) {
         .filter(function (x) { return noTime(x.sdr); })
         .reduce(function (s, x) { return s + (Number(x.vencidas) || 0); }, 0);
     var leadsSemTarefa = (semTarefa || [])
-        .filter(function (x) { return noTime(x.sdr); })
+        .filter(function (x) { return noTime(x.sdr) && x.ainda_dele; })
         .reduce(function (s, x) { return s + (Number(x.leads) || 0); }, 0);
     return {
         meta: meta,
@@ -692,8 +692,14 @@ function AbaCoordenador(_a) {
     var valorRepasse = paraRepassar.reduce(function (s, r) { return s + (Number(r.valor_parado) || 0); }, 0);
     var tk = {};
     (tarefas || []).forEach(function (r) { tk[r.sdr] = r; });
+    /* Só os leads que continuam com o SDR. Sem o filtro, a coluna contava
+       96 leads parados quando só 20 eram cobráveis dele. */
     var st = {};
-    (semTarefa || []).forEach(function (r) { st[r.sdr] = (st[r.sdr] || 0) + (Number(r.leads) || 0); });
+    (semTarefa || []).forEach(function (r) {
+        if (!r.ainda_dele)
+            return;
+        st[r.sdr] = (st[r.sdr] || 0) + (Number(r.leads) || 0);
+    });
     var totalVencidas = c.equipe.reduce(function (s, n) { return s + Number((tk[n] || {}).vencidas || 0); }, 0);
     var totalSemTarefa = c.equipe.reduce(function (s, n) { return s + Number(st[n] || 0); }, 0);
     var totalSemDesfecho = c.pessoasLista.reduce(function (s, p) { return s + p.semDesfecho; }, 0);
@@ -829,7 +835,7 @@ function AbaCoordenador(_a) {
                             nInt(f[e].dias_sem_mexer),
                             " dias sem mexer \u00B7 ",
                             nReal(f[e].valor_parado)))); })),
-                React.createElement(Bloco, { hora: "17:30", titulo: "Fechar o dia", alerta: totalVencidas > 0, etiqueta: "".concat(nInt(totalVencidas), " tarefas vencidas"), nota: "Vencida aqui s\u00F3 conta tarefa de lead vivo do CAR SERVICE. Tarefa aberta em lead j\u00E1 perdido ou de outro funil \u00E9 faxina de CRM, n\u00E3o cobran\u00E7a de resultado." },
+                React.createElement(Bloco, { hora: "17:30", titulo: "Fechar o dia", alerta: totalVencidas > 0, etiqueta: "".concat(nInt(totalVencidas), " tarefas vencidas"), nota: "Vencida aqui \u00E9 tarefa de lead que CONTINUA com o SDR \u2014 \u00E9 o que d\u00E1 para cobrar na reuni\u00E3o. Quando o lead \u00E9 repassado, o Kommo troca o respons\u00E1vel e o SDR perde o acesso: a tarefa fica no nome dele e ele n\u00E3o consegue concluir. Essas viraram a coluna 'J\u00E1 \u00E9 de outro' e quem fecha \u00E9 o dono atual do lead." },
                     React.createElement("div", { className: "rolagem" },
                         React.createElement("table", null,
                             React.createElement("thead", null,
@@ -841,7 +847,8 @@ function AbaCoordenador(_a) {
                                     React.createElement(Th, { right: true }, "Tarefas abertas"),
                                     React.createElement(Th, { right: true }, "Vencidas"),
                                     React.createElement(Th, { right: true }, "Atraso m\u00E1x."),
-                                    React.createElement(Th, { right: true }, "Leads sem tarefa"))),
+                                    React.createElement(Th, { right: true }, "Leads sem tarefa"),
+                                    React.createElement(Th, { right: true }, "J\u00E1 \u00E9 de outro"))),
                             React.createElement("tbody", null, porVencidas.map(function (p) {
                                 var t = tk[p.sdr] || {};
                                 return (React.createElement("tr", { key: p.sdr },
@@ -852,7 +859,8 @@ function AbaCoordenador(_a) {
                                     React.createElement(Td, { right: true }, t.abertas == null ? "—" : nInt(t.abertas)),
                                     React.createElement(Td, { right: true, bold: Number(t.vencidas) > 0, color: Number(t.vencidas) > 0 ? T.bad : null }, t.vencidas == null ? "—" : nInt(t.vencidas)),
                                     React.createElement(Td, { right: true, color: Number(t.atraso_maximo_dias) > 7 ? T.bad : null }, t.atraso_maximo_dias == null ? "—" : nInt(t.atraso_maximo_dias) + " d"),
-                                    React.createElement(Td, { right: true, color: Number(st[p.sdr] || 0) > 25 ? T.bad : null }, nInt(st[p.sdr] || 0))));
+                                    React.createElement(Td, { right: true, color: Number(st[p.sdr] || 0) > 25 ? T.bad : null }, nInt(st[p.sdr] || 0)),
+                                    React.createElement(Td, { right: true, color: Number(t.orfas_vencidas) > 0 ? T.warn : T.muted }, t.orfas == null ? "—" : nInt(t.orfas))));
                             })))),
                     React.createElement("div", { style: { marginTop: 12 } },
                         React.createElement(Linha, { valor: nInt(totalVencidas), cor: T.bad }, "Tarefas vencidas no time"),
@@ -933,7 +941,7 @@ function AbaCoordenador(_a) {
                         " lead(s) contatado(s) em at\u00E9 5 minutos hoje.")),
                 React.createElement(Card, { className: "p16" },
                     React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700 } }, "Tarefas por SDR"),
-                    React.createElement("div", { style: { fontSize: 12, color: T.muted, marginBottom: 14 } }, "Abertas, vencidas e o que vence hoje"),
+                    React.createElement("div", { style: { fontSize: 12, color: T.muted, marginBottom: 14 } }, "S\u00F3 de leads que continuam com ele"),
                     React.createElement("div", { className: "rolagem" },
                         React.createElement("table", null,
                             React.createElement("thead", null,
@@ -941,13 +949,13 @@ function AbaCoordenador(_a) {
                                     React.createElement(Th, null, "SDR"),
                                     React.createElement(Th, { right: true }, "Abertas"),
                                     React.createElement(Th, { right: true }, "Vencidas"),
-                                    React.createElement(Th, { right: true }, "Vence hoje"))),
+                                    React.createElement(Th, { right: true }, "J\u00E1 \u00E9 de outro"))),
                             React.createElement("tbody", null, (tarefas || []).slice()
                                 .sort(function (a, b) { return Number(b.vencidas) - Number(a.vencidas); }).map(function (t) { return (React.createElement("tr", { key: t.sdr },
                                 React.createElement(Td, { bold: true }, primeiroNome(t.sdr)),
                                 React.createElement(Td, { right: true }, nInt(t.abertas)),
                                 React.createElement(Td, { right: true, bold: Number(t.vencidas) > 0, color: Number(t.vencidas) > 0 ? T.bad : null }, nInt(t.vencidas)),
-                                React.createElement(Td, { right: true }, nInt(t.vence_hoje)))); })))))))));
+                                React.createElement(Td, { right: true, color: Number(t.orfas_vencidas) > 0 ? T.warn : T.muted }, nInt(t.orfas)))); })))))))));
 }
 /* ---------- a tela cheia da TV ----------
 
@@ -1726,27 +1734,38 @@ function Painel(_a) {
        nenhuma tarefa aberta, e vice-versa. Quem aparecer só de um lado
        entra com zero do outro em vez de sumir. */
     var tarefasLista = useMemo(function () {
+        var vazio = function (sdr) { return ({
+            sdr: sdr,
+            abertas: 0, vencidas: 0, vence_hoje: 0, vence_7_dias: 0,
+            atraso_maximo_dias: 0, fora_do_escopo: 0,
+            orfas: 0, orfas_vencidas: 0, sem_tarefa: 0, sem_tarefa_outro: 0,
+        }); };
         var linhas = new Map();
         (d.tarefas || []).forEach(function (r) {
-            linhas.set(r.sdr, {
-                sdr: r.sdr,
-                abertas: Number(r.abertas) || 0,
-                vencidas: Number(r.vencidas) || 0,
-                vence_hoje: Number(r.vence_hoje) || 0,
-                vence_7_dias: Number(r.vence_7_dias) || 0,
-                atraso_maximo_dias: Number(r.atraso_maximo_dias) || 0,
-                fora_do_escopo: Number(r.fora_do_escopo) || 0,
-                sem_tarefa: 0,
-            });
+            var at = vazio(r.sdr);
+            /* Todas as colunas abaixo já vêm da view contando SÓ lead que
+               continua sendo do SDR. "orfas" é o resto: tarefa no nome dele
+               em lead que hoje é de outra pessoa — ele nem consegue abrir. */
+            at.abertas = Number(r.abertas) || 0;
+            at.vencidas = Number(r.vencidas) || 0;
+            at.vence_hoje = Number(r.vence_hoje) || 0;
+            at.vence_7_dias = Number(r.vence_7_dias) || 0;
+            at.atraso_maximo_dias = Number(r.atraso_maximo_dias) || 0;
+            at.fora_do_escopo = Number(r.fora_do_escopo) || 0;
+            at.orfas = Number(r.orfas) || 0;
+            at.orfas_vencidas = Number(r.orfas_vencidas) || 0;
+            linhas.set(r.sdr, at);
         });
         (d.semTarefa || []).forEach(function (r) {
             if (!r.sdr)
                 return;
-            var at = linhas.get(r.sdr) || {
-                sdr: r.sdr, abertas: 0, vencidas: 0, vence_hoje: 0, vence_7_dias: 0,
-                atraso_maximo_dias: 0, fora_do_escopo: 0, sem_tarefa: 0,
-            };
-            at.sem_tarefa += Number(r.leads) || 0;
+            var at = linhas.get(r.sdr) || vazio(r.sdr);
+            /* ainda_dele = o lead continua com o SDR. Sem isso, a coluna
+               contava 96 leads parados quando só 20 eram cobráveis. */
+            if (r.ainda_dele)
+                at.sem_tarefa += Number(r.leads) || 0;
+            else
+                at.sem_tarefa_outro += Number(r.leads) || 0;
             linhas.set(r.sdr, at);
         });
         return __spreadArray([], __read(linhas.values()), false).sort(function (x, y) { return y.vencidas - x.vencidas; });
@@ -2293,7 +2312,7 @@ function Painel(_a) {
                         React.createElement(Kpi, { label: "Leads sem SDR", value: nInt(q.sem_sdr), sub: "Nunca distribu\u00EDdos", tone: q.sem_sdr > 0 ? "bad" : "good" }),
                         React.createElement(Kpi, { label: "Vendas sem valor", value: nInt(q.ganho_sem_valor), sub: "Fecharam com R$ 0", tone: q.ganho_sem_valor > 0 ? "bad" : "good" }),
                         React.createElement(Kpi, { label: "Valores em quarentena", value: nInt(q.valor_em_quarentena), sub: "Acima de R$ 100 mil, fora do c\u00E1lculo", tone: q.valor_em_quarentena > 0 ? "bad" : "good" })))),
-                tarefasLista.length > 0 && (React.createElement(Secao, { n: 12, titulo: "Tarefas \u2014 o pr\u00F3ximo passo", nota: "Foto do agora, n\u00E3o do per\u00EDodo: vencida \u00E9 uma condi\u00E7\u00E3o de hoje. S\u00F3 entra tarefa de lead vivo do CAR SERVICE \u2014 tarefa aberta em lead j\u00E1 perdido, j\u00E1 ganho ou de outro funil n\u00E3o \u00E9 cobran\u00E7a de resultado, \u00E9 faxina de CRM, e aparece na coluna separada. A \u00FAltima coluna \u00E9 a que ningu\u00E9m tem hoje: lead que j\u00E1 foi trabalhado, n\u00E3o foi ganho nem perdido, e n\u00E3o tem nenhuma tarefa marcada. Ele n\u00E3o est\u00E1 perdido; est\u00E1 parado." },
+                tarefasLista.length > 0 && (React.createElement(Secao, { n: 12, titulo: "Tarefas \u2014 o pr\u00F3ximo passo", nota: "Foto do agora, n\u00E3o do per\u00EDodo: vencida \u00E9 uma condi\u00E7\u00E3o de hoje. As cinco primeiras colunas contam S\u00D3 tarefa de lead que continua com o SDR \u2014 \u00E9 o que d\u00E1 para cobrar dele. Quando o lead \u00E9 repassado, o Kommo troca o respons\u00E1vel e o SDR perde o acesso ao card: a tarefa fica no nome dele e ele n\u00E3o consegue nem abrir para concluir. Isso virou a coluna 'J\u00E1 \u00E9 de outro', e quem fecha essas \u00E9 o dono atual do lead. 'Leads sem tarefa' tamb\u00E9m conta s\u00F3 os que ainda s\u00E3o dele. 'Faxina de CRM' \u00E9 tarefa aberta em lead j\u00E1 perdido, ganho ou de outro funil." },
                     React.createElement(Card, { className: "p0 rolagem" },
                         React.createElement("table", null,
                             React.createElement("thead", null,
@@ -2305,6 +2324,7 @@ function Painel(_a) {
                                     React.createElement(Th, { right: true }, "Pr\u00F3x. 7 dias"),
                                     React.createElement(Th, { right: true }, "Atraso maior"),
                                     React.createElement(Th, { right: true }, "Leads sem tarefa"),
+                                    React.createElement(Th, { right: true }, "J\u00E1 \u00E9 de outro"),
                                     React.createElement(Th, { right: true }, "Faxina de CRM"))),
                             React.createElement("tbody", null, tarefasLista.map(function (r) { return (React.createElement("tr", { key: r.sdr },
                                 React.createElement(Td, { bold: true }, r.sdr),
@@ -2314,6 +2334,9 @@ function Painel(_a) {
                                 React.createElement(Td, { right: true }, nInt(r.vence_7_dias)),
                                 React.createElement(Td, { right: true }, r.atraso_maximo_dias ? nInt(r.atraso_maximo_dias) + "d" : "—"),
                                 React.createElement(Td, { right: true, bold: r.sem_tarefa > 0, color: r.sem_tarefa > 0 ? T.bad : null }, nInt(r.sem_tarefa)),
+                                React.createElement(Td, { right: true, color: r.orfas_vencidas > 0 ? T.warn : T.muted }, r.orfas_vencidas > 0
+                                    ? nInt(r.orfas_vencidas) + " de " + nInt(r.orfas)
+                                    : nInt(r.orfas)),
                                 React.createElement(Td, { right: true, color: T.muted }, nInt(r.fora_do_escopo)))); })))))),
                 React.createElement("footer", { style: { marginTop: 48, paddingTop: 18, borderTop: "1px solid ".concat(T.hair),
                         fontSize: 11.5, color: T.muted, lineHeight: 1.7, maxWidth: "80ch" } },
