@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v22 — CAR SERVICE</title>
-<meta name="painel-versao" content="v22">
+<title>Painel de SDR v23 — CAR SERVICE</title>
+<meta name="painel-versao" content="v23">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -245,6 +245,17 @@ var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
         }
     }
     return to.concat(ar || Array.prototype.slice.call(from));
+};
+var __values = (this && this.__values) || function(o) {
+    var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
+    if (m) return m.call(o);
+    if (o && typeof o.length === "number") return {
+        next: function () {
+            if (o && i >= o.length) o = void 0;
+            return { value: o && o[i++], done: !o };
+        }
+    };
+    throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
 };
 var useState = React.useState, useEffect = React.useEffect, useMemo = React.useMemo, useCallback = React.useCallback, useRef = React.useRef, useLayoutEffect = React.useLayoutEffect;
 /* Sem biblioteca de gráficos. Foram três rodadas de problema com CDN —
@@ -655,19 +666,210 @@ var Kv = function (_a) {
 };
 /* Um bloco da rotina: hora, título e uma etiqueta com o número que
    decide se aquele bloco precisa de ação hoje. */
+/* O check é opcional: sem a prop `check`, o Bloco é exatamente o que
+   sempre foi. Com ela, ganha o botão (marca o check de QUEM ESTÁ LOGADO)
+   e a linha "quem fez" embaixo. Pedido do Rafael em 14/09: cada
+   coordenador marca o seu, e ele vê os dois separados. */
 var Bloco = function (_a) {
-    var hora = _a.hora, titulo = _a.titulo, etiqueta = _a.etiqueta, alerta = _a.alerta, children = _a.children, nota = _a.nota;
-    return (React.createElement(Card, { className: "p16", style: { borderLeft: "4px solid ".concat(alerta ? T.bad : T.muted) } },
-        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, alignItems: "baseline",
+    var hora = _a.hora, titulo = _a.titulo, etiqueta = _a.etiqueta, alerta = _a.alerta, children = _a.children, nota = _a.nota, check = _a.check;
+    var feito = !!(check && check.meu);
+    var borda = feito ? T.good : alerta ? T.bad : T.muted;
+    return (React.createElement(Card, { className: "p16", style: { borderLeft: "4px solid ".concat(borda) } },
+        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center",
                 justifyContent: "space-between", marginBottom: 12 } },
-            React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 11 } },
+            React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 11, flexWrap: "wrap" } },
                 React.createElement("span", { style: { fontFamily: F_MARCA, fontSize: 17, fontWeight: 700 } }, hora),
-                React.createElement("span", { style: { fontSize: 14, fontWeight: 600 } }, titulo)),
-            etiqueta && React.createElement(Pill, { cor: alerta ? T.bad : T.warn }, etiqueta)),
+                React.createElement("span", { style: { fontSize: 14, fontWeight: 600 } }, titulo),
+                etiqueta && React.createElement(Pill, { cor: alerta ? T.bad : T.warn }, etiqueta)),
+            check && check.podeMarcar && (React.createElement("button", { onClick: check.onToggle, disabled: check.salvando, title: feito ? "Clique para desmarcar" : "Marcar como feito", style: { fontFamily: F_UI, fontSize: 13, fontWeight: 600, borderRadius: 6, padding: "7px 13px",
+                    cursor: check.salvando ? "wait" : "pointer", display: "inline-flex", alignItems: "center", gap: 8,
+                    border: "1px solid ".concat(feito ? T.good : T.hair),
+                    background: feito ? T.good : T.surface, color: feito ? "#fff" : T.ink } },
+                React.createElement("span", { style: { width: 15, height: 15, borderRadius: 4, display: "inline-block",
+                        border: "2px solid ".concat(feito ? "#fff" : T.ink2), background: feito ? "#fff" : "transparent",
+                        position: "relative" } }, feito && React.createElement("span", { style: { position: "absolute", left: 3.5, top: 0, width: 4, height: 8,
+                        borderStyle: "solid", borderColor: T.good, borderWidth: "0 2.5px 2.5px 0",
+                        transform: "rotate(45deg)" } })),
+                feito ? "Feito \u00B7 ".concat(check.meuHora) : "Marcar como feito"))),
         children,
         nota && React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 10, paddingTop: 10,
-                borderTop: "1px dashed ".concat(T.hair), lineHeight: 1.6 } }, nota)));
+                borderTop: "1px dashed ".concat(T.hair), lineHeight: 1.6 } }, nota),
+        check && check.quem && check.quem.length > 0 && (React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10, paddingTop: 10,
+                borderTop: "1px dashed ".concat(T.hair) } }, check.quem.map(function (q) { return (React.createElement("span", { key: q.nome, style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12,
+                borderRadius: 99, padding: "3px 10px", fontWeight: q.hora ? 600 : 400,
+                color: q.hora ? (q.tarde ? T.warn : T.good) : T.muted,
+                background: q.hora ? (q.tarde ? "#FFF8E1" : "#0B7A5A14") : "#FAFAFA",
+                border: "1px solid ".concat(q.hora ? (q.tarde ? "#F0DDA0" : "#0B7A5A33") : T.hair) } },
+            React.createElement("span", { style: { width: 7, height: 7, borderRadius: 99, background: "currentColor", display: "inline-block" } }),
+            q.nome,
+            " \u00B7 ",
+            q.hora || "ainda não")); })))));
 };
+/* ===================== check da rotina =====================
+   Lê os últimos 7 dias de rotina_check_v (view que já traz nome e
+   e-mail) e a lista de coordenadores em rotina_pessoa. Devolve, por
+   bloco, o que o Bloco precisa, mais os dados do quadro e da faixa.
+
+   A hora de cada bloco serve para o "tarde": marcado mais de 60 min
+   depois do horário fica amarelo, não verde. O bloco "Sexta" só aceita
+   check na sexta. */
+var BLOCOS_ROTINA = [
+    { chave: "08:00", hora: "08:00", min: 8 * 60 },
+    { chave: "09:00", hora: "09:00", min: 9 * 60 },
+    { chave: "13:30", hora: "13:30", min: 13 * 60 + 30 },
+    { chave: "17:30", hora: "17:30", min: 17 * 60 + 30 },
+    { chave: "sexta", hora: "Sexta", min: 17 * 60 + 30, soSexta: true },
+];
+var hhmm = function (iso) {
+    var d = new Date(iso);
+    return "".concat(String(d.getHours()).padStart(2, "0"), ":").concat(String(d.getMinutes()).padStart(2, "0"));
+};
+function useRotinaCheck(sessao) {
+    var _this = this;
+    var _a = __read(useState([]), 2), linhas = _a[0], setLinhas = _a[1];
+    var _b = __read(useState([]), 2), pessoas = _b[0], setPessoas = _b[1];
+    var _c = __read(useState(null), 2), salvando = _c[0], setSalvando = _c[1];
+    var meuId = sessao && sessao.user ? sessao.user.id : null;
+    var diaHoje = hoje();
+    var seteAtras = addDays(diaHoje, -6);
+    var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
+        var _a, a, b;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
+                case 0: return [4 /*yield*/, Promise.all([
+                        db.from("rotina_check_v").select("*").gte("dia", seteAtras).lte("dia", diaHoje),
+                        db.from("rotina_pessoa").select("email,nome,coordenador"),
+                    ])];
+                case 1:
+                    _a = __read.apply(void 0, [_b.sent(), 2]), a = _a[0], b = _a[1];
+                    if (!a.error)
+                        setLinhas(a.data || []);
+                    if (!b.error)
+                        setPessoas(b.data || []);
+                    return [2 /*return*/];
+            }
+        });
+    }); }, [diaHoje, seteAtras]);
+    useEffect(function () { carregar(); }, [carregar]);
+    var toggle = function (chave) { return __awaiter(_this, void 0, void 0, function () {
+        var meu;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    if (!meuId)
+                        return [2 /*return*/];
+                    setSalvando(chave);
+                    meu = linhas.find(function (l) { return l.dia === diaHoje && l.bloco === chave && l.usuario === meuId; });
+                    if (!meu) return [3 /*break*/, 2];
+                    return [4 /*yield*/, db.from("rotina_check").delete().match({ dia: diaHoje, bloco: chave, usuario: meuId })];
+                case 1:
+                    _a.sent();
+                    return [3 /*break*/, 4];
+                case 2: return [4 /*yield*/, db.from("rotina_check").insert({ dia: diaHoje, bloco: chave, usuario: meuId })];
+                case 3:
+                    _a.sent();
+                    _a.label = 4;
+                case 4: return [4 /*yield*/, carregar()];
+                case 5:
+                    _a.sent();
+                    setSalvando(null);
+                    return [2 /*return*/];
+            }
+        });
+    }); };
+    /* Quem aparece no quadro: os coordenadores cadastrados, mais qualquer
+       pessoa que tenha marcado algo nos 7 dias (o Rafael, se marcar). */
+    var nomes = useMemo(function () {
+        var set = [];
+        pessoas.filter(function (p) { return p.coordenador; }).forEach(function (p) { if (set.indexOf(p.nome) < 0)
+            set.push(p.nome); });
+        linhas.forEach(function (l) { if (set.indexOf(l.nome) < 0)
+            set.push(l.nome); });
+        return set;
+    }, [pessoas, linhas]);
+    var ehSexta = new Date().getDay() === 5;
+    var porBloco = {};
+    BLOCOS_ROTINA.forEach(function (b) {
+        var hoje_ = linhas.filter(function (l) { return l.dia === diaHoje && l.bloco === b.chave; });
+        var meu = hoje_.find(function (l) { return l.usuario === meuId; }) || null;
+        var quem = nomes.map(function (n) {
+            var l = hoje_.find(function (x) { return x.nome === n; });
+            if (!l)
+                return { nome: n, hora: null, tarde: false };
+            var d = new Date(l.feito_em);
+            var tarde = (d.getHours() * 60 + d.getMinutes()) > b.min + 60;
+            return { nome: n, hora: hhmm(l.feito_em), tarde: tarde };
+        });
+        porBloco[b.chave] = {
+            meu: !!meu, meuHora: meu ? hhmm(meu.feito_em) : null,
+            quem: quem,
+            podeMarcar: !!meuId && (!b.soSexta || ehSexta),
+            salvando: salvando === b.chave,
+            onToggle: function () { return toggle(b.chave); },
+        };
+    });
+    /* faixa dos 7 dias: por pessoa, quantos blocos marcou em cada dia */
+    var dias = [];
+    for (var i = 6; i >= 0; i--)
+        dias.push(addDays(diaHoje, -i));
+    var faixa = nomes.map(function (n) { return ({
+        nome: n,
+        dias: dias.map(function (dia) {
+            var marcados = linhas.filter(function (l) { return l.dia === dia && l.nome === n; }).length;
+            var dow = parseISO(dia).getDay();
+            var total = dow === 0 ? 0 : dow === 5 ? 5 : 4; // domingo sem rotina
+            return { dia: dia, marcados: marcados, total: total };
+        }),
+    }); });
+    return { porBloco: porBloco, nomes: nomes, faixa: faixa, dias: dias, diaHoje: diaHoje, ehSexta: ehSexta };
+}
+/* O quadro "quem fez o quê — hoje" e a faixa dos 7 dias. */
+function QuadroRotina(_a) {
+    var r = _a.r;
+    var blocosHoje = BLOCOS_ROTINA.filter(function (b) { return !b.soSexta || r.ehSexta; });
+    var cor = function (q) { return q.hora ? (q.tarde ? T.warn : T.good) : "#C7CDD4"; };
+    var fundo = function (q) { return q.hora ? (q.tarde ? "#FFF8E1" : "#0B7A5A14") : "#F5F5F5"; };
+    var tom = function (c) { return c.total === 0 ? "#E6E9ED"
+        : c.marcados === 0 ? "#EEEEEE"
+            : c.marcados >= c.total ? T.good
+                : c.marcados === 1 ? T.marca : T.good + "99"; };
+    var DIAS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+    return (React.createElement(Card, { className: "p16" },
+        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700 } }, "Rotina \u2014 quem fez o qu\u00EA hoje"),
+        React.createElement("div", { style: { fontSize: 12, color: T.muted, marginBottom: 12 } }, "Verde = fez \u00B7 amarelo = fez mais de 1h depois do hor\u00E1rio \u00B7 cinza = ainda n\u00E3o"),
+        r.nomes.length === 0 && (React.createElement("div", { style: { fontSize: 12.5, color: T.muted } }, "Nenhum coordenador cadastrado ainda.")),
+        r.nomes.length > 0 && (React.createElement("div", { style: { display: "grid", gap: 6, alignItems: "center",
+                gridTemplateColumns: "minmax(70px, 110px) repeat(".concat(blocosHoje.length, ", 1fr)") } },
+            React.createElement("div", null),
+            blocosHoje.map(function (b) { return (React.createElement("div", { key: b.chave, style: { fontSize: 10.5, letterSpacing: ".06em", textTransform: "uppercase",
+                    color: T.muted, fontWeight: 600, textAlign: "center" } }, b.hora)); }),
+            r.nomes.map(function (n) { return (React.createElement(React.Fragment, { key: n },
+                React.createElement("div", { style: { fontSize: 13, fontWeight: 600 } }, n),
+                blocosHoje.map(function (b) {
+                    var q = (r.porBloco[b.chave].quem.find(function (x) { return x.nome === n; })) || { hora: null };
+                    return (React.createElement("div", { key: b.chave, style: { height: 32, borderRadius: 7, display: "flex", alignItems: "center",
+                            justifyContent: "center", fontSize: 12, fontWeight: 600, background: fundo(q), color: cor(q),
+                            fontVariantNumeric: "tabular-nums" } }, q.hora || "—"));
+                }))); }))),
+        r.nomes.length > 0 && (React.createElement("div", { style: { marginTop: 16, paddingTop: 12, borderTop: "1px dashed ".concat(T.hair) } },
+            React.createElement("div", { style: { fontSize: 12, color: T.muted, marginBottom: 8 } }, "\u00DAltimos 7 dias \u00B7 cada quadrado \u00E9 um dia"),
+            React.createElement("div", { style: { display: "grid", gap: 4, alignItems: "center",
+                    gridTemplateColumns: "minmax(70px, 110px) repeat(7, 1fr)" } },
+                React.createElement("div", null),
+                r.dias.map(function (dia) { return (React.createElement("div", { key: dia, style: { fontSize: 10.5, color: T.muted, textAlign: "center" } }, dia === r.diaHoje ? "hoje" : "".concat(DIAS[parseISO(dia).getDay()], " ").concat(parseISO(dia).getDate()))); }),
+                r.faixa.map(function (f) { return (React.createElement(React.Fragment, { key: f.nome },
+                    React.createElement("div", { style: { fontSize: 12.5, fontWeight: 600 } }, f.nome),
+                    f.dias.map(function (c) { return (React.createElement("div", { key: c.dia, title: "".concat(br(c.dia), " \u00B7 ").concat(c.marcados, " de ").concat(c.total), style: { height: 22, borderRadius: 5, background: tom(c) } })); }))); })),
+            React.createElement("div", { style: { fontSize: 11, color: T.muted, marginTop: 8 } },
+                React.createElement("span", { style: { color: T.good } }, "\u25A0"),
+                " todos os blocos \u00A0",
+                React.createElement("span", { style: { color: T.good + "99" } }, "\u25A0"),
+                " parte \u00A0",
+                React.createElement("span", { style: { color: T.marca } }, "\u25A0"),
+                " s\u00F3 um \u00A0",
+                React.createElement("span", { style: { color: "#C7CDD4" } }, "\u25A0"),
+                " nenhum \u00B7 domingo sem rotina")))));
+}
 var Linha = function (_a) {
     var children = _a.children, valor = _a.valor, cor = _a.cor, total = _a.total;
     return (React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "space-between",
@@ -680,7 +882,8 @@ var Linha = function (_a) {
 };
 /* ---------- aba do coordenador ---------- */
 function AbaCoordenador(_a) {
-    var c = _a.c, funil = _a.funil, qualidade = _a.qualidade, tarefas = _a.tarefas, semTarefa = _a.semTarefa;
+    var c = _a.c, funil = _a.funil, qualidade = _a.qualidade, tarefas = _a.tarefas, semTarefa = _a.semTarefa, sessao = _a.sessao;
+    var rotina = useRotinaCheck(sessao);
     var f = {};
     (funil || []).forEach(function (r) { f[r.etapa] = r; });
     /* Às 08:00 tudo que já passou da primeira conversa vai para o closer.
@@ -781,7 +984,7 @@ function AbaCoordenador(_a) {
         React.createElement("div", { className: "colsRotina", style: { display: "grid", gap: 16, marginTop: 16,
                 alignItems: "start" } },
             React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12 } },
-                React.createElement(Bloco, { hora: "08:00", titulo: "Distribuir para os closers", alerta: totalRepasse > 0, etiqueta: "".concat(nReal(valorRepasse), " parados"), nota: "O SDR n\u00E3o faz follow-up de or\u00E7amento \u2014 se o lead ficar com ele, para. Tudo que passou da primeira conversa vai para o closer na abertura do dia." },
+                React.createElement(Bloco, { hora: "08:00", check: rotina.porBloco["08:00"], titulo: "Distribuir para os closers", alerta: totalRepasse > 0, etiqueta: "".concat(nReal(valorRepasse), " parados"), nota: "O SDR n\u00E3o faz follow-up de or\u00E7amento \u2014 se o lead ficar com ele, para. Tudo que passou da primeira conversa vai para o closer na abertura do dia." },
                     paraRepassar.map(function (r) { return (React.createElement(Linha, { key: r.etapa, valor: nInt(r.leads), cor: Number(r.dias_sem_mexer) >= 5 ? T.bad : null },
                         r.etapa,
                         React.createElement("span", { style: { fontSize: 12, color: T.muted } },
@@ -791,7 +994,7 @@ function AbaCoordenador(_a) {
                             nReal(r.valor_parado)))); }),
                     React.createElement(Linha, { total: true, valor: "".concat(nInt(totalRepasse), " leads \u00B7 ").concat(nReal(valorRepasse)), cor: T.bad },
                         React.createElement("b", null, "A repassar para o closer"))),
-                React.createElement(Bloco, { hora: "09:00", titulo: "Reuni\u00E3o de time", etiqueta: "O dia at\u00E9 agora \u00D7 meta", nota: "Meta do dia: ".concat(nReal(c.metaReceitaDia), " e ").concat(nNum(c.metaVendaDia, 1), " vendas por pessoa \u2014 a meta do m\u00EAs dividida pelos dias \u00FAteis e pelas ").concat(c.pessoas, " pessoas que atendem. Liga\u00E7\u00F5es e conversas s\u00E3o meta fixa da casa.") },
+                React.createElement(Bloco, { hora: "09:00", check: rotina.porBloco["09:00"], titulo: "Reuni\u00E3o de time", etiqueta: "O dia at\u00E9 agora \u00D7 meta", nota: "Meta do dia: ".concat(nReal(c.metaReceitaDia), " e ").concat(nNum(c.metaVendaDia, 1), " vendas por pessoa \u2014 a meta do m\u00EAs dividida pelos dias \u00FAteis e pelas ").concat(c.pessoas, " pessoas que atendem. Liga\u00E7\u00F5es e conversas s\u00E3o meta fixa da casa.") },
                     React.createElement("div", { className: "rolagem" },
                         React.createElement("table", null,
                             React.createElement("thead", null,
@@ -820,7 +1023,7 @@ function AbaCoordenador(_a) {
                                     React.createElement(Cel, { v: p.compareceu, m: Number(c.meta.comparecimentos_dia) }),
                                     React.createElement(Cel, { v: p.vendeu, m: c.metaVendaDia }),
                                     React.createElement(Cel, { v: p.receita, m: c.metaReceitaDia, dinheiro: true }))); }))))),
-                React.createElement(Bloco, { hora: "13:30", titulo: "Destravar", alerta: c.semLigar > 0, etiqueta: "".concat(nInt(c.semLigar), " leads sem liga\u00E7\u00E3o"), nota: "Reagendamento e negocia\u00E7\u00E3o futura continuam com o SDR \u2014 o resto j\u00E1 foi para o closer \u00E0s 08:00." },
+                React.createElement(Bloco, { hora: "13:30", check: rotina.porBloco["13:30"], titulo: "Destravar", alerta: c.semLigar > 0, etiqueta: "".concat(nInt(c.semLigar), " leads sem liga\u00E7\u00E3o"), nota: "Reagendamento e negocia\u00E7\u00E3o futura continuam com o SDR \u2014 o resto j\u00E1 foi para o closer \u00E0s 08:00." },
                     React.createElement(Linha, { valor: nInt(c.semLigar), cor: T.bad },
                         "Leads que entraram hoje e ningu\u00E9m ligou",
                         React.createElement("span", { style: { fontSize: 12, color: T.muted } },
@@ -835,7 +1038,7 @@ function AbaCoordenador(_a) {
                             nInt(f[e].dias_sem_mexer),
                             " dias sem mexer \u00B7 ",
                             nReal(f[e].valor_parado)))); })),
-                React.createElement(Bloco, { hora: "17:30", titulo: "Fechar o dia", alerta: totalVencidas > 0, etiqueta: "".concat(nInt(totalVencidas), " tarefas vencidas"), nota: "Vencida aqui \u00E9 tarefa de lead que CONTINUA com o SDR \u2014 \u00E9 o que d\u00E1 para cobrar na reuni\u00E3o. Quando o lead \u00E9 repassado, o Kommo troca o respons\u00E1vel e o SDR perde o acesso: a tarefa fica no nome dele e ele n\u00E3o consegue concluir. Essas viraram a coluna 'J\u00E1 \u00E9 de outro' e quem fecha \u00E9 o dono atual do lead." },
+                React.createElement(Bloco, { hora: "17:30", check: rotina.porBloco["17:30"], titulo: "Fechar o dia", alerta: totalVencidas > 0, etiqueta: "".concat(nInt(totalVencidas), " tarefas vencidas"), nota: "Vencida aqui \u00E9 tarefa de lead que CONTINUA com o SDR \u2014 \u00E9 o que d\u00E1 para cobrar na reuni\u00E3o. Quando o lead \u00E9 repassado, o Kommo troca o respons\u00E1vel e o SDR perde o acesso: a tarefa fica no nome dele e ele n\u00E3o consegue concluir. Essas viraram a coluna 'J\u00E1 \u00E9 de outro' e quem fecha \u00E9 o dono atual do lead." },
                     React.createElement("div", { className: "rolagem" },
                         React.createElement("table", null,
                             React.createElement("thead", null,
@@ -866,7 +1069,7 @@ function AbaCoordenador(_a) {
                         React.createElement(Linha, { valor: nInt(totalVencidas), cor: T.bad }, "Tarefas vencidas no time"),
                         React.createElement(Linha, { valor: nInt(totalSemTarefa), cor: T.bad }, "Leads sem nenhuma tarefa"),
                         React.createElement(Linha, { total: true, valor: nInt((qualidade || {}).visita_sem_desfecho), cor: T.bad }, "Acumulado na base sem desfecho"))),
-                React.createElement(Bloco, { hora: "Sexta", titulo: "Fechar a semana", etiqueta: "Qualidade da base", nota: "\u00C9 a lista que o coordenador leva para o fechamento semanal com o supervisor." },
+                React.createElement(Bloco, { hora: "Sexta", check: rotina.porBloco["sexta"], titulo: "Fechar a semana", etiqueta: "Qualidade da base", nota: "\u00C9 a lista que o coordenador leva para o fechamento semanal com o supervisor." },
                     React.createElement(Linha, { valor: nInt((qualidade || {}).sem_unidade), cor: T.bad },
                         "Leads sem unidade preenchida",
                         React.createElement("span", { style: { fontSize: 12, color: T.muted } },
@@ -878,6 +1081,7 @@ function AbaCoordenador(_a) {
                     React.createElement(Linha, { valor: nInt((qualidade || {}).ganho_sem_valor), cor: T.bad }, "Vendas ganhas sem valor lan\u00E7ado"),
                     React.createElement(Linha, { valor: nInt((qualidade || {}).sem_sdr) }, "Leads sem SDR atribu\u00EDdo"))),
             React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12 } },
+                React.createElement(QuadroRotina, { r: rotina }),
                 React.createElement(Card, { className: "p16" },
                     React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700 } }, "Esfor\u00E7o de hoje"),
                     React.createElement("div", { style: { fontSize: 12, color: T.muted, marginBottom: 14 } }, "Os dois n\u00FAmeros que o time controla 100%"),
@@ -1564,7 +1768,7 @@ function Painel(_a) {
        passa a funcionar entre as abas. */
     var abaDaURL = function () {
         var h = String(window.location.hash || "").replace("#", "");
-        return (h === "coordenador" || h === "tv") ? h : "painel";
+        return (h === "coordenador" || h === "tv" || h === "importar") ? h : "painel";
     };
     var _d = __read(useState(abaDaURL), 2), aba = _d[0], setAbaBruto = _d[1];
     var setAba = function (v) {
@@ -1962,15 +2166,16 @@ function Painel(_a) {
                             .map(function (x) { return "".concat(x.fonte, " ").concat(idade(x.min)); }).join(" · "),
                         "."))))),
             React.createElement("div", { style: { display: "flex", gap: 4, background: T.surface, border: "1px solid ".concat(T.hair),
-                    borderRadius: 8, padding: 4, marginBottom: 16, width: "fit-content" } }, [["painel", "Painel"], ["coordenador", "Coordenador"], ["tv", "Modo TV"]].map(function (_a) {
+                    borderRadius: 8, padding: 4, marginBottom: 16, width: "fit-content" } }, [["painel", "Painel"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["importar", "Importar"]].map(function (_a) {
                 var _b = __read(_a, 2), v = _b[0], l = _b[1];
                 return (React.createElement("button", { key: v, onClick: function () { return setAba(v); }, style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700, padding: "8px 16px",
                         border: 0, borderRadius: 5, cursor: "pointer",
                         background: aba === v ? T.ink : "transparent",
                         color: aba === v ? "#fff" : T.ink2 } }, l));
             })),
-            aba !== "painel" && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
-            aba === "coordenador" && rot && React.createElement(AbaCoordenador, { c: rot, funil: d.funilAgora, qualidade: d.qualidade, tarefas: d.tarefas, semTarefa: d.semTarefa }),
+            aba !== "painel" && aba !== "importar" && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
+            aba === "importar" && React.createElement(AbaImportar, { sessao: sessao }),
+            aba === "coordenador" && rot && React.createElement(AbaCoordenador, { sessao: sessao, c: rot, funil: d.funilAgora, qualidade: d.qualidade, tarefas: d.tarefas, semTarefa: d.semTarefa }),
             aba === "painel" && (React.createElement(React.Fragment, null,
                 React.createElement(Card, { className: "p12", style: { position: "sticky", top: 54, zIndex: 20 } },
                     React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
@@ -2350,6 +2555,300 @@ function Painel(_a) {
                     React.createElement("br", null),
                     React.createElement("b", null, "O que o painel n\u00E3o v\u00EA."),
                     " Venda acima de R$ 100 mil entra na contagem, mas com receita zerada at\u00E9 algu\u00E9m conferir o valor \u2014 hoje h\u00E1 uma, de R$ 6,95 milh\u00F5es, que \u00E9 erro de digita\u00E7\u00E3o. Liga\u00E7\u00E3o para lead de outro funil \u2014 quase sempre o Remarketing, que a equipe trabalha quando n\u00E3o h\u00E1 lead novo \u2014 entra no esfor\u00E7o da se\u00E7\u00E3o 4 e aparece na coluna \"fora do funil\". Ela n\u00E3o entra em nenhuma outra se\u00E7\u00E3o: agendamento, visita e venda desses leads continuam invis\u00EDveis aqui, por decis\u00E3o de escopo. Mensagem sem autor \u00E9 do rob\u00F4 de triagem quando sai e \u00E9 o cliente quando entra \u2014 as duas s\u00E3o mostradas separadas, nunca somadas."))))));
+}
+/* ===================== aba Importar =====================
+
+   A pessoa exporta os relatórios do Oficina Inteligente em Excel e
+   arrasta aqui. O arquivo vai para o bucket 'exportacoes' com a sessão
+   do próprio usuário (a policy exige login), o painel registra em
+   oi_arquivos e chama a função oi-ingestao, que lê e grava.
+
+   Nada aqui conhece o formato dos relatórios: quem reconhece é a
+   função, pela primeira célula do arquivo. Esta tela só sobe, chama e
+   mostra o que voltou — inclusive o erro, por extenso, porque a pessoa
+   que exporta não é quem vai corrigir o código.
+
+   "Pré-visualizar" chama a função em modo amostra: mostra loja, período
+   e as primeiras linhas lidas SEM gravar. É o botão de confiança para o
+   primeiro envio de cada relatório novo. */
+var TIPO_ROTULO = {
+    vendas_responsavel: "Vendas por Responsável",
+    vendas_pagamento: "Vendas por Forma de Pagamento",
+    vendas_grupo: "Vendas por Grupo",
+    os_pagamento: "OS/Lote por Forma de Pagamento",
+    conferencia: "Conferência (Listagem de O.S.)",
+};
+var STATUS_COR = { ok: T.good, erro: T.bad, processando: T.warn, recebido: T.muted, ignorado: T.muted };
+var STATUS_ROTULO = { ok: "gravado", erro: "erro", processando: "lendo…", recebido: "na fila", ignorado: "substituído" };
+function AbaImportar(_a) {
+    var _this = this;
+    var sessao = _a.sessao;
+    var _b = __read(useState([]), 2), lista = _b[0], setLista = _b[1];
+    var _c = __read(useState([]), 2), fila = _c[0], setFila = _c[1]; // arquivos em andamento nesta tela
+    var _d = __read(useState(false), 2), arrastando = _d[0], setArrastando = _d[1];
+    var _f = __read(useState(null), 2), previa = _f[0], setPrevia = _f[1]; // resultado da amostra
+    var _g = __read(useState(null), 2), erroGeral = _g[0], setErroGeral = _g[1];
+    var entrada = useRef(null);
+    var carregar = function () { return __awaiter(_this, void 0, void 0, function () {
+        var r;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0: return [4 /*yield*/, db.from("oi_arquivos").select("*").order("enviado_em", { ascending: false }).limit(60)];
+                case 1:
+                    r = _a.sent();
+                    if (!r.error)
+                        setLista(r.data || []);
+                    return [2 /*return*/];
+            }
+        });
+    }); };
+    useEffect(function () { carregar(); }, []);
+    var chamar = function (arquivo_id, amostra) { return __awaiter(_this, void 0, void 0, function () {
+        var _a, data, error, corpo, e_4;
+        var _b, _c;
+        return __generator(this, function (_d) {
+            switch (_d.label) {
+                case 0: return [4 /*yield*/, db.functions.invoke("oi-ingestao", { body: { arquivo_id: arquivo_id, amostra: !!amostra } })];
+                case 1:
+                    _a = _d.sent(), data = _a.data, error = _a.error;
+                    if (!error) return [3 /*break*/, 6];
+                    corpo = null;
+                    _d.label = 2;
+                case 2:
+                    _d.trys.push([2, 4, , 5]);
+                    return [4 /*yield*/, ((_c = (_b = error.context) === null || _b === void 0 ? void 0 : _b.json) === null || _c === void 0 ? void 0 : _c.call(_b))];
+                case 3:
+                    corpo = _d.sent();
+                    return [3 /*break*/, 5];
+                case 4:
+                    e_4 = _d.sent();
+                    return [3 /*break*/, 5];
+                case 5: throw new Error((corpo === null || corpo === void 0 ? void 0 : corpo.erro) || error.message || "falha ao chamar a função");
+                case 6:
+                    if (data === null || data === void 0 ? void 0 : data.erro)
+                        throw new Error(data.erro);
+                    return [2 /*return*/, data];
+            }
+        });
+    }); };
+    var enviar = function (arquivos) { return __awaiter(_this, void 0, void 0, function () {
+        var lote, hojeStr, _loop_1, lote_1, lote_1_1, a, e_5_1;
+        var e_5, _a;
+        var _b;
+        return __generator(this, function (_c) {
+            switch (_c.label) {
+                case 0:
+                    setErroGeral(null);
+                    lote = [].slice.call(arquivos || []).filter(function (a) { return /\.xlsx?$/i.test(a.name); });
+                    if (!lote.length) {
+                        setErroGeral("Só arquivos .xls ou .xlsx. Exporte o relatório em Excel.");
+                        return [2 /*return*/];
+                    }
+                    hojeStr = hoje();
+                    _loop_1 = function (a) {
+                        var item, atualiza, caminho, up, reg, r, e_6;
+                        return __generator(this, function (_d) {
+                            switch (_d.label) {
+                                case 0:
+                                    item = { nome: a.name, tamanho: a.size, etapa: "subindo", erro: null };
+                                    setFila(function (f) { return __spreadArray([item], __read(f), false); });
+                                    atualiza = function (patch) { return setFila(function (f) { return f.map(function (x) { return (x === item ? Object.assign(item, patch) : x); }); }); };
+                                    _d.label = 1;
+                                case 1:
+                                    _d.trys.push([1, 5, , 6]);
+                                    caminho = "".concat(hojeStr, "/").concat(Date.now(), "-").concat(a.name.replace(/[^\w.\-]+/g, "_"));
+                                    return [4 /*yield*/, db.storage.from("exportacoes").upload(caminho, a, { upsert: false, contentType: "application/vnd.ms-excel" })];
+                                case 2:
+                                    up = _d.sent();
+                                    if (up.error)
+                                        throw new Error("enviando o arquivo: ".concat(up.error.message));
+                                    return [4 /*yield*/, db.from("oi_arquivos")
+                                            .insert({ caminho: caminho, nome_original: a.name, tamanho: a.size, enviado_por: (_b = sessao === null || sessao === void 0 ? void 0 : sessao.user) === null || _b === void 0 ? void 0 : _b.id })
+                                            .select("id").single()];
+                                case 3:
+                                    reg = _d.sent();
+                                    if (reg.error)
+                                        throw new Error("registrando o arquivo: ".concat(reg.error.message));
+                                    atualiza({ etapa: "lendo", id: reg.data.id });
+                                    return [4 /*yield*/, chamar(reg.data.id, false)];
+                                case 4:
+                                    r = _d.sent();
+                                    atualiza({ etapa: "ok", resultado: r });
+                                    return [3 /*break*/, 6];
+                                case 5:
+                                    e_6 = _d.sent();
+                                    atualiza({ etapa: "erro", erro: e_6.message || String(e_6) });
+                                    return [3 /*break*/, 6];
+                                case 6: return [4 /*yield*/, carregar()];
+                                case 7:
+                                    _d.sent();
+                                    return [2 /*return*/];
+                            }
+                        });
+                    };
+                    _c.label = 1;
+                case 1:
+                    _c.trys.push([1, 6, 7, 8]);
+                    lote_1 = __values(lote), lote_1_1 = lote_1.next();
+                    _c.label = 2;
+                case 2:
+                    if (!!lote_1_1.done) return [3 /*break*/, 5];
+                    a = lote_1_1.value;
+                    return [5 /*yield**/, _loop_1(a)];
+                case 3:
+                    _c.sent();
+                    _c.label = 4;
+                case 4:
+                    lote_1_1 = lote_1.next();
+                    return [3 /*break*/, 2];
+                case 5: return [3 /*break*/, 8];
+                case 6:
+                    e_5_1 = _c.sent();
+                    e_5 = { error: e_5_1 };
+                    return [3 /*break*/, 8];
+                case 7:
+                    try {
+                        if (lote_1_1 && !lote_1_1.done && (_a = lote_1.return)) _a.call(lote_1);
+                    }
+                    finally { if (e_5) throw e_5.error; }
+                    return [7 /*endfinally*/];
+                case 8: return [2 /*return*/];
+            }
+        });
+    }); };
+    var reprocessar = function (arq, amostra) { return __awaiter(_this, void 0, void 0, function () {
+        var r, e_7;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    setErroGeral(null);
+                    setPrevia(null);
+                    _a.label = 1;
+                case 1:
+                    _a.trys.push([1, 3, , 4]);
+                    return [4 /*yield*/, chamar(arq.id, amostra)];
+                case 2:
+                    r = _a.sent();
+                    if (amostra)
+                        setPrevia({ arq: arq, r: r });
+                    return [3 /*break*/, 4];
+                case 3:
+                    e_7 = _a.sent();
+                    setErroGeral("".concat(arq.nome_original, ": ").concat(e_7.message));
+                    return [3 /*break*/, 4];
+                case 4: return [4 /*yield*/, carregar()];
+                case 5:
+                    _a.sent();
+                    return [2 /*return*/];
+            }
+        });
+    }); };
+    var onDrop = function (e) { e.preventDefault(); setArrastando(false); enviar(e.dataTransfer.files); };
+    var fmtBytes = function (n) { return (n > 1e6 ? "".concat((n / 1e6).toFixed(1), " MB") : "".concat(Math.round(n / 1e3), " KB")); };
+    var fmtQuando = function (iso) {
+        var d = new Date(iso);
+        return "".concat(String(d.getDate()).padStart(2, "0"), "/").concat(String(d.getMonth() + 1).padStart(2, "0"), " ").concat(String(d.getHours()).padStart(2, "0"), ":").concat(String(d.getMinutes()).padStart(2, "0"));
+    };
+    var periodo = function (a) { return (a.periodo_ini ? "".concat(br(a.periodo_ini), " \u2013 ").concat(br(a.periodo_fim)) : "—"); };
+    return (React.createElement("div", null,
+        React.createElement(Card, { className: "p24", style: { marginBottom: 12 } },
+            React.createElement("div", { onDragOver: function (e) { e.preventDefault(); setArrastando(true); }, onDragLeave: function () { return setArrastando(false); }, onDrop: onDrop, onClick: function () { return entrada.current && entrada.current.click(); }, style: { border: "2px dashed ".concat(arrastando ? T.marca : "#C7CDD4"), borderRadius: 10, padding: "34px 20px",
+                    textAlign: "center", cursor: "pointer", background: arrastando ? "#FFF8E1" : T.canvas, transition: "all .15s" } },
+                React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 17, fontWeight: 700, color: T.ink } }, "Arraste os relat\u00F3rios do Oficina aqui"),
+                React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 6 } }, "ou clique para escolher \u00B7 aceita v\u00E1rios de uma vez \u00B7 s\u00F3 Excel (.xls)"),
+                React.createElement("input", { ref: entrada, type: "file", multiple: true, accept: ".xls,.xlsx", style: { display: "none" }, onChange: function (e) { enviar(e.target.files); e.target.value = ""; } })),
+            React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 12, lineHeight: 1.6 } },
+                "O painel reconhece o relat\u00F3rio sozinho pelo conte\u00FAdo. Arquivo repetido ",
+                React.createElement("b", null, "substitui"),
+                " o anterior do mesmo relat\u00F3rio, loja e per\u00EDodo \u2014 n\u00E3o duplica. Na d\u00FAvida, exporte de novo."),
+            erroGeral && (React.createElement("div", { style: { marginTop: 12, background: "#FDF3F3", border: "1px solid #F0C3C6", borderRadius: 8,
+                    padding: "10px 12px", fontSize: 12.5, color: "#7A1C23" } }, erroGeral))),
+        fila.length > 0 && (React.createElement(Card, { className: "p16", style: { marginBottom: 12 } },
+            React.createElement(Label, null, "Agora"),
+            React.createElement("div", { style: { marginTop: 8 } }, fila.map(function (x, i) {
+                var _a, _b, _c, _d, _f;
+                return (React.createElement("div", { key: i, style: { display: "flex", gap: 10, alignItems: "center", padding: "7px 0",
+                        borderBottom: "1px solid ".concat(T.hair), fontSize: 13 } },
+                    React.createElement("span", { style: { flex: 1, fontVariantNumeric: "tabular-nums" } },
+                        x.nome,
+                        React.createElement("span", { style: { color: T.muted } },
+                            " \u00B7 ",
+                            fmtBytes(x.tamanho))),
+                    x.etapa === "subindo" && React.createElement(Pill, { cor: T.warn }, "enviando\u2026"),
+                    x.etapa === "lendo" && React.createElement(Pill, { cor: T.warn }, "lendo\u2026"),
+                    x.etapa === "ok" && React.createElement(Pill, { cor: T.good },
+                        TIPO_ROTULO[(_a = x.resultado) === null || _a === void 0 ? void 0 : _a.tipo] || ((_b = x.resultado) === null || _b === void 0 ? void 0 : _b.tipo),
+                        " \u00B7 ", (_c = x.resultado) === null || _c === void 0 ? void 0 :
+                        _c.loja,
+                        ((_d = x.resultado) === null || _d === void 0 ? void 0 : _d.gravado) ? " \u00B7 ".concat(Object.values(x.resultado.gravado).reduce(function (s, n) { return s + n; }, 0), " linhas") : "",
+                        ((_f = x.resultado) === null || _f === void 0 ? void 0 : _f.aviso) ? " \u00B7 ".concat(x.resultado.aviso) : ""),
+                    x.etapa === "erro" && React.createElement("span", { style: { color: T.bad, fontSize: 12, maxWidth: 520 } }, x.erro)));
+            })))),
+        previa && (React.createElement(Card, { className: "p16", style: { marginBottom: 12, borderColor: T.marca } },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
+                React.createElement(Label, null, "Pr\u00E9-visualiza\u00E7\u00E3o \u2014 nada foi gravado"),
+                React.createElement(Btn, { onClick: function () { return setPrevia(null); }, style: { marginLeft: "auto", padding: "4px 10px" } }, "fechar")),
+            React.createElement("div", { style: { fontSize: 13, marginTop: 8 } },
+                React.createElement("b", null, TIPO_ROTULO[previa.r.tipo] || previa.r.tipo),
+                " \u00B7 ",
+                previa.r.loja,
+                " \u00B7 ",
+                br(previa.r.periodo_ini),
+                " \u2013 ",
+                br(previa.r.periodo_fim),
+                previa.r.filtro_data ? " \u00B7 ".concat(previa.r.filtro_data) : ""),
+            previa.r.previa && Object.entries(previa.r.previa).map(function (_a) {
+                var _b = __read(_a, 2), t = _b[0], v = _b[1];
+                return (React.createElement("div", { key: t, style: { marginTop: 10 } },
+                    React.createElement("div", { style: { fontSize: 12, color: T.muted } },
+                        t,
+                        " \u00B7 ",
+                        v.linhas,
+                        " linhas \u00B7 primeiras 5:"),
+                    React.createElement("pre", { style: { fontSize: 11.5, background: T.canvas, borderRadius: 6, padding: 10, overflowX: "auto", margin: "4px 0 0" } }, JSON.stringify(v.primeiras, null, 1))));
+            }),
+            previa.r.primeiras_linhas && (React.createElement("pre", { style: { fontSize: 11.5, background: T.canvas, borderRadius: 6, padding: 10, overflowX: "auto", marginTop: 8 } }, JSON.stringify(previa.r.primeiras_linhas, null, 1))),
+            React.createElement(Btn, { kind: "accent", onClick: function () { return reprocessar(previa.arq, false); }, style: { marginTop: 12 } }, "Gravar este arquivo"))),
+        React.createElement(Card, { className: "p0 rolagem" },
+            React.createElement("div", { style: { padding: "14px 16px 6px", display: "flex", alignItems: "center", gap: 10 } },
+                React.createElement(Label, null, "Arquivos recebidos"),
+                React.createElement(Btn, { onClick: carregar, style: { marginLeft: "auto", padding: "4px 10px" } }, "atualizar lista")),
+            React.createElement("table", { style: { minWidth: 980 } },
+                React.createElement("thead", null,
+                    React.createElement("tr", null,
+                        React.createElement(Th, null, "Quando"),
+                        React.createElement(Th, null, "Arquivo"),
+                        React.createElement(Th, null, "Relat\u00F3rio"),
+                        React.createElement(Th, null, "Loja"),
+                        React.createElement(Th, null, "Per\u00EDodo"),
+                        React.createElement(Th, { right: true }, "Linhas"),
+                        React.createElement(Th, null, "Situa\u00E7\u00E3o"),
+                        React.createElement(Th, null))),
+                React.createElement("tbody", null,
+                    lista.length === 0 && (React.createElement("tr", null,
+                        React.createElement(Td, { color: T.muted, style: { padding: 18 } }, "Nenhum arquivo ainda. O primeiro envio aparece aqui."))),
+                    lista.map(function (a) {
+                        var _a;
+                        return (React.createElement("tr", { key: a.id },
+                            React.createElement(Td, { color: T.muted }, fmtQuando(a.enviado_em)),
+                            React.createElement(Td, { style: { maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" } }, a.nome_original),
+                            React.createElement(Td, null, TIPO_ROTULO[a.tipo] || a.tipo || "—"),
+                            React.createElement(Td, null, a.loja || "—"),
+                            React.createElement(Td, null,
+                                periodo(a),
+                                a.filtro_data ? React.createElement("span", { style: { color: T.muted } },
+                                    " \u00B7 ",
+                                    a.filtro_data) : null),
+                            React.createElement(Td, { right: true }, (_a = a.linhas) !== null && _a !== void 0 ? _a : "—"),
+                            React.createElement(Td, null,
+                                React.createElement(Pill, { cor: STATUS_COR[a.status] || T.muted }, STATUS_ROTULO[a.status] || a.status),
+                                a.erro && a.status !== "ignorado" && (React.createElement("div", { style: { fontSize: 11.5, color: T.bad, marginTop: 4, maxWidth: 380, whiteSpace: "normal" } }, a.erro)),
+                                a.erro && a.status === "ignorado" && (React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 4, whiteSpace: "normal" } }, a.erro))),
+                            React.createElement(Td, null,
+                                React.createElement("div", { style: { display: "flex", gap: 6 } },
+                                    React.createElement(Btn, { onClick: function () { return reprocessar(a, true); }, style: { padding: "4px 9px", fontSize: 12 } }, "pr\u00E9-visualizar"),
+                                    React.createElement(Btn, { onClick: function () { return reprocessar(a, false); }, style: { padding: "4px 9px", fontSize: 12 } }, "reprocessar")))));
+                    }))))));
 }
 function App() {
     var _a = __read(useState(undefined), 2), sessao = _a[0], setSessao = _a[1];
