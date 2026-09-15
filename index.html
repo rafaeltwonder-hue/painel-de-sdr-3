@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v25 — CAR SERVICE</title>
-<meta name="painel-versao" content="v25">
+<title>Painel de SDR v27 — CAR SERVICE</title>
+<meta name="painel-versao" content="v27">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -2856,7 +2856,177 @@ function AbaImportar(_a) {
                                     React.createElement(Btn, { onClick: function () { return reprocessar(a, false); }, style: { padding: "4px 9px", fontSize: 12 } }, "reprocessar")))));
                     }))))));
 }
-/* ===================== Aba Resumo (v24) =====================
+/* ===================== Oficina: desconto · pagamento · ano anterior (v26) =====================
+   Helpers compartilhados pelas abas Closers, Lojas e Resumo. Fontes novas em 15/09/2026:
+
+     oi_vendas_responsavel  (Vendas por Responsável, semanal, 1 por loja)
+        -> desconto com o SINAL do ERP: positivo = deu desconto, negativo = vendeu
+           ACIMA da tabela. % = desconto / faturamento, igual à coluna "%" do ERP.
+           Regra do Rafael: acima de 10% é vermelho (a trava de 10% na O.S. está
+           sendo criada); entre 5% e 10% âmbar; abaixo de zero verde.
+     oi_os_pagamento        (OS por Pagamento, mensal, 1 por loja)
+        -> uma linha por parcela: forma, nº da parcela, valor, closer (nome curto).
+           No Oficina o PIX entra como "Transferência DOC/TED" — por isso o
+           painel chama de "PIX / transferência" e não tenta separar.
+     oi_vendas_empresa      (Vendas por Empresa, tela Gestão de Rede, 1 vez por mês)
+        -> total por loja do MESMO MÊS do ano anterior = base do crescimento.
+
+   Tudo é lido direto das tabelas (leitura liberada para usuário logado);
+   nenhuma view nova foi criada para isto. */
+var OF_LIMITE_DESCONTO = 0.10; // regra do Rafael: acima disso é vermelho
+var OF_ALERTA_DESCONTO = 0.05; // âmbar a partir daqui
+/* "2026-09-01" -> "2025-09-01" */
+var mesAnoAnterior = function (inicioMes) { return String(Number(inicioMes.slice(0, 4)) - 1) + inicioMes.slice(4); };
+var NOME_MES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+var mesCurto = function (iso) { return "".concat(NOME_MES[Number(iso.slice(5, 7)) - 1], "/").concat(iso.slice(0, 4)); };
+/* forma do ERP -> família */
+function familiaForma(f) {
+    // sem normalize(): a TV LG não tem. Os acentos que o ERP usa estão cobertos na mão.
+    var s = String(f || "").toLowerCase().replace(/[éê]/g, "e").replace(/[á]/g, "a");
+    if (/pix|transfer|doc|ted|deposito/.test(s))
+        return "pix";
+    if (/debito/.test(s))
+        return "debito";
+    if (/credito|parcel/.test(s))
+        return "credito";
+    if (/dinheiro|especie/.test(s))
+        return "dinheiro";
+    return "outros";
+}
+var FAMILIAS = [["pix", "PIX / transf."], ["credito", "Crédito"], ["debito", "Débito"], ["dinheiro", "Dinheiro"], ["outros", "Outros"]];
+/* estado do desconto: cor + texto curto. pct = desconto / faturamento (sinal do ERP) */
+function estadoDesconto(pct) {
+    if (pct == null || isNaN(pct))
+        return { cor: T.muted, nome: "sem dado" };
+    if (pct < 0)
+        return { cor: T.good, nome: "acima da tabela" };
+    if (pct > OF_LIMITE_DESCONTO)
+        return { cor: T.bad, nome: "acima do limite" };
+    if (pct > OF_ALERTA_DESCONTO)
+        return { cor: T.warn, nome: "atenção" };
+    return { cor: T.ink, nome: "dentro da regra" };
+}
+/* "R$ 4.710 desc. · 14%" ou "+R$ 2.744 acima da tabela" */
+function textoDesconto(d, fat) {
+    if (d == null)
+        return "—";
+    var pct = div(d, fat);
+    if (d < 0)
+        return "+".concat(nReal(-d), " acima da tabela");
+    if (d === 0)
+        return "sem desconto";
+    return "".concat(nReal(d), " \u00B7 ").concat(nPct(pct, 0));
+}
+/* agrega as três fontes numa estrutura simples, por closer e por loja */
+function agregarOficinaExtra(_a) {
+    var vendasResp = _a.vendasResp, pagamentos = _a.pagamentos, empresaAnt = _a.empresaAnt, mapCloser = _a.mapCloser, mesAnt = _a.mesAnt;
+    var porCodigo = {}, porCurto = {};
+    (mapCloser || []).forEach(function (m) { porCodigo[m.erp_codigo] = m; porCurto[String(m.erp_curto || "").toUpperCase()] = m; });
+    // desconto por closer (erp_codigo) e por loja (todos os responsáveis da loja)
+    var descCloser = {}, descLoja = {};
+    (vendasResp || []).forEach(function (v) {
+        var d = Number(v.desconto) || 0, f = Number(v.faturamento) || 0;
+        if (porCodigo[v.erp_codigo])
+            descCloser[v.erp_codigo] = { desconto: d, faturamento: f, os_qtd: Number(v.os_qtd) || 0 };
+        var l = descLoja[v.loja] || (descLoja[v.loja] = { desconto: 0, faturamento: 0 });
+        l.desconto += d;
+        l.faturamento += f;
+    });
+    // pagamentos por closer (erp_curto) e por loja
+    var vazio = function () { return ({ total: 0, pix: 0, credito: 0, debito: 0, dinheiro: 0, outros: 0, os: {}, osCred: {}, parcelasPeso: 0, creditoPeso: 0 }); };
+    var pagCloser = {}, pagLoja = {};
+    (pagamentos || []).forEach(function (p) {
+        var fam = familiaForma(p.forma), v = Number(p.valor) || 0, np = Number(p.parcela) || 1;
+        var alvo = [];
+        var m = porCurto[String(p.erp_curto || "").toUpperCase()];
+        if (m)
+            alvo.push(pagCloser[m.erp_codigo] || (pagCloser[m.erp_codigo] = vazio()));
+        alvo.push(pagLoja[p.loja] || (pagLoja[p.loja] = vazio()));
+        alvo.forEach(function (a) {
+            a.total += v;
+            a[fam] += v;
+            var k = p.loja + "/" + p.os_numero;
+            a.os[k] = Math.max(a.os[k] || 0, np);
+            if (fam === "credito") {
+                a.parcelasPeso += v * np;
+                a.creditoPeso += v;
+                var oc = a.osCred[k] || (a.osCred[k] = { valor: 0, parcelas: 0 });
+                oc.valor += v;
+                oc.parcelas = Math.max(oc.parcelas, np);
+            }
+        });
+    });
+    var fecha = function (a) {
+        var osList = Object.keys(a.os);
+        // crédito por número de parcelas da O.S. (1x..12x), como no desenho aprovado
+        var porParcela = {};
+        Object.keys(a.osCred).forEach(function (k) { var oc = a.osCred[k]; var n = Math.min(12, Math.max(1, oc.parcelas)); porParcela[n] = (porParcela[n] || 0) + oc.valor; });
+        var ate3x = (porParcela[1] || 0) + (porParcela[2] || 0) + (porParcela[3] || 0);
+        return {
+            total: a.total, pix: a.pix, credito: a.credito, debito: a.debito, dinheiro: a.dinheiro, outros: a.outros,
+            pctPix: div(a.pix, a.total), pctCredito: div(a.credito, a.total), pctAVista: div(a.pix + a.debito + a.dinheiro, a.total),
+            osQtd: osList.length, parcelasMedia: a.creditoPeso ? a.parcelasPeso / a.creditoPeso : 0,
+            osParceladas: osList.filter(function (k) { return a.os[k] > 1; }).length,
+            porParcela: porParcela,
+            pctAte3x: div(ate3x, a.credito),
+        };
+    };
+    Object.keys(pagCloser).forEach(function (k) { pagCloser[k] = fecha(pagCloser[k]); });
+    Object.keys(pagLoja).forEach(function (k) { pagLoja[k] = fecha(pagLoja[k]); });
+    // ano anterior por loja
+    var antLoja = {};
+    (empresaAnt || []).forEach(function (e) { if (e.periodo_ini === mesAnt)
+        antLoja[e.loja] = e; });
+    return { descCloser: descCloser, descLoja: descLoja, pagCloser: pagCloser, pagLoja: pagLoja, antLoja: antLoja, temDesconto: !!(vendasResp || []).length, temPagamento: !!(pagamentos || []).length, temAnoAnterior: !!Object.keys(antLoja).length };
+}
+/* consultas das três fontes, para as abas reaproveitarem */
+function consultasOficinaExtra(inicioMes) {
+    var mesAnt = mesAnoAnterior(inicioMes);
+    return {
+        mesAnt: mesAnt,
+        vendasResp: db.from("oi_vendas_responsavel").select("loja,erp_codigo,erp_nome,faturamento,desconto,os_qtd").eq("periodo_ini", inicioMes),
+        pagamentos: db.from("oi_os_pagamento").select("loja,os_numero,forma,parcela,valor,erp_curto").eq("periodo_ini", inicioMes),
+        empresaAnt: db.from("oi_vendas_empresa").select("loja,periodo_ini,faturamento,desconto,custo,lucro_bruto,os_qtd,ticket_medio").eq("periodo_ini", mesAnt),
+        mapCloser: db.from("map_closer").select("erp_codigo,erp_curto,nome_oficial,unidade"),
+        // escada de metas: se a tabela ainda não existir, cai nos padrões (nunca derruba a aba)
+        metaGrupo: Promise.resolve(db.from("meta_grupo").select("nivel,valor").order("nivel")).then(function (r) { return (r && !r.error && r.data && r.data.length ? r.data.map(function (x) { return Number(x.valor); }) : META_GRUPO_PADRAO); }, function () { return META_GRUPO_PADRAO; }),
+    };
+}
+/* ---------- escada de metas das lojas (pedido do Rafael, 15/09/2026) ----------
+   Três metas para o grupo: bateu a 1ª, a barra passa a contar para a 2ª, e assim
+   por diante. Os valores ficam em comercial.meta_grupo (nivel, valor); se a tabela
+   não responder, valem os padrões abaixo. A meta de cada LOJA em cada nível é
+   proporcional ao seu peso em map_loja.meta_mensal (Itaim 700 de 1.900 etc.). */
+var META_GRUPO_PADRAO = [1800000, 1900000, 2000000];
+function escadaMetas(fat, niveis) {
+    var n = (niveis && niveis.length ? niveis : META_GRUPO_PADRAO).slice().sort(function (a, b) { return a - b; });
+    var batidas = n.filter(function (v) { return fat >= v; }).length;
+    var idx = Math.min(batidas, n.length - 1);
+    return { niveis: n, batidas: batidas, nivel: idx + 1, atual: n[idx], todas: batidas === n.length, p: div(fat, n[idx]) };
+}
+/* níveis de uma loja a partir dos níveis do grupo e do peso dela */
+var niveisDaLoja = function (niveisGrupo, metaLoja, somaMetas) { return niveisGrupo.map(function (v) { return v * div(metaLoja, somaMetas); }); };
+/* chips "1,8 mi ✓ · 1,9 mi ← · 2,0 mi" */
+var EscadaChips = function (_a) {
+    var esc = _a.esc, compacto = _a.compacto;
+    return (React.createElement("span", { style: { display: "inline-flex", gap: 6, flexWrap: "wrap", alignItems: "center" } }, esc.niveis.map(function (v, i) {
+        var batida = i < esc.batidas, atual = i + 1 === esc.nivel && !esc.todas;
+        return React.createElement("span", { key: i, style: { fontSize: compacto ? 10.5 : 11, fontWeight: 700, borderRadius: 99, padding: "2px 8px", whiteSpace: "nowrap",
+                color: batida ? T.good : atual ? T.ink : T.muted, background: batida ? "#E6F4EF" : atual ? "#FFF4D6" : "#F4F4F4",
+                border: atual ? "1px solid ".concat(T.marca) : "1px solid transparent" } },
+            batida ? "✓ " : "",
+            fmtMil(v));
+    })));
+};
+/* crescimento: quanto do mês do ano passado já foi feito + projeção no ritmo atual */
+function crescimento(fat, ant, du) {
+    if (!ant)
+        return null;
+    var fatAnt = Number(ant.faturamento) || 0;
+    var proj = fat + (fat / du.passados) * du.restantes;
+    return { fatAnt: fatAnt, feito: div(fat, fatAnt), proj: proj, projPct: div(proj, fatAnt) - 1, osAnt: Number(ant.os_qtd) || 0 };
+}
+/* ===================== Aba Resumo (v24 · v26) =====================
    Cartões em proporção de celular para tirar print e mandar nos grupos
    de WhatsApp. Desenho aprovado pelo Rafael em 14/09/2026.
 
@@ -2875,7 +3045,11 @@ function AbaImportar(_a) {
      - "Reagendar" é um fim; O.S. creditada ao SDR que prospectou.
 
    "Baixar imagem" usa html2canvas (carregado no head). Sem ele, o botão
-   explica que é para tirar print — nunca quebra a aba. */
+   explica que é para tirar print — nunca quebra a aba.
+
+   v26 (15/09): cartão da loja ganhou "vs mesmo mês do ano passado" (Vendas
+   por Empresa) e "desconto vs tabela" (Vendas por Responsável); cada closer
+   mostra o próprio desconto num chip. Ver oficina_comum.jsx. */
 var RESUMO_LOJAS = ["Itaim", "Ipiranga", "Bandeirantes", "Tatuapé"];
 var RESUMO_CHAVE_LOJA = { Itaim: "itaim", Ipiranga: "ipiranga", Bandeirantes: "bandeirantes", "Tatuapé": "tatuape" };
 var fmtMil = function (v) {
@@ -2977,7 +3151,7 @@ var RTot = function (_a) {
 };
 /* número grande + selo + barra com a marca "hoje" + ritmo necessário */
 function RHero(_a) {
-    var lab = _a.lab, val = _a.val, meta = _a.meta, du = _a.du, frac = _a.frac;
+    var lab = _a.lab, val = _a.val, meta = _a.meta, du = _a.du, frac = _a.frac, esc = _a.esc;
     var p = meta ? val / meta : 0;
     var e = estadoMeta(p, frac);
     var pts = Math.round((p - frac) * 100);
@@ -2995,11 +3169,15 @@ function RHero(_a) {
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12, color: T.ink2, marginTop: 6 } },
             React.createElement("span", null,
                 nPct(p, 0),
-                " da meta de ",
+                " da meta",
+                esc ? " ".concat(esc.nivel) : "",
+                " de ",
                 fmtMil(meta)),
             React.createElement("span", null,
                 "faltam ",
                 React.createElement("b", null, fmtMil(falta)))),
+        esc && React.createElement("div", { style: { marginTop: 8 } },
+            React.createElement(EscadaChips, { esc: esc, compacto: true })),
         React.createElement("div", { style: { fontSize: 12, color: T.ink2, background: "#F7F7F7", borderRadius: 8, padding: "8px 10px", marginTop: 10, lineHeight: 1.45 } },
             "Para bater a meta: ",
             React.createElement("b", null,
@@ -3062,6 +3240,10 @@ function CartaoGeral(_a) {
     var totC = somaCampo(closers, "faturamento"), metaC = somaCampo(closers, "meta");
     var mx = Math.max.apply(null, setores.map(function (x) { return x.v; }).concat([1]));
     var fresc = RESUMO_LOJAS.map(function (l) { return ({ l: l, q: (r.arquivos || []).filter(function (a) { return a.loja === l || a.loja === "Rede"; })[0] }); });
+    var ex = r.ex || { antLoja: {}, descLoja: {}, mesAnt: mesAnoAnterior(hojeISO.slice(0, 8) + "01") };
+    var antTot = RESUMO_LOJAS.reduce(function (s, l) { return s + (ex.antLoja[l] ? Number(ex.antLoja[l].faturamento) : 0); }, 0);
+    var crG = antTot ? crescimento(totFat, { faturamento: antTot, os_qtd: 0 }, du) : null;
+    var escG = escadaMetas(totFat, ex.metaGrupo);
     return (React.createElement("div", null,
         React.createElement(RHead, { t: "The Wonder \u00B7 quatro lojas", sub: "Ranking do dia \u00B7 ".concat(diaSemanaCurto(hojeISO), " ").concat(brFull(hojeISO), " \u00B7 O.S. do m\u00EAs por Data da OS") }),
         !closers.length ? React.createElement(RVazio, { titulo: "Sem dados importados neste m\u00EAs.", texto: "Solte a Listagem de OS's c/ Itens (Rede) na aba Importar e este cart\u00E3o se monta sozinho." }) : (React.createElement(React.Fragment, null,
@@ -3077,6 +3259,14 @@ function CartaoGeral(_a) {
             React.createElement(RSec, { t: "Faturamento por setor", s: "de onde vem o dinheiro \u00B7 quatro lojas" }),
             setores.map(function (s) { return React.createElement(RSetBar, { key: s.setor, nome: s.setor, val: s.v, tot: totFat, mx: mx }); }),
             React.createElement(RTot, { a: "Total do grupo", b: React.createElement("b", null, nReal(totFat)) }),
+            React.createElement(RTot, { muted: true, a: React.createElement("span", null,
+                    "Escada de metas \u00B7 ",
+                    escG.todas ? "todas batidas" : "rumo \u00E0 meta ".concat(escG.nivel, ": ").concat(nPct(escG.p, 0))), b: React.createElement(EscadaChips, { esc: escG, compacto: true }) }),
+            crG && React.createElement(RTot, { muted: true, a: "vs ".concat(mesCurto(ex.mesAnt), " (").concat(fmtMil(crG.fatAnt), " fechado)"), b: React.createElement("span", { style: { color: crG.projPct >= 0 ? T.good : T.bad, fontWeight: 700 } },
+                    nPct(crG.feito, 0),
+                    " feito \u00B7 no ritmo ",
+                    crG.projPct >= 0 ? "+" : "",
+                    nPct(crG.projPct, 0)) }),
             React.createElement("div", { style: { display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", marginTop: 18, fontSize: 11.5 } }, fresc.map(function (_a) {
                 var l = _a.l, q = _a.q;
                 return (React.createElement("span", { key: l, style: { color: q ? T.good : T.bad, fontWeight: 600 } },
@@ -3097,13 +3287,20 @@ function CartaoLoja(_a) {
     var ontem = dias.filter(function (x) { return x.dt_os === ontemISO; })[0];
     var semana = dias.filter(function (x) { return x.dt_os > addDays(hojeISO, -7) && x.dt_os <= hojeISO; });
     var mx = Math.max.apply(null, setores.map(function (x) { return x.v; }).concat([1]));
-    var meta = lj ? Number(lj.meta) : 0;
     var fat = lj ? Number(lj.faturamento) : 0;
+    // escada de metas: a meta da loja é o nível em que ela está, proporcional ao peso dela no grupo
+    var exM = r.ex || {};
+    var escL = lj ? escadaMetas(fat, niveisDaLoja(escadaMetas(0, exM.metaGrupo).niveis, Number(lj.meta), somaCampo(r.lojas, "meta"))) : null;
+    var meta = escL ? escL.atual : 0;
     var lucro = lj ? fat - Number(lj.custo) : 0;
     var osCl = lj ? Number(lj.os_closers) : 0, fatCl = lj ? Number(lj.fat_closers) : 0;
     var pL = div(fat, meta), e = estadoMeta(pL, frac), pts = Math.round((pL - frac) * 100);
     var precisa = Math.max(0, meta - fat) / du.restantes, faz = fat / du.passados;
     var lider = closers[0];
+    var ex = r.ex || { descCloser: {}, descLoja: {}, antLoja: {}, mesAnt: mesAnoAnterior(hojeISO.slice(0, 8) + "01") };
+    var cr = lj ? crescimento(fat, ex.antLoja[loja], du) : null;
+    var dl = ex.descLoja[loja], edl = dl ? estadoDesconto(div(dl.desconto, dl.faturamento)) : null;
+    var mesAntNome = mesCurto(ex.mesAnt);
     return (React.createElement("div", null,
         React.createElement(RHead, { t: "DW ".concat(loja), sub: "Resumo do dia \u00B7 ".concat(diaSemanaCurto(hojeISO), " ").concat(brFull(hojeISO), " \u00B7 O.S. do m\u00EAs por Data da OS") }),
         !lj ? React.createElement(RVazio, { titulo: "Sem dados de ".concat(loja, " neste m\u00EAs."), texto: "Solte a Listagem de OS's c/ Itens na aba Importar (a da Rede traz as quatro lojas de uma vez)." }) : (React.createElement(React.Fragment, null,
@@ -3144,12 +3341,14 @@ function CartaoLoja(_a) {
                     React.createElement("div", { style: { fontSize: 11.5, color: "rgba(0,0,0,.7)" } },
                         nInt(somaCampo(semana, "os_qtd")),
                         " O.S."))),
-            React.createElement(RHero, { lab: "Faturamento do m\u00EAs", val: fat, meta: meta, du: du, frac: frac }),
+            React.createElement(RHero, { lab: escL && escL.batidas ? (escL.todas ? "Faturamento do mês · todas as metas batidas" : "Faturamento do m\u00EAs \u00B7 meta ".concat(escL.batidas, " batida, rumo \u00E0 ").concat(escL.nivel)) : "Faturamento do mês", val: fat, meta: meta, du: du, frac: frac, esc: escL }),
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 20 } },
                 React.createElement(RTile, { lab: "Lucro bruto", val: nPct(div(lucro, fat), 0), ft: "sobra ap\u00F3s o material \u00B7 ".concat(nReal(lucro)), cor: T.good }),
                 React.createElement(RTile, { lab: "O.S. dos closers", val: nInt(osCl), ft: "ticket m\u00E9dio ".concat(nReal(div(fatCl, osCl))) }),
                 React.createElement(RTile, { lab: "O.S. em aberto", val: nInt(lj.os_abertas), ft: "".concat(nReal(lj.valor_aberto), " ainda abertos") }),
-                React.createElement(RTile, { lab: "O.S. no m\u00EAs", val: nInt(lj.os_qtd), ft: "".concat(nInt(Number(lj.os_qtd) - osCl), " internas / balc\u00E3o") })),
+                React.createElement(RTile, { lab: "O.S. no m\u00EAs", val: nInt(lj.os_qtd), ft: "".concat(nInt(Number(lj.os_qtd) - osCl), " internas / balc\u00E3o") }),
+                React.createElement(RTile, { lab: "vs ".concat(mesAntNome), val: cr ? nPct(cr.feito, 0) : "—", cor: cr ? (cr.feito >= 1 ? T.good : cr.feito >= frac ? T.ink : T.warn) : T.muted, ft: cr ? "de ".concat(fmtMil(cr.fatAnt), " \u00B7 no ritmo: ").concat(cr.projPct >= 0 ? "+" : "").concat(nPct(cr.projPct, 0)) : "sem o fechamento de ".concat(mesAntNome) }),
+                React.createElement(RTile, { lab: "Desconto vs tabela", val: dl ? (dl.desconto < 0 ? "acima" : nPct(div(dl.desconto, dl.faturamento), 0)) : "—", cor: edl ? edl.cor : T.muted, ft: dl ? (dl.desconto < 0 ? "".concat(nReal(-dl.desconto), " vendidos acima da tabela") : "".concat(nReal(dl.desconto), " de desconto \u00B7 limite ").concat(nPct(OF_LIMITE_DESCONTO, 0))) : "sem o Vendas por Responsável" })),
             React.createElement(RLegenda, { frac: frac }),
             React.createElement(RSec, { t: "Closers" }),
             closers.map(function (c) {
@@ -3168,7 +3367,17 @@ function CartaoLoja(_a) {
                             " \u00B7 faltam ",
                             fmtMil(Math.max(0, Number(c.meta) - Number(c.faturamento))))),
                     React.createElement(RBar, { p: p, cor: ec.cor, h: 7 }),
-                    React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 9 } }, ["".concat(nInt(c.os_qtd), " O.S."), "Ticket ".concat(nReal(div(Number(c.faturamento), Number(c.os_qtd)))), "Lucro bruto ".concat(nPct(div(Number(c.faturamento) - Number(c.custo), Number(c.faturamento)), 0)), "".concat(nInt(c.os_abertas), " em aberto")].map(function (t) { return (React.createElement("span", { key: t, style: { fontSize: 11, background: "#F4F4F4", borderRadius: 99, padding: "3px 9px", color: T.ink2 } }, t)); }))));
+                    React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 9 } },
+                        ["".concat(nInt(c.os_qtd), " O.S."), "Ticket ".concat(nReal(div(Number(c.faturamento), Number(c.os_qtd)))), "Lucro bruto ".concat(nPct(div(Number(c.faturamento) - Number(c.custo), Number(c.faturamento)), 0)), "".concat(nInt(c.os_abertas), " em aberto")].map(function (t) { return (React.createElement("span", { key: t, style: { fontSize: 11, background: "#F4F4F4", borderRadius: 99, padding: "3px 9px", color: T.ink2 } }, t)); }),
+                        (function () {
+                            var d = ex.descCloser[c.closer_codigo];
+                            if (!d)
+                                return null;
+                            var pd = div(d.desconto, d.faturamento), e2 = estadoDesconto(pd);
+                            var txt = d.desconto < 0 ? "Acima da tabela" : "Desconto ".concat(nPct(pd, 0));
+                            return React.createElement("span", { style: { fontSize: 11, borderRadius: 99, padding: "3px 9px", fontWeight: 700, color: e2.cor === T.ink ? T.ink2 : e2.cor,
+                                    background: e2.cor === T.bad ? "#FBE7E9" : e2.cor === T.good ? "#E6F4EF" : e2.cor === T.warn ? "#FFF4D6" : "#F4F4F4" } }, txt);
+                        })())));
             }),
             React.createElement(RTot, { muted: true, a: "Fora do ranking \u00B7 O.S. internas e balc\u00E3o", b: "".concat(nInt(Number(lj.os_qtd) - osCl), " O.S. \u00B7 ").concat(nReal(fat - fatCl)) }),
             React.createElement(RSec, { t: "Faturamento por setor", s: "de onde vem o dinheiro" }),
@@ -3272,7 +3481,7 @@ function AbaResumo(_a) {
     var du = diasUteisDoMes(hojeISO);
     var frac = du.diaDoMes / du.diasNoMes;
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, _a, fatoMes, eq, mm, lojas, closers, setores, dias, arquivos, e_8;
+        var pega, extra, _a, fatoMes, eq, mm, lojas, closers, setores, dias, arquivos, vendasResp, empresaAnt, mapCloser, metaGrupo, ex, e_8;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -3291,6 +3500,7 @@ function AbaResumo(_a) {
                                 return [2 /*return*/, data || []];
                         }
                     }); }); };
+                    extra = consultasOficinaExtra(inicioMes);
                     return [4 /*yield*/, Promise.all([
                             pega(db.from("fato_dia").select("*").gte("data", inicioMes).lte("data", hojeISO)),
                             pega(db.from("equipe_sdr").select("sdr,ativo").eq("ativo", true)),
@@ -3301,10 +3511,14 @@ function AbaResumo(_a) {
                             pega(db.from("resumo_dia_v").select("*").eq("mes", inicioMes)),
                             pega(db.from("oi_arquivos").select("loja,periodo_ini,processado_em,status,tipo").eq("tipo", "listagem_itens").eq("status", "ok")
                                 .gte("periodo_ini", inicioMes).order("processado_em", { ascending: false }).limit(12)),
+                            pega(extra.vendasResp), pega(extra.empresaAnt), pega(extra.mapCloser), extra.metaGrupo,
                         ])];
                 case 2:
-                    _a = __read.apply(void 0, [_b.sent(), 8]), fatoMes = _a[0], eq = _a[1], mm = _a[2], lojas = _a[3], closers = _a[4], setores = _a[5], dias = _a[6], arquivos = _a[7];
-                    setR({ fatoMes: fatoMes, equipe: eq.map(function (x) { return x.sdr; }), meta: mm[0] || null, lojas: lojas, closers: closers, setores: setores, dias: dias, arquivos: arquivos });
+                    _a = __read.apply(void 0, [_b.sent(), 12]), fatoMes = _a[0], eq = _a[1], mm = _a[2], lojas = _a[3], closers = _a[4], setores = _a[5], dias = _a[6], arquivos = _a[7], vendasResp = _a[8], empresaAnt = _a[9], mapCloser = _a[10], metaGrupo = _a[11];
+                    ex = agregarOficinaExtra({ vendasResp: vendasResp, pagamentos: [], empresaAnt: empresaAnt, mapCloser: mapCloser, mesAnt: extra.mesAnt });
+                    ex.mesAnt = extra.mesAnt;
+                    ex.metaGrupo = metaGrupo;
+                    setR({ fatoMes: fatoMes, equipe: eq.map(function (x) { return x.sdr; }), meta: mm[0] || null, lojas: lojas, closers: closers, setores: setores, dias: dias, arquivos: arquivos, ex: ex });
                     return [3 /*break*/, 4];
                 case 3:
                     e_8 = _b.sent();
@@ -3402,17 +3616,19 @@ function AbaResumo(_a) {
                     k !== "geral" && k !== "sdr" && React.createElement(CartaoLoja, { loja: RESUMO_LOJAS.filter(function (l) { return RESUMO_CHAVE_LOJA[l] === k; })[0], r: r, du: du, frac: frac, hojeISO: hojeISO }))));
         })))));
 }
-/* ===================== Abas Closers · Lojas · Origem (v25) =====================
+/* ===================== Abas Closers · Lojas · Origem (v26 · v27) =====================
    Desenhos aprovados em 14/09; ligadas às views resumo_* (Listagem de OS's c/
    Itens importada na aba Importar) e funil_closer_v (Kommo) em 15/09/2026.
 
    Data de referência = data do último import. Se a pessoa esquecer um dia,
    as abas mostram o dia anterior com aviso (decisão do Rafael, 15/09).
 
-   O que ainda depende de outro arquivo fica marcado "aguardando" em vez de
-   sumir: desconto (Vendas por Responsável, semanal), PIX e parcelamento
-   (OS por Pagamento, mensal), crescimento vs 2025 (Listagem de set/2025),
-   avaliações Google (manual). */
+   v26 (15/09): desconto (Vendas por Responsável), PIX/parcelamento (OS por
+   Pagamento) e crescimento vs ano anterior (Vendas por Empresa) ligados —
+   ver oficina_comum.jsx. O que ainda não tem arquivo continua marcado
+   "aguardando" em vez de sumir. Avaliações Google seguem manuais.
+   v27 (15/09): escada de 3 metas do grupo (meta_grupo) e crédito por número de
+   parcelas (1x..12x) por closer e por loja, como no desenho aprovado. */
 var OF_SETORES = ["PPF", "Películas", "Estética", "Funilaria", "Acessórios"];
 var OF_LOJAS = ["Itaim", "Ipiranga", "Bandeirantes", "Tatuapé"];
 function useOficina() {
@@ -3422,7 +3638,7 @@ function useOficina() {
     var hojeISO = hoje();
     var inicioMes = hojeISO.slice(0, 8) + "01";
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, ultimoDia, e_10;
+        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, mapCloser, arquivosExtra_1, metaGrupo, ultimoDia, ex, ultimoDe, e_10;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -3441,6 +3657,7 @@ function useOficina() {
                                 return [2 /*return*/, data || []];
                         }
                     }); }); };
+                    extra = consultasOficinaExtra(inicioMes);
                     return [4 /*yield*/, Promise.all([
                             pega(db.from("resumo_loja_v").select("*").eq("mes", inicioMes)),
                             pega(db.from("resumo_closer_v").select("*").eq("mes", inicioMes)),
@@ -3453,11 +3670,22 @@ function useOficina() {
                             pega(db.from("map_loja").select("*")),
                             pega(db.from("oi_arquivos").select("id,loja,periodo_ini,processado_em,status,tipo").eq("tipo", "listagem_itens").eq("status", "ok")
                                 .gte("periodo_ini", inicioMes).order("processado_em", { ascending: false }).limit(8)),
+                            pega(extra.vendasResp), pega(extra.pagamentos), pega(extra.empresaAnt), pega(extra.mapCloser),
+                            pega(db.from("oi_arquivos").select("id,loja,tipo,periodo_ini,processado_em").eq("status", "ok")
+                                .in("tipo", ["vendas_responsavel", "os_pagamento", "vendas_empresa"]).order("processado_em", { ascending: false }).limit(40)),
+                            extra.metaGrupo,
                         ])];
                 case 2:
-                    _a = __read.apply(void 0, [_b.sent(), 10]), lojas = _a[0], closers = _a[1], setores = _a[2], dias = _a[3], os = _a[4], origem = _a[5], itens = _a[6], funil = _a[7], mapLoja = _a[8], arquivos = _a[9];
+                    _a = __read.apply(void 0, [_b.sent(), 16]), lojas = _a[0], closers = _a[1], setores = _a[2], dias = _a[3], os = _a[4], origem = _a[5], itens = _a[6], funil = _a[7], mapLoja = _a[8], arquivos = _a[9], vendasResp = _a[10], pagamentos = _a[11], empresaAnt = _a[12], mapCloser = _a[13], arquivosExtra_1 = _a[14], metaGrupo = _a[15];
                     ultimoDia = dias.reduce(function (m, d) { return (d.dt_os > m ? d.dt_os : m); }, "");
-                    setR({ lojas: lojas, closers: closers, setores: setores, dias: dias, os: os, origem: origem, itens: itens, funil: funil, mapLoja: mapLoja, arquivos: arquivos, ultimoDia: ultimoDia, hojeISO: hojeISO, inicioMes: inicioMes });
+                    ex = agregarOficinaExtra({ vendasResp: vendasResp, pagamentos: pagamentos, empresaAnt: empresaAnt, mapCloser: mapCloser, mesAnt: extra.mesAnt });
+                    ultimoDe = function (tipo, periodo) { return (arquivosExtra_1.filter(function (a) { return a.tipo === tipo && (!periodo || a.periodo_ini === periodo); })[0] || {}).processado_em || null; };
+                    ex.importDesconto = ultimoDe("vendas_responsavel", inicioMes);
+                    ex.importPagamento = ultimoDe("os_pagamento", inicioMes);
+                    ex.importAnoAnterior = ultimoDe("vendas_empresa", extra.mesAnt);
+                    ex.mesAnt = extra.mesAnt;
+                    ex.metaGrupo = metaGrupo;
+                    setR({ lojas: lojas, closers: closers, setores: setores, dias: dias, os: os, origem: origem, itens: itens, funil: funil, mapLoja: mapLoja, arquivos: arquivos, ultimoDia: ultimoDia, hojeISO: hojeISO, inicioMes: inicioMes, ex: ex });
                     return [3 /*break*/, 4];
                 case 3:
                     e_10 = _b.sent();
@@ -3515,6 +3743,47 @@ function AvisoBase(_a) {
         React.createElement("button", { onClick: carregar, style: { marginLeft: "auto", fontSize: 12, borderRadius: 8, padding: "6px 12px", border: "1px solid ".concat(T.hair),
                 background: T.surface, color: T.ink2, cursor: "pointer", fontFamily: F_UI } }, "Atualizar")));
 }
+/* crédito por número de parcelas da O.S. — 1x a 12x, como no desenho aprovado em 14/09 */
+function TabelaParcelas(_a) {
+    var titulo = _a.titulo, linhas = _a.linhas;
+    var NS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    var usados = NS.filter(function (n) { return linhas.some(function (l) { return l.pg && l.pg.porParcela[n]; }); });
+    var cols = usados.length ? NS.slice(0, Math.max(3, usados[usados.length - 1])) : NS.slice(0, 3);
+    var tot = {};
+    var totCred = 0;
+    linhas.forEach(function (l) { if (!l.pg)
+        return; totCred += l.pg.credito; cols.forEach(function (n) { tot[n] = (tot[n] || 0) + (l.pg.porParcela[n] || 0); }); });
+    var ate3 = (tot[1] || 0) + (tot[2] || 0) + (tot[3] || 0);
+    return (React.createElement("div", { style: { marginTop: 16 } },
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 700, marginBottom: 6 } },
+            titulo,
+            React.createElement("span", { style: { fontSize: 12, fontWeight: 400, color: T.muted } }, " \u00B7 valor recebido no cr\u00E9dito, pelo n\u00FAmero de parcelas de cada O.S. Parcela longa \u00E9 a venda mais cara que existe.")),
+        React.createElement(Card, { className: "p0 rolagem" },
+            React.createElement("table", { style: { minWidth: 700 + cols.length * 70 } },
+                React.createElement("thead", null,
+                    React.createElement("tr", null,
+                        React.createElement(Th, null, linhas[0] && linhas[0].sub !== undefined ? "Closer" : "Unidade"),
+                        cols.map(function (n) { return React.createElement(Th, { key: n, right: true },
+                            n,
+                            "x"); }),
+                        React.createElement(Th, { right: true }, "Cr\u00E9dito"),
+                        React.createElement(Th, { right: true }, "At\u00E9 3x"))),
+                React.createElement("tbody", null,
+                    linhas.map(function (l) { return (React.createElement("tr", { key: l.nome },
+                        React.createElement(Td, { bold: true },
+                            l.nome,
+                            l.sub ? React.createElement("span", { style: { color: T.muted, fontWeight: 400 } },
+                                " \u00B7 ",
+                                l.sub) : null),
+                        cols.map(function (n) { var v = l.pg ? l.pg.porParcela[n] : 0; return React.createElement(Td, { key: n, right: true, color: v ? (n > 6 ? T.bad : n > 3 ? T.warn : T.ink) : T.muted }, v ? nReal(v) : "·"); }),
+                        React.createElement(Td, { right: true, bold: true }, l.pg ? nReal(l.pg.credito) : React.createElement(Aguardando, null, "mensal")),
+                        React.createElement(Td, { right: true, color: l.pg ? (l.pg.pctAte3x >= 0.7 ? T.good : l.pg.pctAte3x >= 0.4 ? T.warn : T.bad) : T.muted }, l.pg ? nPct(l.pg.pctAte3x, 0) : "—"))); }),
+                    React.createElement("tr", null,
+                        React.createElement(Td, { bold: true }, "Total"),
+                        cols.map(function (n) { return React.createElement(Td, { key: n, right: true, bold: true }, tot[n] ? nReal(tot[n]) : "·"); }),
+                        React.createElement(Td, { right: true, bold: true }, nReal(totCred)),
+                        React.createElement(Td, { right: true, bold: true }, nPct(div(ate3, totCred), 0))))))));
+}
 /* ---------------------------- CLOSERS ---------------------------- */
 function AbaClosers() {
     var _a = useOficina(), r = _a.r, erro = _a.erro, carregar = _a.carregar;
@@ -3550,6 +3819,14 @@ function AbaClosers() {
         s.v += Number(o.total);
     } });
     var lider = closers[0];
+    var ex = r.ex;
+    var descDe = function (c) { return ex.descCloser[c.closer_codigo]; };
+    var pagDe = function (c) { return ex.pagCloser[c.closer_codigo]; };
+    var totDesc = closers.reduce(function (s, c) { return s + (descDe(c) ? descDe(c).desconto : 0); }, 0);
+    var totFatDesc = closers.reduce(function (s, c) { return s + (descDe(c) ? descDe(c).faturamento : 0); }, 0);
+    var comPag = closers.filter(function (c) { return pagDe(c); });
+    var totPag = comPag.reduce(function (s, c) { return s + pagDe(c).total; }, 0), totPix = comPag.reduce(function (s, c) { return s + pagDe(c).pix; }, 0);
+    var quando = function (iso) { return (iso ? new Date(iso).toLocaleDateString("pt-BR") : ""); };
     return (React.createElement("div", null,
         React.createElement(AvisoBase, { r: r, carregar: carregar }),
         React.createElement(Secao, { n: 1, titulo: "Ranking de closers", nota: "Faturamento por Data da OS, ".concat(du.diaDoMes, " de ").concat(du.diasNoMes, " dias do m\u00EAs (").concat(nPct(frac, 0), "). Verde = % da meta acompanha o m\u00EAs; \u00E2mbar at\u00E9 25% abaixo; vermelho al\u00E9m. Lucro bruto = faturamento menos custo de material.") },
@@ -3574,12 +3851,14 @@ function AbaClosers() {
                             React.createElement(Th, { right: true }, "O.S."),
                             React.createElement(Th, { right: true }, "Ticket"),
                             React.createElement(Th, { right: true }, "Em aberto"),
-                            React.createElement(Th, { right: true }, "Desconto"),
-                            React.createElement(Th, { right: true }, "PIX"))),
+                            React.createElement(Th, { right: true }, "Desconto vs tabela"),
+                            React.createElement(Th, { right: true }, "PIX / transf."))),
                     React.createElement("tbody", null,
                         closers.map(function (c, i) {
                             var fat = Number(c.faturamento), meta = Number(c.meta), p = div(fat, meta);
                             var ab = abertasPorCloser[c.closer] || { n: 0, v: 0 };
+                            var d = descDe(c), pg = pagDe(c);
+                            var ed = d ? estadoDesconto(div(d.desconto, d.faturamento)) : null;
                             return (React.createElement("tr", { key: c.closer_codigo },
                                 React.createElement(Td, { color: T.muted },
                                     i + 1,
@@ -3595,19 +3874,64 @@ function AbaClosers() {
                                 React.createElement(Td, { right: true }, nInt(c.os_qtd)),
                                 React.createElement(Td, { right: true }, nReal(div(fat, Number(c.os_qtd)))),
                                 React.createElement(Td, { right: true, color: ab.n ? T.warn : T.muted }, ab.n ? "".concat(ab.n, " \u00B7 ").concat(nReal(ab.v)) : "—"),
-                                React.createElement(Td, { right: true },
-                                    React.createElement(Aguardando, null, "semanal")),
-                                React.createElement(Td, { right: true },
-                                    React.createElement(Aguardando, null, "mensal"))));
+                                React.createElement(Td, { right: true, color: ed ? ed.cor : T.muted, bold: !!(ed && ed.cor === T.bad) }, d ? textoDesconto(d.desconto, d.faturamento) : React.createElement(Aguardando, null, "semanal")),
+                                React.createElement(Td, { right: true, color: pg ? T.ink : T.muted }, pg ? nPct(pg.pctPix, 0) : React.createElement(Aguardando, null, "mensal"))));
                         }),
                         !closers.length && React.createElement("tr", null,
                             React.createElement(Td, null, "Sem O.S. importadas neste m\u00EAs."))))),
             React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 10, lineHeight: 1.5 } },
-                React.createElement("b", null, "Desconto"),
-                " vem do Vendas por Respons\u00E1vel (semanal) e ",
-                React.createElement("b", null, "PIX/parcelamento"),
-                " do OS por Pagamento (mensal). Enquanto o arquivo n\u00E3o entra, a coluna fica marcada em vez de mostrar zero.")),
-        React.createElement(Secao, { n: 2, titulo: "O que cada um vende", nota: "Faturamento por setor, no crit\u00E9rio oficial de agrupamento. Mostra onde cada closer \u00E9 forte e onde n\u00E3o vende." },
+                React.createElement("b", null, "Desconto vs tabela"),
+                " \u00E9 o saldo do Vendas por Respons\u00E1vel",
+                ex.importDesconto ? " (importado em ".concat(quando(ex.importDesconto), ")") : " (semanal — ainda não importado)",
+                ": positivo = deu desconto, ",
+                React.createElement("span", { style: { color: T.bad, fontWeight: 600 } },
+                    "vermelho acima de ",
+                    nPct(OF_LIMITE_DESCONTO, 0)),
+                "; negativo = vendeu acima da tabela, em verde. ",
+                React.createElement("b", null, "PIX / transf."),
+                " = parte do que foi recebido no m\u00EAs por PIX ou transfer\u00EAncia, do OS por Pagamento",
+                ex.importPagamento ? " (importado em ".concat(quando(ex.importPagamento), ")") : " (mensal — ainda não importado)",
+                ".")),
+        React.createElement(Secao, { n: 2, titulo: "Desconto e forma de pagamento", nota: "Desconto: saldo contra a tabela no m\u00EAs, por closer. Pagamento: o que entrou no m\u00EAs, por fam\u00EDlia de forma. Parcelas = m\u00E9dia ponderada s\u00F3 no cr\u00E9dito." },
+            React.createElement("div", { className: "grid-kpi" },
+                React.createElement(Kpi, { label: "Desconto do grupo", value: ex.temDesconto ? textoDesconto(totDesc, totFatDesc) : "—", sub: ex.temDesconto ? "sobre ".concat(nReal(totFatDesc), " faturados pelos closers") : "aguardando Vendas por Responsável", tone: ex.temDesconto ? (totDesc < 0 ? "good" : div(totDesc, totFatDesc) > OF_LIMITE_DESCONTO ? "bad" : undefined) : undefined }),
+                React.createElement(Kpi, { label: "Acima do limite", value: ex.temDesconto ? nInt(closers.filter(function (c) { return descDe(c) && div(descDe(c).desconto, descDe(c).faturamento) > OF_LIMITE_DESCONTO; }).length) : "—", sub: "closers com desconto acima de ".concat(nPct(OF_LIMITE_DESCONTO, 0)), tone: ex.temDesconto && closers.some(function (c) { return descDe(c) && div(descDe(c).desconto, descDe(c).faturamento) > OF_LIMITE_DESCONTO; }) ? "bad" : "good" }),
+                React.createElement(Kpi, { label: "Recebido no m\u00EAs", value: ex.temPagamento ? nReal(totPag) : "—", sub: ex.temPagamento ? "".concat(nPct(div(totPix, totPag), 0), " por PIX / transfer\u00EAncia") : "aguardando OS por Pagamento" }),
+                React.createElement(Kpi, { label: "\u00C0 vista", value: ex.temPagamento ? nPct(div(comPag.reduce(function (s, c) { return s + pagDe(c).pix + pagDe(c).debito + pagDe(c).dinheiro; }, 0), totPag), 0) : "—", sub: "PIX, d\u00E9bito e dinheiro", tone: ex.temPagamento ? "good" : undefined })),
+            React.createElement(Card, { className: "p0 rolagem", style: { marginTop: 12 } },
+                React.createElement("table", { style: { minWidth: 980 } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "Closer"),
+                            React.createElement(Th, { right: true }, "Desconto vs tabela"),
+                            React.createElement(Th, { right: true }, "Situa\u00E7\u00E3o"),
+                            React.createElement(Th, { right: true }, "Recebido"),
+                            FAMILIAS.slice(0, 4).map(function (_a) {
+                                var _b = __read(_a, 2), k = _b[0], n = _b[1];
+                                return React.createElement(Th, { key: k, right: true }, n);
+                            }),
+                            React.createElement(Th, { right: true }, "\u00C0 vista"),
+                            React.createElement(Th, { right: true }, "Parcelas (m\u00E9dia)"),
+                            React.createElement(Th, { right: true }, "O.S. parceladas"))),
+                    React.createElement("tbody", null, closers.map(function (c) {
+                        var d = descDe(c), pg = pagDe(c);
+                        var ed = d ? estadoDesconto(div(d.desconto, d.faturamento)) : null;
+                        return (React.createElement("tr", { key: c.closer_codigo },
+                            React.createElement(Td, { bold: true }, c.closer),
+                            React.createElement(Td, { right: true, color: ed ? ed.cor : T.muted }, d ? textoDesconto(d.desconto, d.faturamento) : React.createElement(Aguardando, null, "semanal")),
+                            React.createElement(Td, { right: true, color: ed ? ed.cor : T.muted, bold: !!(ed && ed.cor === T.bad) }, ed ? ed.nome : "—"),
+                            React.createElement(Td, { right: true, bold: true }, pg ? nReal(pg.total) : React.createElement(Aguardando, null, "mensal")),
+                            FAMILIAS.slice(0, 4).map(function (_a) {
+                                var _b = __read(_a, 1), k = _b[0];
+                                return React.createElement(Td, { key: k, right: true, color: pg && pg[k] ? T.ink : T.muted }, pg ? (pg[k] ? "".concat(nReal(pg[k]), " \u00B7 ").concat(nPct(div(pg[k], pg.total), 0)) : "—") : "—");
+                            }),
+                            React.createElement(Td, { right: true, color: T.good }, pg ? nPct(pg.pctAVista, 0) : "—"),
+                            React.createElement(Td, { right: true }, pg ? (pg.parcelasMedia ? "".concat(pg.parcelasMedia.toFixed(1).replace(".", ","), "x") : "—") : "—"),
+                            React.createElement(Td, { right: true }, pg ? "".concat(nInt(pg.osParceladas), " de ").concat(nInt(pg.osQtd)) : "—")));
+                    })))),
+            React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 10, lineHeight: 1.5 } }, "O Oficina registra o PIX como \"Transfer\u00EAncia DOC/TED\", por isso as duas aparecem juntas. \"Recebido\" \u00E9 o que o OS por Pagamento traz para o m\u00EAs \u2014 n\u00E3o \u00E9 o faturamento por Data da OS, e por isso n\u00E3o fecha com o ranking."),
+            React.createElement(TabelaParcelas, { titulo: "Cr\u00E9dito parcelado, por closer", linhas: closers.map(function (c) { return ({ nome: c.closer, sub: c.loja, pg: pagDe(c) }); }) })),
+        React.createElement(Secao, { n: 3, titulo: "O que cada um vende", nota: "Faturamento por setor, no crit\u00E9rio oficial de agrupamento. Mostra onde cada closer \u00E9 forte e onde n\u00E3o vende." },
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { minWidth: 820 } },
                     React.createElement("thead", null,
@@ -3623,7 +3947,7 @@ function AbaClosers() {
                             OF_SETORES.map(function (k) { return React.createElement(Td, { key: k, right: true, color: s[k] ? T.ink : T.muted }, s[k] ? "".concat(nReal(s[k]), " \u00B7 ").concat(nPct(div(s[k], tot), 0)) : "—"); }),
                             React.createElement(Td, { right: true, bold: true }, nReal(tot))));
                     }))))),
-        React.createElement(Secao, { n: 3, titulo: "Leads na m\u00E3o de cada closer", nota: "Direto do Kommo, lente 'dono atual': leads em aberto cujo respons\u00E1vel \u00E9 o closer. Parado = sem nenhuma atualiza\u00E7\u00E3o h\u00E1 mais de 14 dias. P\u00F3s-visita = cliente j\u00E1 veio \u00E0 loja e ainda est\u00E1 em negocia\u00E7\u00E3o." },
+        React.createElement(Secao, { n: 4, titulo: "Leads na m\u00E3o de cada closer", nota: "Direto do Kommo, lente 'dono atual': leads em aberto cujo respons\u00E1vel \u00E9 o closer. Parado = sem nenhuma atualiza\u00E7\u00E3o h\u00E1 mais de 14 dias. P\u00F3s-visita = cliente j\u00E1 veio \u00E0 loja e ainda est\u00E1 em negocia\u00E7\u00E3o." },
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { minWidth: 900 } },
                     React.createElement("thead", null,
@@ -3655,7 +3979,7 @@ function AbaClosers() {
                                 return "".concat(e, " ").concat(n);
                             }).join(" · ") || "—")));
                     }))))),
-        React.createElement(Secao, { n: 4, titulo: "Falta para a meta", nota: "Quanto cada um precisa fazer por dia \u00FAtil (segunda a s\u00E1bado) at\u00E9 o fim do m\u00EAs, contra o que vem fazendo." },
+        React.createElement(Secao, { n: 5, titulo: "Falta para a meta", nota: "Quanto cada um precisa fazer por dia \u00FAtil (segunda a s\u00E1bado) at\u00E9 o fim do m\u00EAs, contra o que vem fazendo." },
             React.createElement("div", { className: "grid-kpi" }, closers.map(function (c) {
                 var fat = Number(c.faturamento), meta = Number(c.meta), falta = Math.max(0, meta - fat);
                 var faz = fat / du.passados, precisa = falta / du.restantes;
@@ -3670,11 +3994,9 @@ function AbaClosers() {
                         "/dia hoje ",
                         faz >= precisa ? "✓" : "· abaixo do necessário")));
             }))),
-        React.createElement(Secao, { n: 5, titulo: "Ainda sem fonte autom\u00E1tica", nota: "Fica aqui de prop\u00F3sito, para ningu\u00E9m achar que o painel esqueceu." },
+        React.createElement(Secao, { n: 6, titulo: "Ainda sem fonte autom\u00E1tica", nota: "Fica aqui de prop\u00F3sito, para ningu\u00E9m achar que o painel esqueceu." },
             React.createElement("div", { className: "grid-kpi" },
                 React.createElement(Kpi, { label: "Avalia\u00E7\u00F5es Google", value: "\u2014", sub: "contagem manual por closer, mensal" }),
-                React.createElement(Kpi, { label: "Desconto m\u00E9dio", value: "\u2014", sub: "Vendas por Respons\u00E1vel (semanal)" }),
-                React.createElement(Kpi, { label: "PIX e parcelamento", value: "\u2014", sub: "OS por Pagamento (mensal)" }),
                 React.createElement(Kpi, { label: "Carros consignados", value: "\u2014", sub: "defini\u00E7\u00E3o pendente no Oficina" })))));
 }
 /* ---------------------------- LOJAS ---------------------------- */
@@ -3689,8 +4011,14 @@ function AbaLojas() {
         return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando\u2026");
     var _c = ritmoDoMes(r), du = _c.du, frac = _c.frac;
     var lojas = OF_LOJAS.map(function (l) { return r.lojas.filter(function (x) { return x.loja === l; })[0] || { loja: l, meta: (r.mapLoja.filter(function (m) { return m.loja === l; })[0] || {}).meta_mensal || 0, faturamento: 0, custo: 0, os_qtd: 0, os_closers: 0, fat_closers: 0, os_abertas: 0, valor_aberto: 0 }; })
-        .sort(function (a, b) { return div(Number(b.faturamento), Number(b.meta)) - div(Number(a.faturamento), Number(a.meta)); });
-    var tot = { fat: somaCampo(lojas, "faturamento"), meta: somaCampo(lojas, "meta"), custo: somaCampo(lojas, "custo"), os: somaCampo(lojas, "os_qtd"), abertas: somaCampo(lojas, "os_abertas"), vAberto: somaCampo(lojas, "valor_aberto") };
+        .sort(function (a, b) { return div(Number(b.faturamento), Number(b.meta)) - div(Number(a.faturamento), Number(a.meta)); }); // ordem pelo peso fixo; a escada muda a meta, não a ordem
+    var somaMetas = somaCampo(lojas, "meta");
+    var escG = escadaMetas(somaCampo(lojas, "faturamento"), r.ex.metaGrupo);
+    // meta "atual" de cada loja = nível do grupo em que ela está, proporcional ao peso dela
+    var escLoja = {};
+    lojas.forEach(function (l) { escLoja[l.loja] = escadaMetas(Number(l.faturamento), niveisDaLoja(escG.niveis, Number(l.meta), somaMetas)); });
+    var metaDe = function (l) { return escLoja[l.loja].atual; };
+    var tot = { fat: somaCampo(lojas, "faturamento"), meta: escG.atual, custo: somaCampo(lojas, "custo"), os: somaCampo(lojas, "os_qtd"), abertas: somaCampo(lojas, "os_abertas"), vAberto: somaCampo(lojas, "valor_aberto") };
     var setorLoja = function (l, s) { return somaCampo(r.setores.filter(function (x) { return x.loja === l && x.setor === s; }), "faturamento"); };
     var setorTot = function (s) { return somaCampo(r.setores.filter(function (x) { return x.setor === s; }), "faturamento"); };
     var abertas = r.os.filter(function (o) { return o.situacao === "Aberta"; }).sort(function (a, b) { return Number(b.total) - Number(a.total); });
@@ -3699,21 +4027,32 @@ function AbaLojas() {
     r.dias.forEach(function (d) { porDia[d.dt_os] = (porDia[d.dt_os] || 0) + Number(d.faturamento); });
     var diasOrd = Object.keys(porDia).sort();
     var maxDia = Math.max.apply(null, diasOrd.map(function (d) { return porDia[d]; }).concat([1]));
+    var ex = r.ex;
+    var mesAntNome = mesCurto(ex.mesAnt);
+    var cresc = {};
+    lojas.forEach(function (l) { cresc[l.loja] = crescimento(Number(l.faturamento), ex.antLoja[l.loja], du); });
+    var antTot = OF_LOJAS.reduce(function (s, l) { return s + (ex.antLoja[l] ? Number(ex.antLoja[l].faturamento) : 0); }, 0);
+    var crescTot = ex.temAnoAnterior ? crescimento(tot.fat, { faturamento: antTot, os_qtd: 0 }, du) : null;
+    var descLojaTot = OF_LOJAS.reduce(function (s, l) { return s + (ex.descLoja[l] ? ex.descLoja[l].desconto : 0); }, 0);
+    var fatLojaDesc = OF_LOJAS.reduce(function (s, l) { return s + (ex.descLoja[l] ? ex.descLoja[l].faturamento : 0); }, 0);
     return (React.createElement("div", null,
         React.createElement(AvisoBase, { r: r, carregar: carregar }),
-        React.createElement(Secao, { n: 1, titulo: "Placar do grupo", nota: "Lucro bruto \u00E9 faturamento menos custo de material. N\u00E3o desconta m\u00E3o de obra nem taxa de cart\u00E3o." },
+        React.createElement(Secao, { n: 1, titulo: "Placar do grupo", nota: "Tr\u00EAs metas em escada: bateu uma, a barra passa a contar para a pr\u00F3xima (".concat(escG.niveis.map(fmtMil).join(" · "), "). Lucro bruto \u00E9 faturamento menos custo de material; n\u00E3o desconta m\u00E3o de obra nem taxa de cart\u00E3o.") },
             React.createElement("div", { className: "grid-kpi" },
-                React.createElement(Kpi, { label: "Faturamento", value: nReal(tot.fat), sub: "meta do m\u00EAs ".concat(nReal(tot.meta)), foot: React.createElement(React.Fragment, null,
-                        React.createElement(Barra, { pct: div(tot.fat, tot.meta), cor: estadoMeta(div(tot.fat, tot.meta), frac).cor }),
-                        React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 4 } },
-                            nPct(div(tot.fat, tot.meta), 1),
-                            " da meta \u00B7 m\u00EAs em ",
-                            nPct(frac, 0))) }),
+                React.createElement(Kpi, { label: escG.todas ? "Faturamento · todas as metas batidas" : "Faturamento \u00B7 rumo \u00E0 meta ".concat(escG.nivel, " de ").concat(escG.niveis.length), value: nReal(tot.fat), sub: escG.todas ? "passou de ".concat(nReal(escG.atual)) : "".concat(escG.batidas ? "meta ".concat(escG.batidas, " batida \u00B7 ") : "", "faltam ").concat(nReal(Math.max(0, tot.meta - tot.fat)), " para ").concat(nReal(tot.meta)), tone: escG.todas ? "good" : undefined, foot: React.createElement(React.Fragment, null,
+                        React.createElement(Barra, { pct: escG.p, cor: escG.todas ? T.good : estadoMeta(escG.p, frac).cor }),
+                        React.createElement("div", { style: { fontSize: 11.5, color: T.muted, margin: "4px 0 6px" } },
+                            nPct(escG.p, 1),
+                            " da meta ",
+                            escG.nivel,
+                            " \u00B7 m\u00EAs em ",
+                            nPct(frac, 0)),
+                        React.createElement(EscadaChips, { esc: escG })) }),
                 React.createElement(Kpi, { label: "Lucro bruto", value: nReal(tot.fat - tot.custo), sub: "".concat(nPct(div(tot.fat - tot.custo, tot.fat), 0), " do faturamento"), tone: "good" }),
                 React.createElement(Kpi, { label: "Ordens de servi\u00E7o", value: nInt(tot.os), sub: "ticket m\u00E9dio ".concat(nReal(div(tot.fat, tot.os))) }),
                 React.createElement(Kpi, { label: "O.S. em aberto", value: nInt(tot.abertas), sub: "".concat(nReal(tot.vAberto), " ainda abertos"), tone: tot.abertas ? "bad" : "good" }),
                 React.createElement(Kpi, { label: "Ritmo", value: nReal(tot.fat / du.passados), sub: "por dia \u00FAtil \u00B7 precisa de ".concat(nReal(Math.max(0, tot.meta - tot.fat) / du.restantes)), tone: tot.fat / du.passados >= Math.max(0, tot.meta - tot.fat) / du.restantes ? "good" : "bad" }))),
-        React.createElement(Secao, { n: 2, titulo: "Ranking de unidades", nota: "Ordenado por % da meta, n\u00E3o por faturamento \u2014 \u00E9 o que compara lojas de tamanhos diferentes." },
+        React.createElement(Secao, { n: 2, titulo: "Ranking de unidades", nota: "Ordenado por % da meta, n\u00E3o por faturamento \u2014 \u00E9 o que compara lojas de tamanhos diferentes. A meta mostrada \u00E9 o n\u00EDvel da escada em que a loja est\u00E1 (proporcional ao peso dela no grupo)." },
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { minWidth: 900 } },
                     React.createElement("thead", null,
@@ -3727,14 +4066,21 @@ function AbaLojas() {
                             React.createElement(Th, { right: true }, "Margem"),
                             React.createElement(Th, { right: true }, "O.S."),
                             React.createElement(Th, { right: true }, "Ticket closers"),
-                            React.createElement(Th, { right: true }, "Em aberto"))),
+                            React.createElement(Th, { right: true }, "Em aberto"),
+                            React.createElement(Th, { right: true }, "Desconto vs tabela"),
+                            React.createElement(Th, { right: true },
+                                "vs ",
+                                mesAntNome))),
                     React.createElement("tbody", null,
                         lojas.map(function (l) {
-                            var fat = Number(l.faturamento), meta = Number(l.meta);
+                            var fat = Number(l.faturamento), esc = escLoja[l.loja], meta = esc.atual;
+                            var dl = ex.descLoja[l.loja], edl = dl ? estadoDesconto(div(dl.desconto, dl.faturamento)) : null, cr = cresc[l.loja];
                             return (React.createElement("tr", { key: l.loja },
                                 React.createElement(Td, { bold: true }, l.loja),
                                 React.createElement(Td, { right: true, bold: true }, nReal(fat)),
-                                React.createElement(Td, { right: true, color: T.muted }, nReal(meta)),
+                                React.createElement(Td, { right: true, color: T.muted },
+                                    nReal(meta),
+                                    React.createElement("div", { style: { fontSize: 10.5, color: esc.batidas ? T.good : T.muted } }, esc.todas ? "todas batidas ✓" : "meta ".concat(esc.nivel, " de ").concat(esc.niveis.length).concat(esc.batidas ? " ✓" : ""))),
                                 React.createElement(Td, { right: true },
                                     React.createElement(PctMeta, { p: div(fat, meta), frac: frac })),
                                 React.createElement(Td, { right: true }, nReal(Math.max(0, meta - fat))),
@@ -3745,12 +4091,16 @@ function AbaLojas() {
                                 React.createElement(Td, { right: true, color: Number(l.os_abertas) ? T.warn : T.muted },
                                     nInt(l.os_abertas),
                                     " \u00B7 ",
-                                    nReal(l.valor_aberto))));
+                                    nReal(l.valor_aberto)),
+                                React.createElement(Td, { right: true, color: edl ? edl.cor : T.muted, bold: !!(edl && edl.cor === T.bad) }, dl ? textoDesconto(dl.desconto, dl.faturamento) : React.createElement(Aguardando, null, "semanal")),
+                                React.createElement(Td, { right: true, color: cr ? (cr.feito >= 1 ? T.good : cr.feito >= frac ? T.ink : T.warn) : T.muted }, cr ? nPct(cr.feito, 0) : React.createElement(Aguardando, null, mesAntNome))));
                         }),
                         React.createElement("tr", null,
                             React.createElement(Td, { bold: true }, "Grupo"),
                             React.createElement(Td, { right: true, bold: true }, nReal(tot.fat)),
-                            React.createElement(Td, { right: true }, nReal(tot.meta)),
+                            React.createElement(Td, { right: true },
+                                nReal(tot.meta),
+                                React.createElement("div", { style: { fontSize: 10.5, color: T.muted } }, escG.todas ? "todas batidas ✓" : "meta ".concat(escG.nivel, " de ").concat(escG.niveis.length))),
                             React.createElement(Td, { right: true },
                                 React.createElement(PctMeta, { p: div(tot.fat, tot.meta), frac: frac })),
                             React.createElement(Td, { right: true }, nReal(Math.max(0, tot.meta - tot.fat))),
@@ -3761,7 +4111,20 @@ function AbaLojas() {
                             React.createElement(Td, { right: true },
                                 nInt(tot.abertas),
                                 " \u00B7 ",
-                                nReal(tot.vAberto))))))),
+                                nReal(tot.vAberto)),
+                            React.createElement(Td, { right: true, bold: true, color: ex.temDesconto ? estadoDesconto(div(descLojaTot, fatLojaDesc)).cor : T.muted }, ex.temDesconto ? textoDesconto(descLojaTot, fatLojaDesc) : "—"),
+                            React.createElement(Td, { right: true, bold: true }, crescTot ? nPct(crescTot.feito, 0) : "—"))))),
+            React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 10, lineHeight: 1.5 } },
+                React.createElement("b", null, "Desconto vs tabela"),
+                ": saldo de todos os respons\u00E1veis da loja no Vendas por Respons\u00E1vel (positivo = desconto dado, ",
+                React.createElement("span", { style: { color: T.bad, fontWeight: 600 } },
+                    "vermelho acima de ",
+                    nPct(OF_LIMITE_DESCONTO, 0)),
+                "; negativo = vendido acima da tabela).",
+                React.createElement("b", null,
+                    " vs ",
+                    mesAntNome),
+                ": quanto do faturamento do mesmo m\u00EAs do ano passado j\u00E1 foi feito \u2014 detalhe na se\u00E7\u00E3o 6.")),
         React.createElement(Secao, { n: 3, titulo: "Faturamento por setor", nota: "Crit\u00E9rio oficial de agrupamento (5 setores). Cada linha soma 100% da loja." },
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { minWidth: 820 } },
@@ -3830,8 +4193,104 @@ function AbaLojas() {
                         }),
                         !abertasFiltradas.length && React.createElement("tr", null,
                             React.createElement(Td, null, "Nenhuma O.S. em aberto.")))))),
-        React.createElement(Secao, { n: 6, titulo: "Crescimento", nota: "O oficial \u00E9 contra o mesmo m\u00EAs de 2025. Entra quando a Listagem de OS's c/ Itens de setembro/2025 for importada." },
-            React.createElement("div", { className: "grid-kpi" }, lojas.map(function (l) { return React.createElement(Kpi, { key: l.loja, label: l.loja, value: "\u2014", sub: "vs setembro/2025", foot: React.createElement(Aguardando, null, "aguardando set/2025") }); })))));
+        React.createElement(Secao, { n: 6, titulo: "Crescimento", nota: "O oficial \u00E9 contra o mesmo m\u00EAs do ano passado (".concat(mesAntNome, "), fechado. O n\u00FAmero grande \u00E9 quanto daquele m\u00EAs j\u00E1 foi feito; embaixo, onde a loja chega se mantiver o ritmo por dia \u00FAtil at\u00E9 o fim do m\u00EAs.") },
+            !ex.temAnoAnterior ? (React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.warn, background: "#FFF8E1", borderColor: "#F0DDA0" } },
+                "Falta o ",
+                React.createElement("b", null, "Vendas por Empresa"),
+                " de ",
+                mesAntNome,
+                " (tela Gest\u00E3o de Rede, Excel). Solte na aba Importar e esta se\u00E7\u00E3o se monta sozinha.")) : (React.createElement("div", { className: "grid-kpi" },
+                lojas.map(function (l) {
+                    var cr = cresc[l.loja], ant = ex.antLoja[l.loja];
+                    if (!cr)
+                        return React.createElement(Kpi, { key: l.loja, label: l.loja, value: "\u2014", sub: "vs ".concat(mesAntNome), foot: React.createElement(Aguardando, null,
+                                "sem ",
+                                mesAntNome) });
+                    var sobe = cr.projPct >= 0;
+                    return (React.createElement(Kpi, { key: l.loja, label: l.loja, value: nPct(cr.feito, 0), sub: "".concat(nReal(Number(l.faturamento)), " de ").concat(nReal(cr.fatAnt), " em ").concat(mesAntNome), tone: cr.feito >= 1 ? "good" : cr.feito < frac * 0.75 ? "bad" : undefined, foot: React.createElement(React.Fragment, null,
+                            React.createElement(Barra, { pct: cr.feito, cor: cr.feito >= 1 ? T.good : cr.feito >= frac ? T.ink : T.warn }),
+                            React.createElement("div", { style: { fontSize: 11.5, color: sobe ? T.good : T.bad, marginTop: 4, fontWeight: 600 } },
+                                "no ritmo atual: ",
+                                nReal(cr.proj),
+                                " \u00B7 ",
+                                sobe ? "+" : "",
+                                nPct(cr.projPct, 0),
+                                " vs ",
+                                mesAntNome),
+                            React.createElement("div", { style: { fontSize: 11, color: T.muted, marginTop: 2 } },
+                                nInt(l.os_qtd),
+                                " O.S. at\u00E9 agora \u00B7 ",
+                                nInt(cr.osAnt),
+                                " em ",
+                                mesAntNome,
+                                " \u00B7 ticket ",
+                                nReal(Number(ant.ticket_medio)),
+                                " l\u00E1")) }));
+                }),
+                crescTot && (React.createElement(Kpi, { label: "Grupo", value: nPct(crescTot.feito, 0), sub: "".concat(nReal(tot.fat), " de ").concat(nReal(antTot), " em ").concat(mesAntNome), tone: crescTot.feito >= 1 ? "good" : undefined, foot: React.createElement(React.Fragment, null,
+                        React.createElement(Barra, { pct: crescTot.feito, cor: crescTot.feito >= 1 ? T.good : crescTot.feito >= frac ? T.ink : T.warn }),
+                        React.createElement("div", { style: { fontSize: 11.5, color: crescTot.projPct >= 0 ? T.good : T.bad, marginTop: 4, fontWeight: 600 } },
+                            "no ritmo atual: ",
+                            nReal(crescTot.proj),
+                            " \u00B7 ",
+                            crescTot.projPct >= 0 ? "+" : "",
+                            nPct(crescTot.projPct, 0),
+                            " vs ",
+                            mesAntNome)) })))),
+            React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 10, lineHeight: 1.5 } },
+                "Base do ano anterior: relat\u00F3rio ",
+                React.createElement("b", null, "Vendas por Empresa"),
+                " da tela Gest\u00E3o de Rede",
+                ex.importAnoAnterior ? " (importado em ".concat(new Date(ex.importAnoAnterior).toLocaleDateString("pt-BR"), ")") : "",
+                ". O m\u00EAs atual \u00E9 por Data da OS; confira se o de ",
+                mesAntNome,
+                " foi exportado com o mesmo filtro.")),
+        React.createElement(Secao, { n: 7, titulo: "Como o cliente paga", nota: "Do OS por Pagamento (mensal, um por loja): o que entrou no m\u00EAs por fam\u00EDlia de forma. O Oficina registra PIX como transfer\u00EAncia, por isso os dois v\u00EAm juntos." },
+            !ex.temPagamento ? (React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.warn, background: "#FFF8E1", borderColor: "#F0DDA0" } },
+                "Falta o ",
+                React.createElement("b", null, "OS por Pagamento"),
+                " deste m\u00EAs (um por loja, Excel). Solte na aba Importar.")) : (React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { minWidth: 900 } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "Unidade"),
+                            React.createElement(Th, { right: true }, "Recebido"),
+                            FAMILIAS.slice(0, 4).map(function (_a) {
+                                var _b = __read(_a, 2), k = _b[0], n = _b[1];
+                                return React.createElement(Th, { key: k, right: true }, n);
+                            }),
+                            React.createElement(Th, { right: true }, "\u00C0 vista"),
+                            React.createElement(Th, { right: true }, "Parcelas (cr\u00E9dito)"),
+                            React.createElement(Th, { right: true }, "O.S. parceladas"))),
+                    React.createElement("tbody", null, OF_LOJAS.map(function (l) {
+                        var pg = ex.pagLoja[l];
+                        if (!pg)
+                            return React.createElement("tr", { key: l },
+                                React.createElement(Td, { bold: true }, l),
+                                React.createElement(Td, { right: true },
+                                    React.createElement(Aguardando, null, "sem arquivo")),
+                                FAMILIAS.slice(0, 4).map(function (_a) {
+                                    var _b = __read(_a, 1), k = _b[0];
+                                    return React.createElement(Td, { key: k, right: true, color: T.muted }, "\u2014");
+                                }),
+                                React.createElement(Td, { right: true }, "\u2014"),
+                                React.createElement(Td, { right: true }, "\u2014"),
+                                React.createElement(Td, { right: true }, "\u2014"));
+                        return (React.createElement("tr", { key: l },
+                            React.createElement(Td, { bold: true }, l),
+                            React.createElement(Td, { right: true, bold: true }, nReal(pg.total)),
+                            FAMILIAS.slice(0, 4).map(function (_a) {
+                                var _b = __read(_a, 1), k = _b[0];
+                                return React.createElement(Td, { key: k, right: true, color: pg[k] ? T.ink : T.muted }, pg[k] ? "".concat(nReal(pg[k]), " \u00B7 ").concat(nPct(div(pg[k], pg.total), 0)) : "—");
+                            }),
+                            React.createElement(Td, { right: true, color: T.good }, nPct(pg.pctAVista, 0)),
+                            React.createElement(Td, { right: true }, pg.parcelasMedia ? "".concat(pg.parcelasMedia.toFixed(1).replace(".", ","), "x") : "—"),
+                            React.createElement(Td, { right: true },
+                                nInt(pg.osParceladas),
+                                " de ",
+                                nInt(pg.osQtd))));
+                    }))))),
+            ex.temPagamento && React.createElement(TabelaParcelas, { titulo: "Cr\u00E9dito parcelado, por loja", linhas: OF_LOJAS.map(function (l) { return ({ nome: l, pg: ex.pagLoja[l] }); }) }))));
 }
 /* ---------------------------- ORIGEM ---------------------------- */
 function AbaOrigem() {
