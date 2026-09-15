@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v24 — CAR SERVICE</title>
-<meta name="painel-versao" content="v24">
+<title>Painel de SDR v25 — CAR SERVICE</title>
+<meta name="painel-versao" content="v25">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -1770,7 +1770,7 @@ function Painel(_a) {
        passa a funcionar entre as abas. */
     var abaDaURL = function () {
         var h = String(window.location.hash || "").replace("#", "");
-        return (h === "coordenador" || h === "tv" || h === "importar" || h === "resumo") ? h : "painel";
+        return (h === "coordenador" || h === "tv" || h === "importar" || h === "resumo" || h === "closers" || h === "lojas" || h === "origem") ? h : "painel";
     };
     var _d = __read(useState(abaDaURL), 2), aba = _d[0], setAbaBruto = _d[1];
     var setAba = function (v) {
@@ -2168,16 +2168,19 @@ function Painel(_a) {
                             .map(function (x) { return "".concat(x.fonte, " ").concat(idade(x.min)); }).join(" · "),
                         "."))))),
             React.createElement("div", { style: { display: "flex", gap: 4, background: T.surface, border: "1px solid ".concat(T.hair),
-                    borderRadius: 8, padding: 4, marginBottom: 16, width: "fit-content" } }, [["painel", "Painel"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["resumo", "Resumo"], ["importar", "Importar"]].map(function (_a) {
+                    borderRadius: 8, padding: 4, marginBottom: 16, width: "fit-content" } }, [["painel", "SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["closers", "Closers"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]].map(function (_a) {
                 var _b = __read(_a, 2), v = _b[0], l = _b[1];
                 return (React.createElement("button", { key: v, onClick: function () { return setAba(v); }, style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700, padding: "8px 16px",
                         border: 0, borderRadius: 5, cursor: "pointer",
                         background: aba === v ? T.ink : "transparent",
                         color: aba === v ? "#fff" : T.ink2 } }, l));
             })),
-            aba !== "painel" && aba !== "importar" && aba !== "resumo" && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
+            aba !== "painel" && aba !== "importar" && aba !== "resumo" && aba !== "closers" && aba !== "lojas" && aba !== "origem" && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
             aba === "importar" && React.createElement(AbaImportar, { sessao: sessao }),
             aba === "resumo" && React.createElement(AbaResumo, { sessao: sessao }),
+            aba === "closers" && React.createElement(AbaClosers, null),
+            aba === "lojas" && React.createElement(AbaLojas, null),
+            aba === "origem" && React.createElement(AbaOrigem, null),
             aba === "coordenador" && rot && React.createElement(AbaCoordenador, { sessao: sessao, c: rot, funil: d.funilAgora, qualidade: d.qualidade, tarefas: d.tarefas, semTarefa: d.semTarefa }),
             aba === "painel" && (React.createElement(React.Fragment, null,
                 React.createElement(Card, { className: "p12", style: { position: "sticky", top: 54, zIndex: 20 } },
@@ -3398,6 +3401,516 @@ function AbaResumo(_a) {
                     k === "sdr" && React.createElement(CartaoSDR, { r: r, hojeISO: hojeISO }),
                     k !== "geral" && k !== "sdr" && React.createElement(CartaoLoja, { loja: RESUMO_LOJAS.filter(function (l) { return RESUMO_CHAVE_LOJA[l] === k; })[0], r: r, du: du, frac: frac, hojeISO: hojeISO }))));
         })))));
+}
+/* ===================== Abas Closers · Lojas · Origem (v25) =====================
+   Desenhos aprovados em 14/09; ligadas às views resumo_* (Listagem de OS's c/
+   Itens importada na aba Importar) e funil_closer_v (Kommo) em 15/09/2026.
+
+   Data de referência = data do último import. Se a pessoa esquecer um dia,
+   as abas mostram o dia anterior com aviso (decisão do Rafael, 15/09).
+
+   O que ainda depende de outro arquivo fica marcado "aguardando" em vez de
+   sumir: desconto (Vendas por Responsável, semanal), PIX e parcelamento
+   (OS por Pagamento, mensal), crescimento vs 2025 (Listagem de set/2025),
+   avaliações Google (manual). */
+var OF_SETORES = ["PPF", "Películas", "Estética", "Funilaria", "Acessórios"];
+var OF_LOJAS = ["Itaim", "Ipiranga", "Bandeirantes", "Tatuapé"];
+function useOficina() {
+    var _this = this;
+    var _a = __read(useState(null), 2), r = _a[0], setR = _a[1];
+    var _b = __read(useState(null), 2), erro = _b[0], setErro = _b[1];
+    var hojeISO = hoje();
+    var inicioMes = hojeISO.slice(0, 8) + "01";
+    var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
+        var pega, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, ultimoDia, e_10;
+        var _this = this;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
+                case 0:
+                    setErro(null);
+                    _b.label = 1;
+                case 1:
+                    _b.trys.push([1, 3, , 4]);
+                    pega = function (q) { return __awaiter(_this, void 0, void 0, function () { var _a, data, error; return __generator(this, function (_b) {
+                        switch (_b.label) {
+                            case 0: return [4 /*yield*/, q];
+                            case 1:
+                                _a = _b.sent(), data = _a.data, error = _a.error;
+                                if (error)
+                                    throw new Error(error.message);
+                                return [2 /*return*/, data || []];
+                        }
+                    }); }); };
+                    return [4 /*yield*/, Promise.all([
+                            pega(db.from("resumo_loja_v").select("*").eq("mes", inicioMes)),
+                            pega(db.from("resumo_closer_v").select("*").eq("mes", inicioMes)),
+                            pega(db.from("resumo_setor_v").select("*").eq("mes", inicioMes)),
+                            pega(db.from("resumo_dia_v").select("*").eq("mes", inicioMes).order("dt_os")),
+                            pega(db.from("resumo_os_v").select("loja,os_numero,dt_os,situacao,closer,erp_nome,pesquisa,placa,veiculo,total,custo,dt_faturamento").eq("mes", inicioMes)),
+                            pega(db.from("resumo_origem_v").select("*").eq("mes", inicioMes)),
+                            pega(db.from("oi_item_v").select("loja,closer,setor,total,custo_total,executor").eq("mes", inicioMes)),
+                            pega(db.from("funil_closer_v").select("*")),
+                            pega(db.from("map_loja").select("*")),
+                            pega(db.from("oi_arquivos").select("id,loja,periodo_ini,processado_em,status,tipo").eq("tipo", "listagem_itens").eq("status", "ok")
+                                .gte("periodo_ini", inicioMes).order("processado_em", { ascending: false }).limit(8)),
+                        ])];
+                case 2:
+                    _a = __read.apply(void 0, [_b.sent(), 10]), lojas = _a[0], closers = _a[1], setores = _a[2], dias = _a[3], os = _a[4], origem = _a[5], itens = _a[6], funil = _a[7], mapLoja = _a[8], arquivos = _a[9];
+                    ultimoDia = dias.reduce(function (m, d) { return (d.dt_os > m ? d.dt_os : m); }, "");
+                    setR({ lojas: lojas, closers: closers, setores: setores, dias: dias, os: os, origem: origem, itens: itens, funil: funil, mapLoja: mapLoja, arquivos: arquivos, ultimoDia: ultimoDia, hojeISO: hojeISO, inicioMes: inicioMes });
+                    return [3 /*break*/, 4];
+                case 3:
+                    e_10 = _b.sent();
+                    setErro(e_10.message || String(e_10));
+                    return [3 /*break*/, 4];
+                case 4: return [2 /*return*/];
+            }
+        });
+    }); }, [inicioMes, hojeISO]);
+    useEffect(function () { carregar(); }, [carregar]);
+    return { r: r, erro: erro, carregar: carregar };
+}
+/* ritmo do mês: usa o último dia importado como "hoje" da base */
+function ritmoDoMes(r) {
+    var ref = r.ultimoDia || r.hojeISO;
+    var du = diasUteisDoMes(ref);
+    return { ref: ref, du: du, frac: du.diaDoMes / du.diasNoMes };
+}
+var Aguardando = function (_a) {
+    var children = _a.children;
+    return (React.createElement("span", { style: { fontSize: 11, fontWeight: 600, color: T.warn, background: "#FFF8E1", border: "1px solid #F0DDA0",
+            borderRadius: 99, padding: "2px 9px", display: "inline-block" } }, children || "aguardando arquivo"));
+};
+var PctMeta = function (_a) {
+    var p = _a.p, frac = _a.frac;
+    var e = estadoMeta(p, frac);
+    return (React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" } },
+        React.createElement("span", { style: { color: e.cor, fontWeight: 700 } }, nPct(p, 0)),
+        React.createElement("span", { style: { width: 54 } },
+            React.createElement(Barra, { pct: p, cor: e.cor, alt: 6 }))));
+};
+function AvisoBase(_a) {
+    var r = _a.r, carregar = _a.carregar;
+    var atrasado = r.ultimoDia && r.ultimoDia < r.hojeISO;
+    var ult = r.arquivos[0];
+    return (React.createElement(Card, { className: "p12", style: { marginBottom: 14, fontSize: 12.5, color: atrasado ? T.warn : T.ink2,
+            background: atrasado ? "#FFF8E1" : T.surface, borderColor: atrasado ? "#F0DDA0" : T.hair,
+            display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" } },
+        React.createElement("span", null,
+            r.ultimoDia
+                ? React.createElement("span", null,
+                    React.createElement("b", null,
+                        "Base: O.S. de 01 a ",
+                        br(r.ultimoDia)),
+                    atrasado ? " \u2014 dados de ".concat(br(r.ultimoDia), ", ainda sem o import de hoje.") : " · atualizada hoje.")
+                : React.createElement("span", null,
+                    React.createElement("b", null, "Sem Listagem de OS's c/ Itens importada neste m\u00EAs."),
+                    " Solte o arquivo na aba Importar."),
+            ult && React.createElement("span", { style: { color: T.muted } },
+                " \u00DAltimo import: ",
+                ult.loja,
+                " \u00B7 ",
+                new Date(ult.processado_em).toLocaleString("pt-BR"),
+                ".")),
+        React.createElement("button", { onClick: carregar, style: { marginLeft: "auto", fontSize: 12, borderRadius: 8, padding: "6px 12px", border: "1px solid ".concat(T.hair),
+                background: T.surface, color: T.ink2, cursor: "pointer", fontFamily: F_UI } }, "Atualizar")));
+}
+/* ---------------------------- CLOSERS ---------------------------- */
+function AbaClosers() {
+    var _a = useOficina(), r = _a.r, erro = _a.erro, carregar = _a.carregar;
+    if (erro)
+        return React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.bad } },
+            "N\u00E3o consegui ler os dados: ",
+            erro);
+    if (!r)
+        return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando\u2026");
+    var _b = ritmoDoMes(r), du = _b.du, frac = _b.frac;
+    var closers = [].slice.call(r.closers).sort(function (a, b) { return Number(b.faturamento) - Number(a.faturamento); });
+    var totFat = somaCampo(closers, "faturamento"), totMeta = somaCampo(closers, "meta"), totCusto = somaCampo(closers, "custo");
+    var totOs = somaCampo(closers, "os_qtd");
+    var funilPor = {};
+    r.funil.forEach(function (f) {
+        var k = f.closer;
+        var s = funilPor[k] || (funilPor[k] = { leads: 0, valor: 0, parados: 0, valorParado: 0, pos: 0, valorPos: 0, etapas: {} });
+        s.leads += Number(f.leads);
+        s.valor += Number(f.valor) || 0;
+        s.parados += Number(f.parados_14d);
+        s.valorParado += Number(f.valor_parado_14d) || 0;
+        s.pos += Number(f.pos_visita);
+        s.valorPos += Number(f.valor_pos_visita) || 0;
+        s.etapas[f.etapa_grupo] = (s.etapas[f.etapa_grupo] || 0) + Number(f.leads);
+    });
+    var setorPorCloser = {};
+    r.itens.forEach(function (i) { if (!i.closer)
+        return; var s = setorPorCloser[i.closer] || (setorPorCloser[i.closer] = {}); s[i.setor] = (s[i.setor] || 0) + Number(i.total); });
+    var abertasPorCloser = {};
+    r.os.forEach(function (o) { if (o.closer && o.situacao === "Aberta") {
+        var s = abertasPorCloser[o.closer] || (abertasPorCloser[o.closer] = { n: 0, v: 0 });
+        s.n++;
+        s.v += Number(o.total);
+    } });
+    var lider = closers[0];
+    return (React.createElement("div", null,
+        React.createElement(AvisoBase, { r: r, carregar: carregar }),
+        React.createElement(Secao, { n: 1, titulo: "Ranking de closers", nota: "Faturamento por Data da OS, ".concat(du.diaDoMes, " de ").concat(du.diasNoMes, " dias do m\u00EAs (").concat(nPct(frac, 0), "). Verde = % da meta acompanha o m\u00EAs; \u00E2mbar at\u00E9 25% abaixo; vermelho al\u00E9m. Lucro bruto = faturamento menos custo de material.") },
+            React.createElement("div", { className: "grid-kpi" },
+                React.createElement(Kpi, { label: "Faturamento dos closers", value: nReal(totFat), sub: "meta somada ".concat(nReal(totMeta)), foot: React.createElement(Barra, { pct: div(totFat, totMeta), cor: estadoMeta(div(totFat, totMeta), frac).cor }) }),
+                React.createElement(Kpi, { label: "% da meta", value: nPct(div(totFat, totMeta), 1), sub: "m\u00EAs em ".concat(nPct(frac, 0)), tone: div(totFat, totMeta) >= frac ? "good" : "bad" }),
+                React.createElement(Kpi, { label: "Lucro bruto", value: nPct(div(totFat - totCusto, totFat), 0), sub: nReal(totFat - totCusto), tone: "good" }),
+                React.createElement(Kpi, { label: "O.S. dos closers", value: nInt(totOs), sub: "ticket m\u00E9dio ".concat(nReal(div(totFat, totOs))) }),
+                React.createElement(Kpi, { label: "L\u00EDder do m\u00EAs", value: lider ? String(lider.closer).split(" ")[0] : "—", sub: lider ? "".concat(nReal(lider.faturamento), " \u00B7 ").concat(nPct(div(Number(lider.faturamento), Number(lider.meta)), 0), " da meta") : "" })),
+            React.createElement(Card, { className: "p0 rolagem", style: { marginTop: 12 } },
+                React.createElement("table", { style: { minWidth: 1000 } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "#"),
+                            React.createElement(Th, null, "Closer"),
+                            React.createElement(Th, null, "Unidade"),
+                            React.createElement(Th, { right: true }, "Faturamento"),
+                            React.createElement(Th, { right: true }, "Meta"),
+                            React.createElement(Th, { right: true }, "% meta"),
+                            React.createElement(Th, { right: true }, "Faltam"),
+                            React.createElement(Th, { right: true }, "Lucro bruto"),
+                            React.createElement(Th, { right: true }, "O.S."),
+                            React.createElement(Th, { right: true }, "Ticket"),
+                            React.createElement(Th, { right: true }, "Em aberto"),
+                            React.createElement(Th, { right: true }, "Desconto"),
+                            React.createElement(Th, { right: true }, "PIX"))),
+                    React.createElement("tbody", null,
+                        closers.map(function (c, i) {
+                            var fat = Number(c.faturamento), meta = Number(c.meta), p = div(fat, meta);
+                            var ab = abertasPorCloser[c.closer] || { n: 0, v: 0 };
+                            return (React.createElement("tr", { key: c.closer_codigo },
+                                React.createElement(Td, { color: T.muted },
+                                    i + 1,
+                                    "\u00BA"),
+                                React.createElement(Td, { bold: true }, c.closer),
+                                React.createElement(Td, { color: T.muted }, c.loja),
+                                React.createElement(Td, { right: true, bold: true }, nReal(fat)),
+                                React.createElement(Td, { right: true, color: T.muted }, nReal(meta)),
+                                React.createElement(Td, { right: true },
+                                    React.createElement(PctMeta, { p: p, frac: frac })),
+                                React.createElement(Td, { right: true }, nReal(Math.max(0, meta - fat))),
+                                React.createElement(Td, { right: true, color: T.good }, nPct(div(fat - Number(c.custo), fat), 0)),
+                                React.createElement(Td, { right: true }, nInt(c.os_qtd)),
+                                React.createElement(Td, { right: true }, nReal(div(fat, Number(c.os_qtd)))),
+                                React.createElement(Td, { right: true, color: ab.n ? T.warn : T.muted }, ab.n ? "".concat(ab.n, " \u00B7 ").concat(nReal(ab.v)) : "—"),
+                                React.createElement(Td, { right: true },
+                                    React.createElement(Aguardando, null, "semanal")),
+                                React.createElement(Td, { right: true },
+                                    React.createElement(Aguardando, null, "mensal"))));
+                        }),
+                        !closers.length && React.createElement("tr", null,
+                            React.createElement(Td, null, "Sem O.S. importadas neste m\u00EAs."))))),
+            React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 10, lineHeight: 1.5 } },
+                React.createElement("b", null, "Desconto"),
+                " vem do Vendas por Respons\u00E1vel (semanal) e ",
+                React.createElement("b", null, "PIX/parcelamento"),
+                " do OS por Pagamento (mensal). Enquanto o arquivo n\u00E3o entra, a coluna fica marcada em vez de mostrar zero.")),
+        React.createElement(Secao, { n: 2, titulo: "O que cada um vende", nota: "Faturamento por setor, no crit\u00E9rio oficial de agrupamento. Mostra onde cada closer \u00E9 forte e onde n\u00E3o vende." },
+            React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { minWidth: 820 } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "Closer"),
+                            OF_SETORES.map(function (s) { return React.createElement(Th, { key: s, right: true }, s); }),
+                            React.createElement(Th, { right: true }, "Total"))),
+                    React.createElement("tbody", null, closers.map(function (c) {
+                        var s = setorPorCloser[c.closer] || {};
+                        var tot = Number(c.faturamento);
+                        return (React.createElement("tr", { key: c.closer_codigo },
+                            React.createElement(Td, { bold: true }, c.closer),
+                            OF_SETORES.map(function (k) { return React.createElement(Td, { key: k, right: true, color: s[k] ? T.ink : T.muted }, s[k] ? "".concat(nReal(s[k]), " \u00B7 ").concat(nPct(div(s[k], tot), 0)) : "—"); }),
+                            React.createElement(Td, { right: true, bold: true }, nReal(tot))));
+                    }))))),
+        React.createElement(Secao, { n: 3, titulo: "Leads na m\u00E3o de cada closer", nota: "Direto do Kommo, lente 'dono atual': leads em aberto cujo respons\u00E1vel \u00E9 o closer. Parado = sem nenhuma atualiza\u00E7\u00E3o h\u00E1 mais de 14 dias. P\u00F3s-visita = cliente j\u00E1 veio \u00E0 loja e ainda est\u00E1 em negocia\u00E7\u00E3o." },
+            React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { minWidth: 900 } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "Closer"),
+                            React.createElement(Th, { right: true }, "Leads abertos"),
+                            React.createElement(Th, { right: true }, "Valor no funil"),
+                            React.createElement(Th, { right: true }, "Parados >14d"),
+                            React.createElement(Th, { right: true }, "Valor parado"),
+                            React.createElement(Th, { right: true }, "P\u00F3s-visita"),
+                            React.createElement(Th, { right: true }, "Valor p\u00F3s-visita"),
+                            React.createElement(Th, null, "Por etapa"))),
+                    React.createElement("tbody", null, closers.map(function (c) {
+                        var f = funilPor[c.closer] || { leads: 0, valor: 0, parados: 0, valorParado: 0, pos: 0, valorPos: 0, etapas: {} };
+                        var pp = div(f.parados, f.leads);
+                        return (React.createElement("tr", { key: c.closer_codigo },
+                            React.createElement(Td, { bold: true }, c.closer),
+                            React.createElement(Td, { right: true, bold: true }, nInt(f.leads)),
+                            React.createElement(Td, { right: true }, nReal(f.valor)),
+                            React.createElement(Td, { right: true, color: pp > 0.3 ? T.bad : pp > 0 ? T.warn : T.good },
+                                nInt(f.parados),
+                                " \u00B7 ",
+                                nPct(pp, 0)),
+                            React.createElement(Td, { right: true }, nReal(f.valorParado)),
+                            React.createElement(Td, { right: true, color: T.good }, nInt(f.pos)),
+                            React.createElement(Td, { right: true }, nReal(f.valorPos)),
+                            React.createElement(Td, { color: T.muted, style: { whiteSpace: "normal", fontSize: 12 } }, Object.entries(f.etapas).sort(function (a, b) { return b[1] - a[1]; }).map(function (_a) {
+                                var _b = __read(_a, 2), e = _b[0], n = _b[1];
+                                return "".concat(e, " ").concat(n);
+                            }).join(" · ") || "—")));
+                    }))))),
+        React.createElement(Secao, { n: 4, titulo: "Falta para a meta", nota: "Quanto cada um precisa fazer por dia \u00FAtil (segunda a s\u00E1bado) at\u00E9 o fim do m\u00EAs, contra o que vem fazendo." },
+            React.createElement("div", { className: "grid-kpi" }, closers.map(function (c) {
+                var fat = Number(c.faturamento), meta = Number(c.meta), falta = Math.max(0, meta - fat);
+                var faz = fat / du.passados, precisa = falta / du.restantes;
+                return (React.createElement(Card, { key: c.closer_codigo, className: "p16" },
+                    React.createElement(Label, null, c.closer),
+                    React.createElement("div", { style: { marginTop: 8 } },
+                        React.createElement(Metric, { value: nReal(falta), size: 24, color: falta ? T.ink : T.good })),
+                    React.createElement("div", { style: { fontSize: 12, color: T.ink2, marginTop: 4 } }, falta ? "precisa de ".concat(nReal(precisa), "/dia \u00FAtil") : "meta batida"),
+                    React.createElement("div", { style: { fontSize: 11.5, color: faz >= precisa ? T.good : T.bad, marginTop: 2 } },
+                        "faz ",
+                        nReal(faz),
+                        "/dia hoje ",
+                        faz >= precisa ? "✓" : "· abaixo do necessário")));
+            }))),
+        React.createElement(Secao, { n: 5, titulo: "Ainda sem fonte autom\u00E1tica", nota: "Fica aqui de prop\u00F3sito, para ningu\u00E9m achar que o painel esqueceu." },
+            React.createElement("div", { className: "grid-kpi" },
+                React.createElement(Kpi, { label: "Avalia\u00E7\u00F5es Google", value: "\u2014", sub: "contagem manual por closer, mensal" }),
+                React.createElement(Kpi, { label: "Desconto m\u00E9dio", value: "\u2014", sub: "Vendas por Respons\u00E1vel (semanal)" }),
+                React.createElement(Kpi, { label: "PIX e parcelamento", value: "\u2014", sub: "OS por Pagamento (mensal)" }),
+                React.createElement(Kpi, { label: "Carros consignados", value: "\u2014", sub: "defini\u00E7\u00E3o pendente no Oficina" })))));
+}
+/* ---------------------------- LOJAS ---------------------------- */
+function AbaLojas() {
+    var _a = useOficina(), r = _a.r, erro = _a.erro, carregar = _a.carregar;
+    var _b = __read(useState("todas"), 2), lojaAberta = _b[0], setLojaAberta = _b[1]; // hook antes de qualquer return
+    if (erro)
+        return React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.bad } },
+            "N\u00E3o consegui ler os dados: ",
+            erro);
+    if (!r)
+        return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando\u2026");
+    var _c = ritmoDoMes(r), du = _c.du, frac = _c.frac;
+    var lojas = OF_LOJAS.map(function (l) { return r.lojas.filter(function (x) { return x.loja === l; })[0] || { loja: l, meta: (r.mapLoja.filter(function (m) { return m.loja === l; })[0] || {}).meta_mensal || 0, faturamento: 0, custo: 0, os_qtd: 0, os_closers: 0, fat_closers: 0, os_abertas: 0, valor_aberto: 0 }; })
+        .sort(function (a, b) { return div(Number(b.faturamento), Number(b.meta)) - div(Number(a.faturamento), Number(a.meta)); });
+    var tot = { fat: somaCampo(lojas, "faturamento"), meta: somaCampo(lojas, "meta"), custo: somaCampo(lojas, "custo"), os: somaCampo(lojas, "os_qtd"), abertas: somaCampo(lojas, "os_abertas"), vAberto: somaCampo(lojas, "valor_aberto") };
+    var setorLoja = function (l, s) { return somaCampo(r.setores.filter(function (x) { return x.loja === l && x.setor === s; }), "faturamento"); };
+    var setorTot = function (s) { return somaCampo(r.setores.filter(function (x) { return x.setor === s; }), "faturamento"); };
+    var abertas = r.os.filter(function (o) { return o.situacao === "Aberta"; }).sort(function (a, b) { return Number(b.total) - Number(a.total); });
+    var abertasFiltradas = abertas.filter(function (o) { return lojaAberta === "todas" || o.loja === lojaAberta; });
+    var porDia = {};
+    r.dias.forEach(function (d) { porDia[d.dt_os] = (porDia[d.dt_os] || 0) + Number(d.faturamento); });
+    var diasOrd = Object.keys(porDia).sort();
+    var maxDia = Math.max.apply(null, diasOrd.map(function (d) { return porDia[d]; }).concat([1]));
+    return (React.createElement("div", null,
+        React.createElement(AvisoBase, { r: r, carregar: carregar }),
+        React.createElement(Secao, { n: 1, titulo: "Placar do grupo", nota: "Lucro bruto \u00E9 faturamento menos custo de material. N\u00E3o desconta m\u00E3o de obra nem taxa de cart\u00E3o." },
+            React.createElement("div", { className: "grid-kpi" },
+                React.createElement(Kpi, { label: "Faturamento", value: nReal(tot.fat), sub: "meta do m\u00EAs ".concat(nReal(tot.meta)), foot: React.createElement(React.Fragment, null,
+                        React.createElement(Barra, { pct: div(tot.fat, tot.meta), cor: estadoMeta(div(tot.fat, tot.meta), frac).cor }),
+                        React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 4 } },
+                            nPct(div(tot.fat, tot.meta), 1),
+                            " da meta \u00B7 m\u00EAs em ",
+                            nPct(frac, 0))) }),
+                React.createElement(Kpi, { label: "Lucro bruto", value: nReal(tot.fat - tot.custo), sub: "".concat(nPct(div(tot.fat - tot.custo, tot.fat), 0), " do faturamento"), tone: "good" }),
+                React.createElement(Kpi, { label: "Ordens de servi\u00E7o", value: nInt(tot.os), sub: "ticket m\u00E9dio ".concat(nReal(div(tot.fat, tot.os))) }),
+                React.createElement(Kpi, { label: "O.S. em aberto", value: nInt(tot.abertas), sub: "".concat(nReal(tot.vAberto), " ainda abertos"), tone: tot.abertas ? "bad" : "good" }),
+                React.createElement(Kpi, { label: "Ritmo", value: nReal(tot.fat / du.passados), sub: "por dia \u00FAtil \u00B7 precisa de ".concat(nReal(Math.max(0, tot.meta - tot.fat) / du.restantes)), tone: tot.fat / du.passados >= Math.max(0, tot.meta - tot.fat) / du.restantes ? "good" : "bad" }))),
+        React.createElement(Secao, { n: 2, titulo: "Ranking de unidades", nota: "Ordenado por % da meta, n\u00E3o por faturamento \u2014 \u00E9 o que compara lojas de tamanhos diferentes." },
+            React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { minWidth: 900 } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "Unidade"),
+                            React.createElement(Th, { right: true }, "Faturamento"),
+                            React.createElement(Th, { right: true }, "Meta"),
+                            React.createElement(Th, { right: true }, "% meta"),
+                            React.createElement(Th, { right: true }, "Faltam"),
+                            React.createElement(Th, { right: true }, "Lucro bruto"),
+                            React.createElement(Th, { right: true }, "Margem"),
+                            React.createElement(Th, { right: true }, "O.S."),
+                            React.createElement(Th, { right: true }, "Ticket closers"),
+                            React.createElement(Th, { right: true }, "Em aberto"))),
+                    React.createElement("tbody", null,
+                        lojas.map(function (l) {
+                            var fat = Number(l.faturamento), meta = Number(l.meta);
+                            return (React.createElement("tr", { key: l.loja },
+                                React.createElement(Td, { bold: true }, l.loja),
+                                React.createElement(Td, { right: true, bold: true }, nReal(fat)),
+                                React.createElement(Td, { right: true, color: T.muted }, nReal(meta)),
+                                React.createElement(Td, { right: true },
+                                    React.createElement(PctMeta, { p: div(fat, meta), frac: frac })),
+                                React.createElement(Td, { right: true }, nReal(Math.max(0, meta - fat))),
+                                React.createElement(Td, { right: true }, nReal(fat - Number(l.custo))),
+                                React.createElement(Td, { right: true, color: T.good }, nPct(div(fat - Number(l.custo), fat), 0)),
+                                React.createElement(Td, { right: true }, nInt(l.os_qtd)),
+                                React.createElement(Td, { right: true }, nReal(div(Number(l.fat_closers), Number(l.os_closers)))),
+                                React.createElement(Td, { right: true, color: Number(l.os_abertas) ? T.warn : T.muted },
+                                    nInt(l.os_abertas),
+                                    " \u00B7 ",
+                                    nReal(l.valor_aberto))));
+                        }),
+                        React.createElement("tr", null,
+                            React.createElement(Td, { bold: true }, "Grupo"),
+                            React.createElement(Td, { right: true, bold: true }, nReal(tot.fat)),
+                            React.createElement(Td, { right: true }, nReal(tot.meta)),
+                            React.createElement(Td, { right: true },
+                                React.createElement(PctMeta, { p: div(tot.fat, tot.meta), frac: frac })),
+                            React.createElement(Td, { right: true }, nReal(Math.max(0, tot.meta - tot.fat))),
+                            React.createElement(Td, { right: true }, nReal(tot.fat - tot.custo)),
+                            React.createElement(Td, { right: true, color: T.good }, nPct(div(tot.fat - tot.custo, tot.fat), 0)),
+                            React.createElement(Td, { right: true }, nInt(tot.os)),
+                            React.createElement(Td, { right: true }, "\u2014"),
+                            React.createElement(Td, { right: true },
+                                nInt(tot.abertas),
+                                " \u00B7 ",
+                                nReal(tot.vAberto))))))),
+        React.createElement(Secao, { n: 3, titulo: "Faturamento por setor", nota: "Crit\u00E9rio oficial de agrupamento (5 setores). Cada linha soma 100% da loja." },
+            React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { minWidth: 820 } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "Unidade"),
+                            OF_SETORES.map(function (s) { return React.createElement(Th, { key: s, right: true }, s); }),
+                            React.createElement(Th, { right: true }, "Total"))),
+                    React.createElement("tbody", null,
+                        lojas.map(function (l) { return (React.createElement("tr", { key: l.loja },
+                            React.createElement(Td, { bold: true }, l.loja),
+                            OF_SETORES.map(function (s) { var v = setorLoja(l.loja, s); return React.createElement(Td, { key: s, right: true, color: v ? T.ink : T.muted }, v ? "".concat(nReal(v), " \u00B7 ").concat(nPct(div(v, Number(l.faturamento)), 0)) : "—"); }),
+                            React.createElement(Td, { right: true, bold: true }, nReal(l.faturamento)))); }),
+                        React.createElement("tr", null,
+                            React.createElement(Td, { bold: true }, "Grupo"),
+                            OF_SETORES.map(function (s) { var v = setorTot(s); return React.createElement(Td, { key: s, right: true, bold: true },
+                                nReal(v),
+                                " \u00B7 ",
+                                nPct(div(v, tot.fat), 0)); }),
+                            React.createElement(Td, { right: true, bold: true }, nReal(tot.fat))))))),
+        React.createElement(Secao, { n: 4, titulo: "Dia a dia do m\u00EAs", nota: "Faturamento por Data da OS, as quatro lojas somadas. S\u00E1bado conta; domingo n\u00E3o abre." },
+            React.createElement(Card, { className: "p16" },
+                React.createElement("div", { style: { display: "flex", alignItems: "flex-end", gap: 4, height: 120 } }, diasOrd.map(function (d) { return (React.createElement("div", { key: d, title: "".concat(brFull(d), " \u00B7 ").concat(nReal(porDia[d])), style: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 } },
+                    React.createElement("div", { style: { width: "100%", height: "".concat(Math.max(2, (porDia[d] / maxDia) * 100), "px"), background: T.ink, borderRadius: 3 } }),
+                    React.createElement("div", { style: { fontSize: 9.5, color: T.muted } }, br(d).slice(0, 2)))); })),
+                React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 8 } },
+                    "melhor dia: ",
+                    diasOrd.length ? "".concat(brFull(diasOrd.reduce(function (m, d) { return (porDia[d] > porDia[m] ? d : m); }, diasOrd[0])), " \u00B7 ").concat(nReal(maxDia)) : "—"))),
+        React.createElement(Secao, { n: 5, titulo: "O.S. em aberto", nota: "Abertas no m\u00EAs e ainda n\u00E3o finalizadas. Identificadas pela placa \u2014 o nome do cliente n\u00E3o \u00E9 guardado no painel." },
+            React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" } },
+                [["todas", "Todas"]].concat(OF_LOJAS.map(function (l) { return [l, l]; })).map(function (_a) {
+                    var _b = __read(_a, 2), v = _b[0], l = _b[1];
+                    return (React.createElement("button", { key: v, onClick: function () { return setLojaAberta(v); }, style: { fontSize: 12, fontWeight: 600, padding: "6px 12px", borderRadius: 6, cursor: "pointer", fontFamily: F_UI,
+                            border: "1px solid ".concat(lojaAberta === v ? T.ink : T.hair), background: lojaAberta === v ? T.ink : T.surface, color: lojaAberta === v ? "#fff" : T.ink2 } }, l));
+                }),
+                React.createElement("span", { style: { fontSize: 12, color: T.muted, alignSelf: "center" } },
+                    abertasFiltradas.length,
+                    " O.S. \u00B7 ",
+                    nReal(somaCampo(abertasFiltradas, "total")))),
+            React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { minWidth: 820 } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "Loja"),
+                            React.createElement(Th, null, "O.S."),
+                            React.createElement(Th, null, "Data"),
+                            React.createElement(Th, null, "Dias aberta"),
+                            React.createElement(Th, null, "Placa"),
+                            React.createElement(Th, null, "Ve\u00EDculo"),
+                            React.createElement(Th, null, "Closer"),
+                            React.createElement(Th, null, "Origem"),
+                            React.createElement(Th, { right: true }, "Valor"))),
+                    React.createElement("tbody", null,
+                        abertasFiltradas.slice(0, 80).map(function (o) {
+                            var dias = diasEntre(o.dt_os, r.hojeISO) - 1;
+                            return (React.createElement("tr", { key: o.loja + o.os_numero },
+                                React.createElement(Td, null, o.loja),
+                                React.createElement(Td, { bold: true }, o.os_numero),
+                                React.createElement(Td, null, br(o.dt_os)),
+                                React.createElement(Td, { color: dias > 7 ? T.bad : dias > 3 ? T.warn : T.ink }, dias),
+                                React.createElement(Td, null, o.placa || "—"),
+                                React.createElement(Td, { color: T.muted }, o.veiculo || "—"),
+                                React.createElement(Td, null, o.closer || React.createElement("span", { style: { color: T.muted } }, o.erp_nome ? String(o.erp_nome).split(" ")[0] : "—")),
+                                React.createElement(Td, { color: T.muted }, o.pesquisa || "—"),
+                                React.createElement(Td, { right: true, bold: true }, nReal(o.total))));
+                        }),
+                        !abertasFiltradas.length && React.createElement("tr", null,
+                            React.createElement(Td, null, "Nenhuma O.S. em aberto.")))))),
+        React.createElement(Secao, { n: 6, titulo: "Crescimento", nota: "O oficial \u00E9 contra o mesmo m\u00EAs de 2025. Entra quando a Listagem de OS's c/ Itens de setembro/2025 for importada." },
+            React.createElement("div", { className: "grid-kpi" }, lojas.map(function (l) { return React.createElement(Kpi, { key: l.loja, label: l.loja, value: "\u2014", sub: "vs setembro/2025", foot: React.createElement(Aguardando, null, "aguardando set/2025") }); })))));
+}
+/* ---------------------------- ORIGEM ---------------------------- */
+function AbaOrigem() {
+    var _a = useOficina(), r = _a.r, erro = _a.erro, carregar = _a.carregar;
+    if (erro)
+        return React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.bad } },
+            "N\u00E3o consegui ler os dados: ",
+            erro);
+    if (!r)
+        return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando\u2026");
+    var porCanal = {};
+    var porPesq = {};
+    r.origem.forEach(function (o) {
+        var c = porCanal[o.canal] || (porCanal[o.canal] = { os: 0, fat: 0 });
+        c.os += Number(o.os_qtd);
+        c.fat += Number(o.faturamento);
+        var p = porPesq[o.pesquisa] || (porPesq[o.pesquisa] = { os: 0, fat: 0, lojas: {} });
+        p.os += Number(o.os_qtd);
+        p.fat += Number(o.faturamento);
+        p.lojas[o.loja] = (p.lojas[o.loja] || 0) + Number(o.faturamento);
+    });
+    var totOs = somaCampo(Object.values(porCanal), "os"), totFat = somaCampo(Object.values(porCanal), "fat");
+    var canais = ["SDR", "Loja", "Outros", "(em branco)"].map(function (c) { return ({ canal: c, os: (porCanal[c] || {}).os || 0, fat: (porCanal[c] || {}).fat || 0 }); });
+    var pesq = Object.keys(porPesq).map(function (k) { return ({ pesquisa: k, os: porPesq[k].os, fat: porPesq[k].fat, lojas: porPesq[k].lojas }); }).sort(function (a, b) { return b.fat - a.fat; });
+    var sdr = canais[0], loja = canais[1];
+    var porLojaCanal = {};
+    r.origem.forEach(function (o) { var k = o.loja; var s = porLojaCanal[k] || (porLojaCanal[k] = {}); s[o.canal] = (s[o.canal] || 0) + Number(o.faturamento); });
+    return (React.createElement("div", null,
+        React.createElement(AvisoBase, { r: r, carregar: carregar }),
+        React.createElement(Secao, { n: 1, titulo: "De onde vem a venda", nota: "Campo Pesquisa da O.S. no Oficina. 'SDR' = qualquer 'NOME AGENDAMENTO'; 'Loja' = cliente que chegou por conta pr\u00F3pria. Em branco \u00E9 O.S. sem origem preenchida \u2014 \u00E9 preenchimento, n\u00E3o canal." },
+            React.createElement("div", { className: "grid-kpi" },
+                React.createElement(Kpi, { label: "Vendas via SDR", value: nPct(div(sdr.fat, totFat), 0), sub: "".concat(nReal(sdr.fat), " \u00B7 ").concat(nInt(sdr.os), " O.S."), foot: React.createElement("span", { style: { fontSize: 11.5, color: T.muted } },
+                        "ticket ",
+                        nReal(div(sdr.fat, sdr.os))), tone: "good" }),
+                React.createElement(Kpi, { label: "Cliente loja (balc\u00E3o)", value: nPct(div(loja.fat, totFat), 0), sub: "".concat(nReal(loja.fat), " \u00B7 ").concat(nInt(loja.os), " O.S."), foot: React.createElement("span", { style: { fontSize: 11.5, color: T.muted } },
+                        "ticket ",
+                        nReal(div(loja.fat, loja.os))) }),
+                React.createElement(Kpi, { label: "Sem origem preenchida", value: nInt(canais[3].os), sub: "".concat(nReal(canais[3].fat), " sem saber de onde veio"), tone: canais[3].os ? "bad" : "good" }),
+                React.createElement(Kpi, { label: "Total", value: nReal(totFat), sub: "".concat(nInt(totOs), " O.S. no m\u00EAs") }))),
+        React.createElement(Secao, { n: 2, titulo: "Por SDR", nota: "Faturamento das O.S. cuja Pesquisa aponta o SDR. \u00C9 o resultado do agendamento, medido na ponta \u2014 no ERP, n\u00E3o no CRM." },
+            React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { minWidth: 820 } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "Pesquisa"),
+                            React.createElement(Th, { right: true }, "O.S."),
+                            React.createElement(Th, { right: true }, "Faturamento"),
+                            React.createElement(Th, { right: true }, "% do total"),
+                            React.createElement(Th, { right: true }, "Ticket"),
+                            OF_LOJAS.map(function (l) { return React.createElement(Th, { key: l, right: true }, l); }))),
+                    React.createElement("tbody", null, pesq.map(function (p) { return (React.createElement("tr", { key: p.pesquisa },
+                        React.createElement(Td, { bold: true }, p.pesquisa),
+                        React.createElement(Td, { right: true }, nInt(p.os)),
+                        React.createElement(Td, { right: true, bold: true }, nReal(p.fat)),
+                        React.createElement(Td, { right: true }, nPct(div(p.fat, totFat), 0)),
+                        React.createElement(Td, { right: true }, nReal(div(p.fat, p.os))),
+                        OF_LOJAS.map(function (l) { return React.createElement(Td, { key: l, right: true, color: p.lojas[l] ? T.ink : T.muted }, p.lojas[l] ? nReal(p.lojas[l]) : "—"); }))); }))))),
+        React.createElement(Secao, { n: 3, titulo: "Por loja", nota: "Quanto de cada loja veio de SDR e quanto veio de balc\u00E3o." },
+            React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { minWidth: 700 } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "Loja"),
+                            React.createElement(Th, { right: true }, "Via SDR"),
+                            React.createElement(Th, { right: true }, "Balc\u00E3o"),
+                            React.createElement(Th, { right: true }, "Outros"),
+                            React.createElement(Th, { right: true }, "Sem origem"),
+                            React.createElement(Th, { right: true }, "% SDR"))),
+                    React.createElement("tbody", null, OF_LOJAS.map(function (l) {
+                        var s = porLojaCanal[l] || {};
+                        var t = (s.SDR || 0) + (s.Loja || 0) + (s.Outros || 0) + (s["(em branco)"] || 0);
+                        return (React.createElement("tr", { key: l },
+                            React.createElement(Td, { bold: true }, l),
+                            React.createElement(Td, { right: true }, nReal(s.SDR || 0)),
+                            React.createElement(Td, { right: true }, nReal(s.Loja || 0)),
+                            React.createElement(Td, { right: true }, nReal(s.Outros || 0)),
+                            React.createElement(Td, { right: true, color: s["(em branco)"] ? T.bad : T.muted }, nReal(s["(em branco)"] || 0)),
+                            React.createElement(Td, { right: true, bold: true, color: T.good }, nPct(div(s.SDR || 0, t), 0))));
+                    })))))));
 }
 function App() {
     var _a = __read(useState(undefined), 2), sessao = _a[0], setSessao = _a[1];
