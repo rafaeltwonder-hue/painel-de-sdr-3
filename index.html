@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v27 — CAR SERVICE</title>
-<meta name="painel-versao" content="v27">
+<title>Painel de SDR v28 — CAR SERVICE</title>
+<meta name="painel-versao" content="v28">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -1768,9 +1768,22 @@ function Painel(_a) {
     /* A aba escolhida vive no endereço. #tv abre direto no modo TV, o que
        transforma a tela da sala num favorito, e o botão voltar do navegador
        passa a funcionar entre as abas. */
+    /* Perfil de acesso (15/09/2026): vem do JWT (app_metadata.perfil). 'admin'
+       vê tudo; qualquer outro (ou nenhum) vê só SDR, Coordenador e Modo TV. O
+       banco recusa as tabelas do comercial para quem não é admin — aqui é só
+       a parte visível da regra, não a segurança em si. */
+    var perfil = ((sessao && sessao.user && sessao.user.app_metadata) || {}).perfil || "sdr";
+    var ehAdmin = perfil === "admin";
+    var ABAS = [["painel", "SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["closers", "Closers"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]];
+    var ABAS_SDR = ["painel", "coordenador", "tv"];
+    var podeVer = function (v) { return ehAdmin || ABAS_SDR.indexOf(v) >= 0; };
     var abaDaURL = function () {
         var h = String(window.location.hash || "").replace("#", "");
-        return (h === "coordenador" || h === "tv" || h === "importar" || h === "resumo" || h === "closers" || h === "lojas" || h === "origem") ? h : "painel";
+        var conhecida = ABAS.some(function (_a) {
+            var _b = __read(_a, 1), v = _b[0];
+            return v === h;
+        });
+        return conhecida && podeVer(h) ? h : "painel";
     };
     var _d = __read(useState(abaDaURL), 2), aba = _d[0], setAbaBruto = _d[1];
     var setAba = function (v) {
@@ -2168,7 +2181,10 @@ function Painel(_a) {
                             .map(function (x) { return "".concat(x.fonte, " ").concat(idade(x.min)); }).join(" · "),
                         "."))))),
             React.createElement("div", { style: { display: "flex", gap: 4, background: T.surface, border: "1px solid ".concat(T.hair),
-                    borderRadius: 8, padding: 4, marginBottom: 16, width: "fit-content" } }, [["painel", "SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["closers", "Closers"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]].map(function (_a) {
+                    borderRadius: 8, padding: 4, marginBottom: 16, width: "fit-content" } }, ABAS.filter(function (_a) {
+                var _b = __read(_a, 1), v = _b[0];
+                return podeVer(v);
+            }).map(function (_a) {
                 var _b = __read(_a, 2), v = _b[0], l = _b[1];
                 return (React.createElement("button", { key: v, onClick: function () { return setAba(v); }, style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700, padding: "8px 16px",
                         border: 0, borderRadius: 5, cursor: "pointer",
@@ -2176,11 +2192,11 @@ function Painel(_a) {
                         color: aba === v ? "#fff" : T.ink2 } }, l));
             })),
             aba !== "painel" && aba !== "importar" && aba !== "resumo" && aba !== "closers" && aba !== "lojas" && aba !== "origem" && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
-            aba === "importar" && React.createElement(AbaImportar, { sessao: sessao }),
-            aba === "resumo" && React.createElement(AbaResumo, { sessao: sessao }),
-            aba === "closers" && React.createElement(AbaClosers, null),
-            aba === "lojas" && React.createElement(AbaLojas, null),
-            aba === "origem" && React.createElement(AbaOrigem, null),
+            ehAdmin && aba === "importar" && React.createElement(AbaImportar, { sessao: sessao }),
+            ehAdmin && aba === "resumo" && React.createElement(AbaResumo, { sessao: sessao }),
+            ehAdmin && aba === "closers" && React.createElement(AbaClosers, null),
+            ehAdmin && aba === "lojas" && React.createElement(AbaLojas, null),
+            ehAdmin && aba === "origem" && React.createElement(AbaOrigem, null),
             aba === "coordenador" && rot && React.createElement(AbaCoordenador, { sessao: sessao, c: rot, funil: d.funilAgora, qualidade: d.qualidade, tarefas: d.tarefas, semTarefa: d.semTarefa }),
             aba === "painel" && (React.createElement(React.Fragment, null,
                 React.createElement(Card, { className: "p12", style: { position: "sticky", top: 54, zIndex: 20 } },
@@ -4386,8 +4402,20 @@ function App() {
             .then(function (_a) {
             var _b;
             var data = _a.data;
-            if (vivo)
-                setSessao((_b = data.session) !== null && _b !== void 0 ? _b : null);
+            if (!vivo)
+                return;
+            var s = (_b = data.session) !== null && _b !== void 0 ? _b : null;
+            setSessao(s);
+            /* Quem já estava logado antes dos perfis existirem (15/09) carrega um
+               token sem app_metadata.perfil. Renova uma vez para o perfil chegar
+               sem precisar sair e entrar. Se falhar, segue com o token que tem. */
+            if (s && !((s.user && s.user.app_metadata) || {}).perfil) {
+                db.auth.refreshSession().then(function (_a) {
+                    var d2 = _a.data;
+                    if (vivo && d2 && d2.session)
+                        setSessao(d2.session);
+                }).catch(function () { });
+            }
         })
             .catch(function () { if (vivo)
             setSessao(null); })
