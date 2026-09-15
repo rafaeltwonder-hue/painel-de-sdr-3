@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v29 — CAR SERVICE</title>
-<meta name="painel-versao" content="v29">
+<title>Painel de SDR v30 — CAR SERVICE</title>
+<meta name="painel-versao" content="v30">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -3142,8 +3142,14 @@ function agregarOficinaExtra(_a) {
     // parcela fica no mesmo grupo.
     var vazio = function () { return ({ total: 0, pix: 0, credito: 0, debito: 0, dinheiro: 0, outros: 0, os: {}, cred: {} }); };
     var pagCloser = {}, pagLoja = {};
+    // quanto já foi lançado no financeiro de CADA O.S. — numa O.S. ainda aberta
+    // isso é o adiantamento que o cliente deu (entrada no PIX, sinal no cartão)
+    var pagPorOs = {};
+    var lojasComPagamento = {};
     (pagamentos || []).forEach(function (p) {
         var fam = familiaForma(p.forma), v = Number(p.valor) || 0;
+        pagPorOs[p.loja + "/" + p.os_numero] = (pagPorOs[p.loja + "/" + p.os_numero] || 0) + v;
+        lojasComPagamento[p.loja] = true;
         var alvo = [];
         var m = porCurto[String(p.erp_curto || "").toUpperCase()];
         if (m)
@@ -3216,7 +3222,7 @@ function agregarOficinaExtra(_a) {
     var antLoja = {};
     (empresaAnt || []).forEach(function (e) { if (e.periodo_ini === mesAnt)
         antLoja[e.loja] = e; });
-    return { descCloser: descCloser, descLoja: descLoja, pagCloser: pagCloser, pagLoja: pagLoja, antLoja: antLoja, temDesconto: !!(vendasResp || []).length, temPagamento: !!(pagamentos || []).length, temAnoAnterior: !!Object.keys(antLoja).length };
+    return { descCloser: descCloser, descLoja: descLoja, pagCloser: pagCloser, pagLoja: pagLoja, pagPorOs: pagPorOs, lojasComPagamento: lojasComPagamento, antLoja: antLoja, temDesconto: !!(vendasResp || []).length, temPagamento: !!(pagamentos || []).length, temAnoAnterior: !!Object.keys(antLoja).length };
 }
 /* consultas das três fontes, para as abas reaproveitarem */
 function consultasOficinaExtra(inicioMes) {
@@ -4318,6 +4324,29 @@ function AbaLojas() {
     var osInternas = r.os.length - osComValor;
     var abertas = r.os.filter(function (o) { return o.situacao === "Aberta"; }).sort(function (a, b) { return Number(b.total) - Number(a.total); });
     var abertasFiltradas = abertas.filter(function (o) { return lojaAberta === "todas" || o.loja === lojaAberta; });
+    /* Valor da O.S., o que já foi adiantado e o que falta receber. O adiantamento
+       vem do OS por Pagamento (o que está lançado no financeiro daquela O.S.).
+       Loja sem esse arquivo no mês fica "sem arquivo" em vez de mostrar zero —
+       zero aqui seria mentira, não ausência. */
+    var contaDaOs = function (o) {
+        var valor = Number(o.total) || 0;
+        var temFonte = !!(r.ex.lojasComPagamento || {})[o.loja];
+        var pago = Number((r.ex.pagPorOs || {})[o.loja + "/" + o.os_numero]) || 0;
+        var adiantado = Math.min(pago, valor); // nunca mais que a própria O.S.
+        return { valor: valor, temFonte: temFonte, adiantado: adiantado, aPagar: Math.max(0, valor - adiantado) };
+    };
+    var somaAberto = abertasFiltradas.reduce(function (acc, o) {
+        var c = contaDaOs(o);
+        acc.valor += c.valor;
+        if (c.temFonte) {
+            acc.comFonte = true;
+            acc.adiantado += c.adiantado;
+            acc.aPagar += c.aPagar;
+        }
+        else
+            acc.aPagar += c.valor; // sem arquivo, o total ainda é devido
+        return acc;
+    }, { valor: 0, adiantado: 0, aPagar: 0, comFonte: false });
     // Dia útil sem O.S. precisa aparecer como barra zero: se o dia some, quem
     // olha acha que foi domingo e não que não vendeu nada.
     var porDia = {};
@@ -4464,7 +4493,7 @@ function AbaLojas() {
                 React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 8 } },
                     "melhor dia: ",
                     diasOrd.length ? "".concat(brFull(diasOrd.reduce(function (m, d) { return (porDia[d] > porDia[m] ? d : m); }, diasOrd[0])), " \u00B7 ").concat(nReal(maxDia)) : "—"))),
-        React.createElement(Secao, { n: 5, titulo: "O.S. em aberto", nota: "Abertas no m\u00EAs e ainda n\u00E3o finalizadas. Identificadas pela placa \u2014 o nome do cliente n\u00E3o \u00E9 guardado no painel." },
+        React.createElement(Secao, { n: 5, titulo: "O.S. em aberto", nota: "Abertas no m\u00EAs e ainda n\u00E3o finalizadas. Identificadas pela placa \u2014 o nome do cliente n\u00E3o \u00E9 guardado no painel. Adiantamento = o que j\u00E1 est\u00E1 lan\u00E7ado no financeiro daquela O.S. (entrada no PIX, sinal no cart\u00E3o), do OS por Pagamento".concat(ex.importPagamento ? " importado em ".concat(new Date(ex.importPagamento).toLocaleDateString("pt-BR")) : " (mensal — ainda não importado)", ".") },
             React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" } },
                 [["todas", "Todas"]].concat(OF_LOJAS.map(function (l) { return [l, l]; })).map(function (_a) {
                     var _b = __read(_a, 2), v = _b[0], l = _b[1];
@@ -4474,10 +4503,15 @@ function AbaLojas() {
                 React.createElement("span", { style: { fontSize: 12, color: T.muted, alignSelf: "center" } },
                     abertasFiltradas.length,
                     " O.S. \u00B7 ",
-                    nReal(somaCampo(abertasFiltradas, "total")),
-                    abertasFiltradas.length > 80 ? " · mostrando as 80 maiores" : "")),
+                    nReal(somaAberto.valor),
+                    somaAberto.comFonte ? React.createElement("span", null,
+                        " \u00B7 adiantado ",
+                        React.createElement("b", { style: { color: T.good } }, nReal(somaAberto.adiantado)),
+                        " \u00B7 a pagar ",
+                        React.createElement("b", { style: { color: T.warn } }, nReal(somaAberto.aPagar))) : null,
+                    abertasFiltradas.length > 80 ? " · a tabela mostra as 80 maiores, o total é de todas" : "")),
             React.createElement(Card, { className: "p0 rolagem" },
-                React.createElement("table", { style: { minWidth: 820 } },
+                React.createElement("table", { style: { minWidth: 1080 } },
                     React.createElement("thead", null,
                         React.createElement("tr", null,
                             React.createElement(Th, null, "Loja"),
@@ -4488,10 +4522,13 @@ function AbaLojas() {
                             React.createElement(Th, null, "Ve\u00EDculo"),
                             React.createElement(Th, null, "Closer"),
                             React.createElement(Th, null, "Origem"),
-                            React.createElement(Th, { right: true }, "Valor"))),
+                            React.createElement(Th, { right: true }, "Valor da O.S."),
+                            React.createElement(Th, { right: true }, "Adiantamento"),
+                            React.createElement(Th, { right: true }, "A pagar"))),
                     React.createElement("tbody", null,
                         abertasFiltradas.slice(0, 80).map(function (o) {
                             var dias = diasEntre(o.dt_os, r.ultimoDia || r.hojeISO) - 1;
+                            var c = contaDaOs(o);
                             return (React.createElement("tr", { key: o.loja + o.os_numero },
                                 React.createElement(Td, null, o.loja),
                                 React.createElement(Td, { bold: true }, o.os_numero),
@@ -4501,10 +4538,26 @@ function AbaLojas() {
                                 React.createElement(Td, { color: T.muted }, o.veiculo || "—"),
                                 React.createElement(Td, null, o.closer || React.createElement("span", { style: { color: T.muted } }, o.erp_nome ? String(o.erp_nome).split(" ")[0] : "—")),
                                 React.createElement(Td, { color: T.muted }, o.pesquisa || "—"),
-                                React.createElement(Td, { right: true, bold: true }, nReal(o.total))));
+                                React.createElement(Td, { right: true, bold: true }, nReal(c.valor)),
+                                React.createElement(Td, { right: true, color: !c.temFonte ? T.muted : c.adiantado ? T.good : T.muted }, !c.temFonte ? React.createElement(Aguardando, null, "sem arquivo") : c.adiantado ? nReal(c.adiantado) : "—"),
+                                React.createElement(Td, { right: true, bold: true, color: !c.temFonte || !c.valor ? T.muted : c.aPagar ? T.warn : T.good }, !c.temFonte || !c.valor ? "—" : c.aPagar ? nReal(c.aPagar) : "quitada")));
                         }),
                         !abertasFiltradas.length && React.createElement("tr", null,
-                            React.createElement(Td, null, "Nenhuma O.S. em aberto.")))))),
+                            React.createElement(Td, null, "Nenhuma O.S. em aberto.")),
+                        !!abertasFiltradas.length && (React.createElement("tr", { style: { background: T.canvas } },
+                            React.createElement(Td, { bold: true }, "Total"),
+                            React.createElement(Td, { bold: true },
+                                nInt(abertasFiltradas.length),
+                                " O.S."),
+                            React.createElement(Td, null),
+                            React.createElement(Td, null),
+                            React.createElement(Td, null),
+                            React.createElement(Td, null),
+                            React.createElement(Td, null),
+                            React.createElement(Td, null),
+                            React.createElement(Td, { right: true, bold: true }, nReal(somaAberto.valor)),
+                            React.createElement(Td, { right: true, bold: true, color: T.good }, somaAberto.comFonte ? nReal(somaAberto.adiantado) : "—"),
+                            React.createElement(Td, { right: true, bold: true, color: T.warn }, somaAberto.comFonte ? nReal(somaAberto.aPagar) : "—"))))))),
         React.createElement(Secao, { n: 6, titulo: "Crescimento", nota: "O oficial \u00E9 contra o mesmo m\u00EAs do ano passado (".concat(mesAntNome, "), fechado. O n\u00FAmero grande \u00E9 quanto daquele m\u00EAs j\u00E1 foi feito; embaixo, onde a loja chega se mantiver o ritmo por dia \u00FAtil at\u00E9 o fim do m\u00EAs.") },
             !ex.temAnoAnterior ? (React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.warn, background: "#FFF8E1", borderColor: "#F0DDA0" } },
                 "Falta o ",
