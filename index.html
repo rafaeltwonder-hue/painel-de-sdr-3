@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v28 — CAR SERVICE</title>
-<meta name="painel-versao" content="v28">
+<title>Painel de SDR v29 — CAR SERVICE</title>
+<meta name="painel-versao" content="v29">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -48,17 +48,23 @@
      porque precisam de media query, e estilo inline não tem media query.
      Numa TV de sala a largura é sempre grande; o empilhamento abaixo de
      900px é para quando o coordenador abre no celular. */
-  .duo2      { grid-template-columns: 1fr 1fr; }
-  .colsRotina{ grid-template-columns: 1.65fr 1fr; }
-  .tvcols2   { grid-template-columns: 1.45fr 1fr; }
-  .tvbot2    { grid-template-columns: 2.1fr 1fr; }
-  .tvpend2   { grid-template-columns: repeat(4, 1fr); }
+  .duo2      { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .colsRotina{ grid-template-columns: minmax(0,1.65fr) minmax(0,1fr); }
+  .tvcols2   { grid-template-columns: minmax(0,1.45fr) minmax(0,1fr); }
+  .tvbot2    { grid-template-columns: minmax(0,2.1fr) minmax(0,1fr); }
+  .tvpend2   { grid-template-columns: repeat(4, minmax(0,1fr)); }
   @media (max-width: 900px) {
     .duo2, .colsRotina, .tvcols2, .tvbot2 { grid-template-columns: 1fr; }
     .tvpend2 { grid-template-columns: repeat(2, 1fr); }
   }
+  /* O min-width de 720px é para a tabela rolar dentro do .rolagem em telas
+     estreitas. Dentro de uma coluna de grid ele virava piso da COLUNA e
+     estourava a largura da página — por isso a tabela dentro de .rolagem
+     pode encolher e as de poucas colunas não têm piso nenhum. */
   table { border-collapse: collapse; width: 100%; min-width: 720px;
           font-variant-numeric: tabular-nums; }
+  .colsRotina table, .rolagem > table { min-width: 0; }
+  .rolagem { max-width: 100%; }
   .dt { font-size: 13px; border: 1px solid #E2E2E2; border-radius: 8px; padding: 7px 10px;
         background: #fff; color: #1A1A1A; }
   code { font-family: ui-monospace, Menlo, monospace; font-size: .92em; }
@@ -320,7 +326,19 @@ var nNum = function (n, d) {
     if (d === void 0) { d = 1; }
     return (Number(n) || 0).toFixed(d).replace(".", ",");
 };
-var nReal = function (n) { return (Number(n) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }); };
+/* maximumFractionDigits:0 SEM o minimum correspondente lança RangeError nos
+   Chromium antigos (o mínimo padrão da moeda é 2, e max<min é erro). Isso
+   derruba o render inteiro e a TV fica preta, sem nem a mensagem do guarda.
+   O try/catch é o cinto de segurança para qualquer outra surpresa de Intl. */
+var nReal = function (n) {
+    var v = Number(n) || 0;
+    try {
+        return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+    catch (e) {
+        return "R$ " + Math.round(v).toLocaleString("pt-BR");
+    }
+};
 var CAMPOS = [
     "leads_recebidos", "leads_trabalhados", "leads_sem_atendimento",
     "agendamentos_marcados", "visitas_do_dia", "comparecimentos",
@@ -528,11 +546,16 @@ function contasDaRotina(r, tarefas, semTarefa) {
     var meta = r.meta || META_PADRAO;
     var equipe = r.equipe && r.equipe.length ? r.equipe : [];
     var noTime = function (s) { return equipe.indexOf(s) >= 0; };
-    var fato = (r.fatoMes || []).filter(function (x) { return noTime(x.sdr); });
+    /* O TOTAL do mês (faturamento × meta) é de tudo que a operação fez: venda
+       em "Sem SDR" ou em SDR que saiu do time continua sendo venda da empresa.
+       A regra "Sem SDR fica fora" vale para o RANKING, não para o placar —
+       senão o número do mês encolhe toda vez que alguém é desligado. */
+    var fatoTudo = r.fatoMes || [];
+    var fato = fatoTudo.filter(function (x) { return noTime(x.sdr); });
     var mes = { os: 0, receita: 0 };
     var ateOntem = { os: 0, receita: 0 };
     var doDia = { os: 0, receita: 0, leads: 0, agend: 0, visitas: 0, compar: 0 };
-    fato.forEach(function (x) {
+    fatoTudo.forEach(function (x) {
         mes.os += Number(x.vendas) || 0;
         mes.receita += Number(x.receita) || 0;
         if (x.data < r.oDiaDeHoje) {
@@ -731,6 +754,7 @@ function useRotinaCheck(sessao) {
     var _a = __read(useState([]), 2), linhas = _a[0], setLinhas = _a[1];
     var _b = __read(useState([]), 2), pessoas = _b[0], setPessoas = _b[1];
     var _c = __read(useState(null), 2), salvando = _c[0], setSalvando = _c[1];
+    var _d = __read(useState(null), 2), erroCheck = _d[0], setErroCheck = _d[1];
     var meuId = sessao && sessao.user ? sessao.user.id : null;
     var diaHoje = hoje();
     var seteAtras = addDays(diaHoje, -6);
@@ -752,11 +776,16 @@ function useRotinaCheck(sessao) {
             }
         });
     }); }, [diaHoje, seteAtras]);
-    useEffect(function () { carregar(); }, [carregar]);
+    useEffect(function () {
+        carregar();
+        // sem isto, o check da Milena só aparecia na tela do Paulo depois de F5
+        var t = setInterval(carregar, 300000);
+        return function () { return clearInterval(t); };
+    }, [carregar]);
     var toggle = function (chave) { return __awaiter(_this, void 0, void 0, function () {
-        var meu;
-        return __generator(this, function (_a) {
-            switch (_a.label) {
+        var meu, r, _a;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
                 case 0:
                     if (!meuId)
                         return [2 /*return*/];
@@ -765,15 +794,21 @@ function useRotinaCheck(sessao) {
                     if (!meu) return [3 /*break*/, 2];
                     return [4 /*yield*/, db.from("rotina_check").delete().match({ dia: diaHoje, bloco: chave, usuario: meuId })];
                 case 1:
-                    _a.sent();
+                    _a = _b.sent();
                     return [3 /*break*/, 4];
                 case 2: return [4 /*yield*/, db.from("rotina_check").insert({ dia: diaHoje, bloco: chave, usuario: meuId })];
                 case 3:
-                    _a.sent();
-                    _a.label = 4;
-                case 4: return [4 /*yield*/, carregar()];
+                    _a = _b.sent();
+                    _b.label = 4;
+                case 4:
+                    r = _a;
+                    if (r && r.error)
+                        setErroCheck(r.error.message || "não consegui marcar");
+                    else
+                        setErroCheck(null);
+                    return [4 /*yield*/, carregar()];
                 case 5:
-                    _a.sent();
+                    _b.sent();
                     setSalvando(null);
                     return [2 /*return*/];
             }
@@ -781,26 +816,36 @@ function useRotinaCheck(sessao) {
     }); };
     /* Quem aparece no quadro: os coordenadores cadastrados, mais qualquer
        pessoa que tenha marcado algo nos 7 dias (o Rafael, se marcar). */
-    var nomes = useMemo(function () {
-        var set = [];
-        pessoas.filter(function (p) { return p.coordenador; }).forEach(function (p) { if (set.indexOf(p.nome) < 0)
-            set.push(p.nome); });
-        linhas.forEach(function (l) { if (set.indexOf(l.nome) < 0)
-            set.push(l.nome); });
-        return set;
+    // Chave é o E-MAIL, não o nome: há dois "Rafael" em rotina_pessoa e, pelo
+    // nome, os dois viravam uma linha só com a hora de qualquer um deles.
+    var gente = useMemo(function () {
+        var out = [], vistos = {};
+        var por = function (email, nome) {
+            if (!email || vistos[email])
+                return;
+            vistos[email] = true;
+            out.push({ email: email, nome: nome || email });
+        };
+        pessoas.filter(function (p) { return p.coordenador; }).forEach(function (p) { return por(p.email, p.nome); });
+        linhas.forEach(function (l) { return por(l.email, l.nome); });
+        return out;
     }, [pessoas, linhas]);
+    var nomes = useMemo(function () { return gente.map(function (g) { return g.nome; }); }, [gente]);
     var ehSexta = new Date().getDay() === 5;
     var porBloco = {};
     BLOCOS_ROTINA.forEach(function (b) {
         var hoje_ = linhas.filter(function (l) { return l.dia === diaHoje && l.bloco === b.chave; });
         var meu = hoje_.find(function (l) { return l.usuario === meuId; }) || null;
-        var quem = nomes.map(function (n) {
-            var l = hoje_.find(function (x) { return x.nome === n; });
+        // bloco só de sexta não tem "quem fez" nos outros dias da semana:
+        // mostrar "Milena · ainda não" numa terça é cobrança de algo que não existe
+        var mostraQuem = !b.soSexta || ehSexta;
+        var quem = !mostraQuem ? [] : gente.map(function (g) {
+            var l = hoje_.find(function (x) { return x.email === g.email; });
             if (!l)
-                return { nome: n, hora: null, tarde: false };
+                return { nome: g.nome, hora: null, tarde: false };
             var d = new Date(l.feito_em);
             var tarde = (d.getHours() * 60 + d.getMinutes()) > b.min + 60;
-            return { nome: n, hora: hhmm(l.feito_em), tarde: tarde };
+            return { nome: g.nome, hora: hhmm(l.feito_em), tarde: tarde };
         });
         porBloco[b.chave] = {
             meu: !!meu, meuHora: meu ? hhmm(meu.feito_em) : null,
@@ -814,16 +859,16 @@ function useRotinaCheck(sessao) {
     var dias = [];
     for (var i = 6; i >= 0; i--)
         dias.push(addDays(diaHoje, -i));
-    var faixa = nomes.map(function (n) { return ({
-        nome: n,
+    var faixa = gente.map(function (g) { return ({
+        nome: g.nome,
         dias: dias.map(function (dia) {
-            var marcados = linhas.filter(function (l) { return l.dia === dia && l.nome === n; }).length;
+            var marcados = linhas.filter(function (l) { return l.dia === dia && l.email === g.email; }).length;
             var dow = parseISO(dia).getDay();
             var total = dow === 0 ? 0 : dow === 5 ? 5 : 4; // domingo sem rotina
             return { dia: dia, marcados: marcados, total: total };
         }),
     }); });
-    return { porBloco: porBloco, nomes: nomes, faixa: faixa, dias: dias, diaHoje: diaHoje, ehSexta: ehSexta };
+    return { porBloco: porBloco, nomes: nomes, faixa: faixa, dias: dias, diaHoje: diaHoje, ehSexta: ehSexta, erroCheck: erroCheck };
 }
 /* O quadro "quem fez o quê — hoje" e a faixa dos 7 dias. */
 function QuadroRotina(_a) {
@@ -831,8 +876,10 @@ function QuadroRotina(_a) {
     var blocosHoje = BLOCOS_ROTINA.filter(function (b) { return !b.soSexta || r.ehSexta; });
     var cor = function (q) { return q.hora ? (q.tarde ? T.warn : T.good) : "#C7CDD4"; };
     var fundo = function (q) { return q.hora ? (q.tarde ? "#FFF8E1" : "#0B7A5A14") : "#F5F5F5"; };
-    var tom = function (c) { return c.total === 0 ? "#E6E9ED"
-        : c.marcados === 0 ? "#EEEEEE"
+    // domingo (sem rotina) e "não marcou nada" precisam ser distinguíveis:
+    // antes eram dois cinzas quase iguais e a legenda usava um terceiro.
+    var tom = function (c) { return c.total === 0 ? "transparent"
+        : c.marcados === 0 ? "#C7CDD4"
             : c.marcados >= c.total ? T.good
                 : c.marcados === 1 ? T.marca : T.good + "99"; };
     var DIAS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
@@ -840,15 +887,18 @@ function QuadroRotina(_a) {
         React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700 } }, "Rotina \u2014 quem fez o qu\u00EA hoje"),
         React.createElement("div", { style: { fontSize: 12, color: T.muted, marginBottom: 12 } }, "Verde = fez \u00B7 amarelo = fez mais de 1h depois do hor\u00E1rio \u00B7 cinza = ainda n\u00E3o"),
         r.nomes.length === 0 && (React.createElement("div", { style: { fontSize: 12.5, color: T.muted } }, "Nenhum coordenador cadastrado ainda.")),
+        r.erroCheck && (React.createElement("div", { style: { fontSize: 12, color: T.bad, marginBottom: 10 } },
+            "N\u00E3o consegui marcar: ",
+            r.erroCheck)),
         r.nomes.length > 0 && (React.createElement("div", { style: { display: "grid", gap: 6, alignItems: "center",
                 gridTemplateColumns: "minmax(70px, 110px) repeat(".concat(blocosHoje.length, ", 1fr)") } },
             React.createElement("div", null),
             blocosHoje.map(function (b) { return (React.createElement("div", { key: b.chave, style: { fontSize: 10.5, letterSpacing: ".06em", textTransform: "uppercase",
                     color: T.muted, fontWeight: 600, textAlign: "center" } }, b.hora)); }),
-            r.nomes.map(function (n) { return (React.createElement(React.Fragment, { key: n },
+            r.nomes.map(function (n, iN) { return (React.createElement(React.Fragment, { key: n + iN },
                 React.createElement("div", { style: { fontSize: 13, fontWeight: 600 } }, n),
                 blocosHoje.map(function (b) {
-                    var q = (r.porBloco[b.chave].quem.find(function (x) { return x.nome === n; })) || { hora: null };
+                    var q = r.porBloco[b.chave].quem[iN] || { hora: null };
                     return (React.createElement("div", { key: b.chave, style: { height: 32, borderRadius: 7, display: "flex", alignItems: "center",
                             justifyContent: "center", fontSize: 12, fontWeight: 600, background: fundo(q), color: cor(q),
                             fontVariantNumeric: "tabular-nums" } }, q.hora || "—"));
@@ -914,7 +964,7 @@ function AbaCoordenador(_a) {
             return React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: T.good } }, "bateu");
         return React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: T.bad } },
             "faltam ",
-            dinheiro ? nReal(d2) : nNum(d2, 1));
+            dinheiro ? nReal(d2) : (d2 === Math.round(d2) ? nInt(d2) : nNum(d2, 1)));
     };
     var Cel = function (_a) {
         var v = _a.v, m = _a.m, dinheiro = _a.dinheiro;
@@ -992,7 +1042,9 @@ function AbaCoordenador(_a) {
                         React.createElement("span", { style: { fontSize: 12, color: T.muted } },
                             " · ",
                             nInt(r.dias_sem_mexer),
-                            " dias sem mexer \u00B7 ",
+                            " ",
+                            Number(r.dias_sem_mexer) === 1 ? "dia" : "dias",
+                            " sem mexer \u00B7 ",
                             nReal(r.valor_parado)))); }),
                     React.createElement(Linha, { total: true, valor: "".concat(nInt(totalRepasse), " leads \u00B7 ").concat(nReal(valorRepasse)), cor: T.bad },
                         React.createElement("b", null, "A repassar para o closer"))),
@@ -1038,7 +1090,9 @@ function AbaCoordenador(_a) {
                         React.createElement("span", { style: { fontSize: 12, color: T.muted } },
                             " · ",
                             nInt(f[e].dias_sem_mexer),
-                            " dias sem mexer \u00B7 ",
+                            " ",
+                            Number(f[e].dias_sem_mexer) === 1 ? "dia" : "dias",
+                            " sem mexer \u00B7 ",
                             nReal(f[e].valor_parado)))); })),
                 React.createElement(Bloco, { hora: "17:30", check: rotina.porBloco["17:30"], titulo: "Fechar o dia", alerta: totalVencidas > 0, etiqueta: "".concat(nInt(totalVencidas), " tarefas vencidas"), nota: "Vencida aqui \u00E9 tarefa de lead que CONTINUA com o SDR \u2014 \u00E9 o que d\u00E1 para cobrar na reuni\u00E3o. Quando o lead \u00E9 repassado, o Kommo troca o respons\u00E1vel e o SDR perde o acesso: a tarefa fica no nome dele e ele n\u00E3o consegue concluir. Essas viraram a coluna 'J\u00E1 \u00E9 de outro' e quem fecha \u00E9 o dono atual do lead." },
                     React.createElement("div", { className: "rolagem" },
@@ -1144,7 +1198,9 @@ function AbaCoordenador(_a) {
                                     : "".concat(nInt(Math.round(r.minutos_medio)), " min")))); })))),
                     React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 10 } },
                         nInt(c.ate5),
-                        " lead(s) contatado(s) em at\u00E9 5 minutos hoje.")),
+                        " ",
+                        c.ate5 === 1 ? "lead contatado" : "leads contatados",
+                        " em at\u00E9 5 minutos hoje.")),
                 React.createElement(Card, { className: "p16" },
                     React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700 } }, "Tarefas por SDR"),
                     React.createElement("div", { style: { fontSize: 12, color: T.muted, marginBottom: 14 } }, "S\u00F3 de leads que continuam com ele"),
@@ -1186,7 +1242,7 @@ function AbaCoordenador(_a) {
    num laço de medição. */
 var LARGURA_TV = 1600;
 function TelaTVCheia(_a) {
-    var c = _a.c, carregando = _a.carregando, onSair = _a.onSair;
+    var c = _a.c, carregando = _a.carregando, estado = _a.estado, falhas = _a.falhas, dadoVelho = _a.dadoVelho, frescor = _a.frescor, idade = _a.idade, onSair = _a.onSair;
     var alvo = useRef(null);
     var caixa = useRef(null);
     var _b = __read(useState(1), 2), escala = _b[0], setEscala = _b[1];
@@ -1240,10 +1296,10 @@ function TelaTVCheia(_a) {
             background: T.ink, overflow: "hidden", display: "flex",
             alignItems: "center", justifyContent: "center" } },
         React.createElement("div", { ref: alvo, style: { width: LARGURA_TV, flex: "0 0 auto",
-                transform: "scale(" + escala + ")", transformOrigin: "center center" } }, carregando || !c
+                transform: "scale(" + escala + ")", transformOrigin: "center center" } }, !c
             ? React.createElement("div", { style: { color: "rgba(255,255,255,.6)", fontFamily: F_MARCA,
                     fontSize: 22, textAlign: "center", padding: 60 } }, "Carregando o placar\u2026")
-            : React.createElement(ModoTV, { c: c })),
+            : React.createElement(ModoTV, { c: c, carregando: carregando, estado: estado, falhas: falhas, dadoVelho: dadoVelho, frescor: frescor, idade: idade })),
         React.createElement("div", { style: { position: "absolute", top: 10, right: 12, display: "flex", gap: 8,
                 opacity: .45 } },
             React.createElement("button", { style: botao, onClick: telaCheia }, cheia ? "Sair da tela cheia" : "Tela cheia"),
@@ -1255,7 +1311,7 @@ function TelaTVCheia(_a) {
    distância, não a um braço. Nada aqui é clicável: quem está olhando
    está de pé, do outro lado da sala. */
 function ModoTV(_a) {
-    var c = _a.c;
+    var c = _a.c, carregando = _a.carregando, estado = _a.estado, falhas = _a.falhas, dadoVelho = _a.dadoVelho, frescor = _a.frescor, idade = _a.idade;
     var pctRec = c.meta.faturamento ? (c.mes.receita / Number(c.meta.faturamento)) * 100 : 0;
     var pctOs = c.meta.os ? (c.mes.os / Number(c.meta.os)) * 100 : 0;
     var noRitmoRec = c.ritmoReceitaDia >= c.precisaReceitaDia;
@@ -1266,27 +1322,50 @@ function ModoTV(_a) {
     var maiorRec = Math.max(1, rank.length ? rank[0].recMes : 1);
     var porLigacoes = c.pessoasLista.slice().sort(function (a, b) { return b.ligou - a.ligou; });
     var totalSemDesfecho = c.pessoasLista.reduce(function (s, p) { return s + p.semDesfecho; }, 0);
+    /* Relógio da TV: um setInterval de 30 s. É o sinal mais barato de que a
+       tela está viva — se ele parar, alguém percebe da porta da sala. */
+    var _b = __read(useState(new Date()), 2), agora = _b[0], setAgora = _b[1];
+    useEffect(function () { var t = setInterval(function () { return setAgora(new Date()); }, 30000); return function () { return clearInterval(t); }; }, []);
+    var doisD = function (n) { return String(n).padStart(2, "0"); };
+    var relogio = "".concat(doisD(agora.getHours()), ":").concat(doisD(agora.getMinutes()));
+    var atualizadoEm = estado && estado.em ? "".concat(doisD(estado.em.getHours()), ":").concat(doisD(estado.em.getMinutes())) : null;
+    // quanto do expediente (8h–18h) já passou — a régua das cores da tabela
+    var fracDoExpediente = Math.max(0.15, Math.min(1, (agora.getHours() + agora.getMinutes() / 60 - 8) / 10));
+    var alerta = (estado && estado.erro) ? "erro ao ler os dados"
+        : (dadoVelho && frescor) ? "".concat(frescor.pior.fonte, " parado h\u00E1 ").concat(idade(frescor.pior.min))
+            : (falhas && falhas.length) ? "".concat(falhas.length, " fonte(s) sem resposta")
+                : null;
     var Celula = function (_a) {
         var v = _a.v, l = _a.l;
         return (React.createElement("div", { style: { background: v === 0 ? "#16241F" : "#241A1C",
                 border: "1px solid ".concat(v === 0 ? "#1F4438" : "#4A2226"), borderRadius: 8, padding: "14px 16px" } },
             React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 34, fontWeight: 700, lineHeight: 1,
                     color: v === 0 ? VERDE : VERMELHO, fontVariantNumeric: "tabular-nums" } }, nInt(v)),
-            React.createElement("div", { style: { fontSize: 12.5, color: "#A9B0B8", marginTop: 8, lineHeight: 1.35 } }, l)));
+            React.createElement("div", { style: { fontSize: 15, color: "#A9B0B8", marginTop: 8, lineHeight: 1.35 } }, l)));
     };
     return (React.createElement("div", { style: { background: T.ink, borderRadius: 10, padding: "30px 34px", color: "#fff",
             display: "flex", flexDirection: "column", gap: 20 } },
-        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 12, justifyContent: "space-between",
-                alignItems: "baseline", borderBottom: "1px solid ".concat(LINHA), paddingBottom: 16 } },
-            React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 13, letterSpacing: ".16em",
-                    textTransform: "uppercase", color: CINZA, fontWeight: 700, display: "flex",
+        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "space-between",
+                alignItems: "center", borderBottom: "1px solid ".concat(LINHA), paddingBottom: 16 } },
+            React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 15, letterSpacing: ".16em",
+                    textTransform: "uppercase", color: "#fff", fontWeight: 700, display: "flex",
                     alignItems: "center", gap: 9 } },
-                React.createElement("span", { style: { width: 10, height: 10, background: T.marca, borderRadius: 2 } }),
+                React.createElement("span", { style: { width: 12, height: 12, background: T.marca, borderRadius: 2 } }),
                 "The Wonder \u00B7 Time de SDR"),
-            React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 13, color: CINZA, fontWeight: 600 } },
-                "faltam ",
-                c.pelaFrente,
-                " dias (com s\u00E1bados)")),
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap" } },
+                alerta && (React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 17, fontWeight: 700, color: "#FFC9CD",
+                        background: "rgba(193,18,31,.30)", border: "1px solid #4A2226",
+                        borderRadius: 8, padding: "7px 14px" } },
+                    "\u26A0 ",
+                    alerta)),
+                React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 15, color: CINZA, fontWeight: 600 } },
+                    "faltam ",
+                    c.pelaFrente,
+                    " dias \u00FAteis (com s\u00E1bados)"),
+                React.createElement("div", { style: { textAlign: "right" } },
+                    React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 30, fontWeight: 700, lineHeight: 1,
+                            color: "#fff", fontVariantNumeric: "tabular-nums" } }, relogio),
+                    React.createElement("div", { style: { fontSize: 13, color: carregando ? T.marca : CINZA, marginTop: 4 } }, carregando ? "atualizando…" : atualizadoEm ? "atualizado ".concat(atualizadoEm) : "sem atualização")))),
         React.createElement("div", null,
             React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 34, alignItems: "flex-end",
                     justifyContent: "space-between", marginBottom: 14 } },
@@ -1355,17 +1434,30 @@ function ModoTV(_a) {
                                         nInt(m))));
                             }))),
                         React.createElement("tbody", null, porLigacoes.map(function (p) {
-                            var cor = p.ligou >= Number(c.meta.ligacoes_dia) ? VERDE
-                                : (p.ligou < Number(c.meta.ligacoes_dia) * 0.5 ? VERMELHO : "#E6E9ED");
-                            var td = { fontSize: 19, padding: "11px 0", borderBottom: "1px solid ".concat(LINHA),
-                                color: cor, fontVariantNumeric: "tabular-nums", fontFamily: F_NUM,
+                            /* A cor mede o esforço ATÉ AGORA, não contra a meta do dia
+                               inteiro: às 10h da manhã ninguém tem 100 ligações, e a
+                               tabela inteira ficava vermelha todo dia até o meio da
+                               tarde. E o NOME nunca é colorido — quem está devendo é o
+                               número, não a pessoa. */
+                            var corDe = function (v, meta) {
+                                if (!meta)
+                                    return "#E6E9ED";
+                                var esperado = Number(meta) * fracDoExpediente;
+                                if (v >= Number(meta))
+                                    return VERDE;
+                                if (!esperado)
+                                    return "#E6E9ED";
+                                return v >= esperado ? VERDE : v >= esperado * 0.5 ? "#E6E9ED" : VERMELHO;
+                            };
+                            var td = { fontSize: 21, padding: "11px 0", borderBottom: "1px solid ".concat(LINHA),
+                                fontVariantNumeric: "tabular-nums", fontFamily: F_NUM,
                                 fontWeight: 700, textAlign: "right" };
                             return (React.createElement("tr", { key: p.sdr },
-                                React.createElement("td", { style: __assign(__assign({}, td), { textAlign: "left", fontSize: 18 }) }, primeiroNome(p.sdr)),
-                                React.createElement("td", { style: td }, nInt(p.ligou)),
-                                React.createElement("td", { style: td }, nInt(p.falou)),
-                                React.createElement("td", { style: __assign(__assign({}, td), { color: p.agendou ? cor : "#79808A" }) }, nInt(p.agendou)),
-                                React.createElement("td", { style: __assign(__assign({}, td), { color: p.vendeu ? cor : "#79808A" }) }, nInt(p.vendeu))));
+                                React.createElement("td", { style: __assign(__assign({}, td), { textAlign: "left", fontSize: 20, color: "#E6E9ED" }) }, primeiroNome(p.sdr)),
+                                React.createElement("td", { style: __assign(__assign({}, td), { color: corDe(p.ligou, c.meta.ligacoes_dia) }) }, nInt(p.ligou)),
+                                React.createElement("td", { style: __assign(__assign({}, td), { color: corDe(p.falou, c.meta.falou_dia) }) }, nInt(p.falou)),
+                                React.createElement("td", { style: __assign(__assign({}, td), { color: p.agendou ? corDe(p.agendou, c.meta.agendamentos_dia) : "#79808A" }) }, nInt(p.agendou)),
+                                React.createElement("td", { style: __assign(__assign({}, td), { color: p.vendeu ? VERDE : "#79808A" }) }, nInt(p.vendeu))));
                         }))))),
             React.createElement("div", { style: { background: FUNDO2, border: "1px solid ".concat(LINHA), borderRadius: 8,
                     padding: "18px 20px" } },
@@ -1600,7 +1692,7 @@ function usarDados(de, ate, prevDe) {
         });
     }); };
     var buscar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, es, vp, ce, rb, pr, opcional, inicioDoMes_1, oDiaDeHoje_1, _b, q, fa, ms, mt, sd, tf, lst, mm, eq, fm, eh, th, vh, e_1;
+        var _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, es, vp, ce, rb, pr, opcional, opcionalPaginado, inicioDoMes_1, oDiaDeHoje_1, _b, q, fa, ms, mt, sd, tf, lst, mm, eq, fm, eh, th, vh, e_1;
         var _this = this;
         return __generator(this, function (_c) {
             switch (_c.label) {
@@ -1697,6 +1789,21 @@ function usarDados(de, ate, prevDe) {
                             }
                         });
                     }); };
+                    opcionalPaginado = function (montar, padrao) { return __awaiter(_this, void 0, void 0, function () {
+                        var e_4;
+                        return __generator(this, function (_a) {
+                            switch (_a.label) {
+                                case 0:
+                                    _a.trys.push([0, 2, , 3]);
+                                    return [4 /*yield*/, buscarTudo(montar)];
+                                case 1: return [2 /*return*/, _a.sent()];
+                                case 2:
+                                    e_4 = _a.sent();
+                                    return [2 /*return*/, padrao];
+                                case 3: return [2 /*return*/];
+                            }
+                        });
+                    }); };
                     inicioDoMes_1 = hoje().slice(0, 8) + "01";
                     oDiaDeHoje_1 = hoje();
                     return [4 /*yield*/, Promise.all([
@@ -1707,10 +1814,12 @@ function usarDados(de, ate, prevDe) {
                             opcional(function () { return db.from("saude_das_cargas").select("*"); }, []),
                             opcional(function () { return db.from("tarefas_sdr").select("*"); }, []),
                             opcional(function () { return db.from("leads_sem_tarefa").select("*"); }, []),
-                            opcional(function () { return db.from("meta_do_mes").select("*").limit(1); }, []),
+                            /* a linha do mês corrente; se ainda não cadastraram, vale a última
+                               anterior — nunca a primeira que o banco devolver. */
+                            opcional(function () { return db.from("meta_do_mes").select("*").lte("mes", inicioDoMes_1).order("mes", { ascending: false }).limit(1); }, []),
                             opcional(function () { return db.from("equipe_sdr").select("sdr,ativo").eq("ativo", true); }, []),
-                            opcional(function () { return db.from("fato_dia").select("*")
-                                .gte("data", inicioDoMes_1).lte("data", oDiaDeHoje_1); }, []),
+                            opcionalPaginado(function () { return db.from("fato_dia").select("*")
+                                .gte("data", inicioDoMes_1).lte("data", oDiaDeHoje_1).order("data"); }, []),
                             opcional(function () { return db.from("esforco_dia").select("*").eq("data", oDiaDeHoje_1); }, []),
                             opcional(function () { return db.from("tempo_resposta_dia").select("*").eq("data", oDiaDeHoje_1); }, []),
                             opcional(function () { return db.from("visitas_pendentes_dia").select("*").eq("data", oDiaDeHoje_1); }, []),
@@ -2084,15 +2193,17 @@ function Painel(_a) {
             tone: a.leads_sem_atendimento > 0 ? "bad" : "good" },
         { l: "Agendamentos marcados", v: nInt(a.agendamentos_marcados), s: "No dia em que o SDR marcou",
             d: React.createElement(Delta, { atual: a.agendamentos_marcados, anterior: aPrev.agendamentos_marcados }) },
-        { l: "Taxa de agendamento", v: nPct(a.taxa_agendamento), s: "Meta: ".concat(metaTaxa.taxa_agendamento, "%"),
-            tone: a.taxa_agendamento >= metaTaxa.taxa_agendamento / 100 ? "good" : "bad" },
+        { l: "Taxa de agendamento", v: a.leads_recebidos ? nPct(a.taxa_agendamento) : "—",
+            s: a.leads_recebidos ? "Meta: ".concat(metaTaxa.taxa_agendamento, "%") : "nenhum lead no período",
+            tone: !a.leads_recebidos ? undefined : (a.taxa_agendamento >= metaTaxa.taxa_agendamento / 100 ? "good" : "bad") },
         { l: "Visitas do dia", v: nInt(a.visitas_do_dia), s: "Agenda da loja no período" },
         { l: "Comparecimentos", v: nInt(a.comparecimentos), d: React.createElement(Delta, { atual: a.comparecimentos, anterior: aPrev.comparecimentos }) },
-        { l: "Taxa de show", v: nPct(a.taxa_show),
-            s: semDesfecho > 0
-                ? "".concat(nInt(semDesfecho), " visitas sem desfecho \u2014 entre as preenchidas d\u00E1 ").concat(nPct(showApurado))
-                : "Meta: ".concat(metaTaxa.taxa_show, "%"),
-            tone: duvidaGrande ? "bad" : (a.taxa_show >= metaTaxa.taxa_show / 100 ? "good" : "bad") },
+        { l: "Taxa de show", v: a.visitas_do_dia ? nPct(a.taxa_show) : "—",
+            s: !a.visitas_do_dia ? "nenhuma visita no período"
+                : semDesfecho > 0
+                    ? "".concat(nInt(semDesfecho), " visitas sem desfecho \u2014 entre as preenchidas d\u00E1 ").concat(nPct(showApurado))
+                    : "Meta: ".concat(metaTaxa.taxa_show, "%"),
+            tone: !a.visitas_do_dia ? undefined : duvidaGrande ? "bad" : (a.taxa_show >= metaTaxa.taxa_show / 100 ? "good" : "bad") },
         /* Cancelou e não apareceu são falhas diferentes. Separar é o que
            permite cobrar a coisa certa: cancelamento alto é problema de
            qualificação; não comparecimento sem aviso é problema de lembrete. */
@@ -2124,7 +2235,7 @@ function Painel(_a) {
     /* O Modo TV sai do layout normal por completo: sem cabeçalho, sem abas,
        sem margem. Numa TV cada pixel de altura é placar que aparece. */
     if (aba === "tv") {
-        return React.createElement(TelaTVCheia, { c: rot, carregando: d.estado.carregando, onSair: function () { setAba("painel"); } });
+        return React.createElement(TelaTVCheia, { c: rot, carregando: d.estado.carregando, estado: d.estado, falhas: d.falhas, dadoVelho: dadoVelho, frescor: frescor, idade: idade, onSair: function () { setAba("painel"); } });
     }
     return (React.createElement("div", { style: { background: T.canvas, minHeight: "100vh", fontFamily: F_UI, color: T.ink } },
         React.createElement("header", { style: { background: T.preto, position: "sticky", top: 0, zIndex: 30 } },
@@ -2311,14 +2422,22 @@ function Painel(_a) {
                                     React.createElement(Td, { right: true, bold: true }, nPct(a.conversao_final)),
                                     React.createElement(Td, { right: true, bold: true }, ligacoesNaCarteiraTot ? nInt(ligacoesNaCarteiraTot) : "—"),
                                     React.createElement(Td, { right: true, bold: true }, ligacoesNaCarteiraTot ? nReal(div(a.receita, ligacoesNaCarteiraTot)) : "—"))))),
-                    semSdr && semSdr.leads_recebidos > 0 && (React.createElement(Card, { className: "p16", style: { marginTop: 12, borderColor: "#F3D9DB" } },
+                    semSdr && (semSdr.leads_recebidos > 0 || semSdr.visitas_do_dia > 0 || semSdr.vendas > 0 || semSdr.receita > 0) && (React.createElement(Card, { className: "p16", style: { marginTop: 12, borderColor: "#F3D9DB" } },
                         React.createElement("div", { style: { fontSize: 13, color: T.ink2, lineHeight: 1.6 } },
-                            React.createElement("b", { style: { color: T.bad } },
-                                "\u26A0 ",
-                                nInt(semSdr.leads_recebidos),
-                                " leads sem SDR"),
-                            " no per\u00EDodo \u2014 entraram e n\u00E3o foram distribu\u00EDdos a ningu\u00E9m. N\u00E3o entram no placar acima porque n\u00E3o s\u00E3o de ningu\u00E9m; entram no total.",
-                            semSdr.vendas > 0 && " Ainda assim, ".concat(nInt(semSdr.vendas), " viraram venda."))))),
+                            React.createElement("b", { style: { color: T.bad } }, "\u26A0 Sem SDR no per\u00EDodo:"),
+                            " ",
+                            [[semSdr.leads_recebidos, "lead", "leads"], [semSdr.visitas_do_dia, "visita", "visitas"], [semSdr.vendas, "O.S.", "O.S."]]
+                                .filter(function (_a) {
+                                var _b = __read(_a, 1), v = _b[0];
+                                return v > 0;
+                            }).map(function (_a) {
+                                var _b = __read(_a, 3), v = _b[0], um = _b[1], muitos = _b[2];
+                                return "".concat(nInt(v), " ").concat(v === 1 ? um : muitos);
+                            }).join(" · "),
+                            semSdr.receita > 0 ? " \u00B7 ".concat(nReal(semSdr.receita)) : "",
+                            " \u2014 n\u00E3o s\u00E3o de ningu\u00E9m, ent\u00E3o ficam fora do placar acima, mas ",
+                            React.createElement("b", null, "entram no Total"),
+                            ". \u00C9 por isso que a linha Total \u00E9 maior que a soma das pessoas.")))),
                 esforcoPorSdr.length > 0 && (React.createElement(Secao, { n: 4, titulo: "Esfor\u00E7o \u2014 por quem executou", nota: "Chave diferente da se\u00E7\u00E3o 3: aqui o cr\u00E9dito \u00E9 de quem FEZ, n\u00E3o de quem \u00E9 dono do lead. A liga\u00E7\u00E3o vem do discador, que sabe qual ramal discou; o Kommo n\u00E3o sabe. \"Tentou\" conta toda discagem; \"atendeu\" usa o motivo real de encerramento, ent\u00E3o caixa postal n\u00E3o conta; \"falou com\" s\u00E3o pessoas em conversas acima de ".concat(segConversa, "s. Mensagem do rob\u00F4 de triagem fica fora: automa\u00E7\u00E3o n\u00E3o \u00E9 esfor\u00E7o de ningu\u00E9m. \"Fora do funil\" \u00E9 trabalho em lead de outro funil, quase sempre o Remarketing, que a equipe atende quando n\u00E3o h\u00E1 lead novo entrando \u2014 conta como esfor\u00E7o porque a pessoa fez, mas o resultado dele n\u00E3o aparece nas se\u00E7\u00F5es de carteira.") },
                     React.createElement("div", { className: "grid-kpi", style: { marginBottom: 16 } },
                         React.createElement(Kpi, { label: "Liga\u00E7\u00F5es tentadas", value: nInt(esf.ligacoes_tentadas), sub: esf.ligacoes_fora
@@ -2576,7 +2695,7 @@ function Painel(_a) {
                     React.createElement("br", null),
                     React.createElement("br", null),
                     React.createElement("b", null, "O que o painel n\u00E3o v\u00EA."),
-                    " Venda acima de R$ 100 mil entra na contagem, mas com receita zerada at\u00E9 algu\u00E9m conferir o valor \u2014 hoje h\u00E1 uma, de R$ 6,95 milh\u00F5es, que \u00E9 erro de digita\u00E7\u00E3o. Liga\u00E7\u00E3o para lead de outro funil \u2014 quase sempre o Remarketing, que a equipe trabalha quando n\u00E3o h\u00E1 lead novo \u2014 entra no esfor\u00E7o da se\u00E7\u00E3o 4 e aparece na coluna \"fora do funil\". Ela n\u00E3o entra em nenhuma outra se\u00E7\u00E3o: agendamento, visita e venda desses leads continuam invis\u00EDveis aqui, por decis\u00E3o de escopo. Mensagem sem autor \u00E9 do rob\u00F4 de triagem quando sai e \u00E9 o cliente quando entra \u2014 as duas s\u00E3o mostradas separadas, nunca somadas."))))));
+                    " Venda acima de R$ 100 mil entra na contagem, mas com receita zerada at\u00E9 algu\u00E9m conferir o valor; as que estiverem nessa situa\u00E7\u00E3o aparecem na se\u00E7\u00E3o de valores em quarentena. Liga\u00E7\u00E3o para lead de outro funil \u2014 quase sempre o Remarketing, que a equipe trabalha quando n\u00E3o h\u00E1 lead novo \u2014 entra no esfor\u00E7o da se\u00E7\u00E3o 4 e aparece na coluna \"fora do funil\". Ela n\u00E3o entra em nenhuma outra se\u00E7\u00E3o: agendamento, visita e venda desses leads continuam invis\u00EDveis aqui, por decis\u00E3o de escopo. Mensagem sem autor \u00E9 do rob\u00F4 de triagem quando sai e \u00E9 o cliente quando entra \u2014 as duas s\u00E3o mostradas separadas, nunca somadas."))))));
 }
 /* ===================== aba Importar =====================
 
@@ -2594,14 +2713,55 @@ function Painel(_a) {
    e as primeiras linhas lidas SEM gravar. É o botão de confiança para o
    primeiro envio de cada relatório novo. */
 var TIPO_ROTULO = {
+    listagem_itens: "Listagem de OS's c/ Itens",
     vendas_responsavel: "Vendas por Responsável",
+    os_pagamento: "OS por Pagamento",
+    vendas_empresa: "Vendas por Empresa (Gestão de Rede)",
     vendas_pagamento: "Vendas por Forma de Pagamento",
     vendas_grupo: "Vendas por Grupo",
-    os_pagamento: "OS/Lote por Forma de Pagamento",
     conferencia: "Conferência (Listagem de O.S.)",
 };
 var STATUS_COR = { ok: T.good, erro: T.bad, processando: T.warn, recebido: T.muted, ignorado: T.muted };
 var STATUS_ROTULO = { ok: "gravado", erro: "erro", processando: "lendo…", recebido: "na fila", ignorado: "substituído" };
+/* O QUE FALTA IMPORTAR (15/09): antes disso a pessoa só descobria a falta
+   pelas etiquetas "aguardando" espalhadas nas outras abas — e o Rafael
+   perguntava por WhatsApp. Aqui a conta é feita a partir dos próprios
+   arquivos já recebidos. */
+var LOJAS_IMPORT = ["Itaim", "Ipiranga", "Bandeirantes", "Tatuapé"];
+function ChecklistImport(_a) {
+    var lista = _a.lista;
+    var hojeISO = hoje();
+    var inicioMes = hojeISO.slice(0, 8) + "01";
+    var seteAtras = addDays(hojeISO, -6);
+    var mesAnt = String(Number(inicioMes.slice(0, 4)) - 1) + inicioMes.slice(4);
+    var ok = function (a) { return a.status === "ok"; };
+    var diaDe = function (a) { return (a.processado_em ? iso(new Date(a.processado_em)) : null); };
+    var doTipo = function (t) { return (lista || []).filter(function (a) { return ok(a) && a.tipo === t; }); };
+    var listagemHoje = doTipo("listagem_itens").filter(function (a) { return a.periodo_ini >= inicioMes && diaDe(a) === hojeISO; });
+    var faltamVR = LOJAS_IMPORT.filter(function (l) { return !doTipo("vendas_responsavel").some(function (a) { return a.loja === l && a.periodo_ini === inicioMes && diaDe(a) >= seteAtras; }); });
+    var faltamPag = LOJAS_IMPORT.filter(function (l) { return !doTipo("os_pagamento").some(function (a) { return a.loja === l && a.periodo_ini === inicioMes; }); });
+    var temAnterior = doTipo("vendas_empresa").some(function (a) { return a.periodo_ini === mesAnt; });
+    var itens = [
+        { t: "Listagem de OS's c/ Itens (Rede)", quando: "todo dia", falta: !listagemHoje.length,
+            det: listagemHoje.length ? "importada hoje" : "não foi importada hoje — é o arquivo que move todo o painel" },
+        { t: "Vendas por Responsável", quando: "1 por loja, toda semana", falta: !!faltamVR.length,
+            det: faltamVR.length ? "faltando desta semana: ".concat(faltamVR.join(", ")) : "as 4 lojas em dia" },
+        { t: "OS por Pagamento", quando: "1 por loja, todo mês", falta: !!faltamPag.length,
+            det: faltamPag.length ? "faltando neste m\u00EAs: ".concat(faltamPag.join(", ")) : "as 4 lojas em dia" },
+        { t: "Vendas por Empresa do ano anterior", quando: "1 vez por mês", falta: !temAnterior,
+            det: temAnterior ? "base do crescimento carregada" : "sem a base do mesmo mês do ano passado — o crescimento fica vazio" },
+    ];
+    var faltando = itens.filter(function (x) { return x.falta; }).length;
+    return (React.createElement(Card, { className: "p16", style: { marginBottom: 14, borderColor: faltando ? "#F0DDA0" : T.hair, background: faltando ? "#FFFDF5" : T.surface } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
+            React.createElement(Label, null, "O que falta importar"),
+            React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: faltando ? T.warn : T.good } }, faltando ? "".concat(faltando, " de ").concat(itens.length, " pendentes") : "tudo em dia ✓")),
+        React.createElement("div", { style: { display: "grid", gap: 8, marginTop: 10 } }, itens.map(function (x) { return (React.createElement("div", { key: x.t, style: { display: "flex", gap: 10, alignItems: "baseline", fontSize: 13 } },
+            React.createElement("span", { style: { color: x.falta ? T.warn : T.good, fontWeight: 700, width: 14 } }, x.falta ? "•" : "✓"),
+            React.createElement("span", { style: { fontWeight: 600 } }, x.t),
+            React.createElement("span", { style: { color: T.muted, fontSize: 12 } }, x.quando),
+            React.createElement("span", { style: { color: x.falta ? T.warn : T.muted, fontSize: 12, marginLeft: "auto", textAlign: "right" } }, x.det))); }))));
+}
 function AbaImportar(_a) {
     var _this = this;
     var sessao = _a.sessao;
@@ -2610,6 +2770,7 @@ function AbaImportar(_a) {
     var _d = __read(useState(false), 2), arrastando = _d[0], setArrastando = _d[1];
     var _f = __read(useState(null), 2), previa = _f[0], setPrevia = _f[1]; // resultado da amostra
     var _g = __read(useState(null), 2), erroGeral = _g[0], setErroGeral = _g[1];
+    var _h = __read(useState(null), 2), ocupado = _h[0], setOcupado = _h[1]; // id do arquivo sendo lido agora
     var entrada = useRef(null);
     var carregar = function () { return __awaiter(_this, void 0, void 0, function () {
         var r;
@@ -2618,15 +2779,20 @@ function AbaImportar(_a) {
                 case 0: return [4 /*yield*/, db.from("oi_arquivos").select("*").order("enviado_em", { ascending: false }).limit(60)];
                 case 1:
                     r = _a.sent();
-                    if (!r.error)
-                        setLista(r.data || []);
+                    // sem isto, falta de permissão virava "Nenhum arquivo ainda" — foi o que
+                    // assustou em 15/09, quando o login estava com o token antigo.
+                    if (r.error) {
+                        setErroGeral("n\u00E3o consegui ler a lista de arquivos: ".concat(r.error.message));
+                        return [2 /*return*/];
+                    }
+                    setLista(r.data || []);
                     return [2 /*return*/];
             }
         });
     }); };
     useEffect(function () { carregar(); }, []);
     var chamar = function (arquivo_id, amostra) { return __awaiter(_this, void 0, void 0, function () {
-        var _a, data, error, corpo, e_4;
+        var _a, data, error, corpo, e_5;
         var _b, _c;
         return __generator(this, function (_d) {
             switch (_d.label) {
@@ -2643,7 +2809,7 @@ function AbaImportar(_a) {
                     corpo = _d.sent();
                     return [3 /*break*/, 5];
                 case 4:
-                    e_4 = _d.sent();
+                    e_5 = _d.sent();
                     return [3 /*break*/, 5];
                 case 5: throw new Error((corpo === null || corpo === void 0 ? void 0 : corpo.erro) || error.message || "falha ao chamar a função");
                 case 6:
@@ -2654,8 +2820,8 @@ function AbaImportar(_a) {
         });
     }); };
     var enviar = function (arquivos) { return __awaiter(_this, void 0, void 0, function () {
-        var lote, hojeStr, _loop_1, lote_1, lote_1_1, a, e_5_1;
-        var e_5, _a;
+        var lote, hojeStr, _loop_1, lote_1, lote_1_1, a, e_6_1;
+        var e_6, _a;
         var _b;
         return __generator(this, function (_c) {
             switch (_c.label) {
@@ -2668,7 +2834,7 @@ function AbaImportar(_a) {
                     }
                     hojeStr = hoje();
                     _loop_1 = function (a) {
-                        var item, atualiza, caminho, up, reg, r, e_6;
+                        var item, atualiza, caminho, up, reg, r, e_7;
                         return __generator(this, function (_d) {
                             switch (_d.label) {
                                 case 0:
@@ -2679,7 +2845,7 @@ function AbaImportar(_a) {
                                 case 1:
                                     _d.trys.push([1, 5, , 6]);
                                     caminho = "".concat(hojeStr, "/").concat(Date.now(), "-").concat(a.name.replace(/[^\w.\-]+/g, "_"));
-                                    return [4 /*yield*/, db.storage.from("exportacoes").upload(caminho, a, { upsert: false, contentType: "application/vnd.ms-excel" })];
+                                    return [4 /*yield*/, db.storage.from("exportacoes").upload(caminho, a, { upsert: false, contentType: /\.xlsx$/i.test(a.name) ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "application/vnd.ms-excel" })];
                                 case 2:
                                     up = _d.sent();
                                     if (up.error)
@@ -2698,8 +2864,8 @@ function AbaImportar(_a) {
                                     atualiza({ etapa: "ok", resultado: r });
                                     return [3 /*break*/, 6];
                                 case 5:
-                                    e_6 = _d.sent();
-                                    atualiza({ etapa: "erro", erro: e_6.message || String(e_6) });
+                                    e_7 = _d.sent();
+                                    atualiza({ etapa: "erro", erro: e_7.message || String(e_7) });
                                     return [3 /*break*/, 6];
                                 case 6: return [4 /*yield*/, carregar()];
                                 case 7:
@@ -2725,26 +2891,30 @@ function AbaImportar(_a) {
                     return [3 /*break*/, 2];
                 case 5: return [3 /*break*/, 8];
                 case 6:
-                    e_5_1 = _c.sent();
-                    e_5 = { error: e_5_1 };
+                    e_6_1 = _c.sent();
+                    e_6 = { error: e_6_1 };
                     return [3 /*break*/, 8];
                 case 7:
                     try {
                         if (lote_1_1 && !lote_1_1.done && (_a = lote_1.return)) _a.call(lote_1);
                     }
-                    finally { if (e_5) throw e_5.error; }
+                    finally { if (e_6) throw e_6.error; }
                     return [7 /*endfinally*/];
                 case 8: return [2 /*return*/];
             }
         });
     }); };
     var reprocessar = function (arq, amostra) { return __awaiter(_this, void 0, void 0, function () {
-        var r, e_7;
+        var r, e_8;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
+                    if (!amostra && arq.status === "ignorado" &&
+                        !window.confirm("Este arquivo j\u00E1 foi substitu\u00EDdo por um mais novo.\n\nReprocessar vai gravar ".concat(arq.nome_original, " por cima do arquivo atual do mesmo relat\u00F3rio, loja e per\u00EDodo. Continuar?")))
+                        return [2 /*return*/];
                     setErroGeral(null);
                     setPrevia(null);
+                    setOcupado(arq.id); // a tela precisa mostrar que está rodando
                     _a.label = 1;
                 case 1:
                     _a.trys.push([1, 3, , 4]);
@@ -2755,10 +2925,12 @@ function AbaImportar(_a) {
                         setPrevia({ arq: arq, r: r });
                     return [3 /*break*/, 4];
                 case 3:
-                    e_7 = _a.sent();
-                    setErroGeral("".concat(arq.nome_original, ": ").concat(e_7.message));
+                    e_8 = _a.sent();
+                    setErroGeral("".concat(arq.nome_original, ": ").concat(e_8.message));
                     return [3 /*break*/, 4];
-                case 4: return [4 /*yield*/, carregar()];
+                case 4:
+                    setOcupado(null);
+                    return [4 /*yield*/, carregar()];
                 case 5:
                     _a.sent();
                     return [2 /*return*/];
@@ -2771,13 +2943,20 @@ function AbaImportar(_a) {
         var d = new Date(iso);
         return "".concat(String(d.getDate()).padStart(2, "0"), "/").concat(String(d.getMonth() + 1).padStart(2, "0"), " ").concat(String(d.getHours()).padStart(2, "0"), ":").concat(String(d.getMinutes()).padStart(2, "0"));
     };
-    var periodo = function (a) { return (a.periodo_ini ? "".concat(br(a.periodo_ini), " \u2013 ").concat(br(a.periodo_fim)) : "—"); };
+    var periodo = function (a) {
+        if (!a.periodo_ini)
+            return "—";
+        var ano = a.periodo_ini.slice(0, 4);
+        var mesmoAno = ano === hoje().slice(0, 4);
+        // sem o ano, o Vendas por Empresa de set/2025 parecia ser de setembro deste ano
+        return "".concat(br(a.periodo_ini), " \u2013 ").concat(br(a.periodo_fim)).concat(mesmoAno ? "" : "/".concat(ano));
+    };
     return (React.createElement("div", null,
         React.createElement(Card, { className: "p24", style: { marginBottom: 12 } },
             React.createElement("div", { onDragOver: function (e) { e.preventDefault(); setArrastando(true); }, onDragLeave: function () { return setArrastando(false); }, onDrop: onDrop, onClick: function () { return entrada.current && entrada.current.click(); }, style: { border: "2px dashed ".concat(arrastando ? T.marca : "#C7CDD4"), borderRadius: 10, padding: "34px 20px",
                     textAlign: "center", cursor: "pointer", background: arrastando ? "#FFF8E1" : T.canvas, transition: "all .15s" } },
                 React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 17, fontWeight: 700, color: T.ink } }, "Arraste os relat\u00F3rios do Oficina aqui"),
-                React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 6 } }, "ou clique para escolher \u00B7 aceita v\u00E1rios de uma vez \u00B7 s\u00F3 Excel (.xls)"),
+                React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 6 } }, "ou clique para escolher \u00B7 aceita v\u00E1rios de uma vez \u00B7 s\u00F3 Excel (.xls ou .xlsx)"),
                 React.createElement("input", { ref: entrada, type: "file", multiple: true, accept: ".xls,.xlsx", style: { display: "none" }, onChange: function (e) { enviar(e.target.files); e.target.value = ""; } })),
             React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 12, lineHeight: 1.6 } },
                 "O painel reconhece o relat\u00F3rio sozinho pelo conte\u00FAdo. Arquivo repetido ",
@@ -2831,6 +3010,7 @@ function AbaImportar(_a) {
             }),
             previa.r.primeiras_linhas && (React.createElement("pre", { style: { fontSize: 11.5, background: T.canvas, borderRadius: 6, padding: 10, overflowX: "auto", marginTop: 8 } }, JSON.stringify(previa.r.primeiras_linhas, null, 1))),
             React.createElement(Btn, { kind: "accent", onClick: function () { return reprocessar(previa.arq, false); }, style: { marginTop: 12 } }, "Gravar este arquivo"))),
+        React.createElement(ChecklistImport, { lista: lista }),
         React.createElement(Card, { className: "p0 rolagem" },
             React.createElement("div", { style: { padding: "14px 16px 6px", display: "flex", alignItems: "center", gap: 10 } },
                 React.createElement(Label, null, "Arquivos recebidos"),
@@ -2863,11 +3043,11 @@ function AbaImportar(_a) {
                                     a.filtro_data) : null),
                             React.createElement(Td, { right: true }, (_a = a.linhas) !== null && _a !== void 0 ? _a : "—"),
                             React.createElement(Td, null,
-                                React.createElement(Pill, { cor: STATUS_COR[a.status] || T.muted }, STATUS_ROTULO[a.status] || a.status),
+                                React.createElement(Pill, { cor: ocupado === a.id ? T.warn : (STATUS_COR[a.status] || T.muted) }, ocupado === a.id ? "lendo…" : (STATUS_ROTULO[a.status] || a.status)),
                                 a.erro && a.status !== "ignorado" && (React.createElement("div", { style: { fontSize: 11.5, color: T.bad, marginTop: 4, maxWidth: 380, whiteSpace: "normal" } }, a.erro)),
                                 a.erro && a.status === "ignorado" && (React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 4, whiteSpace: "normal" } }, a.erro))),
                             React.createElement(Td, null,
-                                React.createElement("div", { style: { display: "flex", gap: 6 } },
+                                React.createElement("div", { style: { display: "flex", gap: 6, opacity: ocupado ? 0.5 : 1, pointerEvents: ocupado ? "none" : "auto" } },
                                     React.createElement(Btn, { onClick: function () { return reprocessar(a, true); }, style: { padding: "4px 9px", fontSize: 12 } }, "pr\u00E9-visualizar"),
                                     React.createElement(Btn, { onClick: function () { return reprocessar(a, false); }, style: { padding: "4px 9px", fontSize: 12 } }, "reprocessar")))));
                     }))))));
@@ -2928,7 +3108,7 @@ function textoDesconto(d, fat) {
         return "—";
     var pct = div(d, fat);
     if (d < 0)
-        return "+".concat(nReal(-d), " acima da tabela");
+        return "+".concat(nReal(-d), " \u00B7 ").concat(nPct(-pct, 0), " acima");
     if (d === 0)
         return "sem desconto";
     return "".concat(nReal(d), " \u00B7 ").concat(nPct(pct, 0));
@@ -2949,40 +3129,83 @@ function agregarOficinaExtra(_a) {
         l.faturamento += f;
     });
     // pagamentos por closer (erp_curto) e por loja
-    var vazio = function () { return ({ total: 0, pix: 0, credito: 0, debito: 0, dinheiro: 0, outros: 0, os: {}, osCred: {}, parcelasPeso: 0, creditoPeso: 0 }); };
+    //
+    // ATENÇÃO à coluna "Pcl" do relatório: ela numera em sequência TODAS as
+    // linhas da O.S., não "parcela k de n". Uma O.S. paga com PIX de entrada
+    // mais crédito em 6x sai como Pcl 1..7. Até 15/09 o painel lia esse número
+    // como o parcelamento e mostrava 7x onde havia 6x, com a média pela metade.
+    // A regra certa: o parcelamento é a QUANTIDADE de linhas de crédito daquele
+    // cartão. Uma O.S. pode ter dois cartões (vi a 17012 do Ipiranga com 12x de
+    // R$ 1.500 e 12x de R$ 75 na mesma bandeira), por isso as linhas de crédito
+    // da mesma forma são separadas por valor: valores que diferem mais que 2%
+    // (ou R$ 1) são cartões diferentes; a diferença de centavos da última
+    // parcela fica no mesmo grupo.
+    var vazio = function () { return ({ total: 0, pix: 0, credito: 0, debito: 0, dinheiro: 0, outros: 0, os: {}, cred: {} }); };
     var pagCloser = {}, pagLoja = {};
     (pagamentos || []).forEach(function (p) {
-        var fam = familiaForma(p.forma), v = Number(p.valor) || 0, np = Number(p.parcela) || 1;
+        var fam = familiaForma(p.forma), v = Number(p.valor) || 0;
         var alvo = [];
         var m = porCurto[String(p.erp_curto || "").toUpperCase()];
         if (m)
             alvo.push(pagCloser[m.erp_codigo] || (pagCloser[m.erp_codigo] = vazio()));
         alvo.push(pagLoja[p.loja] || (pagLoja[p.loja] = vazio()));
+        var k = p.loja + "/" + p.os_numero;
         alvo.forEach(function (a) {
             a.total += v;
             a[fam] += v;
-            var k = p.loja + "/" + p.os_numero;
-            a.os[k] = Math.max(a.os[k] || 0, np);
+            a.os[k] = true;
             if (fam === "credito") {
-                a.parcelasPeso += v * np;
-                a.creditoPeso += v;
-                var oc = a.osCred[k] || (a.osCred[k] = { valor: 0, parcelas: 0 });
-                oc.valor += v;
-                oc.parcelas = Math.max(oc.parcelas, np);
+                var oc = a.cred[k] || (a.cred[k] = {});
+                (oc[p.forma] || (oc[p.forma] = [])).push(v);
             }
         });
     });
+    // separa as linhas de crédito de uma forma em cartões (grupos de valor)
+    var cartoes = function (valores) {
+        var vs = valores.slice().sort(function (x, y) { return x - y; });
+        var out = [];
+        var atual = [vs[0]];
+        for (var i = 1; i < vs.length; i++) {
+            var ref = atual[atual.length - 1];
+            if (vs[i] - ref <= Math.max(1, 0.02 * ref))
+                atual.push(vs[i]);
+            else {
+                out.push(atual);
+                atual = [vs[i]];
+            }
+        }
+        out.push(atual);
+        return out;
+    };
     var fecha = function (a) {
-        var osList = Object.keys(a.os);
-        // crédito por número de parcelas da O.S. (1x..12x), como no desenho aprovado
-        var porParcela = {};
-        Object.keys(a.osCred).forEach(function (k) { var oc = a.osCred[k]; var n = Math.min(12, Math.max(1, oc.parcelas)); porParcela[n] = (porParcela[n] || 0) + oc.valor; });
+        var porParcela = {}; // valor no crédito por nº de parcelas (1x..12x)
+        var peso = 0, base = 0, comCredito = 0, parceladas = 0;
+        Object.keys(a.cred).forEach(function (k) {
+            var maior = 0;
+            var formas = a.cred[k];
+            Object.keys(formas).forEach(function (f) {
+                cartoes(formas[f]).forEach(function (g) {
+                    var soma = 0;
+                    for (var i = 0; i < g.length; i++)
+                        soma += g[i];
+                    var n = Math.min(12, g.length);
+                    porParcela[n] = (porParcela[n] || 0) + soma;
+                    peso += soma * g.length;
+                    base += soma;
+                    if (g.length > maior)
+                        maior = g.length;
+                });
+            });
+            comCredito++;
+            if (maior > 1)
+                parceladas++;
+        });
         var ate3x = (porParcela[1] || 0) + (porParcela[2] || 0) + (porParcela[3] || 0);
         return {
             total: a.total, pix: a.pix, credito: a.credito, debito: a.debito, dinheiro: a.dinheiro, outros: a.outros,
             pctPix: div(a.pix, a.total), pctCredito: div(a.credito, a.total), pctAVista: div(a.pix + a.debito + a.dinheiro, a.total),
-            osQtd: osList.length, parcelasMedia: a.creditoPeso ? a.parcelasPeso / a.creditoPeso : 0,
-            osParceladas: osList.filter(function (k) { return a.os[k] > 1; }).length,
+            osQtd: Object.keys(a.os).length, parcelasMedia: base ? peso / base : 0,
+            osComCredito: comCredito, osParceladas: parceladas,
             porParcela: porParcela,
             pctAte3x: div(ate3x, a.credito),
         };
@@ -3003,7 +3226,7 @@ function consultasOficinaExtra(inicioMes) {
         vendasResp: db.from("oi_vendas_responsavel").select("loja,erp_codigo,erp_nome,faturamento,desconto,os_qtd").eq("periodo_ini", inicioMes),
         pagamentos: db.from("oi_os_pagamento").select("loja,os_numero,forma,parcela,valor,erp_curto").eq("periodo_ini", inicioMes),
         empresaAnt: db.from("oi_vendas_empresa").select("loja,periodo_ini,faturamento,desconto,custo,lucro_bruto,os_qtd,ticket_medio").eq("periodo_ini", mesAnt),
-        mapCloser: db.from("map_closer").select("erp_codigo,erp_curto,nome_oficial,unidade"),
+        mapCloser: db.from("map_closer").select("erp_codigo,erp_curto,nome_oficial,unidade,meta_mensal,ativo"),
         // escada de metas: se a tabela ainda não existir, cai nos padrões (nunca derruba a aba)
         metaGrupo: Promise.resolve(db.from("meta_grupo").select("nivel,valor").order("nivel")).then(function (r) { return (r && !r.error && r.data && r.data.length ? r.data.map(function (x) { return Number(x.valor); }) : META_GRUPO_PADRAO); }, function () { return META_GRUPO_PADRAO; }),
     };
@@ -3016,9 +3239,12 @@ function consultasOficinaExtra(inicioMes) {
 var META_GRUPO_PADRAO = [1800000, 1900000, 2000000];
 function escadaMetas(fat, niveis) {
     var n = (niveis && niveis.length ? niveis : META_GRUPO_PADRAO).slice().sort(function (a, b) { return a - b; });
+    // loja sem meta cadastrada (map_loja) daria níveis zerados e "todas batidas ✓"
+    if (!n[n.length - 1])
+        return { niveis: n, batidas: 0, nivel: 1, atual: 0, todas: false, p: 0, semMeta: true };
     var batidas = n.filter(function (v) { return fat >= v; }).length;
     var idx = Math.min(batidas, n.length - 1);
-    return { niveis: n, batidas: batidas, nivel: idx + 1, atual: n[idx], todas: batidas === n.length, p: div(fat, n[idx]) };
+    return { niveis: n, batidas: batidas, nivel: idx + 1, atual: n[idx], todas: batidas === n.length, p: div(fat, n[idx]), semMeta: false };
 }
 /* níveis de uma loja a partir dos níveis do grupo e do peso dela */
 var niveisDaLoja = function (niveisGrupo, metaLoja, somaMetas) { return niveisGrupo.map(function (v) { return v * div(metaLoja, somaMetas); }); };
@@ -3036,7 +3262,9 @@ var EscadaChips = function (_a) {
 };
 /* crescimento: quanto do mês do ano passado já foi feito + projeção no ritmo atual */
 function crescimento(fat, ant, du) {
-    if (!ant)
+    // sem base do ano anterior não há comparação: devolver null é o que faz o
+    // painel mostrar "aguardando" em vez de "0% feito · -100%".
+    if (!ant || !Number(ant.faturamento))
         return null;
     var fatAnt = Number(ant.faturamento) || 0;
     var proj = fat + (fat / du.passados) * du.restantes;
@@ -3124,12 +3352,15 @@ var RSec = function (_a) {
         React.createElement("span", null, t),
         s && React.createElement("span", { style: { fontFamily: F_UI, fontSize: 11, letterSpacing: 0, textTransform: "none", fontWeight: 400, color: T.muted } }, s)));
 };
+/* `nome` = o valor é um nome de pessoa: encolhe para caber em vez de quebrar
+   no meio da palavra ("Alessand / ro" no print de 15/09). */
 var RTile = function (_a) {
-    var lab = _a.lab, val = _a.val, ft = _a.ft, cor = _a.cor;
+    var lab = _a.lab, val = _a.val, ft = _a.ft, cor = _a.cor, nome = _a.nome;
     return (React.createElement("div", { style: { background: "#F7F7F7", borderRadius: 12, padding: "12px 12px 11px", minWidth: 0 } },
         React.createElement(RLab, null, lab),
-        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 22, fontWeight: 700, marginTop: 4, letterSpacing: "-.01em",
-                fontVariantNumeric: "tabular-nums", color: cor || T.ink, overflowWrap: "anywhere" } }, val),
+        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: nome ? (String(val).length > 9 ? 16 : 20) : 22, fontWeight: 700, marginTop: 4, letterSpacing: "-.01em",
+                fontVariantNumeric: "tabular-nums", color: cor || T.ink,
+                overflowWrap: nome ? "normal" : "anywhere", whiteSpace: nome ? "nowrap" : "normal", overflow: "hidden", textOverflow: "ellipsis" } }, val),
         React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 2 } }, ft)));
 };
 var RHead = function (_a) {
@@ -3177,7 +3408,7 @@ function RHero(_a) {
         React.createElement(RLab, null, lab),
         React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginTop: 6 } },
             React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 38, fontWeight: 700, letterSpacing: "-.02em", lineHeight: 1, fontVariantNumeric: "tabular-nums" } }, nReal(val)),
-            React.createElement(RPill, { p: p, frac: frac, extra: " \u00B7 ".concat(Math.abs(pts), " pontos ").concat(pts >= 0 ? "à frente" : "atrás", " do m\u00EAs") })),
+            React.createElement(RPill, { p: p, frac: frac, extra: pts === 0 ? " · em linha com o mês" : " \u00B7 ".concat(Math.abs(pts), " ").concat(Math.abs(pts) === 1 ? "ponto" : "pontos", " ").concat(pts > 0 ? "à frente" : "atrás", " do m\u00EAs") })),
         React.createElement("div", { style: { position: "relative", margin: "14px 0" } },
             React.createElement(RBar, { p: p, cor: e.cor, h: 10 }),
             React.createElement("span", { style: { position: "absolute", top: -4, left: "".concat((frac * 100).toFixed(1), "%"), width: 2, height: 18, background: T.ink, borderRadius: 1 } },
@@ -3324,11 +3555,8 @@ function CartaoLoja(_a) {
                 loja,
                 " ",
                 React.createElement("b", null, e.nome === "atenção" ? "em atenção" : e.nome === "atrasado" ? "atrasada" : "no ritmo"),
-                ", ",
-                Math.abs(pts),
-                " pontos ",
-                pts >= 0 ? "à frente" : "atrás",
-                " do m\u00EAs. Precisa fazer ",
+                pts === 0 ? ", em linha com o mês" : ", ".concat(Math.abs(pts), " ").concat(Math.abs(pts) === 1 ? "ponto" : "pontos", " ").concat(pts > 0 ? "à frente" : "atrás", " do m\u00EAs"),
+                ". Precisa fazer ",
                 React.createElement("b", null,
                     fmtMil(precisa),
                     " por dia \u00FAtil"),
@@ -3364,7 +3592,7 @@ function CartaoLoja(_a) {
                 React.createElement(RTile, { lab: "O.S. em aberto", val: nInt(lj.os_abertas), ft: "".concat(nReal(lj.valor_aberto), " ainda abertos") }),
                 React.createElement(RTile, { lab: "O.S. no m\u00EAs", val: nInt(lj.os_qtd), ft: "".concat(nInt(Number(lj.os_qtd) - osCl), " internas / balc\u00E3o") }),
                 React.createElement(RTile, { lab: "vs ".concat(mesAntNome), val: cr ? nPct(cr.feito, 0) : "—", cor: cr ? (cr.feito >= 1 ? T.good : cr.feito >= frac ? T.ink : T.warn) : T.muted, ft: cr ? "de ".concat(fmtMil(cr.fatAnt), " \u00B7 no ritmo: ").concat(cr.projPct >= 0 ? "+" : "").concat(nPct(cr.projPct, 0)) : "sem o fechamento de ".concat(mesAntNome) }),
-                React.createElement(RTile, { lab: "Desconto vs tabela", val: dl ? (dl.desconto < 0 ? "acima" : nPct(div(dl.desconto, dl.faturamento), 0)) : "—", cor: edl ? edl.cor : T.muted, ft: dl ? (dl.desconto < 0 ? "".concat(nReal(-dl.desconto), " vendidos acima da tabela") : "".concat(nReal(dl.desconto), " de desconto \u00B7 limite ").concat(nPct(OF_LIMITE_DESCONTO, 0))) : "sem o Vendas por Responsável" })),
+                React.createElement(RTile, { lab: "Desconto vs tabela", cor: edl ? edl.cor : T.muted, val: dl ? (dl.desconto < 0 ? "+".concat(nPct(-div(dl.desconto, dl.faturamento), 0)) : nPct(div(dl.desconto, dl.faturamento), 0)) : "—", ft: dl ? (dl.desconto < 0 ? "".concat(nReal(-dl.desconto), " acima da tabela") : "".concat(nReal(dl.desconto), " de desconto \u00B7 limite ").concat(nPct(OF_LIMITE_DESCONTO, 0))) : "sem o Vendas por Responsável" })),
             React.createElement(RLegenda, { frac: frac }),
             React.createElement(RSec, { t: "Closers" }),
             closers.map(function (c) {
@@ -3434,7 +3662,7 @@ function CartaoSDR(_a) {
         React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginTop: 20 } },
             React.createElement(RTile, { lab: "Agendamentos hoje", val: nInt(totAg), ft: "".concat(nInt(totLd), " leads recebidos") }),
             React.createElement(RTile, { lab: "O.S. fechadas hoje", val: nInt(totVd), ft: "".concat(nReal(totRc), " de receita"), cor: T.good }),
-            React.createElement(RTile, { lab: "Melhor SDR", val: melhor ? String(melhor.sdr).split(" ")[0] : "—", ft: melhor ? "".concat(nInt(melhor.ha), " agendamentos \u00B7 ").concat(nInt(melhor.hv), " O.S.") : "sem dados" })),
+            React.createElement(RTile, { lab: "Melhor SDR", nome: true, val: melhor ? String(melhor.sdr).split(" ")[0] : "—", ft: melhor ? "".concat(nInt(melhor.ha), " agendamentos \u00B7 ").concat(nInt(melhor.hv), " O.S.") : "sem dados" })),
         React.createElement(RSec, { t: "Ranking dos SDRs", s: "por agendamentos do dia \u00B7 barra = meta de ".concat(metaAg, "/dia") }),
         lista.map(function (s, i) {
             var p = div(s.ha, metaAg);
@@ -3448,7 +3676,9 @@ function CartaoSDR(_a) {
                         React.createElement("span", { style: { fontWeight: 700, fontSize: 14 } }, s.sdr),
                         React.createElement("span", { style: { fontSize: 11, color: T.muted } },
                             nInt(s.hl),
-                            " leads hoje")),
+                            " ",
+                            s.hl === 1 ? "lead" : "leads",
+                            " hoje")),
                     React.createElement("div", { style: { display: "flex", gap: 14, fontSize: 12.5, color: T.ink2, margin: "3px 0 7px", alignItems: "baseline" } },
                         [[s.ha, "agend."], [s.hc, "compar."], [s.hv, "O.S."]].map(function (_a) {
                             var _b = __read(_a, 2), v = _b[0], l = _b[1];
@@ -3497,7 +3727,7 @@ function AbaResumo(_a) {
     var du = diasUteisDoMes(hojeISO);
     var frac = du.diaDoMes / du.diasNoMes;
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, extra, _a, fatoMes, eq, mm, lojas, closers, setores, dias, arquivos, vendasResp, empresaAnt, mapCloser, metaGrupo, ex, e_8;
+        var pega, extra, _a, fatoMes, eq, mm, lojas, closers, setores, dias, arquivos, vendasResp, empresaAnt, mapCloser, metaGrupo, ex, e_9;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -3537,8 +3767,8 @@ function AbaResumo(_a) {
                     setR({ fatoMes: fatoMes, equipe: eq.map(function (x) { return x.sdr; }), meta: mm[0] || null, lojas: lojas, closers: closers, setores: setores, dias: dias, arquivos: arquivos, ex: ex });
                     return [3 /*break*/, 4];
                 case 3:
-                    e_8 = _b.sent();
-                    setErro(e_8.message || String(e_8));
+                    e_9 = _b.sent();
+                    setErro(e_9.message || String(e_9));
                     return [3 /*break*/, 4];
                 case 4: return [2 /*return*/];
             }
@@ -3548,7 +3778,7 @@ function AbaResumo(_a) {
     var CARTOES = [["geral", "Geral"]].concat(RESUMO_LOJAS.map(function (l) { return [RESUMO_CHAVE_LOJA[l], l]; })).concat([["sdr", "SDR"]]);
     var refs = useRef({});
     var baixar = function (k) { return __awaiter(_this, void 0, void 0, function () {
-        var el, cv, a, e_9;
+        var el, cv, a, e_10;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -3572,8 +3802,8 @@ function AbaResumo(_a) {
                     a.click();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_9 = _a.sent();
-                    setAviso("Não consegui gerar a imagem: " + (e_9.message || e_9));
+                    e_10 = _a.sent();
+                    setAviso("Não consegui gerar a imagem: " + (e_10.message || e_10));
                     return [3 /*break*/, 4];
                 case 4:
                     setBaixando("");
@@ -3582,26 +3812,38 @@ function AbaResumo(_a) {
         });
     }); };
     var baixarTodos = function () { return __awaiter(_this, void 0, void 0, function () {
-        var i;
+        var i, k, t, el;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
                     i = 0;
                     _a.label = 1;
                 case 1:
-                    if (!(i < CARTOES.length)) return [3 /*break*/, 5];
-                    setCartao(CARTOES[i][0]);
-                    return [4 /*yield*/, new Promise(function (ok) { return setTimeout(ok, 350); })];
+                    if (!(i < CARTOES.length)) return [3 /*break*/, 8];
+                    k = CARTOES[i][0];
+                    setCartao(k);
+                    t = 0;
+                    _a.label = 2;
                 case 2:
-                    _a.sent();
-                    return [4 /*yield*/, baixar(CARTOES[i][0])];
+                    if (!(t < 30)) return [3 /*break*/, 5];
+                    return [4 /*yield*/, new Promise(function (ok) { return setTimeout(ok, 60); })];
                 case 3:
                     _a.sent();
+                    el = refs.current[k];
+                    if (el && el.offsetHeight > 200)
+                        return [3 /*break*/, 5];
                     _a.label = 4;
                 case 4:
+                    t++;
+                    return [3 /*break*/, 2];
+                case 5: return [4 /*yield*/, baixar(k)];
+                case 6:
+                    _a.sent();
+                    _a.label = 7;
+                case 7:
                     i++;
                     return [3 /*break*/, 1];
-                case 5: return [2 /*return*/];
+                case 8: return [2 /*return*/];
             }
         });
     }); };
@@ -3654,7 +3896,7 @@ function useOficina() {
     var hojeISO = hoje();
     var inicioMes = hojeISO.slice(0, 8) + "01";
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, mapCloser, arquivosExtra_1, metaGrupo, ultimoDia, ex, ultimoDe, e_10;
+        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, mapCloser, arquivosExtra_1, metaGrupo, ultimoDia, ex, ultimoDe, e_11;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -3688,12 +3930,12 @@ function useOficina() {
                                 .gte("periodo_ini", inicioMes).order("processado_em", { ascending: false }).limit(8)),
                             pega(extra.vendasResp), pega(extra.pagamentos), pega(extra.empresaAnt), pega(extra.mapCloser),
                             pega(db.from("oi_arquivos").select("id,loja,tipo,periodo_ini,processado_em").eq("status", "ok")
-                                .in("tipo", ["vendas_responsavel", "os_pagamento", "vendas_empresa"]).order("processado_em", { ascending: false }).limit(40)),
+                                .in("tipo", ["vendas_responsavel", "os_pagamento", "vendas_empresa"]).order("processado_em", { ascending: false }).limit(200)),
                             extra.metaGrupo,
                         ])];
                 case 2:
                     _a = __read.apply(void 0, [_b.sent(), 16]), lojas = _a[0], closers = _a[1], setores = _a[2], dias = _a[3], os = _a[4], origem = _a[5], itens = _a[6], funil = _a[7], mapLoja = _a[8], arquivos = _a[9], vendasResp = _a[10], pagamentos = _a[11], empresaAnt = _a[12], mapCloser = _a[13], arquivosExtra_1 = _a[14], metaGrupo = _a[15];
-                    ultimoDia = dias.reduce(function (m, d) { return (d.dt_os > m ? d.dt_os : m); }, "");
+                    ultimoDia = dias.reduce(function (m, d) { return (d.dt_os > m && d.dt_os <= hojeISO ? d.dt_os : m); }, "");
                     ex = agregarOficinaExtra({ vendasResp: vendasResp, pagamentos: pagamentos, empresaAnt: empresaAnt, mapCloser: mapCloser, mesAnt: extra.mesAnt });
                     ultimoDe = function (tipo, periodo) { return (arquivosExtra_1.filter(function (a) { return a.tipo === tipo && (!periodo || a.periodo_ini === periodo); })[0] || {}).processado_em || null; };
                     ex.importDesconto = ultimoDe("vendas_responsavel", inicioMes);
@@ -3701,11 +3943,11 @@ function useOficina() {
                     ex.importAnoAnterior = ultimoDe("vendas_empresa", extra.mesAnt);
                     ex.mesAnt = extra.mesAnt;
                     ex.metaGrupo = metaGrupo;
-                    setR({ lojas: lojas, closers: closers, setores: setores, dias: dias, os: os, origem: origem, itens: itens, funil: funil, mapLoja: mapLoja, arquivos: arquivos, ultimoDia: ultimoDia, hojeISO: hojeISO, inicioMes: inicioMes, ex: ex });
+                    setR({ lojas: lojas, closers: closers, setores: setores, dias: dias, os: os, origem: origem, itens: itens, funil: funil, mapLoja: mapLoja, mapCloser: mapCloser, arquivos: arquivos, ultimoDia: ultimoDia, hojeISO: hojeISO, inicioMes: inicioMes, ex: ex });
                     return [3 /*break*/, 4];
                 case 3:
-                    e_10 = _b.sent();
-                    setErro(e_10.message || String(e_10));
+                    e_11 = _b.sent();
+                    setErro(e_11.message || String(e_11));
                     return [3 /*break*/, 4];
                 case 4: return [2 /*return*/];
             }
@@ -3719,6 +3961,23 @@ function ritmoDoMes(r) {
     var ref = r.ultimoDia || r.hojeISO;
     var du = diasUteisDoMes(ref);
     return { ref: ref, du: du, frac: du.diaDoMes / du.diasNoMes };
+}
+/* Ranking de closers montado a partir do CADASTRO (map_closer), com os números
+   do mês por cima. Quem não vendeu nada aparece zerado em vez de sumir. */
+function montarClosers(r) {
+    var porCodigo = {};
+    (r.closers || []).forEach(function (c) { porCodigo[c.closer_codigo] = c; });
+    var ativos = (r.mapCloser || []).filter(function (m) { return m.ativo !== false; });
+    var base = ativos.length ? ativos.map(function (m) { return porCodigo[m.erp_codigo] || {
+        closer_codigo: m.erp_codigo, closer: m.nome_oficial, loja: m.unidade,
+        meta: Number(m.meta_mensal) || 0, faturamento: 0, custo: 0, os_qtd: 0, os_abertas: 0,
+    }; }) : (r.closers || []);
+    return base.slice().sort(function (a, b) { return Number(b.faturamento) - Number(a.faturamento); });
+}
+/* mesma régua de cores do resto do painel (verde / âmbar / vermelho) */
+function toneMeta(p, frac) {
+    var cor = estadoMeta(p, frac).cor;
+    return cor === T.good ? "good" : cor === T.bad ? "bad" : undefined;
 }
 var Aguardando = function (_a) {
     var children = _a.children;
@@ -3735,8 +3994,11 @@ var PctMeta = function (_a) {
 };
 function AvisoBase(_a) {
     var r = _a.r, carregar = _a.carregar;
-    var atrasado = r.ultimoDia && r.ultimoDia < r.hojeISO;
+    // "atrasado" é não ter importado hoje — e não "ainda não houve O.S. hoje".
+    // Import às 8h, antes da primeira O.S., não pode acender o aviso âmbar.
     var ult = r.arquivos[0];
+    var diaDoImport = ult ? iso(new Date(ult.processado_em)) : null;
+    var atrasado = !ult || diaDoImport < r.hojeISO;
     return (React.createElement(Card, { className: "p12", style: { marginBottom: 14, fontSize: 12.5, color: atrasado ? T.warn : T.ink2,
             background: atrasado ? "#FFF8E1" : T.surface, borderColor: atrasado ? "#F0DDA0" : T.hair,
             display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" } },
@@ -3746,7 +4008,7 @@ function AvisoBase(_a) {
                     React.createElement("b", null,
                         "Base: O.S. de 01 a ",
                         br(r.ultimoDia)),
-                    atrasado ? " \u2014 dados de ".concat(br(r.ultimoDia), ", ainda sem o import de hoje.") : " · atualizada hoje.")
+                    atrasado ? " — sem import hoje, os números são do último arquivo." : " · importada hoje.")
                 : React.createElement("span", null,
                     React.createElement("b", null, "Sem Listagem de OS's c/ Itens importada neste m\u00EAs."),
                     " Solte o arquivo na aba Importar."),
@@ -3759,31 +4021,37 @@ function AvisoBase(_a) {
         React.createElement("button", { onClick: carregar, style: { marginLeft: "auto", fontSize: 12, borderRadius: 8, padding: "6px 12px", border: "1px solid ".concat(T.hair),
                 background: T.surface, color: T.ink2, cursor: "pointer", fontFamily: F_UI } }, "Atualizar")));
 }
-/* crédito por número de parcelas da O.S. — 1x a 12x, como no desenho aprovado em 14/09 */
+/* Crédito por número de parcelas do cartão — 1x a 12x, como no desenho de 14/09.
+   Crédito e "Até 3x" ficam ANTES das colunas de parcela: com 12 colunas elas
+   saíam da tela e ninguém via justamente o que interessa. Colunas sem nenhum
+   valor não são desenhadas. */
 function TabelaParcelas(_a) {
     var titulo = _a.titulo, linhas = _a.linhas;
     var NS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-    var usados = NS.filter(function (n) { return linhas.some(function (l) { return l.pg && l.pg.porParcela[n]; }); });
-    var cols = usados.length ? NS.slice(0, Math.max(3, usados[usados.length - 1])) : NS.slice(0, 3);
+    var cols = NS.filter(function (n) { return linhas.some(function (l) { return l.pg && l.pg.porParcela[n]; }); });
     var tot = {};
     var totCred = 0;
     linhas.forEach(function (l) { if (!l.pg)
         return; totCred += l.pg.credito; cols.forEach(function (n) { tot[n] = (tot[n] || 0) + (l.pg.porParcela[n] || 0); }); });
     var ate3 = (tot[1] || 0) + (tot[2] || 0) + (tot[3] || 0);
+    var corParcela = function (n) { return (n > 6 ? T.bad : n > 3 ? T.warn : T.ink); };
+    var corAte3 = function (p) { return (p >= 0.7 ? T.good : p >= 0.4 ? T.warn : T.bad); };
+    if (!cols.length)
+        return null;
     return (React.createElement("div", { style: { marginTop: 16 } },
         React.createElement("div", { style: { fontSize: 13, fontWeight: 700, marginBottom: 6 } },
             titulo,
-            React.createElement("span", { style: { fontSize: 12, fontWeight: 400, color: T.muted } }, " \u00B7 valor recebido no cr\u00E9dito, pelo n\u00FAmero de parcelas de cada O.S. Parcela longa \u00E9 a venda mais cara que existe.")),
+            React.createElement("span", { style: { fontSize: 12, fontWeight: 400, color: T.muted } }, " \u00B7 valor recebido no cr\u00E9dito, pelo n\u00FAmero de parcelas do cart\u00E3o. Parcela longa \u00E9 a venda mais cara que existe: quanto maior o \"At\u00E9 3x\", melhor.")),
         React.createElement(Card, { className: "p0 rolagem" },
-            React.createElement("table", { style: { minWidth: 700 + cols.length * 70 } },
+            React.createElement("table", { style: { minWidth: 340 + cols.length * 64 } },
                 React.createElement("thead", null,
                     React.createElement("tr", null,
                         React.createElement(Th, null, linhas[0] && linhas[0].sub !== undefined ? "Closer" : "Unidade"),
+                        React.createElement(Th, { right: true }, "Cr\u00E9dito"),
+                        React.createElement(Th, { right: true }, "At\u00E9 3x"),
                         cols.map(function (n) { return React.createElement(Th, { key: n, right: true },
                             n,
-                            "x"); }),
-                        React.createElement(Th, { right: true }, "Cr\u00E9dito"),
-                        React.createElement(Th, { right: true }, "At\u00E9 3x"))),
+                            "x"); }))),
                 React.createElement("tbody", null,
                     linhas.map(function (l) { return (React.createElement("tr", { key: l.nome },
                         React.createElement(Td, { bold: true },
@@ -3791,14 +4059,14 @@ function TabelaParcelas(_a) {
                             l.sub ? React.createElement("span", { style: { color: T.muted, fontWeight: 400 } },
                                 " \u00B7 ",
                                 l.sub) : null),
-                        cols.map(function (n) { var v = l.pg ? l.pg.porParcela[n] : 0; return React.createElement(Td, { key: n, right: true, color: v ? (n > 6 ? T.bad : n > 3 ? T.warn : T.ink) : T.muted }, v ? nReal(v) : "·"); }),
                         React.createElement(Td, { right: true, bold: true }, l.pg ? nReal(l.pg.credito) : React.createElement(Aguardando, null, "mensal")),
-                        React.createElement(Td, { right: true, color: l.pg ? (l.pg.pctAte3x >= 0.7 ? T.good : l.pg.pctAte3x >= 0.4 ? T.warn : T.bad) : T.muted }, l.pg ? nPct(l.pg.pctAte3x, 0) : "—"))); }),
+                        React.createElement(Td, { right: true, bold: true, color: l.pg && l.pg.credito ? corAte3(l.pg.pctAte3x) : T.muted }, l.pg && l.pg.credito ? nPct(l.pg.pctAte3x, 0) : "—"),
+                        cols.map(function (n) { var v = l.pg ? l.pg.porParcela[n] : 0; return React.createElement(Td, { key: n, right: true, color: v ? corParcela(n) : T.muted }, v ? nReal(v) : "·"); }))); }),
                     React.createElement("tr", null,
                         React.createElement(Td, { bold: true }, "Total"),
-                        cols.map(function (n) { return React.createElement(Td, { key: n, right: true, bold: true }, tot[n] ? nReal(tot[n]) : "·"); }),
                         React.createElement(Td, { right: true, bold: true }, nReal(totCred)),
-                        React.createElement(Td, { right: true, bold: true }, nPct(div(ate3, totCred), 0))))))));
+                        React.createElement(Td, { right: true, bold: true, color: totCred ? corAte3(div(ate3, totCred)) : T.muted }, nPct(div(ate3, totCred), 0)),
+                        cols.map(function (n) { return React.createElement(Td, { key: n, right: true, bold: true }, tot[n] ? nReal(tot[n]) : "·"); })))))));
 }
 /* ---------------------------- CLOSERS ---------------------------- */
 function AbaClosers() {
@@ -3810,7 +4078,10 @@ function AbaClosers() {
     if (!r)
         return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando\u2026");
     var _b = ritmoDoMes(r), du = _b.du, frac = _b.frac;
-    var closers = [].slice.call(r.closers).sort(function (a, b) { return Number(b.faturamento) - Number(a.faturamento); });
+    // O ranking sai do CADASTRO, não das O.S.: closer sem venda no mês (dia 1,
+    // férias, contratação nova) tem que aparecer com zero, senão a "meta somada"
+    // encolhe e a pessoa some da cobrança.
+    var closers = montarClosers(r);
     var totFat = somaCampo(closers, "faturamento"), totMeta = somaCampo(closers, "meta"), totCusto = somaCampo(closers, "custo");
     var totOs = somaCampo(closers, "os_qtd");
     var funilPor = {};
@@ -3848,9 +4119,9 @@ function AbaClosers() {
         React.createElement(Secao, { n: 1, titulo: "Ranking de closers", nota: "Faturamento por Data da OS, ".concat(du.diaDoMes, " de ").concat(du.diasNoMes, " dias do m\u00EAs (").concat(nPct(frac, 0), "). Verde = % da meta acompanha o m\u00EAs; \u00E2mbar at\u00E9 25% abaixo; vermelho al\u00E9m. Lucro bruto = faturamento menos custo de material.") },
             React.createElement("div", { className: "grid-kpi" },
                 React.createElement(Kpi, { label: "Faturamento dos closers", value: nReal(totFat), sub: "meta somada ".concat(nReal(totMeta)), foot: React.createElement(Barra, { pct: div(totFat, totMeta), cor: estadoMeta(div(totFat, totMeta), frac).cor }) }),
-                React.createElement(Kpi, { label: "% da meta", value: nPct(div(totFat, totMeta), 1), sub: "m\u00EAs em ".concat(nPct(frac, 0)), tone: div(totFat, totMeta) >= frac ? "good" : "bad" }),
+                React.createElement(Kpi, { label: "% da meta", value: nPct(div(totFat, totMeta), 1), sub: "m\u00EAs em ".concat(nPct(frac, 0)), tone: toneMeta(div(totFat, totMeta), frac) }),
                 React.createElement(Kpi, { label: "Lucro bruto", value: nPct(div(totFat - totCusto, totFat), 0), sub: nReal(totFat - totCusto), tone: "good" }),
-                React.createElement(Kpi, { label: "O.S. dos closers", value: nInt(totOs), sub: "ticket m\u00E9dio ".concat(nReal(div(totFat, totOs))) }),
+                React.createElement(Kpi, { label: "O.S. dos closers", value: nInt(totOs), sub: totOs ? "ticket m\u00E9dio ".concat(nReal(div(totFat, totOs))) : "sem O.S. no mês" }),
                 React.createElement(Kpi, { label: "L\u00EDder do m\u00EAs", value: lider ? String(lider.closer).split(" ")[0] : "—", sub: lider ? "".concat(nReal(lider.faturamento), " \u00B7 ").concat(nPct(div(Number(lider.faturamento), Number(lider.meta)), 0), " da meta") : "" })),
             React.createElement(Card, { className: "p0 rolagem", style: { marginTop: 12 } },
                 React.createElement("table", { style: { minWidth: 1000 } },
@@ -3888,13 +4159,13 @@ function AbaClosers() {
                                 React.createElement(Td, { right: true }, nReal(Math.max(0, meta - fat))),
                                 React.createElement(Td, { right: true, color: T.good }, nPct(div(fat - Number(c.custo), fat), 0)),
                                 React.createElement(Td, { right: true }, nInt(c.os_qtd)),
-                                React.createElement(Td, { right: true }, nReal(div(fat, Number(c.os_qtd)))),
+                                React.createElement(Td, { right: true, color: Number(c.os_qtd) ? T.ink : T.muted }, Number(c.os_qtd) ? nReal(div(fat, Number(c.os_qtd))) : "—"),
                                 React.createElement(Td, { right: true, color: ab.n ? T.warn : T.muted }, ab.n ? "".concat(ab.n, " \u00B7 ").concat(nReal(ab.v)) : "—"),
                                 React.createElement(Td, { right: true, color: ed ? ed.cor : T.muted, bold: !!(ed && ed.cor === T.bad) }, d ? textoDesconto(d.desconto, d.faturamento) : React.createElement(Aguardando, null, "semanal")),
                                 React.createElement(Td, { right: true, color: pg ? T.ink : T.muted }, pg ? nPct(pg.pctPix, 0) : React.createElement(Aguardando, null, "mensal"))));
                         }),
                         !closers.length && React.createElement("tr", null,
-                            React.createElement(Td, null, "Sem O.S. importadas neste m\u00EAs."))))),
+                            React.createElement(Td, null, "Nenhum closer no cadastro. Confira a tabela map_closer."))))),
             React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 10, lineHeight: 1.5 } },
                 React.createElement("b", null, "Desconto vs tabela"),
                 " \u00E9 o saldo do Vendas por Respons\u00E1vel",
@@ -3908,9 +4179,9 @@ function AbaClosers() {
                 " = parte do que foi recebido no m\u00EAs por PIX ou transfer\u00EAncia, do OS por Pagamento",
                 ex.importPagamento ? " (importado em ".concat(quando(ex.importPagamento), ")") : " (mensal — ainda não importado)",
                 ".")),
-        React.createElement(Secao, { n: 2, titulo: "Desconto e forma de pagamento", nota: "Desconto: saldo contra a tabela no m\u00EAs, por closer. Pagamento: o que entrou no m\u00EAs, por fam\u00EDlia de forma. Parcelas = m\u00E9dia ponderada s\u00F3 no cr\u00E9dito." },
+        React.createElement(Secao, { n: 2, titulo: "Desconto e forma de pagamento", nota: "Duas fontes diferentes do ranking acima: o desconto vem do Vendas por Respons\u00E1vel".concat(ex.importDesconto ? " (importado ".concat(quando(ex.importDesconto), ")") : "", " e o pagamento do OS por Pagamento").concat(ex.importPagamento ? " (importado ".concat(quando(ex.importPagamento), ")") : "", ". Por isso os totais aqui n\u00E3o fecham com o ranking, que \u00E9 por Data da OS.") },
             React.createElement("div", { className: "grid-kpi" },
-                React.createElement(Kpi, { label: "Desconto do grupo", value: ex.temDesconto ? textoDesconto(totDesc, totFatDesc) : "—", sub: ex.temDesconto ? "sobre ".concat(nReal(totFatDesc), " faturados pelos closers") : "aguardando Vendas por Responsável", tone: ex.temDesconto ? (totDesc < 0 ? "good" : div(totDesc, totFatDesc) > OF_LIMITE_DESCONTO ? "bad" : undefined) : undefined }),
+                React.createElement(Kpi, { label: "Desconto dos 7 closers", value: ex.temDesconto ? textoDesconto(totDesc, totFatDesc) : "—", sub: ex.temDesconto ? "sobre ".concat(nReal(totFatDesc), " no Vendas por Respons\u00E1vel") : "aguardando Vendas por Responsável", tone: ex.temDesconto ? (totDesc < 0 ? "good" : div(totDesc, totFatDesc) > OF_LIMITE_DESCONTO ? "bad" : undefined) : undefined }),
                 React.createElement(Kpi, { label: "Acima do limite", value: ex.temDesconto ? nInt(closers.filter(function (c) { return descDe(c) && div(descDe(c).desconto, descDe(c).faturamento) > OF_LIMITE_DESCONTO; }).length) : "—", sub: "closers com desconto acima de ".concat(nPct(OF_LIMITE_DESCONTO, 0)), tone: ex.temDesconto && closers.some(function (c) { return descDe(c) && div(descDe(c).desconto, descDe(c).faturamento) > OF_LIMITE_DESCONTO; }) ? "bad" : "good" }),
                 React.createElement(Kpi, { label: "Recebido no m\u00EAs", value: ex.temPagamento ? nReal(totPag) : "—", sub: ex.temPagamento ? "".concat(nPct(div(totPix, totPag), 0), " por PIX / transfer\u00EAncia") : "aguardando OS por Pagamento" }),
                 React.createElement(Kpi, { label: "\u00C0 vista", value: ex.temPagamento ? nPct(div(comPag.reduce(function (s, c) { return s + pagDe(c).pix + pagDe(c).debito + pagDe(c).dinheiro; }, 0), totPag), 0) : "—", sub: "PIX, d\u00E9bito e dinheiro", tone: ex.temPagamento ? "good" : undefined })),
@@ -3927,7 +4198,7 @@ function AbaClosers() {
                                 return React.createElement(Th, { key: k, right: true }, n);
                             }),
                             React.createElement(Th, { right: true }, "\u00C0 vista"),
-                            React.createElement(Th, { right: true }, "Parcelas (m\u00E9dia)"),
+                            React.createElement(Th, { right: true }, "Parcelas m\u00E9dias (cr\u00E9dito)"),
                             React.createElement(Th, { right: true }, "O.S. parceladas"))),
                     React.createElement("tbody", null, closers.map(function (c) {
                         var d = descDe(c), pg = pagDe(c);
@@ -3943,9 +4214,9 @@ function AbaClosers() {
                             }),
                             React.createElement(Td, { right: true, color: T.good }, pg ? nPct(pg.pctAVista, 0) : "—"),
                             React.createElement(Td, { right: true }, pg ? (pg.parcelasMedia ? "".concat(pg.parcelasMedia.toFixed(1).replace(".", ","), "x") : "—") : "—"),
-                            React.createElement(Td, { right: true }, pg ? "".concat(nInt(pg.osParceladas), " de ").concat(nInt(pg.osQtd)) : "—")));
+                            React.createElement(Td, { right: true }, pg ? (pg.osComCredito ? "".concat(nInt(pg.osParceladas), " de ").concat(nInt(pg.osComCredito), " no cr\u00E9dito") : "sem crédito") : "—")));
                     })))),
-            React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 10, lineHeight: 1.5 } }, "O Oficina registra o PIX como \"Transfer\u00EAncia DOC/TED\", por isso as duas aparecem juntas. \"Recebido\" \u00E9 o que o OS por Pagamento traz para o m\u00EAs \u2014 n\u00E3o \u00E9 o faturamento por Data da OS, e por isso n\u00E3o fecha com o ranking."),
+            React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 10, lineHeight: 1.5 } }, "O Oficina registra o PIX como \"Transfer\u00EAncia DOC/TED\", por isso as duas aparecem juntas. \"Recebido\" \u00E9 o que o OS por Pagamento traz para o m\u00EAs \u2014 n\u00E3o \u00E9 o faturamento por Data da OS, e por isso n\u00E3o fecha com o ranking. O parcelamento \u00E9 contado pelas linhas de cr\u00E9dito de cada cart\u00E3o (a coluna \"Pcl\" do relat\u00F3rio numera todas as linhas da O.S., inclusive a entrada no PIX)."),
             React.createElement(TabelaParcelas, { titulo: "Cr\u00E9dito parcelado, por closer", linhas: closers.map(function (c) { return ({ nome: c.closer, sub: c.loja, pg: pagDe(c) }); }) })),
         React.createElement(Secao, { n: 3, titulo: "O que cada um vende", nota: "Faturamento por setor, no crit\u00E9rio oficial de agrupamento. Mostra onde cada closer \u00E9 forte e onde n\u00E3o vende." },
             React.createElement(Card, { className: "p0 rolagem" },
@@ -4010,10 +4281,12 @@ function AbaClosers() {
                         "/dia hoje ",
                         faz >= precisa ? "✓" : "· abaixo do necessário")));
             }))),
-        React.createElement(Secao, { n: 6, titulo: "Ainda sem fonte autom\u00E1tica", nota: "Fica aqui de prop\u00F3sito, para ningu\u00E9m achar que o painel esqueceu." },
-            React.createElement("div", { className: "grid-kpi" },
-                React.createElement(Kpi, { label: "Avalia\u00E7\u00F5es Google", value: "\u2014", sub: "contagem manual por closer, mensal" }),
-                React.createElement(Kpi, { label: "Carros consignados", value: "\u2014", sub: "defini\u00E7\u00E3o pendente no Oficina" })))));
+        React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 22, paddingTop: 12, borderTop: "1px solid ".concat(T.hair), lineHeight: 1.5 } },
+            "Sem fonte autom\u00E1tica (de prop\u00F3sito, para ningu\u00E9m achar que o painel esqueceu): ",
+            React.createElement("b", null, "avalia\u00E7\u00F5es Google"),
+            " \u2014 contagem manual por closer, mensal; ",
+            React.createElement("b", null, "carros consignados"),
+            " \u2014 defini\u00E7\u00E3o pendente no Oficina.")));
 }
 /* ---------------------------- LOJAS ---------------------------- */
 function AbaLojas() {
@@ -4026,29 +4299,50 @@ function AbaLojas() {
     if (!r)
         return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando\u2026");
     var _c = ritmoDoMes(r), du = _c.du, frac = _c.frac;
-    var lojas = OF_LOJAS.map(function (l) { return r.lojas.filter(function (x) { return x.loja === l; })[0] || { loja: l, meta: (r.mapLoja.filter(function (m) { return m.loja === l; })[0] || {}).meta_mensal || 0, faturamento: 0, custo: 0, os_qtd: 0, os_closers: 0, fat_closers: 0, os_abertas: 0, valor_aberto: 0 }; })
-        .sort(function (a, b) { return div(Number(b.faturamento), Number(b.meta)) - div(Number(a.faturamento), Number(a.meta)); }); // ordem pelo peso fixo; a escada muda a meta, não a ordem
-    var somaMetas = somaCampo(lojas, "meta");
-    var escG = escadaMetas(somaCampo(lojas, "faturamento"), r.ex.metaGrupo);
+    var lojasBase = OF_LOJAS.map(function (l) { return r.lojas.filter(function (x) { return x.loja === l; })[0] || { loja: l, meta: (r.mapLoja.filter(function (m) { return m.loja === l; })[0] || {}).meta_mensal || 0, faturamento: 0, custo: 0, os_qtd: 0, os_closers: 0, fat_closers: 0, os_abertas: 0, valor_aberto: 0 }; });
+    var somaMetas = somaCampo(lojasBase, "meta");
+    var escG = escadaMetas(somaCampo(lojasBase, "faturamento"), r.ex.metaGrupo);
     // meta "atual" de cada loja = nível do grupo em que ela está, proporcional ao peso dela
     var escLoja = {};
-    lojas.forEach(function (l) { escLoja[l.loja] = escadaMetas(Number(l.faturamento), niveisDaLoja(escG.niveis, Number(l.meta), somaMetas)); });
-    var metaDe = function (l) { return escLoja[l.loja].atual; };
+    lojasBase.forEach(function (l) { escLoja[l.loja] = escadaMetas(Number(l.faturamento), niveisDaLoja(escG.niveis, Number(l.meta), somaMetas)); });
+    // ordena pela MESMA porcentagem que a tabela mostra (meta do nível atual),
+    // senão quem bateu a meta 1 aparece atrás de quem ainda está na meta 1.
+    var lojas = lojasBase.slice().sort(function (a, b) { return escLoja[b.loja].p - escLoja[a.loja].p; });
     var tot = { fat: somaCampo(lojas, "faturamento"), meta: escG.atual, custo: somaCampo(lojas, "custo"), os: somaCampo(lojas, "os_qtd"), abertas: somaCampo(lojas, "os_abertas"), vAberto: somaCampo(lojas, "valor_aberto") };
     var setorLoja = function (l, s) { return somaCampo(r.setores.filter(function (x) { return x.loja === l && x.setor === s; }), "faturamento"); };
     var setorTot = function (s) { return somaCampo(r.setores.filter(function (x) { return x.setor === s; }), "faturamento"); };
+    // 46 O.S. internas de R$ 0 (garantia, retrabalho, cortesia) inflavam a
+    // contagem e derrubavam o ticket médio. Elas continuam no total de O.S.,
+    // mas o ticket é calculado só com as que têm valor.
+    var osComValor = r.os.filter(function (o) { return Number(o.total) > 0; }).length;
+    var osInternas = r.os.length - osComValor;
     var abertas = r.os.filter(function (o) { return o.situacao === "Aberta"; }).sort(function (a, b) { return Number(b.total) - Number(a.total); });
     var abertasFiltradas = abertas.filter(function (o) { return lojaAberta === "todas" || o.loja === lojaAberta; });
+    // Dia útil sem O.S. precisa aparecer como barra zero: se o dia some, quem
+    // olha acha que foi domingo e não que não vendeu nada.
     var porDia = {};
     r.dias.forEach(function (d) { porDia[d.dt_os] = (porDia[d.dt_os] || 0) + Number(d.faturamento); });
-    var diasOrd = Object.keys(porDia).sort();
+    var diasOrd = [];
+    {
+        var refFim = r.ultimoDia || r.hojeISO;
+        for (var dia = r.inicioMes; dia <= refFim; dia = addDays(dia, 1)) {
+            if (parseISO(dia).getDay() === 0)
+                continue; // domingo não abre
+            if (!(dia in porDia))
+                porDia[dia] = 0;
+            diasOrd.push(dia);
+        }
+    }
     var maxDia = Math.max.apply(null, diasOrd.map(function (d) { return porDia[d]; }).concat([1]));
     var ex = r.ex;
     var mesAntNome = mesCurto(ex.mesAnt);
     var cresc = {};
     lojas.forEach(function (l) { cresc[l.loja] = crescimento(Number(l.faturamento), ex.antLoja[l.loja], du); });
-    var antTot = OF_LOJAS.reduce(function (s, l) { return s + (ex.antLoja[l] ? Number(ex.antLoja[l].faturamento) : 0); }, 0);
-    var crescTot = ex.temAnoAnterior ? crescimento(tot.fat, { faturamento: antTot, os_qtd: 0 }, du) : null;
+    // o grupo só é comparável se TODAS as lojas tiverem base do ano anterior;
+    // senão estaríamos comparando 4 lojas de hoje com 3 do ano passado.
+    var lojasComBase = OF_LOJAS.filter(function (l) { return ex.antLoja[l] && Number(ex.antLoja[l].faturamento); });
+    var antTot = lojasComBase.reduce(function (s, l) { return s + Number(ex.antLoja[l].faturamento); }, 0);
+    var crescTot = lojasComBase.length === OF_LOJAS.length ? crescimento(tot.fat, { faturamento: antTot, os_qtd: 0 }, du) : null;
     var descLojaTot = OF_LOJAS.reduce(function (s, l) { return s + (ex.descLoja[l] ? ex.descLoja[l].desconto : 0); }, 0);
     var fatLojaDesc = OF_LOJAS.reduce(function (s, l) { return s + (ex.descLoja[l] ? ex.descLoja[l].faturamento : 0); }, 0);
     return (React.createElement("div", null,
@@ -4065,7 +4359,7 @@ function AbaLojas() {
                             nPct(frac, 0)),
                         React.createElement(EscadaChips, { esc: escG })) }),
                 React.createElement(Kpi, { label: "Lucro bruto", value: nReal(tot.fat - tot.custo), sub: "".concat(nPct(div(tot.fat - tot.custo, tot.fat), 0), " do faturamento"), tone: "good" }),
-                React.createElement(Kpi, { label: "Ordens de servi\u00E7o", value: nInt(tot.os), sub: "ticket m\u00E9dio ".concat(nReal(div(tot.fat, tot.os))) }),
+                React.createElement(Kpi, { label: "Ordens de servi\u00E7o", value: nInt(tot.os), sub: "ticket m\u00E9dio ".concat(nReal(div(tot.fat, osComValor))).concat(osInternas ? " \u00B7 ".concat(nInt(osInternas), " internas sem valor") : "") }),
                 React.createElement(Kpi, { label: "O.S. em aberto", value: nInt(tot.abertas), sub: "".concat(nReal(tot.vAberto), " ainda abertos"), tone: tot.abertas ? "bad" : "good" }),
                 React.createElement(Kpi, { label: "Ritmo", value: nReal(tot.fat / du.passados), sub: "por dia \u00FAtil \u00B7 precisa de ".concat(nReal(Math.max(0, tot.meta - tot.fat) / du.restantes)), tone: tot.fat / du.passados >= Math.max(0, tot.meta - tot.fat) / du.restantes ? "good" : "bad" }))),
         React.createElement(Secao, { n: 2, titulo: "Ranking de unidades", nota: "Ordenado por % da meta, n\u00E3o por faturamento \u2014 \u00E9 o que compara lojas de tamanhos diferentes. A meta mostrada \u00E9 o n\u00EDvel da escada em que a loja est\u00E1 (proporcional ao peso dela no grupo)." },
@@ -4095,15 +4389,15 @@ function AbaLojas() {
                                 React.createElement(Td, { bold: true }, l.loja),
                                 React.createElement(Td, { right: true, bold: true }, nReal(fat)),
                                 React.createElement(Td, { right: true, color: T.muted },
-                                    nReal(meta),
-                                    React.createElement("div", { style: { fontSize: 10.5, color: esc.batidas ? T.good : T.muted } }, esc.todas ? "todas batidas ✓" : "meta ".concat(esc.nivel, " de ").concat(esc.niveis.length).concat(esc.batidas ? " ✓" : ""))),
+                                    esc.semMeta ? "—" : nReal(meta),
+                                    React.createElement("div", { style: { fontSize: 10.5, color: esc.batidas ? T.good : T.muted } }, esc.semMeta ? "sem meta cadastrada" : esc.todas ? "todas batidas ✓" : "meta ".concat(esc.nivel, " de ").concat(esc.niveis.length).concat(esc.batidas ? " ✓" : ""))),
                                 React.createElement(Td, { right: true },
                                     React.createElement(PctMeta, { p: div(fat, meta), frac: frac })),
                                 React.createElement(Td, { right: true }, nReal(Math.max(0, meta - fat))),
                                 React.createElement(Td, { right: true }, nReal(fat - Number(l.custo))),
                                 React.createElement(Td, { right: true, color: T.good }, nPct(div(fat - Number(l.custo), fat), 0)),
                                 React.createElement(Td, { right: true }, nInt(l.os_qtd)),
-                                React.createElement(Td, { right: true }, nReal(div(Number(l.fat_closers), Number(l.os_closers)))),
+                                React.createElement(Td, { right: true, color: Number(l.os_closers) ? T.ink : T.muted }, Number(l.os_closers) ? nReal(div(Number(l.fat_closers), Number(l.os_closers))) : "—"),
                                 React.createElement(Td, { right: true, color: Number(l.os_abertas) ? T.warn : T.muted },
                                     nInt(l.os_abertas),
                                     " \u00B7 ",
@@ -4123,7 +4417,7 @@ function AbaLojas() {
                             React.createElement(Td, { right: true }, nReal(tot.fat - tot.custo)),
                             React.createElement(Td, { right: true, color: T.good }, nPct(div(tot.fat - tot.custo, tot.fat), 0)),
                             React.createElement(Td, { right: true }, nInt(tot.os)),
-                            React.createElement(Td, { right: true }, "\u2014"),
+                            React.createElement(Td, { right: true }, nReal(div(somaCampo(lojas, "fat_closers"), somaCampo(lojas, "os_closers")))),
                             React.createElement(Td, { right: true },
                                 nInt(tot.abertas),
                                 " \u00B7 ",
@@ -4140,7 +4434,8 @@ function AbaLojas() {
                 React.createElement("b", null,
                     " vs ",
                     mesAntNome),
-                ": quanto do faturamento do mesmo m\u00EAs do ano passado j\u00E1 foi feito \u2014 detalhe na se\u00E7\u00E3o 6.")),
+                ": quanto do faturamento do mesmo m\u00EAs do ano passado j\u00E1 foi feito \u2014 detalhe na se\u00E7\u00E3o 6.",
+                crescTot ? "" : " O grupo fica em \"\u2014\" enquanto faltar a base de alguma loja em ".concat(mesAntNome, "."))),
         React.createElement(Secao, { n: 3, titulo: "Faturamento por setor", nota: "Crit\u00E9rio oficial de agrupamento (5 setores). Cada linha soma 100% da loja." },
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { minWidth: 820 } },
@@ -4164,7 +4459,7 @@ function AbaLojas() {
         React.createElement(Secao, { n: 4, titulo: "Dia a dia do m\u00EAs", nota: "Faturamento por Data da OS, as quatro lojas somadas. S\u00E1bado conta; domingo n\u00E3o abre." },
             React.createElement(Card, { className: "p16" },
                 React.createElement("div", { style: { display: "flex", alignItems: "flex-end", gap: 4, height: 120 } }, diasOrd.map(function (d) { return (React.createElement("div", { key: d, title: "".concat(brFull(d), " \u00B7 ").concat(nReal(porDia[d])), style: { flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 } },
-                    React.createElement("div", { style: { width: "100%", height: "".concat(Math.max(2, (porDia[d] / maxDia) * 100), "px"), background: T.ink, borderRadius: 3 } }),
+                    React.createElement("div", { style: { width: "100%", height: "".concat(Math.max(2, (porDia[d] / maxDia) * 100), "px"), background: porDia[d] ? T.ink : T.hair, borderRadius: 3 } }),
                     React.createElement("div", { style: { fontSize: 9.5, color: T.muted } }, br(d).slice(0, 2)))); })),
                 React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 8 } },
                     "melhor dia: ",
@@ -4179,7 +4474,8 @@ function AbaLojas() {
                 React.createElement("span", { style: { fontSize: 12, color: T.muted, alignSelf: "center" } },
                     abertasFiltradas.length,
                     " O.S. \u00B7 ",
-                    nReal(somaCampo(abertasFiltradas, "total")))),
+                    nReal(somaCampo(abertasFiltradas, "total")),
+                    abertasFiltradas.length > 80 ? " · mostrando as 80 maiores" : "")),
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { minWidth: 820 } },
                     React.createElement("thead", null,
@@ -4195,7 +4491,7 @@ function AbaLojas() {
                             React.createElement(Th, { right: true }, "Valor"))),
                     React.createElement("tbody", null,
                         abertasFiltradas.slice(0, 80).map(function (o) {
-                            var dias = diasEntre(o.dt_os, r.hojeISO) - 1;
+                            var dias = diasEntre(o.dt_os, r.ultimoDia || r.hojeISO) - 1;
                             return (React.createElement("tr", { key: o.loja + o.os_numero },
                                 React.createElement(Td, null, o.loja),
                                 React.createElement(Td, { bold: true }, o.os_numero),
@@ -4276,36 +4572,49 @@ function AbaLojas() {
                                 return React.createElement(Th, { key: k, right: true }, n);
                             }),
                             React.createElement(Th, { right: true }, "\u00C0 vista"),
-                            React.createElement(Th, { right: true }, "Parcelas (cr\u00E9dito)"),
+                            React.createElement(Th, { right: true }, "Parcelas m\u00E9dias (cr\u00E9dito)"),
                             React.createElement(Th, { right: true }, "O.S. parceladas"))),
-                    React.createElement("tbody", null, OF_LOJAS.map(function (l) {
-                        var pg = ex.pagLoja[l];
-                        if (!pg)
-                            return React.createElement("tr", { key: l },
+                    React.createElement("tbody", null,
+                        OF_LOJAS.map(function (l) {
+                            var pg = ex.pagLoja[l];
+                            if (!pg)
+                                return React.createElement("tr", { key: l },
+                                    React.createElement(Td, { bold: true }, l),
+                                    React.createElement(Td, { right: true },
+                                        React.createElement(Aguardando, null, "sem arquivo")),
+                                    FAMILIAS.slice(0, 4).map(function (_a) {
+                                        var _b = __read(_a, 1), k = _b[0];
+                                        return React.createElement(Td, { key: k, right: true, color: T.muted }, "\u2014");
+                                    }),
+                                    React.createElement(Td, { right: true }, "\u2014"),
+                                    React.createElement(Td, { right: true }, "\u2014"),
+                                    React.createElement(Td, { right: true }, "\u2014"));
+                            return (React.createElement("tr", { key: l },
                                 React.createElement(Td, { bold: true }, l),
-                                React.createElement(Td, { right: true },
-                                    React.createElement(Aguardando, null, "sem arquivo")),
+                                React.createElement(Td, { right: true, bold: true }, nReal(pg.total)),
                                 FAMILIAS.slice(0, 4).map(function (_a) {
                                     var _b = __read(_a, 1), k = _b[0];
-                                    return React.createElement(Td, { key: k, right: true, color: T.muted }, "\u2014");
+                                    return React.createElement(Td, { key: k, right: true, color: pg[k] ? T.ink : T.muted }, pg[k] ? "".concat(nReal(pg[k]), " \u00B7 ").concat(nPct(div(pg[k], pg.total), 0)) : "—");
                                 }),
+                                React.createElement(Td, { right: true, color: T.good }, nPct(pg.pctAVista, 0)),
+                                React.createElement(Td, { right: true }, pg.parcelasMedia ? "".concat(pg.parcelasMedia.toFixed(1).replace(".", ","), "x") : "—"),
+                                React.createElement(Td, { right: true }, pg.osComCredito ? "".concat(nInt(pg.osParceladas), " de ").concat(nInt(pg.osComCredito), " no cr\u00E9dito") : "sem crédito")));
+                        }),
+                        (function () {
+                            var g = { total: 0, pix: 0, credito: 0, debito: 0, dinheiro: 0, osParceladas: 0, osComCredito: 0 };
+                            OF_LOJAS.forEach(function (l) { var pg = ex.pagLoja[l]; if (!pg)
+                                return; ["total", "pix", "credito", "debito", "dinheiro", "osParceladas", "osComCredito"].forEach(function (k) { g[k] += pg[k] || 0; }); });
+                            return (React.createElement("tr", null,
+                                React.createElement(Td, { bold: true }, "Grupo"),
+                                React.createElement(Td, { right: true, bold: true }, nReal(g.total)),
+                                FAMILIAS.slice(0, 4).map(function (_a) {
+                                    var _b = __read(_a, 1), k = _b[0];
+                                    return React.createElement(Td, { key: k, right: true, bold: true }, g[k] ? "".concat(nReal(g[k]), " \u00B7 ").concat(nPct(div(g[k], g.total), 0)) : "—");
+                                }),
+                                React.createElement(Td, { right: true, bold: true, color: T.good }, nPct(div(g.pix + g.debito + g.dinheiro, g.total), 0)),
                                 React.createElement(Td, { right: true }, "\u2014"),
-                                React.createElement(Td, { right: true }, "\u2014"),
-                                React.createElement(Td, { right: true }, "\u2014"));
-                        return (React.createElement("tr", { key: l },
-                            React.createElement(Td, { bold: true }, l),
-                            React.createElement(Td, { right: true, bold: true }, nReal(pg.total)),
-                            FAMILIAS.slice(0, 4).map(function (_a) {
-                                var _b = __read(_a, 1), k = _b[0];
-                                return React.createElement(Td, { key: k, right: true, color: pg[k] ? T.ink : T.muted }, pg[k] ? "".concat(nReal(pg[k]), " \u00B7 ").concat(nPct(div(pg[k], pg.total), 0)) : "—");
-                            }),
-                            React.createElement(Td, { right: true, color: T.good }, nPct(pg.pctAVista, 0)),
-                            React.createElement(Td, { right: true }, pg.parcelasMedia ? "".concat(pg.parcelasMedia.toFixed(1).replace(".", ","), "x") : "—"),
-                            React.createElement(Td, { right: true },
-                                nInt(pg.osParceladas),
-                                " de ",
-                                nInt(pg.osQtd))));
-                    }))))),
+                                React.createElement(Td, { right: true, bold: true }, g.osComCredito ? "".concat(nInt(g.osParceladas), " de ").concat(nInt(g.osComCredito), " no cr\u00E9dito") : "—")));
+                        })())))),
             ex.temPagamento && React.createElement(TabelaParcelas, { titulo: "Cr\u00E9dito parcelado, por loja", linhas: OF_LOJAS.map(function (l) { return ({ nome: l, pg: ex.pagLoja[l] }); }) }))));
 }
 /* ---------------------------- ORIGEM ---------------------------- */
@@ -4317,36 +4626,45 @@ function AbaOrigem() {
             erro);
     if (!r)
         return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando\u2026");
+    // As 46 O.S. internas de R$ 0 (garantia, retrabalho, cortesia) caem em
+    // CLIENTE LOJA e derrubavam o ticket do balcão pela metade. Aqui só contam
+    // O.S. com valor; as internas aparecem à parte.
+    var comValor = r.os.filter(function (o) { return Number(o.total) > 0; });
+    var canalDaOs = {};
+    r.origem.forEach(function (o) { canalDaOs[String(o.pesquisa || "")] = o.canal; });
+    var canalDe = function (o) { return canalDaOs[String(o.pesquisa || "")] || (o.pesquisa ? "Outros" : "(em branco)"); };
     var porCanal = {};
     var porPesq = {};
-    r.origem.forEach(function (o) {
-        var c = porCanal[o.canal] || (porCanal[o.canal] = { os: 0, fat: 0 });
-        c.os += Number(o.os_qtd);
-        c.fat += Number(o.faturamento);
-        var p = porPesq[o.pesquisa] || (porPesq[o.pesquisa] = { os: 0, fat: 0, lojas: {} });
-        p.os += Number(o.os_qtd);
-        p.fat += Number(o.faturamento);
-        p.lojas[o.loja] = (p.lojas[o.loja] || 0) + Number(o.faturamento);
+    comValor.forEach(function (o) {
+        var canal = canalDe(o), pesquisa = o.pesquisa || "(em branco)", v = Number(o.total);
+        var c = porCanal[canal] || (porCanal[canal] = { os: 0, fat: 0 });
+        c.os++;
+        c.fat += v;
+        var p = porPesq[pesquisa] || (porPesq[pesquisa] = { os: 0, fat: 0, lojas: {} });
+        p.os++;
+        p.fat += v;
+        p.lojas[o.loja] = (p.lojas[o.loja] || 0) + v;
     });
+    var internas = r.os.length - comValor.length;
     var totOs = somaCampo(Object.values(porCanal), "os"), totFat = somaCampo(Object.values(porCanal), "fat");
     var canais = ["SDR", "Loja", "Outros", "(em branco)"].map(function (c) { return ({ canal: c, os: (porCanal[c] || {}).os || 0, fat: (porCanal[c] || {}).fat || 0 }); });
     var pesq = Object.keys(porPesq).map(function (k) { return ({ pesquisa: k, os: porPesq[k].os, fat: porPesq[k].fat, lojas: porPesq[k].lojas }); }).sort(function (a, b) { return b.fat - a.fat; });
     var sdr = canais[0], loja = canais[1];
     var porLojaCanal = {};
-    r.origem.forEach(function (o) { var k = o.loja; var s = porLojaCanal[k] || (porLojaCanal[k] = {}); s[o.canal] = (s[o.canal] || 0) + Number(o.faturamento); });
+    comValor.forEach(function (o) { var k = o.loja; var s = porLojaCanal[k] || (porLojaCanal[k] = {}); var c = canalDe(o); s[c] = (s[c] || 0) + Number(o.total); });
     return (React.createElement("div", null,
         React.createElement(AvisoBase, { r: r, carregar: carregar }),
-        React.createElement(Secao, { n: 1, titulo: "De onde vem a venda", nota: "Campo Pesquisa da O.S. no Oficina. 'SDR' = qualquer 'NOME AGENDAMENTO'; 'Loja' = cliente que chegou por conta pr\u00F3pria. Em branco \u00E9 O.S. sem origem preenchida \u2014 \u00E9 preenchimento, n\u00E3o canal." },
+        React.createElement(Secao, { n: 1, titulo: "De onde vem a venda", nota: "Campo Pesquisa da O.S. no Oficina. 'SDR' = qualquer 'NOME AGENDAMENTO'; 'CLIENTE LOJA' = cliente que chegou por conta pr\u00F3pria. Em branco \u00E9 O.S. sem origem preenchida \u2014 \u00E9 preenchimento, n\u00E3o canal. S\u00F3 entram O.S. com valor: garantia, retrabalho e cortesia ficam de fora para n\u00E3o derrubar o ticket." },
             React.createElement("div", { className: "grid-kpi" },
                 React.createElement(Kpi, { label: "Vendas via SDR", value: nPct(div(sdr.fat, totFat), 0), sub: "".concat(nReal(sdr.fat), " \u00B7 ").concat(nInt(sdr.os), " O.S."), foot: React.createElement("span", { style: { fontSize: 11.5, color: T.muted } },
                         "ticket ",
                         nReal(div(sdr.fat, sdr.os))), tone: "good" }),
-                React.createElement(Kpi, { label: "Cliente loja (balc\u00E3o)", value: nPct(div(loja.fat, totFat), 0), sub: "".concat(nReal(loja.fat), " \u00B7 ").concat(nInt(loja.os), " O.S."), foot: React.createElement("span", { style: { fontSize: 11.5, color: T.muted } },
+                React.createElement(Kpi, { label: "CLIENTE LOJA", value: nPct(div(loja.fat, totFat), 0), sub: "".concat(nReal(loja.fat), " \u00B7 ").concat(nInt(loja.os), " O.S."), foot: React.createElement("span", { style: { fontSize: 11.5, color: T.muted } },
                         "ticket ",
                         nReal(div(loja.fat, loja.os))) }),
                 React.createElement(Kpi, { label: "Sem origem preenchida", value: nInt(canais[3].os), sub: "".concat(nReal(canais[3].fat), " sem saber de onde veio"), tone: canais[3].os ? "bad" : "good" }),
-                React.createElement(Kpi, { label: "Total", value: nReal(totFat), sub: "".concat(nInt(totOs), " O.S. no m\u00EAs") }))),
-        React.createElement(Secao, { n: 2, titulo: "Por SDR", nota: "Faturamento das O.S. cuja Pesquisa aponta o SDR. \u00C9 o resultado do agendamento, medido na ponta \u2014 no ERP, n\u00E3o no CRM." },
+                React.createElement(Kpi, { label: "Total", value: nReal(totFat), sub: "".concat(nInt(totOs), " O.S. com valor").concat(internas ? " \u00B7 ".concat(nInt(internas), " internas sem valor") : "") }))),
+        React.createElement(Secao, { n: 2, titulo: "Por origem (campo Pesquisa)", nota: "Cada valor do campo Pesquisa da O.S., como est\u00E1 no Oficina \u2014 inclui os agendamentos dos SDRs, CLIENTE LOJA e o resto. \u00C9 o resultado medido na ponta: no ERP, n\u00E3o no CRM." },
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { minWidth: 820 } },
                     React.createElement("thead", null,
@@ -4364,14 +4682,14 @@ function AbaOrigem() {
                         React.createElement(Td, { right: true }, nPct(div(p.fat, totFat), 0)),
                         React.createElement(Td, { right: true }, nReal(div(p.fat, p.os))),
                         OF_LOJAS.map(function (l) { return React.createElement(Td, { key: l, right: true, color: p.lojas[l] ? T.ink : T.muted }, p.lojas[l] ? nReal(p.lojas[l]) : "—"); }))); }))))),
-        React.createElement(Secao, { n: 3, titulo: "Por loja", nota: "Quanto de cada loja veio de SDR e quanto veio de balc\u00E3o." },
+        React.createElement(Secao, { n: 3, titulo: "Por loja", nota: "Quanto de cada loja veio de agendamento do SDR e quanto veio de CLIENTE LOJA." },
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { minWidth: 700 } },
                     React.createElement("thead", null,
                         React.createElement("tr", null,
                             React.createElement(Th, null, "Loja"),
                             React.createElement(Th, { right: true }, "Via SDR"),
-                            React.createElement(Th, { right: true }, "Balc\u00E3o"),
+                            React.createElement(Th, { right: true }, "CLIENTE LOJA"),
                             React.createElement(Th, { right: true }, "Outros"),
                             React.createElement(Th, { right: true }, "Sem origem"),
                             React.createElement(Th, { right: true }, "% SDR"))),
@@ -4384,7 +4702,7 @@ function AbaOrigem() {
                             React.createElement(Td, { right: true }, nReal(s.Loja || 0)),
                             React.createElement(Td, { right: true }, nReal(s.Outros || 0)),
                             React.createElement(Td, { right: true, color: s["(em branco)"] ? T.bad : T.muted }, nReal(s["(em branco)"] || 0)),
-                            React.createElement(Td, { right: true, bold: true, color: T.good }, nPct(div(s.SDR || 0, t), 0))));
+                            React.createElement(Td, { right: true, bold: true }, nPct(div(s.SDR || 0, t), 0))));
                     })))))));
 }
 function App() {
@@ -4419,7 +4737,9 @@ function App() {
         })
             .catch(function () { if (vivo)
             setSessao(null); })
-            .finally(function () { return clearTimeout(prazo); });
+            /* .then(x, x) e não .finally: Promise.finally não existe no Chromium
+               da TV (anterior ao 63) e o erro derrubaria a tela de entrada. */
+            .then(function () { return clearTimeout(prazo); }, function () { return clearTimeout(prazo); });
         var sub = db.auth.onAuthStateChange(function (_e, s) { if (vivo)
             setSessao(s); }).data;
         return function () { vivo = false; clearTimeout(prazo); sub.subscription.unsubscribe(); };
