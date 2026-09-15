@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v30 — CAR SERVICE</title>
-<meta name="painel-versao" content="v30">
+<title>Painel de SDR v35 — CAR SERVICE</title>
+<meta name="painel-versao" content="v35">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -65,6 +65,21 @@
           font-variant-numeric: tabular-nums; }
   .colsRotina table, .rolagem > table { min-width: 0; }
   .rolagem { max-width: 100%; }
+  /* Divisória entre as linhas (pedido do Rafael, 15/09): nas tabelas de 13
+     colunas o olho perdia a linha no meio do caminho. A borda sozinha, em
+     cinza claro, sumia na tela da loja — então vai borda um tom mais forte
+     MAIS faixa zebrada, que é o que segura a leitura na horizontal.
+     O cabeçalho é sticky e tem fundo próprio, por isso fica de fora. */
+  tbody tr:nth-child(even) > td { background: #FAFAFA; }
+  tbody tr:hover > td { background: #F4F7F6; }
+  /* Grade vertical entre as colunas (Rafael, 15/09). Um tom mais claro que a
+     divisória horizontal de propósito: a linha que separa pessoas tem que
+     pesar mais que a que separa colunas, senão vira papel quadriculado. */
+  tbody td + td, thead th + th { border-left: 1px solid #ECECEC; }
+  /* A TV é tela escura e tem estilo próprio: nada disso vale lá. */
+  .telatv tbody tr:nth-child(even) > td,
+  .telatv tbody tr:hover > td { background: transparent; }
+  .telatv tbody td + td, .telatv thead th + th { border-left: 0; }
   .dt { font-size: 13px; border: 1px solid #E2E2E2; border-radius: 8px; padding: 7px 10px;
         background: #fff; color: #1A1A1A; }
   code { font-family: ui-monospace, Menlo, monospace; font-size: .92em; }
@@ -459,14 +474,14 @@ var Barra = function (_a) {
 };
 var Th = function (_a) {
     var children = _a.children, right = _a.right, w = _a.w;
-    return (React.createElement("th", { style: { textAlign: right ? "right" : "left", padding: "9px 10px", fontSize: 10.5,
+    return (React.createElement("th", { style: { textAlign: right ? "center" : "left", padding: "9px 10px", fontSize: 10.5,
             letterSpacing: ".06em", textTransform: "uppercase", color: T.muted, fontWeight: 600,
             borderBottom: "1px solid ".concat(T.hair), whiteSpace: "nowrap", width: w,
             background: T.surface, position: "sticky", top: 0 } }, children));
 };
 var Td = function (_a) {
     var children = _a.children, right = _a.right, bold = _a.bold, color = _a.color, _b = _a.style, style = _b === void 0 ? {} : _b;
-    return (React.createElement("td", { style: __assign({ textAlign: right ? "right" : "left", padding: "9px 10px", fontSize: 13, color: color || T.ink, fontWeight: bold ? 700 : 400, fontVariantNumeric: "tabular-nums", borderBottom: "1px solid ".concat(T.hair), whiteSpace: "nowrap" }, style) }, children));
+    return (React.createElement("td", { style: __assign({ textAlign: right ? "center" : "left", padding: "9px 10px", fontSize: 13, verticalAlign: "middle", color: color || T.ink, fontWeight: bold ? 700 : 400, fontVariantNumeric: "tabular-nums", borderBottom: "1px solid #D6D6D6", whiteSpace: "nowrap" }, style) }, children));
 };
 var Select = function (_a) {
     var value = _a.value, onChange = _a.onChange, options = _a.options, _b = _a.style, style = _b === void 0 ? {} : _b;
@@ -969,7 +984,7 @@ function AbaCoordenador(_a) {
     var Cel = function (_a) {
         var v = _a.v, m = _a.m, dinheiro = _a.dinheiro;
         return (React.createElement(Td, { right: true },
-            React.createElement("div", { style: { display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 } },
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", alignItems: "center", gap: 2 } },
                 React.createElement("span", { style: { fontFamily: F_NUM, fontWeight: 700, fontSize: 14 } }, dinheiro ? nReal(v) : nInt(v)),
                 falta(v, m, dinheiro))));
     };
@@ -1343,7 +1358,7 @@ function ModoTV(_a) {
                     color: v === 0 ? VERDE : VERMELHO, fontVariantNumeric: "tabular-nums" } }, nInt(v)),
             React.createElement("div", { style: { fontSize: 15, color: "#A9B0B8", marginTop: 8, lineHeight: 1.35 } }, l)));
     };
-    return (React.createElement("div", { style: { background: T.ink, borderRadius: 10, padding: "30px 34px", color: "#fff",
+    return (React.createElement("div", { className: "telatv", style: { background: T.ink, borderRadius: 10, padding: "30px 34px", color: "#fff",
             display: "flex", flexDirection: "column", gap: 20 } },
         React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "space-between",
                 alignItems: "center", borderBottom: "1px solid ".concat(LINHA), paddingBottom: 16 } },
@@ -3895,6 +3910,27 @@ function AbaResumo(_a) {
    parcelas (1x..12x) por closer e por loja, como no desenho aprovado. */
 var OF_SETORES = ["PPF", "Películas", "Estética", "Funilaria", "Acessórios"];
 var OF_LOJAS = ["Itaim", "Ipiranga", "Bandeirantes", "Tatuapé"];
+/* Meta por setor (v31, 15/09) — regra do Rafael: pega a meta da LOJA, reparte
+   entre os setores e divide pelo número de closers ativos daquela loja.
+   O banco não guarda meta por setor em lugar nenhum, então o peso de cada
+   setor está AQUI e é PROVISÓRIO: saiu do mix realizado de setembro/2026
+   (01 a 15). Quando o Rafael passar o percentual oficial, troque só estes
+   números — o resto da conta se ajusta sozinho. Cada loja tem que somar 1. */
+var OF_PESO_SETOR = {
+    "Itaim": { "PPF": 0.40, "Películas": 0.25, "Estética": 0.04, "Funilaria": 0.20, "Acessórios": 0.11 },
+    "Ipiranga": { "PPF": 0.23, "Películas": 0.28, "Estética": 0.09, "Funilaria": 0.17, "Acessórios": 0.23 },
+    "Bandeirantes": { "PPF": 0.40, "Películas": 0.46, "Estética": 0.06, "Funilaria": 0.07, "Acessórios": 0.01 },
+    "Tatuapé": { "PPF": 0.26, "Películas": 0.47, "Estética": 0.07, "Funilaria": 0.03, "Acessórios": 0.17 },
+};
+/* R$ curto, só para caber embaixo do valor na tabela de setores */
+var nCurto = function (v) {
+    var n = Number(v) || 0;
+    if (n >= 1000000)
+        return "R$ " + (n / 1000000).toFixed(1).replace(".", ",") + " mi";
+    if (n >= 1000)
+        return "R$ " + nInt(Math.round(n / 1000)) + " mil";
+    return nReal(n);
+};
 function useOficina() {
     var _this = this;
     var _a = __read(useState(null), 2), r = _a[0], setR = _a[1];
@@ -3993,10 +4029,23 @@ var Aguardando = function (_a) {
 var PctMeta = function (_a) {
     var p = _a.p, frac = _a.frac;
     var e = estadoMeta(p, frac);
-    return (React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, justifyContent: "flex-end" } },
+    return (React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, justifyContent: "center" } },
         React.createElement("span", { style: { color: e.cor, fontWeight: 700 } }, nPct(p, 0)),
         React.createElement("span", { style: { width: 54 } },
             React.createElement(Barra, { pct: p, cor: e.cor, alt: 6 }))));
+};
+/* Célula da tabela "O que cada um vende": valor em cima, % da meta do setor
+   embaixo. A cor é a mesma régua do resto do painel (ritmo do mês). */
+var CelulaSetor = function (_a) {
+    var valor = _a.valor, meta = _a.meta, frac = _a.frac, forte = _a.forte;
+    var v = Number(valor) || 0, m = Number(meta) || 0, p = div(v, m);
+    var e = estadoMeta(p, frac);
+    return (React.createElement(Td, { right: true, bold: !!forte, color: v ? T.ink : T.muted },
+        v ? nReal(v) : "—",
+        React.createElement("div", { style: { fontSize: 11, fontWeight: 400, color: T.muted, marginTop: 2, whiteSpace: "nowrap" } }, m ? React.createElement("span", null,
+            React.createElement("span", { style: { color: e.cor, fontWeight: 700 } }, nPct(p, 0)),
+            " de ",
+            nCurto(m)) : "sem meta")));
 };
 function AvisoBase(_a) {
     var r = _a.r, carregar = _a.carregar;
@@ -4027,52 +4076,71 @@ function AvisoBase(_a) {
         React.createElement("button", { onClick: carregar, style: { marginLeft: "auto", fontSize: 12, borderRadius: 8, padding: "6px 12px", border: "1px solid ".concat(T.hair),
                 background: T.surface, color: T.ink2, cursor: "pointer", fontFamily: F_UI } }, "Atualizar")));
 }
-/* Crédito por número de parcelas do cartão — 1x a 12x, como no desenho de 14/09.
-   Crédito e "Até 3x" ficam ANTES das colunas de parcela: com 12 colunas elas
-   saíam da tela e ninguém via justamente o que interessa. Colunas sem nenhum
-   valor não são desenhadas. */
+/* Crédito parcelado em 4 faixas (v32, 15/09/2026) — 12 colunas de 1x a 12x
+   ninguém lia: são 12 números por linha e o olho não acha o que importa.
+   As faixas são as do Rafael: 1 a 3, 4 a 6, 7 a 10, 11 e 12.
+   Manda o %, porque é ele que compara closer grande com closer pequeno;
+   o R$ fica embaixo, menor, para saber quanto dinheiro está preso na
+   parcela longa. A barra repete a mesma informação em imagem — mesma
+   ordem, mesmas cores — para bater o olho e comparar as linhas. */
+var OF_FAIXAS = [
+    { rot: "1 a 3x", de: 1, ate: 3, cor: "#0B7A5A", txt: "#0B7A5A" },
+    { rot: "4 a 6x", de: 4, ate: 6, cor: "#E0A238", txt: "#8A5A00" },
+    { rot: "7 a 10x", de: 7, ate: 10, cor: "#C85A16", txt: "#A8480C" },
+    { rot: "11 e 12x", de: 11, ate: 12, cor: "#9E1420", txt: "#9E1420" },
+];
+var somaFaixa = function (pg, f) { var s = 0; for (var n = f.de; n <= f.ate; n++)
+    s += (pg.porParcela[n] || 0); return s; };
+var BarraFaixas = function (_a) {
+    var partes = _a.partes, total = _a.total;
+    return (React.createElement("div", { style: { display: "flex", gap: 2, height: 10, width: 170 } }, partes.map(function (v, i) { return (v > 0
+        ? React.createElement("div", { key: i, style: { width: "".concat(div(v, total) * 100, "%"), background: OF_FAIXAS[i].cor, borderRadius: 3 } })
+        : null); })));
+};
 function TabelaParcelas(_a) {
     var titulo = _a.titulo, linhas = _a.linhas;
-    var NS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-    var cols = NS.filter(function (n) { return linhas.some(function (l) { return l.pg && l.pg.porParcela[n]; }); });
-    var tot = {};
-    var totCred = 0;
-    linhas.forEach(function (l) { if (!l.pg)
-        return; totCred += l.pg.credito; cols.forEach(function (n) { tot[n] = (tot[n] || 0) + (l.pg.porParcela[n] || 0); }); });
-    var ate3 = (tot[1] || 0) + (tot[2] || 0) + (tot[3] || 0);
-    var corParcela = function (n) { return (n > 6 ? T.bad : n > 3 ? T.warn : T.ink); };
-    var corAte3 = function (p) { return (p >= 0.7 ? T.good : p >= 0.4 ? T.warn : T.bad); };
-    if (!cols.length)
+    var comCredito = linhas.filter(function (l) { return l.pg && l.pg.credito; });
+    if (!comCredito.length)
         return null;
+    var totCred = comCredito.reduce(function (s, l) { return s + l.pg.credito; }, 0);
+    var tot = OF_FAIXAS.map(function (f) { return comCredito.reduce(function (s, l) { return s + somaFaixa(l.pg, f); }, 0); });
     return (React.createElement("div", { style: { marginTop: 16 } },
         React.createElement("div", { style: { fontSize: 13, fontWeight: 700, marginBottom: 6 } },
             titulo,
-            React.createElement("span", { style: { fontSize: 12, fontWeight: 400, color: T.muted } }, " \u00B7 valor recebido no cr\u00E9dito, pelo n\u00FAmero de parcelas do cart\u00E3o. Parcela longa \u00E9 a venda mais cara que existe: quanto maior o \"At\u00E9 3x\", melhor.")),
+            React.createElement("span", { style: { fontSize: 12, fontWeight: 400, color: T.muted } }, " \u00B7 quanto do cr\u00E9dito de cada um foi parcelado em cada faixa. Parcela longa \u00E9 a venda mais cara que existe: quanto mais peso em 1 a 3x, melhor.")),
+        React.createElement("div", { style: { display: "flex", gap: 14, flexWrap: "wrap", margin: "0 0 8px" } }, OF_FAIXAS.map(function (f) { return (React.createElement("span", { key: f.rot, style: { fontSize: 11.5, color: T.ink2, display: "flex", alignItems: "center", gap: 5 } },
+            React.createElement("span", { style: { width: 11, height: 11, borderRadius: 3, background: f.cor, display: "inline-block" } }),
+            f.rot)); })),
         React.createElement(Card, { className: "p0 rolagem" },
-            React.createElement("table", { style: { minWidth: 340 + cols.length * 64 } },
+            React.createElement("table", { style: { minWidth: 860 } },
                 React.createElement("thead", null,
                     React.createElement("tr", null,
                         React.createElement(Th, null, linhas[0] && linhas[0].sub !== undefined ? "Closer" : "Unidade"),
                         React.createElement(Th, { right: true }, "Cr\u00E9dito"),
-                        React.createElement(Th, { right: true }, "At\u00E9 3x"),
-                        cols.map(function (n) { return React.createElement(Th, { key: n, right: true },
-                            n,
-                            "x"); }))),
+                        OF_FAIXAS.map(function (f) { return React.createElement(Th, { key: f.rot, right: true }, f.rot); }),
+                        React.createElement(Th, null, "Como est\u00E1 dividido"))),
                 React.createElement("tbody", null,
-                    linhas.map(function (l) { return (React.createElement("tr", { key: l.nome },
-                        React.createElement(Td, { bold: true },
-                            l.nome,
-                            l.sub ? React.createElement("span", { style: { color: T.muted, fontWeight: 400 } },
-                                " \u00B7 ",
-                                l.sub) : null),
-                        React.createElement(Td, { right: true, bold: true }, l.pg ? nReal(l.pg.credito) : React.createElement(Aguardando, null, "mensal")),
-                        React.createElement(Td, { right: true, bold: true, color: l.pg && l.pg.credito ? corAte3(l.pg.pctAte3x) : T.muted }, l.pg && l.pg.credito ? nPct(l.pg.pctAte3x, 0) : "—"),
-                        cols.map(function (n) { var v = l.pg ? l.pg.porParcela[n] : 0; return React.createElement(Td, { key: n, right: true, color: v ? corParcela(n) : T.muted }, v ? nReal(v) : "·"); }))); }),
+                    linhas.map(function (l) {
+                        var cred = l.pg ? l.pg.credito : 0;
+                        var v = l.pg ? OF_FAIXAS.map(function (f) { return somaFaixa(l.pg, f); }) : null;
+                        return (React.createElement("tr", { key: l.nome },
+                            React.createElement(Td, { bold: true },
+                                l.nome,
+                                l.sub ? React.createElement("div", { style: { fontSize: 11, color: T.muted, fontWeight: 400 } }, l.sub) : null),
+                            React.createElement(Td, { right: true, bold: true }, l.pg ? nReal(cred) : React.createElement(Aguardando, null, "mensal")),
+                            OF_FAIXAS.map(function (f, i) { return (React.createElement(Td, { key: f.rot, right: true, color: v && cred && v[i] ? f.txt : T.muted, bold: !!(v && cred && v[i]) },
+                                v && cred ? nPct(div(v[i], cred), 0) : "—",
+                                v && cred && v[i] ? React.createElement("div", { style: { fontSize: 11, fontWeight: 400, color: T.muted, marginTop: 2 } }, nReal(v[i])) : null)); }),
+                            React.createElement(Td, null, v && cred ? React.createElement(BarraFaixas, { partes: v, total: cred }) : null)));
+                    }),
                     React.createElement("tr", null,
                         React.createElement(Td, { bold: true }, "Total"),
                         React.createElement(Td, { right: true, bold: true }, nReal(totCred)),
-                        React.createElement(Td, { right: true, bold: true, color: totCred ? corAte3(div(ate3, totCred)) : T.muted }, nPct(div(ate3, totCred), 0)),
-                        cols.map(function (n) { return React.createElement(Td, { key: n, right: true, bold: true }, tot[n] ? nReal(tot[n]) : "·"); })))))));
+                        OF_FAIXAS.map(function (f, i) { return (React.createElement(Td, { key: f.rot, right: true, bold: true, color: tot[i] ? f.txt : T.muted },
+                            nPct(div(tot[i], totCred), 0),
+                            tot[i] ? React.createElement("div", { style: { fontSize: 11, fontWeight: 400, color: T.muted, marginTop: 2 } }, nReal(tot[i])) : null)); }),
+                        React.createElement(Td, null,
+                            React.createElement(BarraFaixas, { partes: tot, total: totCred }))))))));
 }
 /* ---------------------------- CLOSERS ---------------------------- */
 function AbaClosers() {
@@ -4105,6 +4173,16 @@ function AbaClosers() {
     var setorPorCloser = {};
     r.itens.forEach(function (i) { if (!i.closer)
         return; var s = setorPorCloser[i.closer] || (setorPorCloser[i.closer] = {}); s[i.setor] = (s[i.setor] || 0) + Number(i.total); });
+    // meta por setor por closer = meta da loja x peso do setor / nº de closers da loja
+    var metaDaLoja = {};
+    (r.mapLoja || []).forEach(function (m) { metaDaLoja[m.loja] = Number(m.meta_mensal) || 0; });
+    var closersDaLoja = {};
+    closers.forEach(function (c) { closersDaLoja[c.loja] = (closersDaLoja[c.loja] || 0) + 1; });
+    var metaSetorCloser = function (loja, setor) {
+        var peso = (OF_PESO_SETOR[loja] || {})[setor] || 0;
+        return div((metaDaLoja[loja] || 0) * peso, closersDaLoja[loja] || 1);
+    };
+    var metaSetorTotal = function (loja) { return div(metaDaLoja[loja] || 0, closersDaLoja[loja] || 1); };
     var abertasPorCloser = {};
     r.os.forEach(function (o) { if (o.closer && o.situacao === "Aberta") {
         var s = abertasPorCloser[o.closer] || (abertasPorCloser[o.closer] = { n: 0, v: 0 });
@@ -4224,22 +4302,37 @@ function AbaClosers() {
                     })))),
             React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 10, lineHeight: 1.5 } }, "O Oficina registra o PIX como \"Transfer\u00EAncia DOC/TED\", por isso as duas aparecem juntas. \"Recebido\" \u00E9 o que o OS por Pagamento traz para o m\u00EAs \u2014 n\u00E3o \u00E9 o faturamento por Data da OS, e por isso n\u00E3o fecha com o ranking. O parcelamento \u00E9 contado pelas linhas de cr\u00E9dito de cada cart\u00E3o (a coluna \"Pcl\" do relat\u00F3rio numera todas as linhas da O.S., inclusive a entrada no PIX)."),
             React.createElement(TabelaParcelas, { titulo: "Cr\u00E9dito parcelado, por closer", linhas: closers.map(function (c) { return ({ nome: c.closer, sub: c.loja, pg: pagDe(c) }); }) })),
-        React.createElement(Secao, { n: 3, titulo: "O que cada um vende", nota: "Faturamento por setor, no crit\u00E9rio oficial de agrupamento. Mostra onde cada closer \u00E9 forte e onde n\u00E3o vende." },
+        React.createElement(Secao, { n: 3, titulo: "O que cada um vende", nota: "Faturamento por setor, no crit\u00E9rio oficial de agrupamento, contra a meta do setor. A meta de cada um sai da meta da loja repartida entre os setores e dividida pelos closers da loja. Cor pelo ritmo do m\u00EAs (".concat(nPct(frac, 0), " corrido): verde no ritmo, \u00E2mbar at\u00E9 25% abaixo, vermelho al\u00E9m.") },
             React.createElement(Card, { className: "p0 rolagem" },
-                React.createElement("table", { style: { minWidth: 820 } },
+                React.createElement("table", { style: { minWidth: 980 } },
                     React.createElement("thead", null,
                         React.createElement("tr", null,
                             React.createElement(Th, null, "Closer"),
                             OF_SETORES.map(function (s) { return React.createElement(Th, { key: s, right: true }, s); }),
                             React.createElement(Th, { right: true }, "Total"))),
-                    React.createElement("tbody", null, closers.map(function (c) {
-                        var s = setorPorCloser[c.closer] || {};
-                        var tot = Number(c.faturamento);
-                        return (React.createElement("tr", { key: c.closer_codigo },
-                            React.createElement(Td, { bold: true }, c.closer),
-                            OF_SETORES.map(function (k) { return React.createElement(Td, { key: k, right: true, color: s[k] ? T.ink : T.muted }, s[k] ? "".concat(nReal(s[k]), " \u00B7 ").concat(nPct(div(s[k], tot), 0)) : "—"); }),
-                            React.createElement(Td, { right: true, bold: true }, nReal(tot))));
-                    }))))),
+                    React.createElement("tbody", null,
+                        closers.map(function (c) {
+                            var s = setorPorCloser[c.closer] || {};
+                            var tot = Number(c.faturamento);
+                            var mTot = metaSetorTotal(c.loja);
+                            return (React.createElement("tr", { key: c.closer_codigo },
+                                React.createElement(Td, { bold: true },
+                                    c.closer,
+                                    React.createElement("div", { style: { fontSize: 11, color: T.muted, fontWeight: 400 } }, c.loja)),
+                                OF_SETORES.map(function (k) { return React.createElement(CelulaSetor, { key: k, valor: s[k] || 0, meta: metaSetorCloser(c.loja, k), frac: frac }); }),
+                                React.createElement(CelulaSetor, { valor: tot, meta: mTot, frac: frac, forte: true })));
+                        }),
+                        React.createElement("tr", null,
+                            React.createElement(Td, { bold: true }, "Grupo"),
+                            OF_SETORES.map(function (k) { return (React.createElement(CelulaSetor, { key: k, forte: true, frac: frac, valor: closers.reduce(function (a, c) { return a + ((setorPorCloser[c.closer] || {})[k] || 0); }, 0), meta: closers.reduce(function (a, c) { return a + metaSetorCloser(c.loja, k); }, 0) })); }),
+                            React.createElement(CelulaSetor, { forte: true, frac: frac, valor: totFat, meta: closers.reduce(function (a, c) { return a + metaSetorTotal(c.loja); }, 0) }))))),
+            React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 10, lineHeight: 1.5 } },
+                React.createElement("b", null, "Como a meta do setor \u00E9 calculada:"),
+                " meta da loja (",
+                OF_LOJAS.map(function (l) { return "".concat(l, " ").concat(nCurto(metaDaLoja[l] || 0)); }).join(" · "),
+                ") repartida pelo peso de cada setor e dividida pelo n\u00FAmero de closers da loja. ",
+                React.createElement("b", null, "O peso de cada setor ainda \u00E9 provis\u00F3rio"),
+                " \u2014 saiu do que cada loja vendeu neste m\u00EAs, porque o sistema n\u00E3o guarda meta por setor. Passe o percentual oficial que eu troco.")),
         React.createElement(Secao, { n: 4, titulo: "Leads na m\u00E3o de cada closer", nota: "Direto do Kommo, lente 'dono atual': leads em aberto cujo respons\u00E1vel \u00E9 o closer. Parado = sem nenhuma atualiza\u00E7\u00E3o h\u00E1 mais de 14 dias. P\u00F3s-visita = cliente j\u00E1 veio \u00E0 loja e ainda est\u00E1 em negocia\u00E7\u00E3o." },
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { minWidth: 900 } },
