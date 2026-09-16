@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v35 — CAR SERVICE</title>
-<meta name="painel-versao" content="v35">
+<title>Painel de SDR v36 — CAR SERVICE</title>
+<meta name="painel-versao" content="v36">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -1893,21 +1893,25 @@ function Painel(_a) {
        transforma a tela da sala num favorito, e o botão voltar do navegador
        passa a funcionar entre as abas. */
     /* Perfil de acesso (15/09/2026): vem do JWT (app_metadata.perfil). 'admin'
-       vê tudo; qualquer outro (ou nenhum) vê só SDR, Coordenador e Modo TV. O
-       banco recusa as tabelas do comercial para quem não é admin — aqui é só
-       a parte visível da regra, não a segurança em si. */
+       vê tudo; 'importador' (16/09) vê SÓ a aba Importar — é o login de quem
+       exporta os relatórios do Oficina e não tem nada a ver com os números;
+       qualquer outro (ou nenhum) vê só SDR, Coordenador e Modo TV. O banco
+       recusa as tabelas do comercial para quem não pode — aqui é só a parte
+       visível da regra, não a segurança em si. */
     var perfil = ((sessao && sessao.user && sessao.user.app_metadata) || {}).perfil || "sdr";
     var ehAdmin = perfil === "admin";
+    var ehImportador = perfil === "importador";
     var ABAS = [["painel", "SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["closers", "Closers"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]];
     var ABAS_SDR = ["painel", "coordenador", "tv"];
-    var podeVer = function (v) { return ehAdmin || ABAS_SDR.indexOf(v) >= 0; };
+    var podeVer = function (v) { return (ehAdmin ? true : ehImportador ? v === "importar" : ABAS_SDR.indexOf(v) >= 0); };
+    var abaInicial = ehImportador ? "importar" : "painel";
     var abaDaURL = function () {
         var h = String(window.location.hash || "").replace("#", "");
         var conhecida = ABAS.some(function (_a) {
             var _b = __read(_a, 1), v = _b[0];
             return v === h;
         });
-        return conhecida && podeVer(h) ? h : "painel";
+        return conhecida && podeVer(h) ? h : abaInicial;
     };
     var _d = __read(useState(abaDaURL), 2), aba = _d[0], setAbaBruto = _d[1];
     var setAba = function (v) {
@@ -2318,7 +2322,7 @@ function Painel(_a) {
                         color: aba === v ? "#fff" : T.ink2 } }, l));
             })),
             aba !== "painel" && aba !== "importar" && aba !== "resumo" && aba !== "closers" && aba !== "lojas" && aba !== "origem" && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
-            ehAdmin && aba === "importar" && React.createElement(AbaImportar, { sessao: sessao }),
+            (ehAdmin || ehImportador) && aba === "importar" && React.createElement(AbaImportar, { sessao: sessao }),
             ehAdmin && aba === "resumo" && React.createElement(AbaResumo, { sessao: sessao }),
             ehAdmin && aba === "closers" && React.createElement(AbaClosers, null),
             ehAdmin && aba === "lojas" && React.createElement(AbaLojas, null),
