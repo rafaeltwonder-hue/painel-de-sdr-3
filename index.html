@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v38 — CAR SERVICE</title>
-<meta name="painel-versao" content="v38">
+<title>Painel de SDR v40 — CAR SERVICE</title>
+<meta name="painel-versao" content="v40">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -2754,7 +2754,6 @@ function ChecklistImport(_a) {
     var lista = _a.lista;
     var hojeISO = hoje();
     var inicioMes = hojeISO.slice(0, 8) + "01";
-    var seteAtras = addDays(hojeISO, -6);
     var mesAnt = String(Number(inicioMes.slice(0, 4)) - 1) + inicioMes.slice(4);
     var ok = function (a) { return a.status === "ok"; };
     var diaDe = function (a) { return (a.processado_em ? iso(new Date(a.processado_em)) : null); };
@@ -2763,7 +2762,9 @@ function ChecklistImport(_a) {
     // 16/09: o Vendas por Empresa do MÊS ATUAL entrou na rotina diária — é a
     // conferência do faturamento com o Mapa de Metas do Oficina (aba Lojas).
     var empresaHoje = doTipo("vendas_empresa").filter(function (a) { return a.periodo_ini === inicioMes && diaDe(a) === hojeISO; });
-    var faltamVR = LOJAS_IMPORT.filter(function (l) { return !doTipo("vendas_responsavel").some(function (a) { return a.loja === l && a.periodo_ini === inicioMes && diaDe(a) >= seteAtras; }); });
+    // 16/09: Vendas por Responsável virou diário — é ele que dá a conferência
+    // por closer e o desconto do dia. Cobrado por loja, com o arquivo de HOJE.
+    var faltamVR = LOJAS_IMPORT.filter(function (l) { return !doTipo("vendas_responsavel").some(function (a) { return a.loja === l && a.periodo_ini === inicioMes && diaDe(a) === hojeISO; }); });
     var faltamPag = LOJAS_IMPORT.filter(function (l) { return !doTipo("os_pagamento").some(function (a) { return a.loja === l && a.periodo_ini === inicioMes; }); });
     var temAnterior = doTipo("vendas_empresa").some(function (a) { return a.periodo_ini === mesAnt; });
     var itens = [
@@ -2771,13 +2772,25 @@ function ChecklistImport(_a) {
             det: listagemHoje.length ? "importada hoje" : "não foi importada hoje — é o arquivo que move todo o painel" },
         { t: "Vendas por Empresa do mês atual", quando: "todo dia", falta: !empresaHoje.length,
             det: empresaHoje.length ? "conferência com o ERP em dia" : "sem a conferência de hoje — a aba Lojas não compara com o Mapa de Metas" },
-        { t: "Vendas por Responsável", quando: "1 por loja, toda semana", falta: !!faltamVR.length,
-            det: faltamVR.length ? "faltando desta semana: ".concat(faltamVR.join(", ")) : "as 4 lojas em dia" },
+        { t: "Vendas por Responsável", quando: "1 por loja, todo dia", falta: !!faltamVR.length,
+            det: faltamVR.length ? "faltando hoje: ".concat(faltamVR.join(", ")) : "as 4 lojas em dia" },
         { t: "OS por Pagamento", quando: "1 por loja, todo mês", falta: !!faltamPag.length,
             det: faltamPag.length ? "faltando neste m\u00EAs: ".concat(faltamPag.join(", ")) : "as 4 lojas em dia" },
         { t: "Vendas por Empresa do ano anterior", quando: "1 vez por mês", falta: !temAnterior,
             det: temAnterior ? "base do crescimento carregada" : "sem a base do mesmo mês do ano passado — o crescimento fica vazio" },
     ];
+    /* Alarme de contagem em dobro (16/09/2026). O arquivo novo só substitui o
+       antigo quando o recorte é idêntico — inclusive a DATA FINAL. Se alguém
+       exportar "01 a 16" num dia e "01 a 30" no outro, as duas cargas ficam
+       válidas e o mês conta em dobro, sem nenhum erro na tela. Aqui isso vira
+       um aviso vermelho: dois arquivos "gravado" do mesmo relatório, mesma loja
+       e mesmo mês é sinal de recorte diferente. */
+    var cargas = {};
+    (lista || []).filter(ok).forEach(function (a) {
+        var k = [a.tipo, a.loja, a.periodo_ini].join(" · ");
+        (cargas[k] || (cargas[k] = [])).push(a);
+    });
+    var dobradas = Object.keys(cargas).filter(function (k) { return cargas[k].length > 1; });
     var faltando = itens.filter(function (x) { return x.falta; }).length;
     return (React.createElement(Card, { className: "p16", style: { marginBottom: 14, borderColor: faltando ? "#F0DDA0" : T.hair, background: faltando ? "#FFFDF5" : T.surface } },
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
@@ -2787,7 +2800,17 @@ function ChecklistImport(_a) {
             React.createElement("span", { style: { color: x.falta ? T.warn : T.good, fontWeight: 700, width: 14 } }, x.falta ? "•" : "✓"),
             React.createElement("span", { style: { fontWeight: 600 } }, x.t),
             React.createElement("span", { style: { color: T.muted, fontSize: 12 } }, x.quando),
-            React.createElement("span", { style: { color: x.falta ? T.warn : T.muted, fontSize: 12, marginLeft: "auto", textAlign: "right" } }, x.det))); }))));
+            React.createElement("span", { style: { color: x.falta ? T.warn : T.muted, fontSize: 12, marginLeft: "auto", textAlign: "right" } }, x.det))); })),
+        !!dobradas.length && (React.createElement("div", { style: { marginTop: 12, border: "1px solid #F0C3C6", background: "#FDF3F3", borderRadius: 8, padding: "10px 12px" } },
+            React.createElement("div", { style: { fontSize: 12.5, color: T.bad, fontWeight: 700 } },
+                "Aten\u00E7\u00E3o: ",
+                dobradas.length === 1 ? "um relatório está" : "".concat(dobradas.length, " relat\u00F3rios est\u00E3o"),
+                " contando em dobro"),
+            React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 4, lineHeight: 1.5 } },
+                dobradas.join(" · "),
+                " \u2014 h\u00E1 mais de um arquivo v\u00E1lido do mesmo m\u00EAs, quase sempre porque a data final da exporta\u00E7\u00E3o foi diferente (por exemplo \"01 a 16\" em vez de \"01 a 30\"). ",
+                React.createElement("b", null, "Exporte de novo com o m\u00EAs inteiro"),
+                ", do dia 1 ao \u00FAltimo dia, e avise o Rafael.")))));
 }
 function AbaImportar(_a) {
     var _this = this;
@@ -3246,18 +3269,57 @@ function agregarOficinaExtra(_a) {
     Object.keys(pagCloser).forEach(function (k) { pagCloser[k] = fecha(pagCloser[k]); });
     Object.keys(pagLoja).forEach(function (k) { pagLoja[k] = fecha(pagLoja[k]); });
     // ano anterior por loja
+    // Se por acidente houver duas cargas do mesmo mês (exportação com data final
+    // diferente), vale sempre a do arquivo mais novo — nunca a primeira lida.
+    var maisNovo = function (atual, e) { return (!atual || Number(e.arquivo_id || 0) >= Number(atual.arquivo_id || 0) ? e : atual); };
     var antLoja = {};
     (empresaAnt || []).forEach(function (e) { if (e.periodo_ini === mesAnt)
-        antLoja[e.loja] = e; });
+        antLoja[e.loja] = maisNovo(antLoja[e.loja], e); });
     // Conferência com o ERP (16/09/2026): "Vendas por Empresa" do MÊS ATUAL.
     // O arquivo diário sai por Data da OS e não enxerga O.S. de meses anteriores
     // faturadas agora; este relatório traz o faturamento pelo critério do próprio
     // Oficina. Serve para mostrar a diferença em vez de discutir qual está certo.
     var erpMes = {};
     (empresaMes || []).forEach(function (e) { if (!inicioMes || e.periodo_ini === inicioMes)
-        erpMes[e.loja] = e; });
+        erpMes[e.loja] = maisNovo(erpMes[e.loja], e); });
     return { descCloser: descCloser, descLoja: descLoja, pagCloser: pagCloser, pagLoja: pagLoja, pagPorOs: pagPorOs, lojasComPagamento: lojasComPagamento, antLoja: antLoja, erpMes: erpMes, temDesconto: !!(vendasResp || []).length, temPagamento: !!(pagamentos || []).length,
         temAnoAnterior: !!Object.keys(antLoja).length, temErpMes: !!Object.keys(erpMes).length };
+}
+/* Busca em páginas de 1000 (16/09/2026). O Supabase corta em 1000 linhas SEM
+   avisar: em 16/09 o fato_dia do mês já estava em 864 linhas e o oi_item_v em
+   606 — os dois passariam de 1000 antes do fim do mês e o painel começaria a
+   mostrar número menor, sem erro nenhum na tela. Toda consulta que cresce com
+   o mês passa por aqui. */
+var PAGINA_OI = 1000;
+function pegaPaginado(montar) {
+    return __awaiter(this, void 0, void 0, function () {
+        var todas, i, _a, data, error, lote, j;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
+                case 0:
+                    todas = [];
+                    i = 0;
+                    _b.label = 1;
+                case 1:
+                    if (!(i < 40)) return [3 /*break*/, 4];
+                    return [4 /*yield*/, montar().range(i * PAGINA_OI, (i + 1) * PAGINA_OI - 1)];
+                case 2:
+                    _a = _b.sent(), data = _a.data, error = _a.error;
+                    if (error)
+                        throw new Error(error.message);
+                    lote = data || [];
+                    for (j = 0; j < lote.length; j++)
+                        todas.push(lote[j]);
+                    if (lote.length < PAGINA_OI)
+                        return [3 /*break*/, 4];
+                    _b.label = 3;
+                case 3:
+                    i++;
+                    return [3 /*break*/, 1];
+                case 4: return [2 /*return*/, todas];
+            }
+        });
+    });
 }
 /* consultas das três fontes, para as abas reaproveitarem */
 function consultasOficinaExtra(inicioMes) {
@@ -3265,10 +3327,11 @@ function consultasOficinaExtra(inicioMes) {
     return {
         mesAnt: mesAnt,
         vendasResp: db.from("oi_vendas_responsavel").select("loja,erp_codigo,erp_nome,faturamento,desconto,os_qtd").eq("periodo_ini", inicioMes),
-        pagamentos: db.from("oi_os_pagamento").select("loja,os_numero,forma,parcela,valor,erp_curto").eq("periodo_ini", inicioMes),
-        empresaAnt: db.from("oi_vendas_empresa").select("loja,periodo_ini,faturamento,desconto,custo,lucro_bruto,os_qtd,ticket_medio").eq("periodo_ini", mesAnt),
+        // cresce com o mês (390 linhas em 16/09) — vai paginado
+        pagamentosFn: function () { return db.from("oi_os_pagamento").select("loja,os_numero,forma,parcela,valor,erp_curto").eq("periodo_ini", inicioMes); },
+        empresaAnt: db.from("oi_vendas_empresa").select("arquivo_id,loja,periodo_ini,faturamento,desconto,custo,lucro_bruto,os_qtd,ticket_medio").eq("periodo_ini", mesAnt),
         // mesmo relatório, mês corrente: é a conferência do faturamento com o ERP
-        empresaMes: db.from("oi_vendas_empresa").select("loja,periodo_ini,faturamento,desconto,custo,lucro_bruto,os_qtd,ticket_medio").eq("periodo_ini", inicioMes),
+        empresaMes: db.from("oi_vendas_empresa").select("arquivo_id,loja,periodo_ini,faturamento,desconto,custo,lucro_bruto,os_qtd,ticket_medio").eq("periodo_ini", inicioMes),
         mapCloser: db.from("map_closer").select("erp_codigo,erp_curto,nome_oficial,unidade,meta_mensal,ativo"),
         // escada de metas: se a tabela ainda não existir, cai nos padrões (nunca derruba a aba)
         metaGrupo: Promise.resolve(db.from("meta_grupo").select("nivel,valor").order("nivel")).then(function (r) { return (r && !r.error && r.data && r.data.length ? r.data.map(function (x) { return Number(x.valor); }) : META_GRUPO_PADRAO); }, function () { return META_GRUPO_PADRAO; }),
@@ -3791,7 +3854,7 @@ function AbaResumo(_a) {
                     }); }); };
                     extra = consultasOficinaExtra(inicioMes);
                     return [4 /*yield*/, Promise.all([
-                            pega(db.from("fato_dia").select("*").gte("data", inicioMes).lte("data", hojeISO)),
+                            pegaPaginado(function () { return db.from("fato_dia").select("*").gte("data", inicioMes).lte("data", hojeISO); }),
                             pega(db.from("equipe_sdr").select("sdr,ativo").eq("ativo", true)),
                             pega(db.from("meta_do_mes").select("*").limit(1)),
                             pega(db.from("resumo_loja_v").select("*").eq("mes", inicioMes)),
@@ -3985,14 +4048,14 @@ function useOficina() {
                             pega(db.from("resumo_closer_v").select("*").eq("mes", inicioMes)),
                             pega(db.from("resumo_setor_v").select("*").eq("mes", inicioMes)),
                             pega(db.from("resumo_dia_v").select("*").eq("mes", inicioMes).order("dt_os")),
-                            pega(db.from("resumo_os_v").select("loja,os_numero,dt_os,situacao,closer,erp_nome,pesquisa,placa,veiculo,total,custo,dt_faturamento").eq("mes", inicioMes)),
+                            pegaPaginado(function () { return db.from("resumo_os_v").select("loja,os_numero,dt_os,situacao,closer,erp_nome,pesquisa,placa,veiculo,total,custo,dt_faturamento").eq("mes", inicioMes); }),
                             pega(db.from("resumo_origem_v").select("*").eq("mes", inicioMes)),
-                            pega(db.from("oi_item_v").select("loja,closer,setor,total,custo_total,executor").eq("mes", inicioMes)),
+                            pegaPaginado(function () { return db.from("oi_item_v").select("loja,closer,setor,total,custo_total,executor").eq("mes", inicioMes); }),
                             pega(db.from("funil_closer_v").select("*")),
                             pega(db.from("map_loja").select("*")),
                             pega(db.from("oi_arquivos").select("id,loja,periodo_ini,processado_em,status,tipo").eq("tipo", "listagem_itens").eq("status", "ok")
                                 .gte("periodo_ini", inicioMes).order("processado_em", { ascending: false }).limit(8)),
-                            pega(extra.vendasResp), pega(extra.pagamentos), pega(extra.empresaAnt), pega(extra.empresaMes), pega(extra.mapCloser),
+                            pega(extra.vendasResp), pegaPaginado(extra.pagamentosFn), pega(extra.empresaAnt), pega(extra.empresaMes), pega(extra.mapCloser),
                             pega(db.from("oi_arquivos").select("id,loja,tipo,periodo_ini,processado_em").eq("status", "ok")
                                 .in("tipo", ["vendas_responsavel", "os_pagamento", "vendas_empresa"]).order("processado_em", { ascending: false }).limit(200)),
                             extra.metaGrupo,
@@ -4165,6 +4228,56 @@ function TabelaParcelas(_a) {
                         React.createElement(Td, null,
                             React.createElement(BarraFaixas, { partes: tot, total: totCred }))))))));
 }
+/* diferença abaixo de R$ 1 é arredondamento: vira zero para não sair "-R$ 0" */
+var difLimpa = function (x) { var d = (x.erp || 0) - (x.nosso || 0); return Math.abs(d) < 1 ? 0 : d; };
+/* Conferência por closer (16/09/2026). Mesma ideia da conferência das lojas:
+   o ranking sai da Listagem (Data da OS) e o Vendas por Responsável traz o
+   faturamento pelo critério do próprio Oficina. Só faz sentido com o arquivo
+   do dia — por isso o Vendas por Responsável virou rotina diária. */
+function ConferenciaCloser(_a) {
+    var closers = _a.closers, ex = _a.ex, descDe = _a.descDe;
+    if (!ex.temDesconto)
+        return null;
+    var quandoBR = function (iso) { return (iso ? new Date(iso).toLocaleDateString("pt-BR") : ""); };
+    var linhas = closers.map(function (c) {
+        var d = descDe(c);
+        return { nome: c.closer, loja: c.loja, erp: d ? Number(d.faturamento) || 0 : null, nosso: Number(c.faturamento) || 0 };
+    });
+    var totErp = linhas.reduce(function (s, x) { return s + (x.erp || 0); }, 0);
+    var totNosso = linhas.reduce(function (s, x) { return s + x.nosso; }, 0);
+    var cor = function (dif, base) { return (Math.abs(div(dif, base)) > 0.02 ? T.warn : T.ink); };
+    return (React.createElement("div", { style: { marginTop: 16 } },
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 700, marginBottom: 6 } },
+            "Confer\u00EAncia com o ERP",
+            React.createElement("span", { style: { fontSize: 12, fontWeight: 400, color: T.muted } },
+                " \u00B7 faturamento de cada um no Vendas por Respons\u00E1vel contra o ranking, que \u00E9 por Data da OS.",
+                ex.importDesconto ? " Arquivo de ".concat(quandoBR(ex.importDesconto), ".") : "")),
+        React.createElement(Card, { className: "p0 rolagem" },
+            React.createElement("table", { style: { minWidth: 700 } },
+                React.createElement("thead", null,
+                    React.createElement("tr", null,
+                        React.createElement(Th, null, "Closer"),
+                        React.createElement(Th, { right: true }, "ERP (Vendas por Respons\u00E1vel)"),
+                        React.createElement(Th, { right: true }, "Painel (Data da OS)"),
+                        React.createElement(Th, { right: true }, "Diferen\u00E7a"),
+                        React.createElement(Th, { right: true }, "% da diferen\u00E7a"))),
+                React.createElement("tbody", null,
+                    linhas.map(function (x) { return (React.createElement("tr", { key: x.nome },
+                        React.createElement(Td, { bold: true },
+                            x.nome,
+                            React.createElement("div", { style: { fontSize: 11, color: T.muted, fontWeight: 400 } }, x.loja)),
+                        React.createElement(Td, { right: true }, x.erp == null ? React.createElement(Aguardando, null, "do dia") : nReal(x.erp)),
+                        React.createElement(Td, { right: true }, nReal(x.nosso)),
+                        React.createElement(Td, { right: true, bold: true, color: x.erp == null ? T.muted : cor(difLimpa(x), x.erp || x.nosso) }, x.erp == null ? "—" : nReal(difLimpa(x))),
+                        React.createElement(Td, { right: true, color: x.erp == null ? T.muted : cor(difLimpa(x), x.erp || x.nosso) }, x.erp == null ? "—" : nPct(div(difLimpa(x), x.erp || x.nosso), 1)))); }),
+                    React.createElement("tr", null,
+                        React.createElement(Td, { bold: true }, "Total"),
+                        React.createElement(Td, { right: true, bold: true }, nReal(totErp)),
+                        React.createElement(Td, { right: true, bold: true }, nReal(totNosso)),
+                        React.createElement(Td, { right: true, bold: true, color: cor(totErp - totNosso, totErp || totNosso) }, nReal(totErp - totNosso)),
+                        React.createElement(Td, { right: true, bold: true, color: cor(totErp - totNosso, totErp || totNosso) }, nPct(div(totErp - totNosso, totErp || totNosso), 1)))))),
+        React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 8, lineHeight: 1.5 } }, "Diferen\u00E7a at\u00E9 2% \u00E9 ru\u00EDdo de arredondamento e O.S. lan\u00E7ada entre uma exporta\u00E7\u00E3o e outra. Acima disso costuma ser O.S. de m\u00EAs anterior faturada agora, ou O.S. trocada de respons\u00E1vel depois de aberta.")));
+}
 /* Conferência do faturamento com o ERP (16/09/2026, pedido do Rafael).
    O arquivo diário sai POR DATA DA OS: O.S. aberta em agosto e faturada em
    setembro não entra nele, e por isso o Mapa de Metas do Oficina mostra um
@@ -4208,8 +4321,8 @@ function ConferenciaErp(_a) {
                         React.createElement(Td, { bold: true }, x.loja),
                         React.createElement(Td, { right: true }, x.erp == null ? "—" : nReal(x.erp)),
                         React.createElement(Td, { right: true }, nReal(x.nosso)),
-                        React.createElement(Td, { right: true, bold: true, color: x.erp == null ? T.muted : cor(x.erp - x.nosso, x.erp) }, x.erp == null ? "—" : nReal(x.erp - x.nosso)),
-                        React.createElement(Td, { right: true, color: x.erp == null ? T.muted : cor(x.erp - x.nosso, x.erp) }, x.erp == null ? "—" : nPct(div(x.erp - x.nosso, x.erp), 1)))); }),
+                        React.createElement(Td, { right: true, bold: true, color: x.erp == null ? T.muted : cor(difLimpa(x), x.erp) }, x.erp == null ? "—" : nReal(difLimpa(x))),
+                        React.createElement(Td, { right: true, color: x.erp == null ? T.muted : cor(difLimpa(x), x.erp) }, x.erp == null ? "—" : nPct(div(difLimpa(x), x.erp), 1)))); }),
                     React.createElement("tr", null,
                         React.createElement(Td, { bold: true }, "Grupo"),
                         React.createElement(Td, { right: true, bold: true }, nReal(totErp)),
@@ -4262,6 +4375,11 @@ function AbaClosers() {
         return div((metaDaLoja[loja] || 0) * peso, closersDaLoja[loja] || 1);
     };
     var metaSetorTotal = function (loja) { return div(metaDaLoja[loja] || 0, closersDaLoja[loja] || 1); };
+    // mesma correção da aba Lojas: ticket só sobre O.S. com valor
+    var osValorCloser = {};
+    r.os.forEach(function (o) { if (o.closer && Number(o.total) > 0)
+        osValorCloser[o.closer] = (osValorCloser[o.closer] || 0) + 1; });
+    var osValorTotal = Object.keys(osValorCloser).reduce(function (a, k) { return a + osValorCloser[k]; }, 0);
     var abertasPorCloser = {};
     r.os.forEach(function (o) { if (o.closer && o.situacao === "Aberta") {
         var s = abertasPorCloser[o.closer] || (abertasPorCloser[o.closer] = { n: 0, v: 0 });
@@ -4284,7 +4402,7 @@ function AbaClosers() {
                 React.createElement(Kpi, { label: "Faturamento dos closers", value: nReal(totFat), sub: "meta somada ".concat(nReal(totMeta)), foot: React.createElement(Barra, { pct: div(totFat, totMeta), cor: estadoMeta(div(totFat, totMeta), frac).cor }) }),
                 React.createElement(Kpi, { label: "% da meta", value: nPct(div(totFat, totMeta), 1), sub: "m\u00EAs em ".concat(nPct(frac, 0)), tone: toneMeta(div(totFat, totMeta), frac) }),
                 React.createElement(Kpi, { label: "Lucro bruto", value: nPct(div(totFat - totCusto, totFat), 0), sub: nReal(totFat - totCusto), tone: "good" }),
-                React.createElement(Kpi, { label: "O.S. dos closers", value: nInt(totOs), sub: totOs ? "ticket m\u00E9dio ".concat(nReal(div(totFat, totOs))) : "sem O.S. no mês" }),
+                React.createElement(Kpi, { label: "O.S. dos closers", value: nInt(totOs), sub: osValorTotal ? "ticket m\u00E9dio ".concat(nReal(div(totFat, osValorTotal)), " \u00B7 ").concat(nInt(Math.max(0, totOs - osValorTotal)), " sem valor") : "sem O.S. no mês" }),
                 React.createElement(Kpi, { label: "L\u00EDder do m\u00EAs", value: lider ? String(lider.closer).split(" ")[0] : "—", sub: lider ? "".concat(nReal(lider.faturamento), " \u00B7 ").concat(nPct(div(Number(lider.faturamento), Number(lider.meta)), 0), " da meta") : "" })),
             React.createElement(Card, { className: "p0 rolagem", style: { marginTop: 12 } },
                 React.createElement("table", { style: { minWidth: 1000 } },
@@ -4322,17 +4440,18 @@ function AbaClosers() {
                                 React.createElement(Td, { right: true }, nReal(Math.max(0, meta - fat))),
                                 React.createElement(Td, { right: true, color: T.good }, nPct(div(fat - Number(c.custo), fat), 0)),
                                 React.createElement(Td, { right: true }, nInt(c.os_qtd)),
-                                React.createElement(Td, { right: true, color: Number(c.os_qtd) ? T.ink : T.muted }, Number(c.os_qtd) ? nReal(div(fat, Number(c.os_qtd))) : "—"),
+                                React.createElement(Td, { right: true, color: osValorCloser[c.closer] ? T.ink : T.muted }, osValorCloser[c.closer] ? nReal(div(fat, osValorCloser[c.closer])) : "—"),
                                 React.createElement(Td, { right: true, color: ab.n ? T.warn : T.muted }, ab.n ? "".concat(ab.n, " \u00B7 ").concat(nReal(ab.v)) : "—"),
-                                React.createElement(Td, { right: true, color: ed ? ed.cor : T.muted, bold: !!(ed && ed.cor === T.bad) }, d ? textoDesconto(d.desconto, d.faturamento) : React.createElement(Aguardando, null, "semanal")),
+                                React.createElement(Td, { right: true, color: ed ? ed.cor : T.muted, bold: !!(ed && ed.cor === T.bad) }, d ? textoDesconto(d.desconto, d.faturamento) : React.createElement(Aguardando, null, "do dia")),
                                 React.createElement(Td, { right: true, color: pg ? T.ink : T.muted }, pg ? nPct(pg.pctPix, 0) : React.createElement(Aguardando, null, "mensal"))));
                         }),
                         !closers.length && React.createElement("tr", null,
                             React.createElement(Td, null, "Nenhum closer no cadastro. Confira a tabela map_closer."))))),
+            React.createElement(ConferenciaCloser, { closers: closers, ex: ex, descDe: descDe }),
             React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 10, lineHeight: 1.5 } },
                 React.createElement("b", null, "Desconto vs tabela"),
                 " \u00E9 o saldo do Vendas por Respons\u00E1vel",
-                ex.importDesconto ? " (importado em ".concat(quando(ex.importDesconto), ")") : " (semanal — ainda não importado)",
+                ex.importDesconto ? " (importado em ".concat(quando(ex.importDesconto), ")") : " (do dia — ainda não importado)",
                 ": positivo = deu desconto, ",
                 React.createElement("span", { style: { color: T.bad, fontWeight: 600 } },
                     "vermelho acima de ",
@@ -4368,7 +4487,7 @@ function AbaClosers() {
                         var ed = d ? estadoDesconto(div(d.desconto, d.faturamento)) : null;
                         return (React.createElement("tr", { key: c.closer_codigo },
                             React.createElement(Td, { bold: true }, c.closer),
-                            React.createElement(Td, { right: true, color: ed ? ed.cor : T.muted }, d ? textoDesconto(d.desconto, d.faturamento) : React.createElement(Aguardando, null, "semanal")),
+                            React.createElement(Td, { right: true, color: ed ? ed.cor : T.muted }, d ? textoDesconto(d.desconto, d.faturamento) : React.createElement(Aguardando, null, "do dia")),
                             React.createElement(Td, { right: true, color: ed ? ed.cor : T.muted, bold: !!(ed && ed.cor === T.bad) }, ed ? ed.nome : "—"),
                             React.createElement(Td, { right: true, bold: true }, pg ? nReal(pg.total) : React.createElement(Aguardando, null, "mensal")),
                             FAMILIAS.slice(0, 4).map(function (_a) {
@@ -4492,6 +4611,13 @@ function AbaLojas() {
     // 46 O.S. internas de R$ 0 (garantia, retrabalho, cortesia) inflavam a
     // contagem e derrubavam o ticket médio. Elas continuam no total de O.S.,
     // mas o ticket é calculado só com as que têm valor.
+    // Ticket médio só faz sentido sobre O.S. COM VALOR: 58 das 219 O.S. do mês
+    // são internas/garantia de R$ 0 e derrubavam o ticket de Bandeirantes de
+    // R$ 5.500 para R$ 4.812 (16/09).
+    var osValorLoja = {};
+    r.os.forEach(function (o) { if (Number(o.total) > 0 && o.closer)
+        osValorLoja[o.loja] = (osValorLoja[o.loja] || 0) + 1; });
+    var ticketLoja = function (l) { return div(Number(l.fat_closers), osValorLoja[l.loja] || 0); };
     var osComValor = r.os.filter(function (o) { return Number(o.total) > 0; }).length;
     var osInternas = r.os.length - osComValor;
     var abertas = r.os.filter(function (o) { return o.situacao === "Aberta"; }).sort(function (a, b) { return Number(b.total) - Number(a.total); });
@@ -4598,12 +4724,12 @@ function AbaLojas() {
                                 React.createElement(Td, { right: true }, nReal(fat - Number(l.custo))),
                                 React.createElement(Td, { right: true, color: T.good }, nPct(div(fat - Number(l.custo), fat), 0)),
                                 React.createElement(Td, { right: true }, nInt(l.os_qtd)),
-                                React.createElement(Td, { right: true, color: Number(l.os_closers) ? T.ink : T.muted }, Number(l.os_closers) ? nReal(div(Number(l.fat_closers), Number(l.os_closers))) : "—"),
+                                React.createElement(Td, { right: true, color: osValorLoja[l.loja] ? T.ink : T.muted }, osValorLoja[l.loja] ? nReal(ticketLoja(l)) : "—"),
                                 React.createElement(Td, { right: true, color: Number(l.os_abertas) ? T.warn : T.muted },
                                     nInt(l.os_abertas),
                                     " \u00B7 ",
                                     nReal(l.valor_aberto)),
-                                React.createElement(Td, { right: true, color: edl ? edl.cor : T.muted, bold: !!(edl && edl.cor === T.bad) }, dl ? textoDesconto(dl.desconto, dl.faturamento) : React.createElement(Aguardando, null, "semanal")),
+                                React.createElement(Td, { right: true, color: edl ? edl.cor : T.muted, bold: !!(edl && edl.cor === T.bad) }, dl ? textoDesconto(dl.desconto, dl.faturamento) : React.createElement(Aguardando, null, "do dia")),
                                 React.createElement(Td, { right: true, color: cr ? (cr.feito >= 1 ? T.good : cr.feito >= frac ? T.ink : T.warn) : T.muted }, cr ? nPct(cr.feito, 0) : React.createElement(Aguardando, null, mesAntNome))));
                         }),
                         React.createElement("tr", null,
@@ -4618,7 +4744,7 @@ function AbaLojas() {
                             React.createElement(Td, { right: true }, nReal(tot.fat - tot.custo)),
                             React.createElement(Td, { right: true, color: T.good }, nPct(div(tot.fat - tot.custo, tot.fat), 0)),
                             React.createElement(Td, { right: true }, nInt(tot.os)),
-                            React.createElement(Td, { right: true }, nReal(div(somaCampo(lojas, "fat_closers"), somaCampo(lojas, "os_closers")))),
+                            React.createElement(Td, { right: true }, nReal(div(somaCampo(lojas, "fat_closers"), OF_LOJAS.reduce(function (a, l) { return a + (osValorLoja[l] || 0); }, 0)))),
                             React.createElement(Td, { right: true },
                                 nInt(tot.abertas),
                                 " \u00B7 ",
