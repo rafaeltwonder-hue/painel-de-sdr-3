@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v40 — CAR SERVICE</title>
-<meta name="painel-versao" content="v40">
+<title>Painel de SDR v41 — CAR SERVICE</title>
+<meta name="painel-versao" content="v41">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -2754,26 +2754,34 @@ function ChecklistImport(_a) {
     var lista = _a.lista;
     var hojeISO = hoje();
     var inicioMes = hojeISO.slice(0, 8) + "01";
+    var seteAtras = addDays(hojeISO, -6);
     var mesAnt = String(Number(inicioMes.slice(0, 4)) - 1) + inicioMes.slice(4);
     var ok = function (a) { return a.status === "ok"; };
     var diaDe = function (a) { return (a.processado_em ? iso(new Date(a.processado_em)) : null); };
     var doTipo = function (t) { return (lista || []).filter(function (a) { return ok(a) && a.tipo === t; }); };
-    var listagemHoje = doTipo("listagem_itens").filter(function (a) { return a.periodo_ini >= inicioMes && diaDe(a) === hojeISO; });
+    // v41: o arquivo diário cobre 3 meses (por Data da OS) — o que importa é
+    // ele terminar no mês corrente e ter sido importado hoje.
+    var listagemHoje = doTipo("listagem_itens").filter(function (a) { return a.periodo_fim >= inicioMes && diaDe(a) === hojeISO; });
+    var listagemTrimestre = listagemHoje.filter(function (a) { return a.periodo_ini < inicioMes; });
     // 16/09: o Vendas por Empresa do MÊS ATUAL entrou na rotina diária — é a
     // conferência do faturamento com o Mapa de Metas do Oficina (aba Lojas).
-    var empresaHoje = doTipo("vendas_empresa").filter(function (a) { return a.periodo_ini === inicioMes && diaDe(a) === hojeISO; });
+    var empresaHoje = doTipo("vendas_empresa").filter(function (a) { return a.periodo_ini === inicioMes; });
     // 16/09: Vendas por Responsável virou diário — é ele que dá a conferência
     // por closer e o desconto do dia. Cobrado por loja, com o arquivo de HOJE.
-    var faltamVR = LOJAS_IMPORT.filter(function (l) { return !doTipo("vendas_responsavel").some(function (a) { return a.loja === l && a.periodo_ini === inicioMes && diaDe(a) === hojeISO; }); });
+    // v41: com o faturado saindo da Listagem, o Vendas por Responsável volta a
+    // ser semanal — ele fica só com o desconto vs tabela.
+    var faltamVR = LOJAS_IMPORT.filter(function (l) { return !doTipo("vendas_responsavel").some(function (a) { return a.loja === l && a.periodo_ini === inicioMes && diaDe(a) >= seteAtras; }); });
     var faltamPag = LOJAS_IMPORT.filter(function (l) { return !doTipo("os_pagamento").some(function (a) { return a.loja === l && a.periodo_ini === inicioMes; }); });
     var temAnterior = doTipo("vendas_empresa").some(function (a) { return a.periodo_ini === mesAnt; });
     var itens = [
-        { t: "Listagem de OS's c/ Itens (Rede)", quando: "todo dia", falta: !listagemHoje.length,
-            det: listagemHoje.length ? "importada hoje" : "não foi importada hoje — é o arquivo que move todo o painel" },
-        { t: "Vendas por Empresa do mês atual", quando: "todo dia", falta: !empresaHoje.length,
-            det: empresaHoje.length ? "conferência com o ERP em dia" : "sem a conferência de hoje — a aba Lojas não compara com o Mapa de Metas" },
-        { t: "Vendas por Responsável", quando: "1 por loja, todo dia", falta: !!faltamVR.length,
-            det: faltamVR.length ? "faltando hoje: ".concat(faltamVR.join(", ")) : "as 4 lojas em dia" },
+        { t: "Listagem de OS's c/ Itens (Rede) · 3 meses", quando: "todo dia", falta: !listagemHoje.length || !listagemTrimestre.length,
+            det: !listagemHoje.length ? "não foi importada hoje — é o arquivo que move todo o painel"
+                : !listagemTrimestre.length ? "veio só com o mês atual — exporte de 3 meses, senão faltam as O.S. antigas em aberto"
+                    : "importada hoje, com os 3 meses" },
+        { t: "Vendas por Responsável", quando: "1 por loja, toda semana", falta: !!faltamVR.length,
+            det: faltamVR.length ? "faltando desta semana: ".concat(faltamVR.join(", ")) : "as 4 lojas em dia" },
+        { t: "Vendas por Empresa do mês atual", quando: "1 vez por mês", falta: !empresaHoje.length,
+            det: empresaHoje.length ? "conferência com o ERP em dia" : "sem a conferência do mês com o Mapa de Metas" },
         { t: "OS por Pagamento", quando: "1 por loja, todo mês", falta: !!faltamPag.length,
             det: faltamPag.length ? "faltando neste m\u00EAs: ".concat(faltamPag.join(", ")) : "as 4 lojas em dia" },
         { t: "Vendas por Empresa do ano anterior", quando: "1 vez por mês", falta: !temAnterior,
@@ -3382,7 +3390,7 @@ function crescimento(fat, ant, du) {
 
    Fontes:
      SDR    -> fato_dia (mesma regra da seção 03: crédito a quem prospectou)
-     Lojas  -> resumo_loja_v / resumo_closer_v / resumo_setor_v / resumo_dia_v,
+     Lojas  -> resumo_loja_fat_v / resumo_closer_fat_v / resumo_setor_fat_v / resumo_dia_fat_v,
                alimentadas pela Listagem de OS's c/ Itens importada na aba Importar
      Geral  -> as mesmas views, somadas
 
@@ -3633,12 +3641,13 @@ function CartaoGeral(_a) {
 function CartaoLoja(_a) {
     var loja = _a.loja, r = _a.r, du = _a.du, frac = _a.frac, hojeISO = _a.hojeISO;
     var lj = (r.lojas || []).filter(function (x) { return x.loja === loja; })[0];
+    var aberto = r.aberto || {}, abertoCloser = r.abertoCloser || {};
     var closers = [].slice.call((r.closers || []).filter(function (x) { return x.loja === loja; })).sort(function (a, b) { return Number(b.faturamento) - Number(a.faturamento); });
     var setores = SETORES_ORDEM.map(function (s) { return ({ setor: s, v: somaCampo((r.setores || []).filter(function (x) { return x.loja === loja && x.setor === s; }), "faturamento") }); });
     var dias = (r.dias || []).filter(function (x) { return x.loja === loja; });
     var ontemISO = addDays(hojeISO, -1);
-    var ontem = dias.filter(function (x) { return x.dt_os === ontemISO; })[0];
-    var semana = dias.filter(function (x) { return x.dt_os > addDays(hojeISO, -7) && x.dt_os <= hojeISO; });
+    var ontem = dias.filter(function (x) { return x.dia === ontemISO; })[0];
+    var semana = dias.filter(function (x) { return x.dia > addDays(hojeISO, -7) && x.dia <= hojeISO; });
     var mx = Math.max.apply(null, setores.map(function (x) { return x.v; }).concat([1]));
     var fat = lj ? Number(lj.faturamento) : 0;
     // escada de metas: a meta da loja é o nível em que ela está, proporcional ao peso dela no grupo
@@ -3695,7 +3704,7 @@ function CartaoLoja(_a) {
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 20 } },
                 React.createElement(RTile, { lab: "Lucro bruto", val: nPct(div(lucro, fat), 0), ft: "sobra ap\u00F3s o material \u00B7 ".concat(nReal(lucro)), cor: T.good }),
                 React.createElement(RTile, { lab: "O.S. dos closers", val: nInt(osCl), ft: "ticket m\u00E9dio ".concat(nReal(div(fatCl, osCl))) }),
-                React.createElement(RTile, { lab: "O.S. em aberto", val: nInt(lj.os_abertas), ft: "".concat(nReal(lj.valor_aberto), " ainda abertos") }),
+                React.createElement(RTile, { lab: "O.S. em aberto", val: nInt((aberto[lj.loja] || {}).n || 0), ft: "".concat(nReal((aberto[lj.loja] || {}).v || 0), " parados").concat((aberto[lj.loja] || {}).velhas ? " \u00B7 ".concat(nInt(aberto[lj.loja].velhas), " de meses anteriores") : "") }),
                 React.createElement(RTile, { lab: "O.S. no m\u00EAs", val: nInt(lj.os_qtd), ft: "".concat(nInt(Number(lj.os_qtd) - osCl), " internas / balc\u00E3o") }),
                 React.createElement(RTile, { lab: "vs ".concat(mesAntNome), val: cr ? nPct(cr.feito, 0) : "—", cor: cr ? (cr.feito >= 1 ? T.good : cr.feito >= frac ? T.ink : T.warn) : T.muted, ft: cr ? "de ".concat(fmtMil(cr.fatAnt), " \u00B7 no ritmo: ").concat(cr.projPct >= 0 ? "+" : "").concat(nPct(cr.projPct, 0)) : "sem o fechamento de ".concat(mesAntNome) }),
                 React.createElement(RTile, { lab: "Desconto vs tabela", cor: edl ? edl.cor : T.muted, val: dl ? (dl.desconto < 0 ? "+".concat(nPct(-div(dl.desconto, dl.faturamento), 0)) : nPct(div(dl.desconto, dl.faturamento), 0)) : "—", ft: dl ? (dl.desconto < 0 ? "".concat(nReal(-dl.desconto), " acima da tabela") : "".concat(nReal(dl.desconto), " de desconto \u00B7 limite ").concat(nPct(OF_LIMITE_DESCONTO, 0))) : "sem o Vendas por Responsável" })),
@@ -3718,7 +3727,7 @@ function CartaoLoja(_a) {
                             fmtMil(Math.max(0, Number(c.meta) - Number(c.faturamento))))),
                     React.createElement(RBar, { p: p, cor: ec.cor, h: 7 }),
                     React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 9 } },
-                        ["".concat(nInt(c.os_qtd), " O.S."), "Ticket ".concat(nReal(div(Number(c.faturamento), Number(c.os_qtd)))), "Lucro bruto ".concat(nPct(div(Number(c.faturamento) - Number(c.custo), Number(c.faturamento)), 0)), "".concat(nInt(c.os_abertas), " em aberto")].map(function (t) { return (React.createElement("span", { key: t, style: { fontSize: 11, background: "#F4F4F4", borderRadius: 99, padding: "3px 9px", color: T.ink2 } }, t)); }),
+                        ["".concat(nInt(c.os_qtd), " O.S."), "Ticket ".concat(nReal(div(Number(c.faturamento), Number(c.os_qtd)))), "Lucro bruto ".concat(nPct(div(Number(c.faturamento) - Number(c.custo), Number(c.faturamento)), 0)), "".concat(nInt((abertoCloser[c.closer] || {}).n || 0), " em aberto")].map(function (t) { return (React.createElement("span", { key: t, style: { fontSize: 11, background: "#F4F4F4", borderRadius: 99, padding: "3px 9px", color: T.ink2 } }, t)); }),
                         (function () {
                             var d = ex.descCloser[c.closer_codigo];
                             if (!d)
@@ -3833,7 +3842,7 @@ function AbaResumo(_a) {
     var du = diasUteisDoMes(hojeISO);
     var frac = du.diaDoMes / du.diasNoMes;
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, extra, _a, fatoMes, eq, mm, lojas, closers, setores, dias, arquivos, vendasResp, empresaAnt, mapCloser, metaGrupo, ex, e_9;
+        var pega, extra, _a, fatoMes, eq, mm, lojas, closers, setores, dias, arquivos, vendasResp, empresaAnt, mapCloser, metaGrupo, abertas, ex, aberto_1, abertoCloser_1, e_9;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -3857,20 +3866,36 @@ function AbaResumo(_a) {
                             pegaPaginado(function () { return db.from("fato_dia").select("*").gte("data", inicioMes).lte("data", hojeISO); }),
                             pega(db.from("equipe_sdr").select("sdr,ativo").eq("ativo", true)),
                             pega(db.from("meta_do_mes").select("*").limit(1)),
-                            pega(db.from("resumo_loja_v").select("*").eq("mes", inicioMes)),
-                            pega(db.from("resumo_closer_v").select("*").eq("mes", inicioMes)),
-                            pega(db.from("resumo_setor_v").select("*").eq("mes", inicioMes)),
-                            pega(db.from("resumo_dia_v").select("*").eq("mes", inicioMes)),
+                            /* v41: os cartões passam a falar de FATURADO no mês (mesmo critério do
+                               Oficina) e as O.S. em aberto incluem as de meses anteriores. */
+                            pega(db.from("resumo_loja_fat_v").select("*").eq("mes", inicioMes)),
+                            pega(db.from("resumo_closer_fat_v").select("*").eq("mes", inicioMes)),
+                            pega(db.from("resumo_setor_fat_v").select("*").eq("mes", inicioMes)),
+                            pega(db.from("resumo_dia_fat_v").select("*").eq("mes", inicioMes)),
                             pega(db.from("oi_arquivos").select("loja,periodo_ini,processado_em,status,tipo").eq("tipo", "listagem_itens").eq("status", "ok")
-                                .gte("periodo_ini", inicioMes).order("processado_em", { ascending: false }).limit(12)),
+                                .gte("periodo_fim", inicioMes).order("processado_em", { ascending: false }).limit(12)),
                             pega(extra.vendasResp), pega(extra.empresaAnt), pega(extra.mapCloser), extra.metaGrupo,
+                            pegaPaginado(function () { return db.from("resumo_aberto_v").select("loja,mes,closer,total,dias_aberta"); }),
                         ])];
                 case 2:
-                    _a = __read.apply(void 0, [_b.sent(), 12]), fatoMes = _a[0], eq = _a[1], mm = _a[2], lojas = _a[3], closers = _a[4], setores = _a[5], dias = _a[6], arquivos = _a[7], vendasResp = _a[8], empresaAnt = _a[9], mapCloser = _a[10], metaGrupo = _a[11];
+                    _a = __read.apply(void 0, [_b.sent(), 13]), fatoMes = _a[0], eq = _a[1], mm = _a[2], lojas = _a[3], closers = _a[4], setores = _a[5], dias = _a[6], arquivos = _a[7], vendasResp = _a[8], empresaAnt = _a[9], mapCloser = _a[10], metaGrupo = _a[11], abertas = _a[12];
                     ex = agregarOficinaExtra({ vendasResp: vendasResp, pagamentos: [], empresaAnt: empresaAnt, empresaMes: [], mapCloser: mapCloser, mesAnt: extra.mesAnt, inicioMes: inicioMes });
                     ex.mesAnt = extra.mesAnt;
                     ex.metaGrupo = metaGrupo;
-                    setR({ fatoMes: fatoMes, equipe: eq.map(function (x) { return x.sdr; }), meta: mm[0] || null, lojas: lojas, closers: closers, setores: setores, dias: dias, arquivos: arquivos, ex: ex });
+                    aberto_1 = {}, abertoCloser_1 = {};
+                    (abertas || []).forEach(function (o) {
+                        var a = aberto_1[o.loja] || (aberto_1[o.loja] = { n: 0, v: 0, velhas: 0 });
+                        a.n++;
+                        a.v += Number(o.total);
+                        if (o.mes < inicioMes)
+                            a.velhas++;
+                        if (o.closer) {
+                            var c = abertoCloser_1[o.closer] || (abertoCloser_1[o.closer] = { n: 0, v: 0 });
+                            c.n++;
+                            c.v += Number(o.total);
+                        }
+                    });
+                    setR({ fatoMes: fatoMes, equipe: eq.map(function (x) { return x.sdr; }), meta: mm[0] || null, lojas: lojas, closers: closers, setores: setores, dias: dias, arquivos: arquivos, aberto: aberto_1, abertoCloser: abertoCloser_1, ex: ex });
                     return [3 /*break*/, 4];
                 case 3:
                     e_9 = _b.sent();
@@ -3980,7 +4005,7 @@ function AbaResumo(_a) {
                     k !== "geral" && k !== "sdr" && React.createElement(CartaoLoja, { loja: RESUMO_LOJAS.filter(function (l) { return RESUMO_CHAVE_LOJA[l] === k; })[0], r: r, du: du, frac: frac, hojeISO: hojeISO }))));
         })))));
 }
-/* ===================== Abas Closers · Lojas · Origem (v26 · v27) =====================
+/* ===================== Abas Closers · Lojas · Origem (v26 · v27 · v31 · v32) =====================
    Desenhos aprovados em 14/09; ligadas às views resumo_* (Listagem de OS's c/
    Itens importada na aba Importar) e funil_closer_v (Kommo) em 15/09/2026.
 
@@ -4023,7 +4048,7 @@ function useOficina() {
     var hojeISO = hoje();
     var inicioMes = hojeISO.slice(0, 8) + "01";
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, empresaMes, mapCloser, arquivosExtra_1, metaGrupo, ultimoDia, ex, ultimoDe, e_11;
+        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, empresaMes, mapCloser, arquivosExtra_1, metaGrupo, abertas, vendidoLoja, ultimoDia, ex, ultimoDe, e_11;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -4044,25 +4069,27 @@ function useOficina() {
                     }); }); };
                     extra = consultasOficinaExtra(inicioMes);
                     return [4 /*yield*/, Promise.all([
-                            pega(db.from("resumo_loja_v").select("*").eq("mes", inicioMes)),
-                            pega(db.from("resumo_closer_v").select("*").eq("mes", inicioMes)),
-                            pega(db.from("resumo_setor_v").select("*").eq("mes", inicioMes)),
-                            pega(db.from("resumo_dia_v").select("*").eq("mes", inicioMes).order("dt_os")),
-                            pegaPaginado(function () { return db.from("resumo_os_v").select("loja,os_numero,dt_os,situacao,closer,erp_nome,pesquisa,placa,veiculo,total,custo,dt_faturamento").eq("mes", inicioMes); }),
+                            pega(db.from("resumo_loja_fat_v").select("*").eq("mes", inicioMes)),
+                            pega(db.from("resumo_closer_fat_v").select("*").eq("mes", inicioMes)),
+                            pega(db.from("resumo_setor_fat_v").select("*").eq("mes", inicioMes)),
+                            pega(db.from("resumo_dia_fat_v").select("*").eq("mes", inicioMes).order("dia")),
+                            pegaPaginado(function () { return db.from("resumo_os_fat_v").select("loja,os_numero,dt_os,dt_faturamento,situacao,closer,erp_nome,pesquisa,placa,veiculo,total,custo").eq("mes", inicioMes); }),
                             pega(db.from("resumo_origem_v").select("*").eq("mes", inicioMes)),
-                            pegaPaginado(function () { return db.from("oi_item_v").select("loja,closer,setor,total,custo_total,executor").eq("mes", inicioMes); }),
+                            pegaPaginado(function () { return db.from("oi_item_v").select("loja,closer,setor,total,custo_total,executor").eq("mes_fat", inicioMes); }),
                             pega(db.from("funil_closer_v").select("*")),
                             pega(db.from("map_loja").select("*")),
                             pega(db.from("oi_arquivos").select("id,loja,periodo_ini,processado_em,status,tipo").eq("tipo", "listagem_itens").eq("status", "ok")
-                                .gte("periodo_ini", inicioMes).order("processado_em", { ascending: false }).limit(8)),
+                                .gte("periodo_fim", inicioMes).order("processado_em", { ascending: false }).limit(8)),
                             pega(extra.vendasResp), pegaPaginado(extra.pagamentosFn), pega(extra.empresaAnt), pega(extra.empresaMes), pega(extra.mapCloser),
                             pega(db.from("oi_arquivos").select("id,loja,tipo,periodo_ini,processado_em").eq("status", "ok")
                                 .in("tipo", ["vendas_responsavel", "os_pagamento", "vendas_empresa"]).order("processado_em", { ascending: false }).limit(200)),
                             extra.metaGrupo,
+                            pegaPaginado(function () { return db.from("resumo_aberto_v").select("loja,os_numero,mes,dt_os,closer,erp_nome,placa,veiculo,pesquisa,total,custo,itens,dias_aberta"); }),
+                            pega(db.from("resumo_loja_v").select("loja,faturamento,os_qtd").eq("mes", inicioMes)),
                         ])];
                 case 2:
-                    _a = __read.apply(void 0, [_b.sent(), 17]), lojas = _a[0], closers = _a[1], setores = _a[2], dias = _a[3], os = _a[4], origem = _a[5], itens = _a[6], funil = _a[7], mapLoja = _a[8], arquivos = _a[9], vendasResp = _a[10], pagamentos = _a[11], empresaAnt = _a[12], empresaMes = _a[13], mapCloser = _a[14], arquivosExtra_1 = _a[15], metaGrupo = _a[16];
-                    ultimoDia = dias.reduce(function (m, d) { return (d.dt_os > m && d.dt_os <= hojeISO ? d.dt_os : m); }, "");
+                    _a = __read.apply(void 0, [_b.sent(), 19]), lojas = _a[0], closers = _a[1], setores = _a[2], dias = _a[3], os = _a[4], origem = _a[5], itens = _a[6], funil = _a[7], mapLoja = _a[8], arquivos = _a[9], vendasResp = _a[10], pagamentos = _a[11], empresaAnt = _a[12], empresaMes = _a[13], mapCloser = _a[14], arquivosExtra_1 = _a[15], metaGrupo = _a[16], abertas = _a[17], vendidoLoja = _a[18];
+                    ultimoDia = dias.reduce(function (m, d) { return (d.dia > m && d.dia <= hojeISO ? d.dia : m); }, "");
                     ex = agregarOficinaExtra({ vendasResp: vendasResp, pagamentos: pagamentos, empresaAnt: empresaAnt, empresaMes: empresaMes, mapCloser: mapCloser, mesAnt: extra.mesAnt, inicioMes: inicioMes });
                     ultimoDe = function (tipo, periodo) { return (arquivosExtra_1.filter(function (a) { return a.tipo === tipo && (!periodo || a.periodo_ini === periodo); })[0] || {}).processado_em || null; };
                     ex.importDesconto = ultimoDe("vendas_responsavel", inicioMes);
@@ -4071,7 +4098,7 @@ function useOficina() {
                     ex.importErpMes = ultimoDe("vendas_empresa", inicioMes);
                     ex.mesAnt = extra.mesAnt;
                     ex.metaGrupo = metaGrupo;
-                    setR({ lojas: lojas, closers: closers, setores: setores, dias: dias, os: os, origem: origem, itens: itens, funil: funil, mapLoja: mapLoja, mapCloser: mapCloser, arquivos: arquivos, ultimoDia: ultimoDia, hojeISO: hojeISO, inicioMes: inicioMes, ex: ex });
+                    setR({ lojas: lojas, closers: closers, setores: setores, dias: dias, os: os, origem: origem, itens: itens, funil: funil, mapLoja: mapLoja, mapCloser: mapCloser, arquivos: arquivos, abertas: abertas, vendidoLoja: vendidoLoja, ultimoDia: ultimoDia, hojeISO: hojeISO, inicioMes: inicioMes, ex: ex });
                     return [3 /*break*/, 4];
                 case 3:
                     e_11 = _b.sent();
@@ -4147,7 +4174,7 @@ function AvisoBase(_a) {
             r.ultimoDia
                 ? React.createElement("span", null,
                     React.createElement("b", null,
-                        "Base: O.S. de 01 a ",
+                        "Base: faturamento de 01 a ",
                         br(r.ultimoDia)),
                     atrasado ? " — sem import hoje, os números são do último arquivo." : " · importada hoje.")
                 : React.createElement("span", null,
@@ -4375,17 +4402,15 @@ function AbaClosers() {
         return div((metaDaLoja[loja] || 0) * peso, closersDaLoja[loja] || 1);
     };
     var metaSetorTotal = function (loja) { return div(metaDaLoja[loja] || 0, closersDaLoja[loja] || 1); };
-    // mesma correção da aba Lojas: ticket só sobre O.S. com valor
+    // ticket só sobre O.S. com valor (a view já entrega a contagem)
     var osValorCloser = {};
-    r.os.forEach(function (o) { if (o.closer && Number(o.total) > 0)
-        osValorCloser[o.closer] = (osValorCloser[o.closer] || 0) + 1; });
-    var osValorTotal = Object.keys(osValorCloser).reduce(function (a, k) { return a + osValorCloser[k]; }, 0);
+    closers.forEach(function (c) { osValorCloser[c.closer] = Number(c.os_com_valor) || 0; });
+    var osValorTotal = closers.reduce(function (a, c) { return a + (Number(c.os_com_valor) || 0); }, 0);
+    // Em aberto: TUDO que está parado com a pessoa, de qualquer mês (v41)
     var abertasPorCloser = {};
-    r.os.forEach(function (o) { if (o.closer && o.situacao === "Aberta") {
-        var s = abertasPorCloser[o.closer] || (abertasPorCloser[o.closer] = { n: 0, v: 0 });
-        s.n++;
-        s.v += Number(o.total);
-    } });
+    (r.abertas || []).forEach(function (o) { if (!o.closer)
+        return; var s = abertasPorCloser[o.closer] || (abertasPorCloser[o.closer] = { n: 0, v: 0, velha: 0 }); s.n++; s.v += Number(o.total); if (Number(o.dias_aberta) > 30)
+        s.velha++; });
     var lider = closers[0];
     var ex = r.ex;
     var descDe = function (c) { return ex.descCloser[c.closer_codigo]; };
@@ -4397,7 +4422,7 @@ function AbaClosers() {
     var quando = function (iso) { return (iso ? new Date(iso).toLocaleDateString("pt-BR") : ""); };
     return (React.createElement("div", null,
         React.createElement(AvisoBase, { r: r, carregar: carregar }),
-        React.createElement(Secao, { n: 1, titulo: "Ranking de closers", nota: "Faturamento por Data da OS, ".concat(du.diaDoMes, " de ").concat(du.diasNoMes, " dias do m\u00EAs (").concat(nPct(frac, 0), "). Verde = % da meta acompanha o m\u00EAs; \u00E2mbar at\u00E9 25% abaixo; vermelho al\u00E9m. Lucro bruto = faturamento menos custo de material.") },
+        React.createElement(Secao, { n: 1, titulo: "Ranking de closers", nota: "Faturamento = o que cada um FATUROU no m\u00EAs (mesmo crit\u00E9rio do Vendas por Respons\u00E1vel do Oficina), ".concat(du.diaDoMes, " de ").concat(du.diasNoMes, " dias do m\u00EAs (").concat(nPct(frac, 0), "). Verde = % da meta acompanha o m\u00EAs; \u00E2mbar at\u00E9 25% abaixo; vermelho al\u00E9m. \"Em aberto\" \u00E9 tudo que est\u00E1 parado com a pessoa, de qualquer m\u00EAs.") },
             React.createElement("div", { className: "grid-kpi" },
                 React.createElement(Kpi, { label: "Faturamento dos closers", value: nReal(totFat), sub: "meta somada ".concat(nReal(totMeta)), foot: React.createElement(Barra, { pct: div(totFat, totMeta), cor: estadoMeta(div(totFat, totMeta), frac).cor }) }),
                 React.createElement(Kpi, { label: "% da meta", value: nPct(div(totFat, totMeta), 1), sub: "m\u00EAs em ".concat(nPct(frac, 0)), tone: toneMeta(div(totFat, totMeta), frac) }),
@@ -4441,7 +4466,11 @@ function AbaClosers() {
                                 React.createElement(Td, { right: true, color: T.good }, nPct(div(fat - Number(c.custo), fat), 0)),
                                 React.createElement(Td, { right: true }, nInt(c.os_qtd)),
                                 React.createElement(Td, { right: true, color: osValorCloser[c.closer] ? T.ink : T.muted }, osValorCloser[c.closer] ? nReal(div(fat, osValorCloser[c.closer])) : "—"),
-                                React.createElement(Td, { right: true, color: ab.n ? T.warn : T.muted }, ab.n ? "".concat(ab.n, " \u00B7 ").concat(nReal(ab.v)) : "—"),
+                                React.createElement(Td, { right: true, color: ab.n ? (ab.velha ? T.bad : T.warn) : T.muted },
+                                    ab.n ? "".concat(ab.n, " \u00B7 ").concat(nReal(ab.v)) : "—",
+                                    ab.velha ? React.createElement("div", { style: { fontSize: 10.5 } },
+                                        ab.velha,
+                                        " com +30 dias") : null),
                                 React.createElement(Td, { right: true, color: ed ? ed.cor : T.muted, bold: !!(ed && ed.cor === T.bad) }, d ? textoDesconto(d.desconto, d.faturamento) : React.createElement(Aguardando, null, "do dia")),
                                 React.createElement(Td, { right: true, color: pg ? T.ink : T.muted }, pg ? nPct(pg.pctPix, 0) : React.createElement(Aguardando, null, "mensal"))));
                         }),
@@ -4596,7 +4625,20 @@ function AbaLojas() {
     if (!r)
         return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando\u2026");
     var _c = ritmoDoMes(r), du = _c.du, frac = _c.frac;
-    var lojasBase = OF_LOJAS.map(function (l) { return r.lojas.filter(function (x) { return x.loja === l; })[0] || { loja: l, meta: (r.mapLoja.filter(function (m) { return m.loja === l; })[0] || {}).meta_mensal || 0, faturamento: 0, custo: 0, os_qtd: 0, os_closers: 0, fat_closers: 0, os_abertas: 0, valor_aberto: 0 }; });
+    // Em aberto vem de resumo_aberto_v: toda O.S. parada, de qualquer mês (v41)
+    var abertoPorLoja = {};
+    (r.abertas || []).forEach(function (o) {
+        var s = abertoPorLoja[o.loja] || (abertoPorLoja[o.loja] = { n: 0, v: 0, velhas: 0, vVelhas: 0 });
+        s.n++;
+        s.v += Number(o.total);
+        if (o.mes < r.inicioMes) {
+            s.velhas++;
+            s.vVelhas += Number(o.total);
+        }
+    });
+    var vendidoPorLoja = {};
+    (r.vendidoLoja || []).forEach(function (v) { vendidoPorLoja[v.loja] = Number(v.faturamento) || 0; });
+    var lojasBase = OF_LOJAS.map(function (l) { return r.lojas.filter(function (x) { return x.loja === l; })[0] || { loja: l, meta: (r.mapLoja.filter(function (m) { return m.loja === l; })[0] || {}).meta_mensal || 0, faturamento: 0, custo: 0, os_qtd: 0, os_com_valor: 0, os_closers: 0, fat_closers: 0 }; });
     var somaMetas = somaCampo(lojasBase, "meta");
     var escG = escadaMetas(somaCampo(lojasBase, "faturamento"), r.ex.metaGrupo);
     // meta "atual" de cada loja = nível do grupo em que ela está, proporcional ao peso dela
@@ -4605,7 +4647,11 @@ function AbaLojas() {
     // ordena pela MESMA porcentagem que a tabela mostra (meta do nível atual),
     // senão quem bateu a meta 1 aparece atrás de quem ainda está na meta 1.
     var lojas = lojasBase.slice().sort(function (a, b) { return escLoja[b.loja].p - escLoja[a.loja].p; });
-    var tot = { fat: somaCampo(lojas, "faturamento"), meta: escG.atual, custo: somaCampo(lojas, "custo"), os: somaCampo(lojas, "os_qtd"), abertas: somaCampo(lojas, "os_abertas"), vAberto: somaCampo(lojas, "valor_aberto") };
+    var totAberto = OF_LOJAS.reduce(function (a, l) {
+        var s = abertoPorLoja[l] || { n: 0, v: 0, velhas: 0, vVelhas: 0 };
+        return { n: a.n + s.n, v: a.v + s.v, velhas: a.velhas + s.velhas, vVelhas: a.vVelhas + s.vVelhas };
+    }, { n: 0, v: 0, velhas: 0, vVelhas: 0 });
+    var tot = { fat: somaCampo(lojas, "faturamento"), meta: escG.atual, custo: somaCampo(lojas, "custo"), os: somaCampo(lojas, "os_qtd"), abertas: totAberto.n, vAberto: totAberto.v };
     var setorLoja = function (l, s) { return somaCampo(r.setores.filter(function (x) { return x.loja === l && x.setor === s; }), "faturamento"); };
     var setorTot = function (s) { return somaCampo(r.setores.filter(function (x) { return x.setor === s; }), "faturamento"); };
     // 46 O.S. internas de R$ 0 (garantia, retrabalho, cortesia) inflavam a
@@ -4615,12 +4661,11 @@ function AbaLojas() {
     // são internas/garantia de R$ 0 e derrubavam o ticket de Bandeirantes de
     // R$ 5.500 para R$ 4.812 (16/09).
     var osValorLoja = {};
-    r.os.forEach(function (o) { if (Number(o.total) > 0 && o.closer)
-        osValorLoja[o.loja] = (osValorLoja[o.loja] || 0) + 1; });
+    lojas.forEach(function (l) { osValorLoja[l.loja] = Number(l.os_com_valor) || 0; });
     var ticketLoja = function (l) { return div(Number(l.fat_closers), osValorLoja[l.loja] || 0); };
     var osComValor = r.os.filter(function (o) { return Number(o.total) > 0; }).length;
     var osInternas = r.os.length - osComValor;
-    var abertas = r.os.filter(function (o) { return o.situacao === "Aberta"; }).sort(function (a, b) { return Number(b.total) - Number(a.total); });
+    var abertas = (r.abertas || []).slice().sort(function (a, b) { return Number(b.total) - Number(a.total); });
     var abertasFiltradas = abertas.filter(function (o) { return lojaAberta === "todas" || o.loja === lojaAberta; });
     /* Valor da O.S., o que já foi adiantado e o que falta receber. O adiantamento
        vem do OS por Pagamento (o que está lançado no financeiro daquela O.S.).
@@ -4648,7 +4693,7 @@ function AbaLojas() {
     // Dia útil sem O.S. precisa aparecer como barra zero: se o dia some, quem
     // olha acha que foi domingo e não que não vendeu nada.
     var porDia = {};
-    r.dias.forEach(function (d) { porDia[d.dt_os] = (porDia[d.dt_os] || 0) + Number(d.faturamento); });
+    r.dias.forEach(function (d) { porDia[d.dia] = (porDia[d.dia] || 0) + Number(d.faturamento); });
     var diasOrd = [];
     {
         var refFim = r.ultimoDia || r.hojeISO;
@@ -4670,11 +4715,12 @@ function AbaLojas() {
     var lojasComBase = OF_LOJAS.filter(function (l) { return ex.antLoja[l] && Number(ex.antLoja[l].faturamento); });
     var antTot = lojasComBase.reduce(function (s, l) { return s + Number(ex.antLoja[l].faturamento); }, 0);
     var crescTot = lojasComBase.length === OF_LOJAS.length ? crescimento(tot.fat, { faturamento: antTot, os_qtd: 0 }, du) : null;
+    var totVendido = OF_LOJAS.reduce(function (a, l) { return a + (vendidoPorLoja[l] || 0); }, 0);
     var descLojaTot = OF_LOJAS.reduce(function (s, l) { return s + (ex.descLoja[l] ? ex.descLoja[l].desconto : 0); }, 0);
     var fatLojaDesc = OF_LOJAS.reduce(function (s, l) { return s + (ex.descLoja[l] ? ex.descLoja[l].faturamento : 0); }, 0);
     return (React.createElement("div", null,
         React.createElement(AvisoBase, { r: r, carregar: carregar }),
-        React.createElement(Secao, { n: 1, titulo: "Placar do grupo", nota: "Tr\u00EAs metas em escada: bateu uma, a barra passa a contar para a pr\u00F3xima (".concat(escG.niveis.map(fmtMil).join(" · "), "). Lucro bruto \u00E9 faturamento menos custo de material; n\u00E3o desconta m\u00E3o de obra nem taxa de cart\u00E3o.") },
+        React.createElement(Secao, { n: 1, titulo: "Placar do grupo", nota: "Faturamento = o que foi FATURADO no m\u00EAs, inclusive O.S. abertas em meses anteriores \u2014 \u00E9 o mesmo crit\u00E9rio do Mapa de Metas do Oficina. Tr\u00EAs metas em escada: bateu uma, a barra passa a contar para a pr\u00F3xima (".concat(escG.niveis.map(fmtMil).join(" · "), "). Lucro bruto \u00E9 faturamento menos custo de material; n\u00E3o desconta m\u00E3o de obra nem taxa de cart\u00E3o.") },
             React.createElement("div", { className: "grid-kpi" },
                 React.createElement(Kpi, { label: escG.todas ? "Faturamento · todas as metas batidas" : "Faturamento \u00B7 rumo \u00E0 meta ".concat(escG.nivel, " de ").concat(escG.niveis.length), value: nReal(tot.fat), sub: escG.todas ? "passou de ".concat(nReal(escG.atual)) : "".concat(escG.batidas ? "meta ".concat(escG.batidas, " batida \u00B7 ") : "", "faltam ").concat(nReal(Math.max(0, tot.meta - tot.fat)), " para ").concat(nReal(tot.meta)), tone: escG.todas ? "good" : undefined, foot: React.createElement(React.Fragment, null,
                         React.createElement(Barra, { pct: escG.p, cor: escG.todas ? T.good : estadoMeta(escG.p, frac).cor }),
@@ -4686,8 +4732,9 @@ function AbaLojas() {
                             nPct(frac, 0)),
                         React.createElement(EscadaChips, { esc: escG })) }),
                 React.createElement(Kpi, { label: "Lucro bruto", value: nReal(tot.fat - tot.custo), sub: "".concat(nPct(div(tot.fat - tot.custo, tot.fat), 0), " do faturamento"), tone: "good" }),
+                React.createElement(Kpi, { label: "Vendido no m\u00EAs", value: nReal(totVendido), sub: "O.S. abertas neste m\u00EAs, faturadas ou n\u00E3o" }),
                 React.createElement(Kpi, { label: "Ordens de servi\u00E7o", value: nInt(tot.os), sub: "ticket m\u00E9dio ".concat(nReal(div(tot.fat, osComValor))).concat(osInternas ? " \u00B7 ".concat(nInt(osInternas), " internas sem valor") : "") }),
-                React.createElement(Kpi, { label: "O.S. em aberto", value: nInt(tot.abertas), sub: "".concat(nReal(tot.vAberto), " ainda abertos"), tone: tot.abertas ? "bad" : "good" }),
+                React.createElement(Kpi, { label: "O.S. em aberto", value: nInt(tot.abertas), sub: "".concat(nReal(tot.vAberto), " parados").concat(totAberto.velhas ? " \u00B7 ".concat(nInt(totAberto.velhas), " de meses anteriores (").concat(nReal(totAberto.vVelhas), ")") : ""), tone: tot.abertas ? "bad" : "good" }),
                 React.createElement(Kpi, { label: "Ritmo", value: nReal(tot.fat / du.passados), sub: "por dia \u00FAtil \u00B7 precisa de ".concat(nReal(Math.max(0, tot.meta - tot.fat) / du.restantes)), tone: tot.fat / du.passados >= Math.max(0, tot.meta - tot.fat) / du.restantes ? "good" : "bad" }))),
         React.createElement(Secao, { n: 2, titulo: "Ranking de unidades", nota: "Ordenado por % da meta, n\u00E3o por faturamento \u2014 \u00E9 o que compara lojas de tamanhos diferentes. A meta mostrada \u00E9 o n\u00EDvel da escada em que a loja est\u00E1 (proporcional ao peso dela no grupo)." },
             React.createElement(Card, { className: "p0 rolagem" },
@@ -4703,6 +4750,7 @@ function AbaLojas() {
                             React.createElement(Th, { right: true }, "Margem"),
                             React.createElement(Th, { right: true }, "O.S."),
                             React.createElement(Th, { right: true }, "Ticket closers"),
+                            React.createElement(Th, { right: true }, "Vendido no m\u00EAs"),
                             React.createElement(Th, { right: true }, "Em aberto"),
                             React.createElement(Th, { right: true }, "Desconto vs tabela"),
                             React.createElement(Th, { right: true },
@@ -4725,10 +4773,11 @@ function AbaLojas() {
                                 React.createElement(Td, { right: true, color: T.good }, nPct(div(fat - Number(l.custo), fat), 0)),
                                 React.createElement(Td, { right: true }, nInt(l.os_qtd)),
                                 React.createElement(Td, { right: true, color: osValorLoja[l.loja] ? T.ink : T.muted }, osValorLoja[l.loja] ? nReal(ticketLoja(l)) : "—"),
-                                React.createElement(Td, { right: true, color: Number(l.os_abertas) ? T.warn : T.muted },
-                                    nInt(l.os_abertas),
+                                React.createElement(Td, { right: true, color: T.muted }, nReal(vendidoPorLoja[l.loja] || 0)),
+                                React.createElement(Td, { right: true, color: (abertoPorLoja[l.loja] || {}).n ? T.warn : T.muted },
+                                    nInt((abertoPorLoja[l.loja] || {}).n || 0),
                                     " \u00B7 ",
-                                    nReal(l.valor_aberto)),
+                                    nReal((abertoPorLoja[l.loja] || {}).v || 0)),
                                 React.createElement(Td, { right: true, color: edl ? edl.cor : T.muted, bold: !!(edl && edl.cor === T.bad) }, dl ? textoDesconto(dl.desconto, dl.faturamento) : React.createElement(Aguardando, null, "do dia")),
                                 React.createElement(Td, { right: true, color: cr ? (cr.feito >= 1 ? T.good : cr.feito >= frac ? T.ink : T.warn) : T.muted }, cr ? nPct(cr.feito, 0) : React.createElement(Aguardando, null, mesAntNome))));
                         }),
@@ -4745,6 +4794,7 @@ function AbaLojas() {
                             React.createElement(Td, { right: true, color: T.good }, nPct(div(tot.fat - tot.custo, tot.fat), 0)),
                             React.createElement(Td, { right: true }, nInt(tot.os)),
                             React.createElement(Td, { right: true }, nReal(div(somaCampo(lojas, "fat_closers"), OF_LOJAS.reduce(function (a, l) { return a + (osValorLoja[l] || 0); }, 0)))),
+                            React.createElement(Td, { right: true, color: T.muted }, nReal(totVendido)),
                             React.createElement(Td, { right: true },
                                 nInt(tot.abertas),
                                 " \u00B7 ",
@@ -4792,7 +4842,7 @@ function AbaLojas() {
                 React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 8 } },
                     "melhor dia: ",
                     diasOrd.length ? "".concat(brFull(diasOrd.reduce(function (m, d) { return (porDia[d] > porDia[m] ? d : m); }, diasOrd[0])), " \u00B7 ").concat(nReal(maxDia)) : "—"))),
-        React.createElement(Secao, { n: 5, titulo: "O.S. em aberto", nota: "Abertas no m\u00EAs e ainda n\u00E3o finalizadas. Identificadas pela placa \u2014 o nome do cliente n\u00E3o \u00E9 guardado no painel. Adiantamento = o que j\u00E1 est\u00E1 lan\u00E7ado no financeiro daquela O.S. (entrada no PIX, sinal no cart\u00E3o), do OS por Pagamento".concat(ex.importPagamento ? " importado em ".concat(new Date(ex.importPagamento).toLocaleDateString("pt-BR")) : " (mensal — ainda não importado)", ".") },
+        React.createElement(Secao, { n: 5, titulo: "O.S. em aberto", nota: "TODAS as O.S. ainda n\u00E3o finalizadas, de qualquer m\u00EAs \u2014 n\u00E3o s\u00F3 as deste m\u00EAs. Identificadas pela placa; o nome do cliente n\u00E3o \u00E9 guardado no painel. \"Dias aberta\" conta da data da O.S. at\u00E9 hoje. Adiantamento = o que j\u00E1 est\u00E1 lan\u00E7ado no financeiro daquela O.S. (entrada no PIX, sinal no cart\u00E3o), do OS por Pagamento".concat(ex.importPagamento ? " importado em ".concat(new Date(ex.importPagamento).toLocaleDateString("pt-BR")) : " (mensal — ainda não importado)", ".") },
             React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" } },
                 [["todas", "Todas"]].concat(OF_LOJAS.map(function (l) { return [l, l]; })).map(function (_a) {
                     var _b = __read(_a, 2), v = _b[0], l = _b[1];
@@ -4803,6 +4853,16 @@ function AbaLojas() {
                     abertasFiltradas.length,
                     " O.S. \u00B7 ",
                     nReal(somaAberto.valor),
+                    (function () {
+                        var v = abertasFiltradas.filter(function (o) { return Number(o.dias_aberta) > 30; });
+                        return v.length
+                            ? React.createElement("span", { style: { color: T.bad, fontWeight: 600 } },
+                                " \u00B7 ",
+                                v.length,
+                                " com mais de 30 dias (",
+                                nReal(v.reduce(function (a, o) { return a + Number(o.total); }, 0)),
+                                ")") : null;
+                    })(),
                     somaAberto.comFonte ? React.createElement("span", null,
                         " \u00B7 adiantado ",
                         React.createElement("b", { style: { color: T.good } }, nReal(somaAberto.adiantado)),
@@ -4826,7 +4886,7 @@ function AbaLojas() {
                             React.createElement(Th, { right: true }, "A pagar"))),
                     React.createElement("tbody", null,
                         abertasFiltradas.slice(0, 80).map(function (o) {
-                            var dias = diasEntre(o.dt_os, r.ultimoDia || r.hojeISO) - 1;
+                            var dias = Number(o.dias_aberta) || 0;
                             var c = contaDaOs(o);
                             return (React.createElement("tr", { key: o.loja + o.os_numero },
                                 React.createElement(Td, null, o.loja),
