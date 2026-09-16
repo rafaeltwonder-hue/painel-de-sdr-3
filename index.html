@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v36 — CAR SERVICE</title>
-<meta name="painel-versao" content="v36">
+<title>Painel de SDR v37 — CAR SERVICE</title>
+<meta name="painel-versao" content="v37">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -1893,8 +1893,8 @@ function Painel(_a) {
        transforma a tela da sala num favorito, e o botão voltar do navegador
        passa a funcionar entre as abas. */
     /* Perfil de acesso (15/09/2026): vem do JWT (app_metadata.perfil). 'admin'
-       vê tudo; 'importador' (16/09) vê SÓ a aba Importar — é o login de quem
-       exporta os relatórios do Oficina e não tem nada a ver com os números;
+       vê tudo; 'importador' (16/09) vê só Importar e Resumo — é o login de
+       quem exporta os relatórios do Oficina e manda os cartões do dia;
        qualquer outro (ou nenhum) vê só SDR, Coordenador e Modo TV. O banco
        recusa as tabelas do comercial para quem não pode — aqui é só a parte
        visível da regra, não a segurança em si. */
@@ -1903,7 +1903,10 @@ function Painel(_a) {
     var ehImportador = perfil === "importador";
     var ABAS = [["painel", "SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["closers", "Closers"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]];
     var ABAS_SDR = ["painel", "coordenador", "tv"];
-    var podeVer = function (v) { return (ehAdmin ? true : ehImportador ? v === "importar" : ABAS_SDR.indexOf(v) >= 0); };
+    // 16/09: o importador também monta e envia os resumos do dia, então vê
+    // Importar + Resumo (e nada além disso).
+    var ABAS_IMPORTADOR = ["importar", "resumo"];
+    var podeVer = function (v) { return (ehAdmin ? true : ehImportador ? ABAS_IMPORTADOR.indexOf(v) >= 0 : ABAS_SDR.indexOf(v) >= 0); };
     var abaInicial = ehImportador ? "importar" : "painel";
     var abaDaURL = function () {
         var h = String(window.location.hash || "").replace("#", "");
@@ -2323,7 +2326,7 @@ function Painel(_a) {
             })),
             aba !== "painel" && aba !== "importar" && aba !== "resumo" && aba !== "closers" && aba !== "lojas" && aba !== "origem" && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
             (ehAdmin || ehImportador) && aba === "importar" && React.createElement(AbaImportar, { sessao: sessao }),
-            ehAdmin && aba === "resumo" && React.createElement(AbaResumo, { sessao: sessao }),
+            (ehAdmin || ehImportador) && aba === "resumo" && React.createElement(AbaResumo, { sessao: sessao }),
             ehAdmin && aba === "closers" && React.createElement(AbaClosers, null),
             ehAdmin && aba === "lojas" && React.createElement(AbaLojas, null),
             ehAdmin && aba === "origem" && React.createElement(AbaOrigem, null),
