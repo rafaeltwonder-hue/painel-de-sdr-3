@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v37 — CAR SERVICE</title>
-<meta name="painel-versao" content="v37">
+<title>Painel de SDR v38 — CAR SERVICE</title>
+<meta name="painel-versao" content="v38">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -2760,12 +2760,17 @@ function ChecklistImport(_a) {
     var diaDe = function (a) { return (a.processado_em ? iso(new Date(a.processado_em)) : null); };
     var doTipo = function (t) { return (lista || []).filter(function (a) { return ok(a) && a.tipo === t; }); };
     var listagemHoje = doTipo("listagem_itens").filter(function (a) { return a.periodo_ini >= inicioMes && diaDe(a) === hojeISO; });
+    // 16/09: o Vendas por Empresa do MÊS ATUAL entrou na rotina diária — é a
+    // conferência do faturamento com o Mapa de Metas do Oficina (aba Lojas).
+    var empresaHoje = doTipo("vendas_empresa").filter(function (a) { return a.periodo_ini === inicioMes && diaDe(a) === hojeISO; });
     var faltamVR = LOJAS_IMPORT.filter(function (l) { return !doTipo("vendas_responsavel").some(function (a) { return a.loja === l && a.periodo_ini === inicioMes && diaDe(a) >= seteAtras; }); });
     var faltamPag = LOJAS_IMPORT.filter(function (l) { return !doTipo("os_pagamento").some(function (a) { return a.loja === l && a.periodo_ini === inicioMes; }); });
     var temAnterior = doTipo("vendas_empresa").some(function (a) { return a.periodo_ini === mesAnt; });
     var itens = [
         { t: "Listagem de OS's c/ Itens (Rede)", quando: "todo dia", falta: !listagemHoje.length,
             det: listagemHoje.length ? "importada hoje" : "não foi importada hoje — é o arquivo que move todo o painel" },
+        { t: "Vendas por Empresa do mês atual", quando: "todo dia", falta: !empresaHoje.length,
+            det: empresaHoje.length ? "conferência com o ERP em dia" : "sem a conferência de hoje — a aba Lojas não compara com o Mapa de Metas" },
         { t: "Vendas por Responsável", quando: "1 por loja, toda semana", falta: !!faltamVR.length,
             det: faltamVR.length ? "faltando desta semana: ".concat(faltamVR.join(", ")) : "as 4 lojas em dia" },
         { t: "OS por Pagamento", quando: "1 por loja, todo mês", falta: !!faltamPag.length,
@@ -3137,7 +3142,7 @@ function textoDesconto(d, fat) {
 }
 /* agrega as três fontes numa estrutura simples, por closer e por loja */
 function agregarOficinaExtra(_a) {
-    var vendasResp = _a.vendasResp, pagamentos = _a.pagamentos, empresaAnt = _a.empresaAnt, mapCloser = _a.mapCloser, mesAnt = _a.mesAnt;
+    var vendasResp = _a.vendasResp, pagamentos = _a.pagamentos, empresaAnt = _a.empresaAnt, empresaMes = _a.empresaMes, mapCloser = _a.mapCloser, mesAnt = _a.mesAnt, inicioMes = _a.inicioMes;
     var porCodigo = {}, porCurto = {};
     (mapCloser || []).forEach(function (m) { porCodigo[m.erp_codigo] = m; porCurto[String(m.erp_curto || "").toUpperCase()] = m; });
     // desconto por closer (erp_codigo) e por loja (todos os responsáveis da loja)
@@ -3244,7 +3249,15 @@ function agregarOficinaExtra(_a) {
     var antLoja = {};
     (empresaAnt || []).forEach(function (e) { if (e.periodo_ini === mesAnt)
         antLoja[e.loja] = e; });
-    return { descCloser: descCloser, descLoja: descLoja, pagCloser: pagCloser, pagLoja: pagLoja, pagPorOs: pagPorOs, lojasComPagamento: lojasComPagamento, antLoja: antLoja, temDesconto: !!(vendasResp || []).length, temPagamento: !!(pagamentos || []).length, temAnoAnterior: !!Object.keys(antLoja).length };
+    // Conferência com o ERP (16/09/2026): "Vendas por Empresa" do MÊS ATUAL.
+    // O arquivo diário sai por Data da OS e não enxerga O.S. de meses anteriores
+    // faturadas agora; este relatório traz o faturamento pelo critério do próprio
+    // Oficina. Serve para mostrar a diferença em vez de discutir qual está certo.
+    var erpMes = {};
+    (empresaMes || []).forEach(function (e) { if (!inicioMes || e.periodo_ini === inicioMes)
+        erpMes[e.loja] = e; });
+    return { descCloser: descCloser, descLoja: descLoja, pagCloser: pagCloser, pagLoja: pagLoja, pagPorOs: pagPorOs, lojasComPagamento: lojasComPagamento, antLoja: antLoja, erpMes: erpMes, temDesconto: !!(vendasResp || []).length, temPagamento: !!(pagamentos || []).length,
+        temAnoAnterior: !!Object.keys(antLoja).length, temErpMes: !!Object.keys(erpMes).length };
 }
 /* consultas das três fontes, para as abas reaproveitarem */
 function consultasOficinaExtra(inicioMes) {
@@ -3254,6 +3267,8 @@ function consultasOficinaExtra(inicioMes) {
         vendasResp: db.from("oi_vendas_responsavel").select("loja,erp_codigo,erp_nome,faturamento,desconto,os_qtd").eq("periodo_ini", inicioMes),
         pagamentos: db.from("oi_os_pagamento").select("loja,os_numero,forma,parcela,valor,erp_curto").eq("periodo_ini", inicioMes),
         empresaAnt: db.from("oi_vendas_empresa").select("loja,periodo_ini,faturamento,desconto,custo,lucro_bruto,os_qtd,ticket_medio").eq("periodo_ini", mesAnt),
+        // mesmo relatório, mês corrente: é a conferência do faturamento com o ERP
+        empresaMes: db.from("oi_vendas_empresa").select("loja,periodo_ini,faturamento,desconto,custo,lucro_bruto,os_qtd,ticket_medio").eq("periodo_ini", inicioMes),
         mapCloser: db.from("map_closer").select("erp_codigo,erp_curto,nome_oficial,unidade,meta_mensal,ativo"),
         // escada de metas: se a tabela ainda não existir, cai nos padrões (nunca derruba a aba)
         metaGrupo: Promise.resolve(db.from("meta_grupo").select("nivel,valor").order("nivel")).then(function (r) { return (r && !r.error && r.data && r.data.length ? r.data.map(function (x) { return Number(x.valor); }) : META_GRUPO_PADRAO); }, function () { return META_GRUPO_PADRAO; }),
@@ -3789,7 +3804,7 @@ function AbaResumo(_a) {
                         ])];
                 case 2:
                     _a = __read.apply(void 0, [_b.sent(), 12]), fatoMes = _a[0], eq = _a[1], mm = _a[2], lojas = _a[3], closers = _a[4], setores = _a[5], dias = _a[6], arquivos = _a[7], vendasResp = _a[8], empresaAnt = _a[9], mapCloser = _a[10], metaGrupo = _a[11];
-                    ex = agregarOficinaExtra({ vendasResp: vendasResp, pagamentos: [], empresaAnt: empresaAnt, mapCloser: mapCloser, mesAnt: extra.mesAnt });
+                    ex = agregarOficinaExtra({ vendasResp: vendasResp, pagamentos: [], empresaAnt: empresaAnt, empresaMes: [], mapCloser: mapCloser, mesAnt: extra.mesAnt, inicioMes: inicioMes });
                     ex.mesAnt = extra.mesAnt;
                     ex.metaGrupo = metaGrupo;
                     setR({ fatoMes: fatoMes, equipe: eq.map(function (x) { return x.sdr; }), meta: mm[0] || null, lojas: lojas, closers: closers, setores: setores, dias: dias, arquivos: arquivos, ex: ex });
@@ -3945,7 +3960,7 @@ function useOficina() {
     var hojeISO = hoje();
     var inicioMes = hojeISO.slice(0, 8) + "01";
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, mapCloser, arquivosExtra_1, metaGrupo, ultimoDia, ex, ultimoDe, e_11;
+        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, empresaMes, mapCloser, arquivosExtra_1, metaGrupo, ultimoDia, ex, ultimoDe, e_11;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -3977,19 +3992,20 @@ function useOficina() {
                             pega(db.from("map_loja").select("*")),
                             pega(db.from("oi_arquivos").select("id,loja,periodo_ini,processado_em,status,tipo").eq("tipo", "listagem_itens").eq("status", "ok")
                                 .gte("periodo_ini", inicioMes).order("processado_em", { ascending: false }).limit(8)),
-                            pega(extra.vendasResp), pega(extra.pagamentos), pega(extra.empresaAnt), pega(extra.mapCloser),
+                            pega(extra.vendasResp), pega(extra.pagamentos), pega(extra.empresaAnt), pega(extra.empresaMes), pega(extra.mapCloser),
                             pega(db.from("oi_arquivos").select("id,loja,tipo,periodo_ini,processado_em").eq("status", "ok")
                                 .in("tipo", ["vendas_responsavel", "os_pagamento", "vendas_empresa"]).order("processado_em", { ascending: false }).limit(200)),
                             extra.metaGrupo,
                         ])];
                 case 2:
-                    _a = __read.apply(void 0, [_b.sent(), 16]), lojas = _a[0], closers = _a[1], setores = _a[2], dias = _a[3], os = _a[4], origem = _a[5], itens = _a[6], funil = _a[7], mapLoja = _a[8], arquivos = _a[9], vendasResp = _a[10], pagamentos = _a[11], empresaAnt = _a[12], mapCloser = _a[13], arquivosExtra_1 = _a[14], metaGrupo = _a[15];
+                    _a = __read.apply(void 0, [_b.sent(), 17]), lojas = _a[0], closers = _a[1], setores = _a[2], dias = _a[3], os = _a[4], origem = _a[5], itens = _a[6], funil = _a[7], mapLoja = _a[8], arquivos = _a[9], vendasResp = _a[10], pagamentos = _a[11], empresaAnt = _a[12], empresaMes = _a[13], mapCloser = _a[14], arquivosExtra_1 = _a[15], metaGrupo = _a[16];
                     ultimoDia = dias.reduce(function (m, d) { return (d.dt_os > m && d.dt_os <= hojeISO ? d.dt_os : m); }, "");
-                    ex = agregarOficinaExtra({ vendasResp: vendasResp, pagamentos: pagamentos, empresaAnt: empresaAnt, mapCloser: mapCloser, mesAnt: extra.mesAnt });
+                    ex = agregarOficinaExtra({ vendasResp: vendasResp, pagamentos: pagamentos, empresaAnt: empresaAnt, empresaMes: empresaMes, mapCloser: mapCloser, mesAnt: extra.mesAnt, inicioMes: inicioMes });
                     ultimoDe = function (tipo, periodo) { return (arquivosExtra_1.filter(function (a) { return a.tipo === tipo && (!periodo || a.periodo_ini === periodo); })[0] || {}).processado_em || null; };
                     ex.importDesconto = ultimoDe("vendas_responsavel", inicioMes);
                     ex.importPagamento = ultimoDe("os_pagamento", inicioMes);
                     ex.importAnoAnterior = ultimoDe("vendas_empresa", extra.mesAnt);
+                    ex.importErpMes = ultimoDe("vendas_empresa", inicioMes);
                     ex.mesAnt = extra.mesAnt;
                     ex.metaGrupo = metaGrupo;
                     setR({ lojas: lojas, closers: closers, setores: setores, dias: dias, os: os, origem: origem, itens: itens, funil: funil, mapLoja: mapLoja, mapCloser: mapCloser, arquivos: arquivos, ultimoDia: ultimoDia, hojeISO: hojeISO, inicioMes: inicioMes, ex: ex });
@@ -4148,6 +4164,62 @@ function TabelaParcelas(_a) {
                             tot[i] ? React.createElement("div", { style: { fontSize: 11, fontWeight: 400, color: T.muted, marginTop: 2 } }, nReal(tot[i])) : null)); }),
                         React.createElement(Td, null,
                             React.createElement(BarraFaixas, { partes: tot, total: totCred }))))))));
+}
+/* Conferência do faturamento com o ERP (16/09/2026, pedido do Rafael).
+   O arquivo diário sai POR DATA DA OS: O.S. aberta em agosto e faturada em
+   setembro não entra nele, e por isso o Mapa de Metas do Oficina mostra um
+   número maior. Em vez de discutir qual está certo, o painel mostra os dois
+   lado a lado — a fonte é o "Vendas por Empresa" do mês atual, exportado na
+   mesma tela do arquivo diário. Diferença até 2% é ruído; acima disso é
+   quase sempre O.S. de mês anterior faturada agora. */
+function ConferenciaErp(_a) {
+    var lojas = _a.lojas, ex = _a.ex;
+    var erpMes = ex.erpMes || {};
+    var linhas = lojas.map(function (l) {
+        var e = erpMes[l.loja];
+        return { loja: l.loja, erp: e ? Number(e.faturamento) || 0 : null, nosso: Number(l.faturamento) || 0 };
+    });
+    var totNosso = linhas.reduce(function (s, x) { return s + x.nosso; }, 0);
+    var totErp = linhas.reduce(function (s, x) { return s + (x.erp || 0); }, 0);
+    var cor = function (dif, base) { return (Math.abs(div(dif, base)) > 0.02 ? T.warn : T.ink); };
+    var quandoBR = function (iso) { return (iso ? new Date(iso).toLocaleDateString("pt-BR") : ""); };
+    return (React.createElement("div", { style: { marginTop: 16 } },
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 700, marginBottom: 6 } },
+            "Confer\u00EAncia com o ERP",
+            React.createElement("span", { style: { fontSize: 12, fontWeight: 400, color: T.muted } },
+                " \u00B7 faturamento do m\u00EAs no Vendas por Empresa (Gest\u00E3o de Rede) contra o que o painel calcula pela Listagem, que \u00E9 por Data da OS.",
+                ex.temErpMes ? " Arquivo de ".concat(quandoBR(ex.importErpMes), ".") : "")),
+        !ex.temErpMes ? (React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.ink2 } },
+            React.createElement(Aguardando, null, "Vendas por Empresa do m\u00EAs atual"),
+            React.createElement("span", { style: { marginLeft: 8 } },
+                "Na Gest\u00E3o de Rede, com as datas do m\u00EAs corrente, clique em ",
+                React.createElement("b", null, "Vendas por Empresa"),
+                " e solte o arquivo na aba Importar. \u00C9 o que fecha a conta com o Mapa de Metas."))) : (React.createElement(Card, { className: "p0 rolagem" },
+            React.createElement("table", { style: { minWidth: 640 } },
+                React.createElement("thead", null,
+                    React.createElement("tr", null,
+                        React.createElement(Th, null, "Unidade"),
+                        React.createElement(Th, { right: true }, "ERP (Vendas por Empresa)"),
+                        React.createElement(Th, { right: true }, "Painel (Data da OS)"),
+                        React.createElement(Th, { right: true }, "Diferen\u00E7a"),
+                        React.createElement(Th, { right: true }, "% da diferen\u00E7a"))),
+                React.createElement("tbody", null,
+                    linhas.map(function (x) { return (React.createElement("tr", { key: x.loja },
+                        React.createElement(Td, { bold: true }, x.loja),
+                        React.createElement(Td, { right: true }, x.erp == null ? "—" : nReal(x.erp)),
+                        React.createElement(Td, { right: true }, nReal(x.nosso)),
+                        React.createElement(Td, { right: true, bold: true, color: x.erp == null ? T.muted : cor(x.erp - x.nosso, x.erp) }, x.erp == null ? "—" : nReal(x.erp - x.nosso)),
+                        React.createElement(Td, { right: true, color: x.erp == null ? T.muted : cor(x.erp - x.nosso, x.erp) }, x.erp == null ? "—" : nPct(div(x.erp - x.nosso, x.erp), 1)))); }),
+                    React.createElement("tr", null,
+                        React.createElement(Td, { bold: true }, "Grupo"),
+                        React.createElement(Td, { right: true, bold: true }, nReal(totErp)),
+                        React.createElement(Td, { right: true, bold: true }, nReal(totNosso)),
+                        React.createElement(Td, { right: true, bold: true, color: cor(totErp - totNosso, totErp) }, nReal(totErp - totNosso)),
+                        React.createElement(Td, { right: true, bold: true, color: cor(totErp - totNosso, totErp) }, nPct(div(totErp - totNosso, totErp), 1))))))),
+        React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 8, lineHeight: 1.5 } },
+            "O ERP costuma vir maior porque conta O.S. de meses anteriores faturadas neste m\u00EAs \u2014 a Listagem, filtrada por Data da OS, n\u00E3o traz essas. ",
+            React.createElement("b", null, "Os dois n\u00FAmeros est\u00E3o certos"),
+            ", medem coisas diferentes: o do painel \u00E9 o que foi vendido no m\u00EAs, o do ERP \u00E9 o que entrou no m\u00EAs.")));
 }
 /* ---------------------------- CLOSERS ---------------------------- */
 function AbaClosers() {
@@ -4564,7 +4636,8 @@ function AbaLojas() {
                     " vs ",
                     mesAntNome),
                 ": quanto do faturamento do mesmo m\u00EAs do ano passado j\u00E1 foi feito \u2014 detalhe na se\u00E7\u00E3o 6.",
-                crescTot ? "" : " O grupo fica em \"\u2014\" enquanto faltar a base de alguma loja em ".concat(mesAntNome, "."))),
+                crescTot ? "" : " O grupo fica em \"\u2014\" enquanto faltar a base de alguma loja em ".concat(mesAntNome, ".")),
+            React.createElement(ConferenciaErp, { lojas: lojas, ex: ex })),
         React.createElement(Secao, { n: 3, titulo: "Faturamento por setor", nota: "Crit\u00E9rio oficial de agrupamento (5 setores). Cada linha soma 100% da loja." },
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { minWidth: 820 } },
