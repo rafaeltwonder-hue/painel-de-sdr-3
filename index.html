@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v44 — CAR SERVICE</title>
-<meta name="painel-versao" content="v44">
+<title>Painel de SDR v46 — CAR SERVICE</title>
+<meta name="painel-versao" content="v46">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -2772,7 +2772,9 @@ function ChecklistImport(_a) {
     // v41: com o faturado saindo da Listagem, o Vendas por Responsável volta a
     // ser semanal — ele fica só com o desconto vs tabela.
     var faltamVR = LOJAS_IMPORT.filter(function (l) { return !doTipo("vendas_responsavel").some(function (a) { return a.loja === l && a.periodo_ini === inicioMes && diaDe(a) >= seteAtras; }); });
-    var faltamPag = LOJAS_IMPORT.filter(function (l) { return !doTipo("os_pagamento").some(function (a) { return a.loja === l && a.periodo_ini === inicioMes; }); });
+    // v46 (17/09): OS por Pagamento virou semanal — é ele que dá o Sinal
+    // que vai para a planilha de cobrança; mensal ficava velho demais.
+    var faltamPag = LOJAS_IMPORT.filter(function (l) { return !doTipo("os_pagamento").some(function (a) { return a.loja === l && a.periodo_ini === inicioMes && diaDe(a) >= seteAtras; }); });
     var temAnterior = doTipo("vendas_empresa").some(function (a) { return a.periodo_ini === mesAnt; });
     var itens = [
         { t: "Listagem de OS's c/ Itens (Rede) · 3 meses", quando: "todo dia", falta: !listagemHoje.length || !listagemTrimestre.length,
@@ -2783,8 +2785,8 @@ function ChecklistImport(_a) {
             det: faltamVR.length ? "faltando desta semana: ".concat(faltamVR.join(", ")) : "as 4 lojas em dia" },
         { t: "Vendas por Empresa do mês atual", quando: "1 vez por mês", falta: !empresaHoje.length,
             det: empresaHoje.length ? "conferência com o ERP em dia" : "sem a conferência do mês com o Mapa de Metas" },
-        { t: "OS por Pagamento", quando: "1 por loja, todo mês", falta: !!faltamPag.length,
-            det: faltamPag.length ? "faltando neste m\u00EAs: ".concat(faltamPag.join(", ")) : "as 4 lojas em dia" },
+        { t: "OS por Pagamento", quando: "1 por loja, toda semana", falta: !!faltamPag.length,
+            det: faltamPag.length ? "faltando desta semana: ".concat(faltamPag.join(", ")) : "as 4 lojas em dia" },
         { t: "Vendas por Empresa do ano anterior", quando: "1 vez por mês", falta: !temAnterior,
             det: temAnterior ? "base do crescimento carregada" : "sem a base do mesmo mês do ano passado — o crescimento fica vazio" },
     ];
@@ -4901,15 +4903,17 @@ function AbaClosers() {
 }
 /* ---------------------------- LOJAS ---------------------------- */
 function AbaLojas() {
+    var _this = this;
     var _a = useOficina(), r = _a.r, erro = _a.erro, carregar = _a.carregar;
     var _b = __read(useState("todas"), 2), lojaAberta = _b[0], setLojaAberta = _b[1]; // hook antes de qualquer return
+    var _c = __read(useState(false), 2), copiado = _c[0], setCopiado = _c[1]; // idem: hook nunca depois de um return
     if (erro)
         return React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.bad } },
             "N\u00E3o consegui ler os dados: ",
             erro);
     if (!r)
         return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando\u2026");
-    var _c = ritmoDoMes(r), du = _c.du, frac = _c.frac;
+    var _d = ritmoDoMes(r), du = _d.du, frac = _d.frac;
     // Em aberto vem de resumo_aberto_v: toda O.S. parada, de qualquer mês (v41)
     var abertoPorLoja = {};
     (r.abertas || []).forEach(function (o) {
@@ -4951,6 +4955,69 @@ function AbaLojas() {
     var osComValor = r.os.filter(function (o) { return Number(o.total) > 0; }).length;
     var osInternas = r.os.length - osComValor;
     var abertas = (r.abertas || []).slice().sort(function (a, b) { return Number(b.total) - Number(a.total); });
+    /* Exportação da lista de cobrança (17/09/2026, pedido do Rafael).
+       Duas saídas porque servem a usos diferentes: o CSV é arquivo (vai por
+       e-mail, vira aba no Drive); o "copiar" cola direto numa planilha aberta,
+       que é o caminho de quem já está com o Sheets na tela. Exporta o que
+       está FILTRADO — se a pessoa escolheu Bandeirantes, é Bandeirantes que sai. */
+    var linhasExport = function () {
+        var cab = ["Loja", "O.S.", "Data", "Dias aberta", "Placa", "Veículo", "Closer", "Origem", "Valor da O.S.", "Adiantamento", "A pagar"];
+        var num = function (v) { return String(Number(v || 0).toFixed(2)).replace(".", ","); };
+        var linhas = abertasFiltradas.map(function (o) {
+            var c = contaDaOs(o);
+            return [o.loja, o.os_numero, br(o.dt_os), String(Number(o.dias_aberta) || 0),
+                o.placa || "", o.veiculo || "", o.closer || o.erp_nome || "", o.pesquisa || "",
+                num(c.valor), c.temFonte ? num(c.adiantado) : "", c.temFonte ? num(c.aPagar) : num(c.valor)];
+        });
+        return [cab].concat(linhas);
+    };
+    var baixarCsv = function () {
+        // ; e vírgula decimal: é o que o Excel e o Sheets em português esperam
+        var texto = linhasExport().map(function (l) { return l.map(function (c) { return (/[;"\n]/.test(c) ? '"' + String(c).replace(/"/g, '""') + '"' : c); }).join(";"); }).join("\n");
+        var nome = "os-em-aberto-".concat(lojaAberta === "todas" ? "todas" : lojaAberta.toLowerCase(), "-").concat(r.hojeISO, ".csv");
+        var a = document.createElement("a");
+        // BOM para o acento não quebrar ao abrir no Excel
+        a.href = URL.createObjectURL(new Blob(["\ufeff" + texto], { type: "text/csv;charset=utf-8" }));
+        a.download = nome;
+        a.click();
+        setTimeout(function () { return URL.revokeObjectURL(a.href); }, 4000);
+    };
+    var copiarTabela = function () { return __awaiter(_this, void 0, void 0, function () {
+        var texto, ta, e_15;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    texto = linhasExport().map(function (l) { return l.join("\t"); }).join("\n");
+                    _a.label = 1;
+                case 1:
+                    _a.trys.push([1, 5, , 6]);
+                    if (!(navigator.clipboard && navigator.clipboard.writeText)) return [3 /*break*/, 3];
+                    return [4 /*yield*/, navigator.clipboard.writeText(texto)];
+                case 2:
+                    _a.sent();
+                    return [3 /*break*/, 4];
+                case 3:
+                    ta = document.createElement("textarea");
+                    ta.value = texto;
+                    ta.style.position = "fixed";
+                    ta.style.opacity = "0";
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(ta);
+                    _a.label = 4;
+                case 4:
+                    setCopiado(true);
+                    setTimeout(function () { return setCopiado(false); }, 2500);
+                    return [3 /*break*/, 6];
+                case 5:
+                    e_15 = _a.sent();
+                    setCopiado(false);
+                    return [3 /*break*/, 6];
+                case 6: return [2 /*return*/];
+            }
+        });
+    }); };
     var abertasFiltradas = abertas.filter(function (o) { return lojaAberta === "todas" || o.loja === lojaAberta; });
     /* Valor da O.S., o que já foi adiantado e o que falta receber. O adiantamento
        vem do OS por Pagamento (o que está lançado no financeiro daquela O.S.).
@@ -5128,7 +5195,7 @@ function AbaLojas() {
                 React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 8 } },
                     "melhor dia: ",
                     diasOrd.length ? "".concat(brFull(diasOrd.reduce(function (m, d) { return (porDia[d] > porDia[m] ? d : m); }, diasOrd[0])), " \u00B7 ").concat(nReal(maxDia)) : "—"))),
-        React.createElement(Secao, { n: 5, titulo: "O.S. em aberto", nota: "TODAS as O.S. ainda n\u00E3o finalizadas, de qualquer m\u00EAs \u2014 n\u00E3o s\u00F3 as deste m\u00EAs. Identificadas pela placa; o nome do cliente n\u00E3o \u00E9 guardado no painel. \"Dias aberta\" conta da data da O.S. at\u00E9 hoje. Adiantamento = o que j\u00E1 est\u00E1 lan\u00E7ado no financeiro daquela O.S. (entrada no PIX, sinal no cart\u00E3o), do OS por Pagamento".concat(ex.importPagamento ? " importado em ".concat(new Date(ex.importPagamento).toLocaleDateString("pt-BR")) : " (mensal — ainda não importado)", ".") },
+        React.createElement(Secao, { n: 5, titulo: "O.S. em aberto", nota: "TODAS as O.S. ainda n\u00E3o finalizadas, de qualquer m\u00EAs \u2014 n\u00E3o s\u00F3 as deste m\u00EAs. D\u00E1 para levar a lista filtrada para uma planilha: \"Copiar para o Sheets\" cola direto, \"Baixar CSV\" gera o arquivo. Identificadas pela placa; o nome do cliente n\u00E3o \u00E9 guardado no painel. \"Dias aberta\" conta da data da O.S. at\u00E9 hoje. Adiantamento = o que j\u00E1 est\u00E1 lan\u00E7ado no financeiro daquela O.S. (entrada no PIX, sinal no cart\u00E3o), do OS por Pagamento".concat(ex.importPagamento ? " importado em ".concat(new Date(ex.importPagamento).toLocaleDateString("pt-BR")) : " (mensal — ainda não importado)", ".") },
             React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" } },
                 [["todas", "Todas"]].concat(OF_LOJAS.map(function (l) { return [l, l]; })).map(function (_a) {
                     var _b = __read(_a, 2), v = _b[0], l = _b[1];
@@ -5154,7 +5221,12 @@ function AbaLojas() {
                         React.createElement("b", { style: { color: T.good } }, nReal(somaAberto.adiantado)),
                         " \u00B7 a pagar ",
                         React.createElement("b", { style: { color: T.warn } }, nReal(somaAberto.aPagar))) : null,
-                    abertasFiltradas.length > 80 ? " · a tabela mostra as 80 maiores, o total é de todas" : "")),
+                    abertasFiltradas.length > 80 ? " · a tabela mostra as 80 maiores, o total é de todas" : ""),
+                React.createElement("div", { style: { marginLeft: "auto", display: "flex", gap: 8 } },
+                    React.createElement("button", { onClick: copiarTabela, title: "Cola direto numa planilha do Google Sheets", style: { fontSize: 12, fontWeight: 600, padding: "6px 12px", borderRadius: 6, cursor: "pointer", fontFamily: F_UI,
+                            border: "1px solid ".concat(copiado ? T.good : T.hair), background: T.surface, color: copiado ? T.good : T.ink2 } }, copiado ? "copiado ✓ agora é só colar" : "Copiar para o Sheets"),
+                    React.createElement("button", { onClick: baixarCsv, style: { fontSize: 12, fontWeight: 600, padding: "6px 12px", borderRadius: 6, cursor: "pointer", fontFamily: F_UI,
+                            border: "1px solid ".concat(T.hair), background: T.surface, color: T.ink2 } }, "\u2913 Baixar CSV"))),
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { minWidth: 1080 } },
                     React.createElement("thead", null,
