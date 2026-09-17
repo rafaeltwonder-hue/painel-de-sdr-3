@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v41 — CAR SERVICE</title>
-<meta name="painel-versao" content="v41">
+<title>Painel de SDR v42 — CAR SERVICE</title>
+<meta name="painel-versao" content="v42">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -2820,6 +2820,79 @@ function ChecklistImport(_a) {
                 React.createElement("b", null, "Exporte de novo com o m\u00EAs inteiro"),
                 ", do dia 1 ao \u00FAltimo dia, e avise o Rafael.")))));
 }
+/* Conferência da integração com a API do Oficina (17/09/2026).
+   Os tokens das 4 empresas vivem nos Secrets do Supabase e são lidos só
+   pela Edge Function oi-api. Este cartão existe para responder, sem
+   ninguém ver token nenhum: "está configurado e a função enxerga?".
+   A "digital" são 4 bytes do SHA-256 — serve para comparar depois de uma
+   troca e para flagrar dois tokens iguais em lojas diferentes. */
+function CartaoIntegracao() {
+    var _this = this;
+    var _a = __read(useState(null), 2), r = _a[0], setR = _a[1];
+    var _b = __read(useState(null), 2), erro = _b[0], setErro = _b[1];
+    var _c = __read(useState(false), 2), indo = _c[0], setIndo = _c[1];
+    var conferir = function () { return __awaiter(_this, void 0, void 0, function () {
+        var _a, data, error, e_5;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
+                case 0:
+                    setIndo(true);
+                    setErro(null);
+                    setR(null);
+                    _b.label = 1;
+                case 1:
+                    _b.trys.push([1, 3, , 4]);
+                    return [4 /*yield*/, db.functions.invoke("oi-api", { body: { acao: "segredos" } })];
+                case 2:
+                    _a = _b.sent(), data = _a.data, error = _a.error;
+                    if (error)
+                        throw new Error((data && data.erro) || error.message);
+                    if (data && data.erro)
+                        throw new Error(data.erro);
+                    setR(data);
+                    return [3 /*break*/, 4];
+                case 3:
+                    e_5 = _b.sent();
+                    setErro(e_5.message || String(e_5));
+                    return [3 /*break*/, 4];
+                case 4:
+                    setIndo(false);
+                    return [2 /*return*/];
+            }
+        });
+    }); };
+    return (React.createElement(Card, { className: "p16", style: { marginBottom: 14 } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
+            React.createElement(Label, null, "Integra\u00E7\u00E3o com a API do Oficina"),
+            React.createElement("span", { style: { fontSize: 12, color: T.muted } }, "os tokens ficam no Supabase; o painel nunca os enxerga"),
+            React.createElement(Btn, { onClick: conferir, style: { marginLeft: "auto", padding: "6px 12px" } }, indo ? "conferindo…" : "Conferir tokens")),
+        erro && React.createElement("div", { style: { fontSize: 12.5, color: T.bad, marginTop: 10 } }, erro),
+        r && (React.createElement("div", { style: { marginTop: 10 } },
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: r.ok ? T.good : T.bad } },
+                r.ok ? "As 4 unidades estão configuradas ✓" : "Faltando: ".concat((r.faltando || []).join(", ")),
+                (r.repetidos || []).length ? React.createElement("span", { style: { color: T.bad } },
+                    " \u00B7 token repetido em ",
+                    r.repetidos.join(", ")) : null),
+            React.createElement("div", { className: "rolagem", style: { marginTop: 8 } },
+                React.createElement("table", { style: { minWidth: 420 } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "Unidade"),
+                            React.createElement(Th, null, "Empresa"),
+                            React.createElement(Th, { right: true }, "Token"),
+                            React.createElement(Th, { right: true }, "Tamanho"),
+                            React.createElement(Th, { right: true }, "Digital"))),
+                    React.createElement("tbody", null, (r.unidades || []).map(function (u) { return (React.createElement("tr", { key: u.empresa },
+                        React.createElement(Td, { bold: true }, u.loja),
+                        React.createElement(Td, { color: T.muted }, u.empresa),
+                        React.createElement(Td, { right: true, color: u.configurado ? T.good : T.bad, bold: true }, u.configurado ? "configurado" : "faltando"),
+                        React.createElement(Td, { right: true, color: T.muted }, u.tamanho || "—"),
+                        React.createElement(Td, { right: true, color: T.muted }, u.digital || "—"))); })))),
+            React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 8, lineHeight: 1.5 } },
+                "Endere\u00E7o da API: ",
+                r.endereco_da_api ? React.createElement("b", null, r.endereco_da_api) : React.createElement("span", { style: { color: T.warn } }, "ainda n\u00E3o configurado (secret OI_API_BASE)"),
+                ". A \"digital\" s\u00E3o 4 bytes do SHA-256 do token \u2014 n\u00E3o d\u00E1 para voltar ao valor, e serve para conferir se mudou depois de uma troca.")))));
+}
 function AbaImportar(_a) {
     var _this = this;
     var sessao = _a.sessao;
@@ -2850,7 +2923,7 @@ function AbaImportar(_a) {
     }); };
     useEffect(function () { carregar(); }, []);
     var chamar = function (arquivo_id, amostra) { return __awaiter(_this, void 0, void 0, function () {
-        var _a, data, error, corpo, e_5;
+        var _a, data, error, corpo, e_6;
         var _b, _c;
         return __generator(this, function (_d) {
             switch (_d.label) {
@@ -2867,7 +2940,7 @@ function AbaImportar(_a) {
                     corpo = _d.sent();
                     return [3 /*break*/, 5];
                 case 4:
-                    e_5 = _d.sent();
+                    e_6 = _d.sent();
                     return [3 /*break*/, 5];
                 case 5: throw new Error((corpo === null || corpo === void 0 ? void 0 : corpo.erro) || error.message || "falha ao chamar a função");
                 case 6:
@@ -2878,8 +2951,8 @@ function AbaImportar(_a) {
         });
     }); };
     var enviar = function (arquivos) { return __awaiter(_this, void 0, void 0, function () {
-        var lote, hojeStr, _loop_1, lote_1, lote_1_1, a, e_6_1;
-        var e_6, _a;
+        var lote, hojeStr, _loop_1, lote_1, lote_1_1, a, e_7_1;
+        var e_7, _a;
         var _b;
         return __generator(this, function (_c) {
             switch (_c.label) {
@@ -2892,7 +2965,7 @@ function AbaImportar(_a) {
                     }
                     hojeStr = hoje();
                     _loop_1 = function (a) {
-                        var item, atualiza, caminho, up, reg, r, e_7;
+                        var item, atualiza, caminho, up, reg, r, e_8;
                         return __generator(this, function (_d) {
                             switch (_d.label) {
                                 case 0:
@@ -2922,8 +2995,8 @@ function AbaImportar(_a) {
                                     atualiza({ etapa: "ok", resultado: r });
                                     return [3 /*break*/, 6];
                                 case 5:
-                                    e_7 = _d.sent();
-                                    atualiza({ etapa: "erro", erro: e_7.message || String(e_7) });
+                                    e_8 = _d.sent();
+                                    atualiza({ etapa: "erro", erro: e_8.message || String(e_8) });
                                     return [3 /*break*/, 6];
                                 case 6: return [4 /*yield*/, carregar()];
                                 case 7:
@@ -2949,21 +3022,21 @@ function AbaImportar(_a) {
                     return [3 /*break*/, 2];
                 case 5: return [3 /*break*/, 8];
                 case 6:
-                    e_6_1 = _c.sent();
-                    e_6 = { error: e_6_1 };
+                    e_7_1 = _c.sent();
+                    e_7 = { error: e_7_1 };
                     return [3 /*break*/, 8];
                 case 7:
                     try {
                         if (lote_1_1 && !lote_1_1.done && (_a = lote_1.return)) _a.call(lote_1);
                     }
-                    finally { if (e_6) throw e_6.error; }
+                    finally { if (e_7) throw e_7.error; }
                     return [7 /*endfinally*/];
                 case 8: return [2 /*return*/];
             }
         });
     }); };
     var reprocessar = function (arq, amostra) { return __awaiter(_this, void 0, void 0, function () {
-        var r, e_8;
+        var r, e_9;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -2983,8 +3056,8 @@ function AbaImportar(_a) {
                         setPrevia({ arq: arq, r: r });
                     return [3 /*break*/, 4];
                 case 3:
-                    e_8 = _a.sent();
-                    setErroGeral("".concat(arq.nome_original, ": ").concat(e_8.message));
+                    e_9 = _a.sent();
+                    setErroGeral("".concat(arq.nome_original, ": ").concat(e_9.message));
                     return [3 /*break*/, 4];
                 case 4:
                     setOcupado(null);
@@ -3069,6 +3142,7 @@ function AbaImportar(_a) {
             previa.r.primeiras_linhas && (React.createElement("pre", { style: { fontSize: 11.5, background: T.canvas, borderRadius: 6, padding: 10, overflowX: "auto", marginTop: 8 } }, JSON.stringify(previa.r.primeiras_linhas, null, 1))),
             React.createElement(Btn, { kind: "accent", onClick: function () { return reprocessar(previa.arq, false); }, style: { marginTop: 12 } }, "Gravar este arquivo"))),
         React.createElement(ChecklistImport, { lista: lista }),
+        React.createElement(CartaoIntegracao, null),
         React.createElement(Card, { className: "p0 rolagem" },
             React.createElement("div", { style: { padding: "14px 16px 6px", display: "flex", alignItems: "center", gap: 10 } },
                 React.createElement(Label, null, "Arquivos recebidos"),
@@ -3842,7 +3916,7 @@ function AbaResumo(_a) {
     var du = diasUteisDoMes(hojeISO);
     var frac = du.diaDoMes / du.diasNoMes;
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, extra, _a, fatoMes, eq, mm, lojas, closers, setores, dias, arquivos, vendasResp, empresaAnt, mapCloser, metaGrupo, abertas, ex, aberto_1, abertoCloser_1, e_9;
+        var pega, extra, _a, fatoMes, eq, mm, lojas, closers, setores, dias, arquivos, vendasResp, empresaAnt, mapCloser, metaGrupo, abertas, ex, aberto_1, abertoCloser_1, e_10;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -3898,8 +3972,8 @@ function AbaResumo(_a) {
                     setR({ fatoMes: fatoMes, equipe: eq.map(function (x) { return x.sdr; }), meta: mm[0] || null, lojas: lojas, closers: closers, setores: setores, dias: dias, arquivos: arquivos, aberto: aberto_1, abertoCloser: abertoCloser_1, ex: ex });
                     return [3 /*break*/, 4];
                 case 3:
-                    e_9 = _b.sent();
-                    setErro(e_9.message || String(e_9));
+                    e_10 = _b.sent();
+                    setErro(e_10.message || String(e_10));
                     return [3 /*break*/, 4];
                 case 4: return [2 /*return*/];
             }
@@ -3909,7 +3983,7 @@ function AbaResumo(_a) {
     var CARTOES = [["geral", "Geral"]].concat(RESUMO_LOJAS.map(function (l) { return [RESUMO_CHAVE_LOJA[l], l]; })).concat([["sdr", "SDR"]]);
     var refs = useRef({});
     var baixar = function (k) { return __awaiter(_this, void 0, void 0, function () {
-        var el, cv, a, e_10;
+        var el, cv, a, e_11;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -3933,8 +4007,8 @@ function AbaResumo(_a) {
                     a.click();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_10 = _a.sent();
-                    setAviso("Não consegui gerar a imagem: " + (e_10.message || e_10));
+                    e_11 = _a.sent();
+                    setAviso("Não consegui gerar a imagem: " + (e_11.message || e_11));
                     return [3 /*break*/, 4];
                 case 4:
                     setBaixando("");
@@ -4048,7 +4122,7 @@ function useOficina() {
     var hojeISO = hoje();
     var inicioMes = hojeISO.slice(0, 8) + "01";
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, empresaMes, mapCloser, arquivosExtra_1, metaGrupo, abertas, vendidoLoja, ultimoDia, ex, ultimoDe, e_11;
+        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, empresaMes, mapCloser, arquivosExtra_1, metaGrupo, abertas, vendidoLoja, ultimoDia, ex, ultimoDe, e_12;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -4101,8 +4175,8 @@ function useOficina() {
                     setR({ lojas: lojas, closers: closers, setores: setores, dias: dias, os: os, origem: origem, itens: itens, funil: funil, mapLoja: mapLoja, mapCloser: mapCloser, arquivos: arquivos, abertas: abertas, vendidoLoja: vendidoLoja, ultimoDia: ultimoDia, hojeISO: hojeISO, inicioMes: inicioMes, ex: ex });
                     return [3 /*break*/, 4];
                 case 3:
-                    e_11 = _b.sent();
-                    setErro(e_11.message || String(e_11));
+                    e_12 = _b.sent();
+                    setErro(e_12.message || String(e_12));
                     return [3 /*break*/, 4];
                 case 4: return [2 /*return*/];
             }
