@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v43 — CAR SERVICE</title>
-<meta name="painel-versao" content="v43">
+<title>Painel de SDR v44 — CAR SERVICE</title>
+<meta name="painel-versao" content="v44">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -1429,6 +1429,7 @@ function ModoTV(_a) {
                         color: "#79808A", margin: "8px 0 12px" } },
                     React.createElement("span", null, b.esq),
                     React.createElement("span", null, b.dir)))); })),
+        React.createElement(FaixaHoje, { tv: true }),
         React.createElement("div", { style: { display: "grid", gap: 22, gridTemplateColumns: "1.45fr 1fr" } },
             React.createElement("div", { style: { background: FUNDO2, border: "1px solid ".concat(LINHA), borderRadius: 8,
                     padding: "18px 20px" } },
@@ -3500,6 +3501,135 @@ function consultasOficinaExtra(inicioMes) {
         metaGrupo: Promise.resolve(db.from("meta_grupo").select("nivel,valor").order("nivel")).then(function (r) { return (r && !r.error && r.data && r.data.length ? r.data.map(function (x) { return Number(x.valor); }) : META_GRUPO_PADRAO); }, function () { return META_GRUPO_PADRAO; }),
     };
 }
+/* ---------- "Hoje, ao vivo" (17/09/2026) ----------
+   Faixa alimentada pela API do Oficina (Edge Function oi-hoje), não pelo
+   arquivo diário. Mostra só QUANTO e QUANTAS: a API não manda responsável,
+   setor nem origem, então falar de "quem" aqui seria inventar.
+   A função tem janela de 20 min — várias telas abertas não viram consumo
+   alto na API, que é o que faz a Oficina desativar a integração. */
+var OF_LOJAS_HOJE = ["Itaim", "Ipiranga", "Bandeirantes", "Tatuapé"];
+function useHoje() {
+    var _this = this;
+    var _a = __read(useState(null), 2), linhas = _a[0], setLinhas = _a[1];
+    var _b = __read(useState(null), 2), erro = _b[0], setErro = _b[1];
+    var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
+        var _e_1, _a, data, error, e_11;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
+                case 0:
+                    _b.trys.push([0, 6, , 7]);
+                    _b.label = 1;
+                case 1:
+                    _b.trys.push([1, 3, , 4]);
+                    return [4 /*yield*/, db.functions.invoke("oi-hoje", { body: {} })];
+                case 2:
+                    _b.sent();
+                    return [3 /*break*/, 4];
+                case 3:
+                    _e_1 = _b.sent();
+                    return [3 /*break*/, 4];
+                case 4: return [4 /*yield*/, db.from("oi_hoje_v").select("*")];
+                case 5:
+                    _a = _b.sent(), data = _a.data, error = _a.error;
+                    if (error)
+                        throw new Error(error.message);
+                    setLinhas(data || []);
+                    setErro(null);
+                    return [3 /*break*/, 7];
+                case 6:
+                    e_11 = _b.sent();
+                    setErro(e_11.message || String(e_11));
+                    return [3 /*break*/, 7];
+                case 7: return [2 /*return*/];
+            }
+        });
+    }); }, []);
+    useEffect(function () {
+        carregar();
+        var t = setInterval(carregar, 15 * 60 * 1000);
+        return function () { return clearInterval(t); };
+    }, [carregar]);
+    return { linhas: linhas, erro: erro, carregar: carregar };
+}
+function FaixaHoje(_a) {
+    var tv = _a.tv, precisaDia = _a.precisaDia;
+    var _b = useHoje(), linhas = _b.linhas, erro = _b.erro;
+    if (erro || !linhas)
+        return null;
+    var porLoja = {};
+    linhas.forEach(function (l) { porLoja[l.loja] = l; });
+    var tot = linhas.reduce(function (a, l) { return ({ os: a.os + Number(l.os_qtd || 0), v: a.v + Number(l.valor || 0), ab: a.ab + Number(l.abertas || 0) }); }, { os: 0, v: 0, ab: 0 });
+    var ults = linhas.map(function (l) { return l.ultima_leitura; }).filter(Boolean).sort();
+    var ult = ults.length ? new Date(ults[ults.length - 1]) : null;
+    // nunca zerar em silêncio: sem leitura boa, a faixa some em vez de mentir
+    if (!ult)
+        return null;
+    var hora = "".concat(String(ult.getHours()).padStart(2, "0"), ":").concat(String(ult.getMinutes()).padStart(2, "0"));
+    var velha = (Date.now() - ult.getTime()) / 60000 > 90;
+    var noRitmo = precisaDia ? tot.v >= precisaDia : null;
+    if (tv) {
+        var CINZA_1 = "#8C939D", VERDE_1 = "#4FD1AC", VERMELHO_1 = "#F2707A";
+        return (React.createElement("div", { style: { background: "#1A1F27", border: "1px solid #242A33", borderRadius: 8, padding: "16px 20px" } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 12 } },
+                React.createElement("span", { style: { fontFamily: F_MARCA, fontSize: 13, letterSpacing: ".14em", textTransform: "uppercase", color: T.marca, fontWeight: 700 } }, "Hoje \u00B7 ao vivo"),
+                React.createElement("span", { style: { fontSize: 13, color: velha ? T.marca : CINZA_1 } },
+                    nReal(tot.v),
+                    " em ",
+                    nInt(tot.os),
+                    " O.S. \u00B7 ",
+                    velha ? "sem leitura nova desde " : "atualizado ",
+                    hora)),
+            React.createElement("div", { className: "tvpend2", style: { display: "grid", gap: 14, marginTop: 12 } }, OF_LOJAS_HOJE.map(function (l) {
+                var x = porLoja[l] || {};
+                var v = Number(x.valor || 0);
+                return (React.createElement("div", { key: l, style: { background: "#16191F", border: "1px solid #242A33", borderRadius: 8, padding: "12px 14px" } },
+                    React.createElement("div", { style: { fontSize: 12, letterSpacing: ".1em", textTransform: "uppercase", color: CINZA_1, fontWeight: 700 } }, l),
+                    React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 28, fontWeight: 700, marginTop: 4, color: v > 0 ? VERDE_1 : VERMELHO_1, fontVariantNumeric: "tabular-nums" } }, nReal(v)),
+                    React.createElement("div", { style: { fontSize: 13, color: CINZA_1, marginTop: 2 } },
+                        nInt(x.os_qtd || 0),
+                        " O.S. \u00B7 ",
+                        nInt(x.abertas || 0),
+                        " ",
+                        Number(x.abertas) === 1 ? "aberta" : "abertas")));
+            }))));
+    }
+    return (React.createElement(Card, { className: "p16", style: { marginBottom: 14 } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap", marginBottom: 10 } },
+            React.createElement("span", { style: { width: 8, height: 8, borderRadius: 99, background: velha ? T.warn : T.good, display: "inline-block", boxShadow: "0 0 0 3px ".concat(velha ? "rgba(138,90,0,.18)" : "rgba(11,122,90,.18)") } }),
+            React.createElement(Label, null, "Hoje, ao vivo"),
+            React.createElement("span", { style: { fontSize: 12.5, color: velha ? T.warn : T.muted } },
+                "direto do Oficina \u00B7 ",
+                velha ? "sem leitura nova desde ".concat(hora) : "atualizado ".concat(hora))),
+        React.createElement("div", { className: "grid-kpi" }, OF_LOJAS_HOJE.map(function (l) {
+            var x = porLoja[l] || {};
+            return (React.createElement("div", { key: l, style: { border: "1px solid ".concat(T.hair), borderRadius: 9, padding: "12px 13px", background: "#FCFCFC" } },
+                React.createElement("div", { style: { fontSize: 12.5, fontWeight: 700, color: T.ink2 } }, l),
+                React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 24, fontWeight: 700, marginTop: 2, fontVariantNumeric: "tabular-nums" } }, nReal(x.valor || 0)),
+                React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 2 } },
+                    nInt(x.os_qtd || 0),
+                    " O.S.",
+                    Number(x.abertas || 0) ? React.createElement("span", null,
+                        " \u00B7 ",
+                        React.createElement("b", { style: { color: T.warn } },
+                            nInt(x.abertas),
+                            " ainda ",
+                            Number(x.abertas) === 1 ? "aberta" : "abertas")) : null)));
+        })),
+        React.createElement("div", { style: { display: "flex", gap: 18, alignItems: "baseline", flexWrap: "wrap", borderTop: "1px solid ".concat(T.hair), marginTop: 12, paddingTop: 11 } },
+            React.createElement("div", null,
+                React.createElement(Label, null, "Grupo hoje"),
+                React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 27, fontWeight: 700, fontVariantNumeric: "tabular-nums" } }, nReal(tot.v))),
+            React.createElement("div", { style: { fontSize: 13, color: T.ink2 } },
+                nInt(tot.os),
+                " O.S. abertas hoje",
+                tot.ab ? " \u00B7 ".concat(nInt(tot.ab), " ainda em aberto") : "",
+                precisaDia ? React.createElement("span", null,
+                    " \u00B7 precisa de ",
+                    React.createElement("b", null, nReal(precisaDia)),
+                    " por dia \u00FAtil \u2014 ",
+                    React.createElement("span", { style: { color: noRitmo ? T.good : T.bad, fontWeight: 700 } }, noRitmo ? "hoje está acima ✓" : "hoje está abaixo")) : null)),
+        React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 8, lineHeight: 1.5 } }, "Vem da API do Oficina, sem depender de exporta\u00E7\u00E3o \u2014 por isso mostra s\u00F3 quanto e quantas. Closer, setor e origem continuam saindo do arquivo do dia.")));
+}
 /* ---------- escada de metas das lojas (pedido do Rafael, 15/09/2026) ----------
    Três metas para o grupo: bateu a 1ª, a barra passa a contar para a 2ª, e assim
    por diante. Os valores ficam em comercial.meta_grupo (nivel, valor); se a tabela
@@ -3997,7 +4127,7 @@ function AbaResumo(_a) {
     var du = diasUteisDoMes(hojeISO);
     var frac = du.diaDoMes / du.diasNoMes;
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, extra, _a, fatoMes, eq, mm, lojas, closers, setores, dias, arquivos, vendasResp, empresaAnt, mapCloser, metaGrupo, abertas, ex, aberto_1, abertoCloser_1, e_11;
+        var pega, extra, _a, fatoMes, eq, mm, lojas, closers, setores, dias, arquivos, vendasResp, empresaAnt, mapCloser, metaGrupo, abertas, ex, aberto_1, abertoCloser_1, e_12;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -4053,8 +4183,8 @@ function AbaResumo(_a) {
                     setR({ fatoMes: fatoMes, equipe: eq.map(function (x) { return x.sdr; }), meta: mm[0] || null, lojas: lojas, closers: closers, setores: setores, dias: dias, arquivos: arquivos, aberto: aberto_1, abertoCloser: abertoCloser_1, ex: ex });
                     return [3 /*break*/, 4];
                 case 3:
-                    e_11 = _b.sent();
-                    setErro(e_11.message || String(e_11));
+                    e_12 = _b.sent();
+                    setErro(e_12.message || String(e_12));
                     return [3 /*break*/, 4];
                 case 4: return [2 /*return*/];
             }
@@ -4064,7 +4194,7 @@ function AbaResumo(_a) {
     var CARTOES = [["geral", "Geral"]].concat(RESUMO_LOJAS.map(function (l) { return [RESUMO_CHAVE_LOJA[l], l]; })).concat([["sdr", "SDR"]]);
     var refs = useRef({});
     var baixar = function (k) { return __awaiter(_this, void 0, void 0, function () {
-        var el, cv, a, e_12;
+        var el, cv, a, e_13;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -4088,8 +4218,8 @@ function AbaResumo(_a) {
                     a.click();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_12 = _a.sent();
-                    setAviso("Não consegui gerar a imagem: " + (e_12.message || e_12));
+                    e_13 = _a.sent();
+                    setAviso("Não consegui gerar a imagem: " + (e_13.message || e_13));
                     return [3 /*break*/, 4];
                 case 4:
                     setBaixando("");
@@ -4203,7 +4333,7 @@ function useOficina() {
     var hojeISO = hoje();
     var inicioMes = hojeISO.slice(0, 8) + "01";
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, empresaMes, mapCloser, arquivosExtra_1, metaGrupo, abertas, vendidoLoja, ultimoDia, ex, ultimoDe, e_13;
+        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, empresaMes, mapCloser, arquivosExtra_1, metaGrupo, abertas, vendidoLoja, ultimoDia, ex, ultimoDe, e_14;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -4256,8 +4386,8 @@ function useOficina() {
                     setR({ lojas: lojas, closers: closers, setores: setores, dias: dias, os: os, origem: origem, itens: itens, funil: funil, mapLoja: mapLoja, mapCloser: mapCloser, arquivos: arquivos, abertas: abertas, vendidoLoja: vendidoLoja, ultimoDia: ultimoDia, hojeISO: hojeISO, inicioMes: inicioMes, ex: ex });
                     return [3 /*break*/, 4];
                 case 3:
-                    e_13 = _b.sent();
-                    setErro(e_13.message || String(e_13));
+                    e_14 = _b.sent();
+                    setErro(e_14.message || String(e_14));
                     return [3 /*break*/, 4];
                 case 4: return [2 /*return*/];
             }
@@ -4875,6 +5005,7 @@ function AbaLojas() {
     var fatLojaDesc = OF_LOJAS.reduce(function (s, l) { return s + (ex.descLoja[l] ? ex.descLoja[l].faturamento : 0); }, 0);
     return (React.createElement("div", null,
         React.createElement(AvisoBase, { r: r, carregar: carregar }),
+        React.createElement(FaixaHoje, { precisaDia: Math.max(0, tot.meta - tot.fat) / du.restantes }),
         React.createElement(Secao, { n: 1, titulo: "Placar do grupo", nota: "Faturamento = o que foi FATURADO no m\u00EAs, inclusive O.S. abertas em meses anteriores \u2014 \u00E9 o mesmo crit\u00E9rio do Mapa de Metas do Oficina. Tr\u00EAs metas em escada: bateu uma, a barra passa a contar para a pr\u00F3xima (".concat(escG.niveis.map(fmtMil).join(" · "), "). Lucro bruto \u00E9 faturamento menos custo de material; n\u00E3o desconta m\u00E3o de obra nem taxa de cart\u00E3o.") },
             React.createElement("div", { className: "grid-kpi" },
                 React.createElement(Kpi, { label: escG.todas ? "Faturamento · todas as metas batidas" : "Faturamento \u00B7 rumo \u00E0 meta ".concat(escG.nivel, " de ").concat(escG.niveis.length), value: nReal(tot.fat), sub: escG.todas ? "passou de ".concat(nReal(escG.atual)) : "".concat(escG.batidas ? "meta ".concat(escG.batidas, " batida \u00B7 ") : "", "faltam ").concat(nReal(Math.max(0, tot.meta - tot.fat)), " para ").concat(nReal(tot.meta)), tone: escG.todas ? "good" : undefined, foot: React.createElement(React.Fragment, null,
