@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v47 — CAR SERVICE</title>
-<meta name="painel-versao" content="v47">
+<title>Painel de SDR v48 — CAR SERVICE</title>
+<meta name="painel-versao" content="v48">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -660,6 +660,42 @@ function contasDaRotina(r, tarefas, semTarefa) {
         porTempo.set(x.sdr, at);
     });
     var tempo = __spreadArray([], __read(porTempo.values()), false).map(function (x) { return (__assign(__assign({}, x), { minutos_medio: x.com_medida ? x.somaMinutos / x.com_medida : null })); });
+    /* A faixa por SDR da TV (18/09, pedido do Paulo): tempo até a primeira
+       ligação e conversão dos leads do dia, um cartão por pessoa.
+  
+       A conversão é de COORTE — leads que entraram hoje ÷ quantos desses já
+       agendaram —, não o contador de eventos de agenda do dia. São réguas
+       diferentes e nunca fecham entre si: quem entrou hoje e agendar amanhã
+       ainda soma no dia de hoje, e por isso o número sobe depois que a TV
+       desliga. A view também vem quebrada por unidade × serviço, então
+       somar antes de mostrar é obrigatório — senão a mesma pessoa aparece
+       três vezes com "1 lead". */
+    var porCoorte = new Map();
+    (r.coorteHoje || []).filter(function (x) { return noTime(x.sdr); }).forEach(function (x) {
+        var at = porCoorte.get(x.sdr) || { leads: 0, agendaram: 0 };
+        at.leads += Number(x.leads) || 0;
+        at.agendaram += Number(x.agendaram) || 0;
+        porCoorte.set(x.sdr, at);
+    });
+    var porTempoMap = new Map(tempo.map(function (x) { return [x.sdr, x]; }));
+    var sdrHoje = equipe.map(function (s) {
+        var t = porTempoMap.get(s) || {};
+        var co = porCoorte.get(s) || { leads: 0, agendaram: 0 };
+        return {
+            sdr: s,
+            minutos: t.minutos_medio == null ? null : t.minutos_medio,
+            ligou: Number(t.com_medida) || 0,
+            leadsTempo: Number(t.leads) || 0,
+            leads: co.leads,
+            agendaram: co.agendaram,
+            /* Abaixo de 5 leads a porcentagem não aparece. "0 de 2" numa TV, em
+               vermelho, embaixo do nome de alguém, é constrangimento por ruído
+               estatístico: fala do volume que chegou, não do trabalho da pessoa.
+               Com poucos leads mostramos só o absoluto, sem cor. */
+            poucos: co.leads < 5,
+            taxa: co.leads ? co.agendaram / co.leads : null,
+        };
+    }).sort(function (a, b) { return b.leads - a.leads; });
     var leadsHoje = 0, semLigar = 0, ate5 = 0;
     tempoCru.forEach(function (x) {
         leadsHoje += Number(x.leads) || 0;
@@ -699,6 +735,7 @@ function contasDaRotina(r, tarefas, semTarefa) {
         metaReceitaDia: Number(meta.faturamento) / Math.max(1, trabalhados + pelaFrente) / pessoas,
         pessoasLista: __spreadArray([], __read(porPessoa.values()), false),
         tempo: tempo,
+        sdrHoje: sdrHoje,
         leadsHoje: leadsHoje,
         semLigar: semLigar,
         ate5: ate5,
@@ -1331,6 +1368,84 @@ function TelaTVCheia(_a) {
             React.createElement("button", { style: botao, onClick: telaCheia }, cheia ? "Sair da tela cheia" : "Tela cheia"),
             React.createElement("button", { style: botao, onClick: onSair }, "Voltar ao painel"))));
 }
+/* ---------- faixa "hoje, por SDR" da TV (18/09/2026) ----------
+
+   Um cartão por SDR com duas coisas: quanto tempo levou para a primeira
+   ligação e quantos dos leads que entraram hoje já agendaram.
+
+   O TEMPO é o número grande de propósito. É o que o SDR resolve sozinho
+   nos próximos dez minutos; a conversão depende do lead, do horário e da
+   oferta, e só amadurece até o fim do dia. Numa TV, o número grande tem
+   que ser o acionável.
+
+   As cores do tempo seguem a mesma régua da aba SDR (5 min / 15 min). As
+   da conversão são propositalmente frouxas — 25% verde, 10% âmbar — porque
+   a meta de 40% é de mês fechado, não de meio de tarde. */
+var MIN_LEADS_PCT = 5; // abaixo disso a porcentagem não aparece
+function FaixaSdrHoje(_a) {
+    var c = _a.c;
+    var CINZA = "#8C939D", LINHA = "#242A33", VERDE = "#4FD1AC", VERMELHO = "#F2707A";
+    var lista = (c && c.sdrHoje) || [];
+    // sem ninguém no placar a faixa some, em vez de mostrar uma grade vazia
+    if (!lista.length)
+        return null;
+    var totLeads = lista.reduce(function (s, p) { return s + p.leads; }, 0);
+    var totLigou = lista.reduce(function (s, p) { return s + p.ligou; }, 0);
+    var corTempo = function (m) { return (m == null ? CINZA : m <= 5 ? VERDE : m <= 15 ? T.marca : VERMELHO); };
+    var corTaxa = function (t) { return (t == null ? CINZA : t >= 0.25 ? VERDE : t >= 0.10 ? T.marca : VERMELHO); };
+    return (React.createElement("div", { style: { background: "#1A1F27", border: "1px solid ".concat(LINHA), borderRadius: 8,
+            padding: "16px 20px" } },
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline",
+                flexWrap: "wrap", gap: 12 } },
+            React.createElement("span", { style: { fontFamily: F_MARCA, fontSize: 13, letterSpacing: ".14em",
+                    textTransform: "uppercase", color: T.marca, fontWeight: 700 } }, "Hoje \u00B7 por SDR"),
+            React.createElement("span", { style: { fontSize: 13, color: CINZA } },
+                nInt(totLeads),
+                " ",
+                totLeads === 1 ? "lead" : "leads",
+                " no dia \u00B7 ",
+                nInt(totLigou),
+                " ",
+                totLigou === 1 ? "recebeu" : "receberam",
+                " liga\u00E7\u00E3o")),
+        React.createElement("div", { style: { display: "grid", gap: 14, marginTop: 12,
+                gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" } }, lista.map(function (p) { return (React.createElement("div", { key: p.sdr, style: { background: "#16191F", border: "1px solid ".concat(LINHA),
+                borderRadius: 8, padding: "13px 15px" } },
+            React.createElement("div", { style: { fontSize: 12, letterSpacing: ".09em", textTransform: "uppercase",
+                    color: CINZA, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden",
+                    textOverflow: "ellipsis" } }, p.sdr),
+            React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 32, fontWeight: 700, marginTop: 5,
+                    lineHeight: 1, letterSpacing: "-.02em", fontVariantNumeric: "tabular-nums",
+                    color: corTempo(p.minutos) } }, p.minutos == null
+                ? React.createElement("span", { style: { fontSize: 17, fontWeight: 500, color: CINZA } }, "sem liga\u00E7\u00E3o medida")
+                : React.createElement("span", null,
+                    nNum(p.minutos, 0),
+                    React.createElement("span", { style: { fontSize: 16, fontWeight: 500,
+                            color: CINZA, marginLeft: 3 } }, "min"))),
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end",
+                    marginTop: 11, paddingTop: 9, borderTop: "1px solid ".concat(LINHA) } },
+                React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: 10, letterSpacing: ".09em", textTransform: "uppercase",
+                            color: CINZA, fontWeight: 700, marginBottom: 2 } }, "% convers\u00E3o leads"),
+                    p.poucos
+                        ? React.createElement("div", { style: { fontSize: 13, color: CINZA, fontStyle: "italic" } }, "poucos leads")
+                        : React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 20, fontWeight: 700,
+                                fontVariantNumeric: "tabular-nums", color: corTaxa(p.taxa) } }, nPct(p.taxa, 0))),
+                React.createElement("span", { style: { fontSize: 13, color: CINZA } },
+                    nInt(p.agendaram),
+                    " de ",
+                    nInt(p.leads))))); })),
+        React.createElement("div", { style: { display: "flex", gap: 20, flexWrap: "wrap", marginTop: 14,
+                fontSize: 12.5, color: CINZA } },
+            [["até 5 min", VERDE], ["até 15 min · meta", T.marca], ["acima de 15 min", VERMELHO]].map(function (_a) {
+                var _b = __read(_a, 2), l = _b[0], cor = _b[1];
+                return (React.createElement("span", { key: l },
+                    React.createElement("i", { style: { fontStyle: "normal", display: "inline-block", width: 9, height: 9,
+                            borderRadius: 99, background: cor, marginRight: 6 } }),
+                    l));
+            }),
+            React.createElement("span", { style: { marginLeft: "auto" } }, "convers\u00E3o = leads recebidos no dia \u00F7 quantos agendaram \u00B7 amadurece at\u00E9 o fim do expediente"))));
+}
 /* ---------- modo TV ----------
 
    Fundo escuro e números grandes porque a tela fica a metros de
@@ -1440,7 +1555,7 @@ function ModoTV(_a) {
                         color: "#79808A", margin: "8px 0 12px" } },
                     React.createElement("span", null, b.esq),
                     React.createElement("span", null, b.dir)))); })),
-        React.createElement(FaixaHoje, { tv: true }),
+        React.createElement(FaixaSdrHoje, { c: c }),
         React.createElement("div", { style: { display: "grid", gap: 22, gridTemplateColumns: "1.45fr 1fr" } },
             React.createElement("div", { style: { background: FUNDO2, border: "1px solid ".concat(LINHA), borderRadius: 8,
                     padding: "18px 20px" } },
@@ -1724,7 +1839,7 @@ function usarDados(de, ate, prevDe) {
         });
     }); };
     var buscar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, sl, ag, co, es, vp, ce, rb, pr, opcional, opcionalPaginado, inicioDoMes_1, oDiaDeHoje_1, _b, q, fa, ms, mt, sd, tf, lst, mm, eq, fm, eh, th, vh, e_1;
+        var _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, sl, ag, co, es, vp, ce, rb, pr, opcional, opcionalPaginado, inicioDoMes_1, oDiaDeHoje_1, _b, q, fa, ms, mt, sd, tf, lst, mm, eq, fm, eh, th, vh, ch, e_1;
         var _this = this;
         return __generator(this, function (_c) {
             switch (_c.label) {
@@ -1871,9 +1986,15 @@ function usarDados(de, ate, prevDe) {
                             opcional(function () { return db.from("esforco_dia").select("*").eq("data", oDiaDeHoje_1); }, []),
                             opcional(function () { return db.from("tempo_resposta_dia").select("*").eq("data", oDiaDeHoje_1); }, []),
                             opcional(function () { return db.from("visitas_pendentes_dia").select("*").eq("data", oDiaDeHoje_1); }, []),
+                            /* coorte de HOJE por SDR: leads que entraram hoje e quantos desses
+                               já agendaram. É a conta que o Paulo pediu para a TV — recebidos
+                               ÷ agendados —, e é a régua de coorte, a mesma da aba SDR: o lead
+                               conta no dia em que ENTROU, não no dia em que o agendamento
+                               aconteceu. Por isso o número ainda sobe depois que a TV desliga. */
+                            opcional(function () { return db.from("coorte_agendamento_v").select("*").eq("dia", oDiaDeHoje_1); }, []),
                         ])];
                 case 14:
-                    _b = __read.apply(void 0, [_c.sent(), 13]), q = _b[0], fa = _b[1], ms = _b[2], mt = _b[3], sd = _b[4], tf = _b[5], lst = _b[6], mm = _b[7], eq = _b[8], fm = _b[9], eh = _b[10], th = _b[11], vh = _b[12];
+                    _b = __read.apply(void 0, [_c.sent(), 14]), q = _b[0], fa = _b[1], ms = _b[2], mt = _b[3], sd = _b[4], tf = _b[5], lst = _b[6], mm = _b[7], eq = _b[8], fm = _b[9], eh = _b[10], th = _b[11], vh = _b[12], ch = _b[13];
                     setQualidade(q[0] || null);
                     setFunilAgora(fa);
                     setMetas({ sdr: ms, taxa: mt[0] || null });
@@ -1883,7 +2004,7 @@ function usarDados(de, ate, prevDe) {
                     setRotina({
                         meta: mm[0] || null,
                         equipe: (eq || []).map(function (x) { return x.sdr; }),
-                        fatoMes: fm, esforcoHoje: eh, tempoHoje: th, visitasHoje: vh,
+                        fatoMes: fm, esforcoHoje: eh, tempoHoje: th, visitasHoje: vh, coorteHoje: ch,
                         inicioDoMes: inicioDoMes_1,
                         oDiaDeHoje: oDiaDeHoje_1,
                     });
