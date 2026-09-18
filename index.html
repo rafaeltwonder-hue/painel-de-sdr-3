@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v46 — CAR SERVICE</title>
-<meta name="painel-versao" content="v46">
+<title>Painel de SDR v47 — CAR SERVICE</title>
+<meta name="painel-versao" content="v47">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -80,6 +80,17 @@
   .telatv tbody tr:nth-child(even) > td,
   .telatv tbody tr:hover > td { background: transparent; }
   .telatv tbody td + td, .telatv thead th + th { border-left: 0; }
+  /* A tira de tres numeros da caixa de agendamentos (18/09). Media query
+     nao existe em estilo inline, por isso ela mora aqui. No celular vira
+     lista empilhada com divisoria em cima em vez de coluna com divisoria
+     na lateral. */
+  .tira3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); }
+  @media (max-width: 820px) {
+    .tira3 { grid-template-columns: 1fr; }
+    .tira3 > div { padding: 10px 0 !important; border-left: 0 !important;
+                   border-top: 1px solid #ECECEC; }
+    .tira3 > div:first-child { border-top: 0; }
+  }
   .dt { font-size: 13px; border: 1px solid #E2E2E2; border-radius: 8px; padding: 7px 10px;
         background: #fff; color: #1A1A1A; }
   code { font-family: ui-monospace, Menlo, monospace; font-size: .92em; }
@@ -1651,30 +1662,35 @@ function usarDados(de, ate, prevDe) {
     var _b = __read(useState([]), 2), fato = _b[0], setFato = _b[1];
     var _c = __read(useState([]), 2), motivos = _c[0], setMotivos = _c[1];
     var _d = __read(useState([]), 2), sla = _d[0], setSla = _d[1];
-    var _f = __read(useState([]), 2), esforco = _f[0], setEsforco = _f[1];
-    var _g = __read(useState(false), 2), tempoAntigo = _g[0], setTempoAntigo = _g[1];
-    var _h = __read(useState([]), 2), pendentes = _h[0], setPendentes = _h[1];
-    var _j = __read(useState([]), 2), carteiraEsf = _j[0], setCarteiraEsf = _j[1];
-    var _k = __read(useState([]), 2), robo = _k[0], setRobo = _k[1];
-    var _l = __read(useState([]), 2), preench = _l[0], setPreench = _l[1];
-    var _m = __read(useState(null), 2), qualidade = _m[0], setQualidade = _m[1];
-    var _o = __read(useState([]), 2), funilAgora = _o[0], setFunilAgora = _o[1];
-    var _p = __read(useState({ sdr: [], taxa: null }), 2), metas = _p[0], setMetas = _p[1];
+    /* A lista nominal de quem ficou sem discagem (Rafael, 18/09). O número
+       sozinho não se cobra na reunião da manhã — nome, hora e etapa sim. */
+    var _f = __read(useState([]), 2), semLigacao = _f[0], setSemLigacao = _f[1];
+    var _g = __read(useState([]), 2), agEvento = _g[0], setAgEvento = _g[1];
+    var _h = __read(useState([]), 2), agCoorte = _h[0], setAgCoorte = _h[1];
+    var _j = __read(useState([]), 2), esforco = _j[0], setEsforco = _j[1];
+    var _k = __read(useState(false), 2), tempoAntigo = _k[0], setTempoAntigo = _k[1];
+    var _l = __read(useState([]), 2), pendentes = _l[0], setPendentes = _l[1];
+    var _m = __read(useState([]), 2), carteiraEsf = _m[0], setCarteiraEsf = _m[1];
+    var _o = __read(useState([]), 2), robo = _o[0], setRobo = _o[1];
+    var _p = __read(useState([]), 2), preench = _p[0], setPreench = _p[1];
+    var _q = __read(useState(null), 2), qualidade = _q[0], setQualidade = _q[1];
+    var _r = __read(useState([]), 2), funilAgora = _r[0], setFunilAgora = _r[1];
+    var _s = __read(useState({ sdr: [], taxa: null }), 2), metas = _s[0], setMetas = _s[1];
     /* Duas listas novas, as duas nascidas do dia 08/09, quando o painel
        mostrou zero ligações com cara de "hoje ninguém trabalhou" enquanto
        a verdade era que a carga automática estava tomando 401 havia dias.
          falhas -> consulta que quebrou de verdade (antes virava zero mudo)
          saude  -> há quanto tempo cada FONTE não recebe dado novo */
-    var _q = __read(useState([]), 2), falhas = _q[0], setFalhas = _q[1];
-    var _r = __read(useState([]), 2), saude = _r[0], setSaude = _r[1];
+    var _t = __read(useState([]), 2), falhas = _t[0], setFalhas = _t[1];
+    var _u = __read(useState([]), 2), saude = _u[0], setSaude = _u[1];
     /* Tarefas: o único dado do painel que fala do FUTURO. Tudo o mais aqui
        mede o que já aconteceu. */
-    var _s = __read(useState([]), 2), tarefas = _s[0], setTarefas = _s[1];
-    var _t = __read(useState([]), 2), semTarefa = _t[0], setSemTarefa = _t[1];
+    var _v = __read(useState([]), 2), tarefas = _v[0], setTarefas = _v[1];
+    var _w = __read(useState([]), 2), semTarefa = _w[0], setSemTarefa = _w[1];
     /* Tudo que a aba do coordenador e a TV usam. Fica separado do resto
        porque tem uma janela própria — mês corrente e hoje — que não muda
        quando alguém mexe no filtro da aba principal. */
-    var _u = __read(useState(null), 2), rotina = _u[0], setRotina = _u[1];
+    var _x = __read(useState(null), 2), rotina = _x[0], setRotina = _x[1];
     /* O Supabase corta em 1.000 linhas por consulta. A fato_dia tem uma linha
        por dia × SDR × unidade × serviço, então um mês passa desse teto e os
        totais sairiam menores sem ninguém perceber. Buscamos em páginas até
@@ -1708,7 +1724,7 @@ function usarDados(de, ate, prevDe) {
         });
     }); };
     var buscar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, es, vp, ce, rb, pr, opcional, opcionalPaginado, inicioDoMes_1, oDiaDeHoje_1, _b, q, fa, ms, mt, sd, tf, lst, mm, eq, fm, eh, th, vh, e_1;
+        var _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, sl, ag, co, es, vp, ce, rb, pr, opcional, opcionalPaginado, inicioDoMes_1, oDiaDeHoje_1, _b, q, fa, ms, mt, sd, tf, lst, mm, eq, fm, eh, th, vh, e_1;
         var _this = this;
         return __generator(this, function (_c) {
             switch (_c.label) {
@@ -1716,7 +1732,7 @@ function usarDados(de, ate, prevDe) {
                     setEstado({ carregando: true, erro: null });
                     _c.label = 1;
                 case 1:
-                    _c.trys.push([1, 12, , 13]);
+                    _c.trys.push([1, 15, , 16]);
                     return [4 /*yield*/, Promise.all([
                             buscarTudo(function () { return db.from("fato_dia").select("*").gte("data", prevDe).lte("data", ate).order("data"); }),
                             buscarTudo(function () { return db.from("motivos_dia").select("*").gte("data", de).lte("data", ate).order("data"); }),
@@ -1763,29 +1779,45 @@ function usarDados(de, ate, prevDe) {
                 case 5:
                     setSla(s);
                     setTempoAntigo(antiga);
+                    return [4 /*yield*/, buscarSePuder("Sem ligação (nominal)", function () { return db.from("sem_ligacao_v")
+                            .select("*").gte("data", de).lte("data", ate).order("criado_em"); })];
+                case 6:
+                    sl = _c.sent();
+                    setSemLigacao(sl || []);
+                    return [4 /*yield*/, buscarSePuder("Agendamentos (evento)", function () { return db.from("agendamento_evento_v")
+                            .select("dia,dia_criado,sdr,unidade,servico,vez,reagendamento,mesmo_dia,compareceu")
+                            .gte("dia", de).lte("dia", ate).order("dia"); })];
+                case 7:
+                    ag = _c.sent();
+                    setAgEvento(ag || []);
+                    return [4 /*yield*/, buscarSePuder("Agendamentos (coorte)", function () { return db.from("coorte_agendamento_v")
+                            .select("*").gte("dia", de).lte("dia", ate).order("dia"); })];
+                case 8:
+                    co = _c.sent();
+                    setAgCoorte(co || []);
                     return [4 /*yield*/, buscarSePuder("Esforço", function () { return db.from("esforco_dia")
                             .select("*").gte("data", de).lte("data", ate).order("data"); })];
-                case 6:
+                case 9:
                     es = _c.sent();
                     setEsforco(es || []);
                     return [4 /*yield*/, buscarSePuder("Visitas sem desfecho", function () { return db.from("visitas_pendentes_dia")
                             .select("*").gte("data", de).lte("data", ate).order("data"); })];
-                case 7:
+                case 10:
                     vp = _c.sent();
                     setPendentes(vp || []);
                     return [4 /*yield*/, buscarSePuder("Esforço na carteira", function () { return db.from("carteira_esforco_dia")
                             .select("*").gte("data", de).lte("data", ate).order("data"); })];
-                case 8:
+                case 11:
                     ce = _c.sent();
                     setCarteiraEsf(ce || []);
                     return [4 /*yield*/, buscarSePuder("Robô de triagem", function () { return db.from("robo_dia")
                             .select("*").gte("data", de).lte("data", ate).order("data"); })];
-                case 9:
+                case 12:
                     rb = _c.sent();
                     setRobo(rb || []);
                     return [4 /*yield*/, buscarSePuder("Nota de preenchimento", function () { return db.from("preenchimento_sdr")
                             .select("*").gte("data", de).lte("data", ate).order("data"); })];
-                case 10:
+                case 13:
                     pr = _c.sent();
                     setPreench(pr || []);
                     opcional = function (fn, padrao) { return __awaiter(_this, void 0, void 0, function () {
@@ -1840,7 +1872,7 @@ function usarDados(de, ate, prevDe) {
                             opcional(function () { return db.from("tempo_resposta_dia").select("*").eq("data", oDiaDeHoje_1); }, []),
                             opcional(function () { return db.from("visitas_pendentes_dia").select("*").eq("data", oDiaDeHoje_1); }, []),
                         ])];
-                case 11:
+                case 14:
                     _b = __read.apply(void 0, [_c.sent(), 13]), q = _b[0], fa = _b[1], ms = _b[2], mt = _b[3], sd = _b[4], tf = _b[5], lst = _b[6], mm = _b[7], eq = _b[8], fm = _b[9], eh = _b[10], th = _b[11], vh = _b[12];
                     setQualidade(q[0] || null);
                     setFunilAgora(fa);
@@ -1857,12 +1889,12 @@ function usarDados(de, ate, prevDe) {
                     });
                     setFalhas(falhou_1);
                     setEstado({ carregando: false, erro: null, em: new Date() });
-                    return [3 /*break*/, 13];
-                case 12:
+                    return [3 /*break*/, 16];
+                case 15:
                     e_1 = _c.sent();
                     setEstado({ carregando: false, erro: e_1.message || String(e_1) });
-                    return [3 /*break*/, 13];
-                case 13: return [2 /*return*/];
+                    return [3 /*break*/, 16];
+                case 16: return [2 /*return*/];
             }
         });
     }); }, [de, ate, prevDe]);
@@ -1875,7 +1907,7 @@ function usarDados(de, ate, prevDe) {
         var t = setInterval(function () { buscar(); }, 5 * 60 * 1000);
         return function () { return clearInterval(t); };
     }, [buscar]);
-    return { estado: estado, fato: fato, motivos: motivos, sla: sla, esforco: esforco, tempoAntigo: tempoAntigo, pendentes: pendentes, carteiraEsf: carteiraEsf, robo: robo, preench: preench, qualidade: qualidade, funilAgora: funilAgora, metas: metas, falhas: falhas, saude: saude, tarefas: tarefas, semTarefa: semTarefa, rotina: rotina, recarregar: buscar };
+    return { estado: estado, fato: fato, motivos: motivos, sla: sla, semLigacao: semLigacao, agEvento: agEvento, agCoorte: agCoorte, esforco: esforco, tempoAntigo: tempoAntigo, pendentes: pendentes, carteiraEsf: carteiraEsf, robo: robo, preench: preench, qualidade: qualidade, funilAgora: funilAgora, metas: metas, falhas: falhas, saude: saude, tarefas: tarefas, semTarefa: semTarefa, rotina: rotina, recarregar: buscar };
 }
 /* ===================== app ===================== */
 function Painel(_a) {
@@ -2011,6 +2043,57 @@ function Painel(_a) {
         o.medioAteFalar = o.nFalar ? o.somaFalar / o.nFalar : null;
         return o;
     }, [d.sla, f]);
+    /* Agendamento — as duas réguas somadas aqui, e não na view, porque o
+       corte "do período / de antes" muda conforme o filtro de data da tela.
+       mesmoDia + depois = agendamentos de primeira vez feitos no período;
+       agendaram = leads do período que agendaram, cada um uma vez. Os dois
+       não fecham entre si e não devem fechar. */
+    var agenda = useMemo(function () {
+        var ev = aplicar(d.agEvento);
+        var co = aplicar(d.agCoorte);
+        var leads = co.reduce(function (s, r) { return s + (Number(r.leads) || 0); }, 0);
+        var agendaram = co.reduce(function (s, r) { return s + (Number(r.agendaram) || 0); }, 0);
+        var primeiraVez = ev.filter(function (r) { return Number(r.vez) === 1; });
+        var depois = primeiraVez.filter(function (r) { return !r.mesmo_dia; });
+        var reag = ev.filter(function (r) { return r.reagendamento; });
+        return {
+            leads: leads,
+            agendaram: agendaram,
+            taxa: div(agendaram, leads),
+            mesmoDia: primeiraVez.length - depois.length,
+            depois: depois.length,
+            depoisDoPeriodo: depois.filter(function (r) { return String(r.dia_criado) >= de; }).length,
+            depoisDeAntes: depois.filter(function (r) { return String(r.dia_criado) < de; }).length,
+            reagend: reag.length,
+            reagendCompareceu: reag.filter(function (r) { return r.compareceu; }).length,
+            /* "coorte aberta" = o período alcança hoje, então ainda entra
+               agendamento de lead que acabou de chegar */
+            aberta: ate >= hoje(),
+        };
+    }, [d.agEvento, d.agCoorte, f, de, ate]);
+    /* A mesma função aplicar() dos outros blocos: a lista nominal obedece
+       aos filtros de SDR, unidade e serviço do topo da aba. Mais recente
+       primeiro, que é a ordem em que a reunião da manhã olha. */
+    var semLigacaoTudo = useMemo(function () { return aplicar(d.semLigacao).slice().sort(function (a, b) { return String(b.criado_em).localeCompare(String(a.criado_em)); }); }, [d.semLigacao, f]);
+    /* Os três baldes (Rafael, 18/09). O justificado NAO some da conta: ele
+       aparece contado na tela, porque todo criterio de exclusao que depende
+       de campo preenchido pelo proprio SDR cria incentivo — e o numero a
+       vista e o que impede o incentivo de virar habito sem ninguem ver. */
+    var baldes = useMemo(function () {
+        var c = { explicar: 0, whatsapp: 0, justificado: 0, ganho: 0, motivo: 0 };
+        semLigacaoTudo.forEach(function (r) {
+            c[r.balde] = (c[r.balde] || 0) + 1;
+            if (r.balde === "justificado") {
+                if (r.justificativa === "ganhou sem ligar")
+                    c.ganho++;
+                else
+                    c.motivo++;
+            }
+        });
+        return c;
+    }, [semLigacaoTudo]);
+    var _f = __read(useState("explicar"), 2), baldeAberto = _f[0], setBaldeAberto = _f[1];
+    var semLigacaoLista = useMemo(function () { return semLigacaoTudo.filter(function (r) { return r.balde === baldeAberto; }); }, [semLigacaoTudo, baldeAberto]);
     /* Esforço: agregado e por pessoa. Vem da esforco_dia, que só existe
        depois da carga de atividades — por isso o bloco some sozinho quando
        não há dado, em vez de mostrar uma tabela de zeros. */
@@ -2357,7 +2440,51 @@ function Painel(_a) {
                             dias === 1 ? "dia" : "dias"))),
                 React.createElement(Secao, { n: 1, titulo: "Resultado \u2014 ".concat(rotulo) },
                     React.createElement("div", { className: "grid-kpi" }, KPIS.map(function (k) { return React.createElement(Kpi, { key: k.l, label: k.l, value: k.v, sub: k.s, foot: k.d, tone: k.tone }); }))),
-                React.createElement(Secao, { n: 2, titulo: "Funil", nota: "Cada etapa conta no dia em que aconteceu. Agendamento entra no dia em que o SDR marcou \u2014 n\u00E3o no dia da visita." },
+                React.createElement(Secao, { n: 2, titulo: "Agendamentos", nota: "Em cima, quantos dos leads que entraram no per\u00EDodo viraram agendamento \u2014 cada lead uma vez s\u00F3, \u00E9 este que tem meta. Embaixo, de onde veio o trabalho: lead do dia, follow-up de lead antigo e reagendamento." },
+                    React.createElement(Card, { className: "p20" },
+                        React.createElement(Label, null, "Convers\u00E3o \u2014 dos leads que entraram no per\u00EDodo"),
+                        React.createElement("div", { style: { display: "flex", alignItems: "flex-end", gap: 22, flexWrap: "wrap", marginTop: 4 } },
+                            React.createElement("span", { style: { fontFamily: F_NUM, fontWeight: 700, fontSize: 48, lineHeight: 1,
+                                    letterSpacing: "-.03em", fontVariantNumeric: "tabular-nums",
+                                    color: agenda.taxa >= metaTaxa.taxa_agendamento / 100 ? T.good : T.bad } }, agenda.leads ? nPct(agenda.taxa) : "—"),
+                            React.createElement("span", { style: { fontSize: 14, color: T.ink2, paddingBottom: 4 } },
+                                React.createElement("b", null, nInt(agenda.agendaram)),
+                                " dos ",
+                                React.createElement("b", null, nInt(agenda.leads)),
+                                " leads agendaram",
+                                agenda.aberta && React.createElement("span", { style: { color: T.muted } }, " \u00B7 coorte ainda aberta, o n\u00FAmero sobe"))),
+                        React.createElement("div", { style: { marginTop: 12 } },
+                            React.createElement(Barra, { pct: agenda.taxa, cor: agenda.taxa >= metaTaxa.taxa_agendamento / 100 ? T.good : T.bad })),
+                        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 11.5,
+                                color: T.muted, marginTop: 5 } },
+                            React.createElement("span", null,
+                                "Meta: ",
+                                metaTaxa.taxa_agendamento,
+                                "%"),
+                            React.createElement("span", null, agenda.leads
+                                ? (agenda.taxa >= metaTaxa.taxa_agendamento / 100
+                                    ? "acima da meta"
+                                    : "faltam ".concat(nNum(metaTaxa.taxa_agendamento - agenda.taxa * 100, 1), " pontos"))
+                                : "nenhum lead no período")),
+                        React.createElement("div", { className: "tira3", style: { marginTop: 16, borderTop: "1px solid ".concat(T.hair), paddingTop: 14 } }, [
+                            { q: agenda.mesmoDia, cor: T.ink, t: "agendados no mesmo dia",
+                                d: "lead entrou e fechou agenda" },
+                            { q: agenda.depois, cor: T.ink2, t: "agendados depois",
+                                d: React.createElement("span", null,
+                                    React.createElement("b", { style: { color: T.ink2 } }, nInt(agenda.depoisDoPeriodo)),
+                                    " do per\u00EDodo",
+                                    " · ",
+                                    React.createElement("b", { style: { color: T.ink2 } }, nInt(agenda.depoisDeAntes)),
+                                    " de antes") },
+                            { q: agenda.reagend, cor: T.good, t: "reagendamentos",
+                                d: "".concat(nInt(agenda.reagendCompareceu), " j\u00E1 compareceram") },
+                        ].map(function (i, k) { return (React.createElement("div", { key: i.t, style: { padding: k === 0 ? "0 16px 0 0" : "0 16px",
+                                borderLeft: k === 0 ? "none" : "1px solid #ECECEC" } },
+                            React.createElement("div", { style: { fontFamily: F_NUM, fontWeight: 700, fontSize: 26, lineHeight: 1.1,
+                                    letterSpacing: "-.02em", fontVariantNumeric: "tabular-nums", color: i.cor } }, nInt(i.q)),
+                            React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 2 } }, i.t),
+                            React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 1 } }, i.d))); })))),
+                React.createElement(Secao, { n: 3, titulo: "Funil", nota: "Cada etapa conta no dia em que aconteceu. Agendamento entra no dia em que o SDR marcou \u2014 n\u00E3o no dia da visita." },
                     React.createElement(Card, { className: "p20" },
                         gargalo && (React.createElement("div", { style: { marginBottom: 14 } },
                             React.createElement(Pill, { cor: T.warn },
@@ -2390,7 +2517,7 @@ function Painel(_a) {
                                         nPct(div(e.v, topo)),
                                         " do topo"))));
                         }))),
-                React.createElement(Secao, { n: 3, titulo: "Carteira \u2014 por SDR do lead", nota: "Tudo aqui \u00E9 creditado a quem o lead pertence. Marcou \u00E9 o dia em que a pessoa agendou; visitas \u00E9 a agenda da loja; automa\u00E7\u00E3o n\u00E3o conta. As duas \u00FAltimas colunas mostram quanto trabalho a carteira recebeu \u2014 de qualquer pessoa do time, n\u00E3o s\u00F3 do dono." },
+                React.createElement(Secao, { n: 4, titulo: "Carteira \u2014 por SDR do lead", nota: "Tudo aqui \u00E9 creditado a quem o lead pertence. Marcou \u00E9 o dia em que a pessoa agendou; visitas \u00E9 a agenda da loja; automa\u00E7\u00E3o n\u00E3o conta. As duas \u00FAltimas colunas mostram quanto trabalho a carteira recebeu \u2014 de qualquer pessoa do time, n\u00E3o s\u00F3 do dono." },
                     React.createElement(Card, { className: "p0 rolagem" },
                         React.createElement("table", null,
                             React.createElement("thead", null,
@@ -2461,7 +2588,7 @@ function Painel(_a) {
                             " \u2014 n\u00E3o s\u00E3o de ningu\u00E9m, ent\u00E3o ficam fora do placar acima, mas ",
                             React.createElement("b", null, "entram no Total"),
                             ". \u00C9 por isso que a linha Total \u00E9 maior que a soma das pessoas.")))),
-                esforcoPorSdr.length > 0 && (React.createElement(Secao, { n: 4, titulo: "Esfor\u00E7o \u2014 por quem executou", nota: "Chave diferente da se\u00E7\u00E3o 3: aqui o cr\u00E9dito \u00E9 de quem FEZ, n\u00E3o de quem \u00E9 dono do lead. A liga\u00E7\u00E3o vem do discador, que sabe qual ramal discou; o Kommo n\u00E3o sabe. \"Tentou\" conta toda discagem; \"atendeu\" usa o motivo real de encerramento, ent\u00E3o caixa postal n\u00E3o conta; \"falou com\" s\u00E3o pessoas em conversas acima de ".concat(segConversa, "s. Mensagem do rob\u00F4 de triagem fica fora: automa\u00E7\u00E3o n\u00E3o \u00E9 esfor\u00E7o de ningu\u00E9m. \"Fora do funil\" \u00E9 trabalho em lead de outro funil, quase sempre o Remarketing, que a equipe atende quando n\u00E3o h\u00E1 lead novo entrando \u2014 conta como esfor\u00E7o porque a pessoa fez, mas o resultado dele n\u00E3o aparece nas se\u00E7\u00F5es de carteira.") },
+                esforcoPorSdr.length > 0 && (React.createElement(Secao, { n: 5, titulo: "Esfor\u00E7o \u2014 por quem executou", nota: "Chave diferente da se\u00E7\u00E3o 3: aqui o cr\u00E9dito \u00E9 de quem FEZ, n\u00E3o de quem \u00E9 dono do lead. A liga\u00E7\u00E3o vem do discador, que sabe qual ramal discou; o Kommo n\u00E3o sabe. \"Tentou\" conta toda discagem; \"atendeu\" usa o motivo real de encerramento, ent\u00E3o caixa postal n\u00E3o conta; \"falou com\" s\u00E3o pessoas em conversas acima de ".concat(segConversa, "s. Mensagem do rob\u00F4 de triagem fica fora: automa\u00E7\u00E3o n\u00E3o \u00E9 esfor\u00E7o de ningu\u00E9m. \"Fora do funil\" \u00E9 trabalho em lead de outro funil, quase sempre o Remarketing, que a equipe atende quando n\u00E3o h\u00E1 lead novo entrando \u2014 conta como esfor\u00E7o porque a pessoa fez, mas o resultado dele n\u00E3o aparece nas se\u00E7\u00F5es de carteira.") },
                     React.createElement("div", { className: "grid-kpi", style: { marginBottom: 16 } },
                         React.createElement(Kpi, { label: "Liga\u00E7\u00F5es tentadas", value: nInt(esf.ligacoes_tentadas), sub: esf.ligacoes_fora
                                 ? "".concat(nInt(esf.ligacoes_fora), " fora do CAR SERVICE (").concat(nPct(esf.pct_fora, 0), ")")
@@ -2505,10 +2632,10 @@ function Painel(_a) {
                                     React.createElement(Td, { right: true, bold: true }, nInt(esf.whatsapp_enviados)),
                                     React.createElement(Td, { right: true, bold: true }, nNum(esf.horas, 1)))))),
                     React.createElement(Card, { className: "p16", style: { marginTop: 12, fontSize: 12.5, color: T.ink2, lineHeight: 1.6 } }, "Esfor\u00E7o \u00E9 insumo, n\u00E3o resultado \u2014 quem mais disca n\u00E3o \u00E9 necessariamente quem mais traz. Para juntar as duas coisas, compare esta tabela com a da se\u00E7\u00E3o 3: l\u00E1 est\u00E1 o que a carteira de cada um produziu, aqui est\u00E1 o que cada um fez. Quando os dois nomes n\u00E3o batem, \u00E9 gente trabalhando lead de outro \u2014 normal em cobertura, problema se for rotina."))),
-                React.createElement(Secao, { n: 5, titulo: "Evolu\u00E7\u00E3o no per\u00EDodo" },
+                React.createElement(Secao, { n: 6, titulo: "Evolu\u00E7\u00E3o no per\u00EDodo" },
                     React.createElement(Card, { className: "p16" },
                         React.createElement(GraficoEvolucao, { dados: serie }))),
-                React.createElement(Secao, { n: 6, titulo: "Por unidade e por servi\u00E7o" },
+                React.createElement(Secao, { n: 7, titulo: "Por unidade e por servi\u00E7o" },
                     React.createElement("div", { className: "col2" }, [["Unidade", porUnidade], ["Serviço", porServico]].map(function (_a) {
                         var _b = __read(_a, 2), titulo = _b[0], dados = _b[1];
                         return (React.createElement(Card, { key: titulo, className: "p0 rolagem" },
@@ -2529,7 +2656,7 @@ function Painel(_a) {
                                     React.createElement(Td, { right: true, bold: true }, nInt(r.vendas)),
                                     React.createElement(Td, { right: true, color: r.conversao_final >= a.conversao_final ? T.good : T.bad }, nPct(r.conversao_final)))); })))));
                     }))),
-                React.createElement(Secao, { n: 7, titulo: "Tempo at\u00E9 a primeira liga\u00E7\u00E3o", nota: d.tempoAntigo
+                React.createElement(Secao, { n: 8, titulo: "Tempo at\u00E9 a primeira liga\u00E7\u00E3o", nota: d.tempoAntigo
                         ? "Medida antiga, pela saída do lead da etapa de entrada. Rode o filtro_usuarios.sql para passar a medir pela ligação de verdade."
                         : "Da entrada do lead até a primeira ligação DISCADA — vale a discagem, não o atendimento: o SDR controla quando liga, não se o cliente atende. Isto não é o que a casa chama de SLA; SLA aqui quer dizer que o lead atende aos padrões mínimos para ser atendido." },
                     React.createElement("div", { className: "col2" },
@@ -2567,8 +2694,78 @@ function Painel(_a) {
                         React.createElement("div", { className: "grid-kpi-2" },
                             React.createElement(Kpi, { label: "Tempo m\u00E9dio at\u00E9 ligar", value: tempoTot.medio == null ? "—" : "".concat(nNum(tempoTot.medio, 0), " min"), sub: "Da entrada do lead \u00E0 primeira discagem" }),
                             React.createElement(Kpi, { label: "Tempo m\u00E9dio at\u00E9 falar", value: tempoTot.medioAteFalar == null ? "—" : "".concat(nNum(tempoTot.medioAteFalar, 0), " min"), sub: "At\u00E9 uma conversa acima de ".concat(segConversa, "s") }),
-                            React.createElement(Kpi, { label: "Ningu\u00E9m ligou", value: nInt(tempoTot.leads - tempoTot.com_medida), sub: "Leads sem nenhuma discagem registrada", tone: tempoTot.leads - tempoTot.com_medida > 0 ? "bad" : "good" })))),
-                React.createElement(Secao, { n: 8, titulo: "Por que perdemos", nota: "Dois blocos, porque s\u00E3o dois jogos diferentes. Em cima, o lead que se perdeu ANTES de chegar na loja \u2014 \u00E9 a conta do SDR. Embaixo, o lead que chegou l\u00E1 dentro, sentou com o closer e n\u00E3o fechou \u2014 o SDR fez o trabalho dele at\u00E9 o fim. S\u00F3 a lista oficial de motivos do Kommo; o vocabul\u00E1rio antigo fica na nota do rodap\u00E9." },
+                            React.createElement(Kpi, { label: "Ningu\u00E9m ligou", value: nInt(tempoTot.leads - tempoTot.com_medida), sub: "Leads sem nenhuma discagem registrada", tone: tempoTot.leads - tempoTot.com_medida > 0 ? "bad" : "good" })),
+                        semLigacaoTudo.length > 0 && (React.createElement(Card, { className: "p16", style: { marginTop: 12 } },
+                            React.createElement(Label, null,
+                                "Sem nenhuma liga\u00E7\u00E3o \u2014 ",
+                                nInt(semLigacaoTudo.length),
+                                " leads no per\u00EDodo"),
+                            React.createElement("div", { style: { display: "grid", gap: 8, marginTop: 10 } }, [
+                                { k: "explicar", cor: T.bad, t: "A explicar", q: baldes.explicar,
+                                    d: "Sem ligação e sem WhatsApp — é esta a lista da reunião" },
+                                { k: "whatsapp", cor: T.good, t: "Atendido por WhatsApp", q: baldes.whatsapp,
+                                    d: "Trocou de canal, não deixou o lead parado" },
+                                { k: "justificado", cor: "#B9BEC4", t: "Justificado", q: baldes.justificado,
+                                    d: "".concat(nInt(baldes.ganho), " ganhou sem ligar \u00B7 ").concat(nInt(baldes.motivo), " curr\u00EDculo, fornecedor, n\u00E3o realizamos, engano") },
+                            ].map(function (b) { return (React.createElement("div", { key: b.k, style: { display: "grid", gridTemplateColumns: "auto 1fr auto",
+                                    alignItems: "center", gap: 11, border: "1px solid ".concat(b.k === baldeAberto ? "#F0C674" : T.hair),
+                                    background: b.k === baldeAberto ? "#FFFBEE" : "#FCFCFC",
+                                    borderRadius: 9, padding: "10px 12px" } },
+                                React.createElement("span", { style: { width: 9, height: 9, borderRadius: 99, background: b.cor } }),
+                                React.createElement("div", null,
+                                    React.createElement("div", { style: { fontSize: 13, fontWeight: 700 } }, b.t),
+                                    React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 1 } }, b.d)),
+                                React.createElement("div", { style: { fontFamily: F_NUM, fontWeight: 700, fontSize: 21,
+                                        fontVariantNumeric: "tabular-nums",
+                                        color: b.k === "justificado" ? T.muted : b.cor } }, nInt(b.q)))); }))))),
+                    semLigacaoLista.length > 0 && (React.createElement(Card, { className: "p16", style: { marginTop: 12 } },
+                        React.createElement(Label, null,
+                            "Quem ficou sem liga\u00E7\u00E3o \u2014 ",
+                            nInt(semLigacaoLista.length),
+                            " lead(s) neste balde"),
+                        React.createElement("div", { style: { fontSize: 12.5, color: T.muted, margin: "6px 0 10px", maxWidth: 820 } }, "Sem discagem registrada. N\u00E3o quer dizer sem contato: veja a coluna WhatsApp antes de cobrar. Lead sem SDR n\u00E3o tem dono \u2014 \u00E9 roteamento, n\u00E3o \u00E9 pessoa."),
+                        React.createElement("div", { style: { display: "flex", gap: 7, flexWrap: "wrap", margin: "0 0 12px" } }, [["explicar", "A explicar", baldes.explicar],
+                            ["whatsapp", "Atendido por WhatsApp", baldes.whatsapp],
+                            ["justificado", "Justificado", baldes.justificado]].map(function (_a) {
+                            var _b = __read(_a, 3), k = _b[0], t = _b[1], q = _b[2];
+                            return (React.createElement("button", { key: k, onClick: function () { return setBaldeAberto(k); }, style: { border: "1px solid ".concat(k === baldeAberto ? T.ink : T.hair),
+                                    background: k === baldeAberto ? T.ink : "#fff",
+                                    color: k === baldeAberto ? "#fff" : T.ink2,
+                                    fontWeight: k === baldeAberto ? 700 : 400,
+                                    borderRadius: 99, padding: "5px 13px", fontSize: 12.5, cursor: "pointer" } },
+                                t,
+                                " \u00B7 ",
+                                nInt(q)));
+                        })),
+                        React.createElement("div", { className: "rolagem" },
+                            React.createElement("table", null,
+                                React.createElement("thead", null,
+                                    React.createElement("tr", null,
+                                        React.createElement(Th, null, "Entrou"),
+                                        React.createElement(Th, null, "SDR"),
+                                        React.createElement(Th, null, "Lead"),
+                                        React.createElement(Th, null, "Unidade"),
+                                        React.createElement(Th, null, "Servi\u00E7o"),
+                                        React.createElement(Th, null, "Etapa agora"),
+                                        React.createElement(Th, null, "Motivo"),
+                                        React.createElement(Th, { right: true }, "WhatsApp"))),
+                                React.createElement("tbody", null, semLigacaoLista.map(function (r) { return (React.createElement("tr", { key: r.kommo_id },
+                                    React.createElement(Td, null,
+                                        br(r.data),
+                                        " ",
+                                        r.hora),
+                                    React.createElement(Td, { style: { color: r.sdr === "Sem SDR" ? T.warn : undefined,
+                                            fontWeight: r.sdr === "Sem SDR" ? 700 : undefined } }, r.sdr),
+                                    React.createElement(Td, null, r.titulo || "—"),
+                                    React.createElement(Td, null, r.unidade || "—"),
+                                    React.createElement(Td, null, r.servico || "—"),
+                                    React.createElement(Td, { style: { color: r.perdido ? T.bad : undefined,
+                                            fontWeight: r.perdido ? 700 : undefined } }, r.etapa || "—"),
+                                    React.createElement(Td, null, r.motivo || "—"),
+                                    React.createElement(Td, { right: true, style: { color: r.teve_whatsapp ? T.good : T.bad, fontWeight: 700 } }, r.teve_whatsapp
+                                        ? (r.minutos_ate_whatsapp != null ? "".concat(nNum(r.minutos_ate_whatsapp, 0), " min") : "sim")
+                                        : "nenhum contato"))); }))))))),
+                React.createElement(Secao, { n: 9, titulo: "Por que perdemos", nota: "Dois blocos, porque s\u00E3o dois jogos diferentes. Em cima, o lead que se perdeu ANTES de chegar na loja \u2014 \u00E9 a conta do SDR. Embaixo, o lead que chegou l\u00E1 dentro, sentou com o closer e n\u00E3o fechou \u2014 o SDR fez o trabalho dele at\u00E9 o fim. S\u00F3 a lista oficial de motivos do Kommo; o vocabul\u00E1rio antigo fica na nota do rodap\u00E9." },
                     React.createElement(Card, { className: "p16" },
                         React.createElement("div", { style: { fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase",
                                 color: T.muted, fontWeight: 700, marginBottom: 10 } },
@@ -2589,7 +2786,7 @@ function Painel(_a) {
                             "Mais ",
                             React.createElement("b", { style: { color: T.ink2 } }, nInt(motivos.historico)),
                             " perdas no per\u00EDodo registradas antes da lista oficial de motivos. Ficam fora do gr\u00E1fico porque o vocabul\u00E1rio antigo n\u00E3o distinguia os casos. Este n\u00FAmero encolhe sozinho conforme os leads novos s\u00E3o fechados.")))),
-                React.createElement(Secao, { n: 9, titulo: "Onde os leads est\u00E3o parados agora", nota: "Foto do momento, n\u00E3o do per\u00EDodo filtrado, e s\u00F3 do que continua aberto. O valor \u00E9 a soma do que est\u00E1 registrado nos leads da etapa \u2014 vale o que o preenchimento valer, por isso a coluna ao lado mostra quantos est\u00E3o sem valor nenhum. Ordenado por dinheiro, n\u00E3o por quantidade." }, (function () {
+                React.createElement(Secao, { n: 10, titulo: "Onde os leads est\u00E3o parados agora", nota: "Foto do momento, n\u00E3o do per\u00EDodo filtrado, e s\u00F3 do que continua aberto. O valor \u00E9 a soma do que est\u00E1 registrado nos leads da etapa \u2014 vale o que o preenchimento valer, por isso a coluna ao lado mostra quantos est\u00E3o sem valor nenhum. Ordenado por dinheiro, n\u00E3o por quantidade." }, (function () {
                     var abertas = d.funilAgora
                         .filter(function (r) { return !r.ignorada; })
                         .filter(function (r) { return !["ganho", "perdido"].includes(r.etapa_grupo); })
@@ -2631,7 +2828,7 @@ function Painel(_a) {
                                         temValor && React.createElement(Td, null),
                                         React.createElement(Td, null)))))));
                 })()),
-                notaPreench.lista.length > 0 && (React.createElement(Secao, { n: 10, titulo: "Preenchimento \u2014 nota por SDR", nota: "A nota \u00E9 campos preenchidos dividido por campos exigidos, em tr\u00EAs camadas: todo lead exige unidade e servi\u00E7o; lead agendado exige tamb\u00E9m data da visita e a nota para o closer; lead que virou venda exige o valor. Quem n\u00E3o agendou ou n\u00E3o vendeu n\u00E3o \u00E9 cobrado por campo que ainda n\u00E3o existe. O desfecho da visita fica de fora \u2014 hoje ningu\u00E9m tem essa tarefa." },
+                notaPreench.lista.length > 0 && (React.createElement(Secao, { n: 11, titulo: "Preenchimento \u2014 nota por SDR", nota: "A nota \u00E9 campos preenchidos dividido por campos exigidos, em tr\u00EAs camadas: todo lead exige unidade e servi\u00E7o; lead agendado exige tamb\u00E9m data da visita e a nota para o closer; lead que virou venda exige o valor. Quem n\u00E3o agendou ou n\u00E3o vendeu n\u00E3o \u00E9 cobrado por campo que ainda n\u00E3o existe. O desfecho da visita fica de fora \u2014 hoje ningu\u00E9m tem essa tarefa." },
                     React.createElement("div", { className: "grid-kpi", style: { marginBottom: 12 } },
                         React.createElement(Kpi, { label: "Nota do time", value: nPct(notaPreench.geral, 0), sub: "".concat(nInt(notaPreench.tot.ok), " de ").concat(nInt(notaPreench.tot.exigidos), " campos"), tone: notaPreench.geral >= 0.9 ? "good" : notaPreench.geral < 0.7 ? "bad" : undefined }),
                         React.createElement(Kpi, { label: "Melhor", value: notaPreench.lista[0].nome, sub: nPct(notaPreench.lista[0].nota, 0), tone: "good" }),
@@ -2673,7 +2870,7 @@ function Painel(_a) {
                                     cel(x.com_valor, x.ganhos)));
                             })))),
                     React.createElement(Card, { className: "p16", style: { marginTop: 12, fontSize: 12.5, color: T.ink2, lineHeight: 1.6 } }, "\"Nota ao closer\" mede se existe uma nota escrita por gente no lead. A qualidade do que foi escrito \u00E9 outra conversa, que nenhum painel resolve \u2014 esta coluna serve para achar quem n\u00E3o escreve nada."))),
-                q && (React.createElement(Secao, { n: 11, titulo: "Qualidade do preenchimento no CRM", nota: "Os mesmos buracos, vistos por campo em vez de por pessoa. As visitas sem desfecho aparecem aqui e n\u00E3o na nota acima de prop\u00F3sito: hoje ningu\u00E9m tem essa tarefa, e cobrar de quem n\u00E3o a recebeu destruiria a confian\u00E7a na nota." },
+                q && (React.createElement(Secao, { n: 12, titulo: "Qualidade do preenchimento no CRM", nota: "Os mesmos buracos, vistos por campo em vez de por pessoa. As visitas sem desfecho aparecem aqui e n\u00E3o na nota acima de prop\u00F3sito: hoje ningu\u00E9m tem essa tarefa, e cobrar de quem n\u00E3o a recebeu destruiria a confian\u00E7a na nota." },
                     React.createElement("div", { className: "grid-kpi" },
                         React.createElement(Kpi, { label: "Visitas sem desfecho", value: nInt(q.visita_sem_desfecho), sub: "J\u00E1 passaram e ningu\u00E9m marcou", tone: q.visita_sem_desfecho > 0 ? "bad" : "good" }),
                         React.createElement(Kpi, { label: "Leads sem unidade", value: nInt(q.sem_unidade), sub: "N\u00E3o d\u00E1 para atribuir \u00E0 loja", tone: q.sem_unidade > 0 ? "bad" : "good" }),
@@ -2681,7 +2878,7 @@ function Painel(_a) {
                         React.createElement(Kpi, { label: "Leads sem SDR", value: nInt(q.sem_sdr), sub: "Nunca distribu\u00EDdos", tone: q.sem_sdr > 0 ? "bad" : "good" }),
                         React.createElement(Kpi, { label: "Vendas sem valor", value: nInt(q.ganho_sem_valor), sub: "Fecharam com R$ 0", tone: q.ganho_sem_valor > 0 ? "bad" : "good" }),
                         React.createElement(Kpi, { label: "Valores em quarentena", value: nInt(q.valor_em_quarentena), sub: "Acima de R$ 100 mil, fora do c\u00E1lculo", tone: q.valor_em_quarentena > 0 ? "bad" : "good" })))),
-                tarefasLista.length > 0 && (React.createElement(Secao, { n: 12, titulo: "Tarefas \u2014 o pr\u00F3ximo passo", nota: "Foto do agora, n\u00E3o do per\u00EDodo: vencida \u00E9 uma condi\u00E7\u00E3o de hoje. As cinco primeiras colunas contam S\u00D3 tarefa de lead que continua com o SDR \u2014 \u00E9 o que d\u00E1 para cobrar dele. Quando o lead \u00E9 repassado, o Kommo troca o respons\u00E1vel e o SDR perde o acesso ao card: a tarefa fica no nome dele e ele n\u00E3o consegue nem abrir para concluir. Isso virou a coluna 'J\u00E1 \u00E9 de outro', e quem fecha essas \u00E9 o dono atual do lead. 'Leads sem tarefa' tamb\u00E9m conta s\u00F3 os que ainda s\u00E3o dele. 'Faxina de CRM' \u00E9 tarefa aberta em lead j\u00E1 perdido, ganho ou de outro funil." },
+                tarefasLista.length > 0 && (React.createElement(Secao, { n: 13, titulo: "Tarefas \u2014 o pr\u00F3ximo passo", nota: "Foto do agora, n\u00E3o do per\u00EDodo: vencida \u00E9 uma condi\u00E7\u00E3o de hoje. As cinco primeiras colunas contam S\u00D3 tarefa de lead que continua com o SDR \u2014 \u00E9 o que d\u00E1 para cobrar dele. Quando o lead \u00E9 repassado, o Kommo troca o respons\u00E1vel e o SDR perde o acesso ao card: a tarefa fica no nome dele e ele n\u00E3o consegue nem abrir para concluir. Isso virou a coluna 'J\u00E1 \u00E9 de outro', e quem fecha essas \u00E9 o dono atual do lead. 'Leads sem tarefa' tamb\u00E9m conta s\u00F3 os que ainda s\u00E3o dele. 'Faxina de CRM' \u00E9 tarefa aberta em lead j\u00E1 perdido, ganho ou de outro funil." },
                     React.createElement(Card, { className: "p0 rolagem" },
                         React.createElement("table", null,
                             React.createElement("thead", null,
