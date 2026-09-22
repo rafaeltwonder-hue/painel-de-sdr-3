@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v49 — CAR SERVICE</title>
-<meta name="painel-versao" content="v49">
+<title>Painel de SDR v50 — CAR SERVICE</title>
+<meta name="painel-versao" content="v50">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -604,6 +604,20 @@ function contasDaRotina(r, tarefas, semTarefa) {
     var pessoas = Math.max(1, equipe.length);
     var faltaReceita = Math.max(0, Number(meta.faturamento) - mes.receita);
     var faltaOs = Math.max(0, Number(meta.os) - mes.os);
+    /* v50 — Car Store: três metas separadas, por intenção. O Rafael foi
+       explícito: não juntar em "60 carros". Vender um carro nosso, comprar
+       o carro do cliente e intermediar são trabalhos diferentes, com metas
+       diferentes; no bolo, o time faz o mais fácil e o número fecha. */
+    var vendasPorIntencao = new Map();
+    fatoTudo.forEach(function (x) {
+        var k = x.servico || "—";
+        vendasPorIntencao.set(k, (vendasPorIntencao.get(k) || 0) + (Number(x.vendas) || 0));
+    });
+    var metasIntencao = (r.metasIntencao || []).map(function (m) {
+        var feito = vendasPorIntencao.get(m.intencao) || 0;
+        var alvo = Number(m.meta_mes) || 0;
+        return { intencao: m.intencao, rotulo: m.rotulo || m.intencao, meta: alvo, feito: feito, pct: alvo ? feito / alvo : 0, falta: Math.max(0, alvo - feito) };
+    });
     /* Somar por pessoa, uma vez, e reaproveitar nas duas telas. */
     var porPessoa = new Map();
     var pegar = function (s) {
@@ -719,6 +733,7 @@ function contasDaRotina(r, tarefas, semTarefa) {
         trabalhados: trabalhados,
         pelaFrente: pelaFrente,
         ultimoDoMes: ultimoDoMes,
+        metasIntencao: metasIntencao,
         mes: mes,
         doDia: doDia,
         tarefasVencidas: tarefasVencidas,
@@ -1095,6 +1110,35 @@ function AbaCoordenador(_a) {
                         React.createElement(Kv, { l: "Precisa/dia", v: b.precisa }),
                         React.createElement(Kv, { l: "Saindo/dia", v: b.ritmo, cor: noRitmo ? T.good : T.bad }))));
             })),
+            ehStore && c.metasIntencao.length > 0 && (React.createElement("div", { style: { marginTop: 20, paddingTop: 16, borderTop: "1px dashed ".concat(T.hair) } },
+                React.createElement(Label, null, "Metas do m\u00EAs, uma por inten\u00E7\u00E3o"),
+                React.createElement("div", { style: { display: "grid", gap: 14, marginTop: 10,
+                        gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))" } }, c.metasIntencao.map(function (m) {
+                    /* O ritmo esperado a esta altura do mês. Verde é "no ritmo",
+                       não "bateu": no dia 10 ninguém bateu nada, e a cor tem que
+                       dizer se o mês está de pé. */
+                    var esperado = m.meta * (c.trabalhados / Math.max(1, c.trabalhados + c.pelaFrente));
+                    var ok = m.feito >= esperado;
+                    return (React.createElement("div", { key: m.intencao },
+                        React.createElement("div", { style: { display: "flex", justifyContent: "space-between",
+                                alignItems: "baseline", marginBottom: 6 } },
+                            React.createElement("span", { style: { fontSize: 12.5, fontWeight: 600 } }, m.rotulo),
+                            React.createElement("span", { style: { fontSize: 11.5, color: T.muted } }, m.intencao)),
+                        React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 24, fontWeight: 700, lineHeight: 1.05,
+                                fontVariantNumeric: "tabular-nums" } },
+                            nInt(m.feito),
+                            " ",
+                            React.createElement("span", { style: { fontSize: 13, fontWeight: 600, color: T.muted } },
+                                "de ",
+                                nInt(m.meta))),
+                        React.createElement("div", { style: { marginTop: 8 } },
+                            React.createElement(Barra, { pct: Math.min(1, m.pct), cor: ok ? T.good : T.bad, alt: 12 })),
+                        React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 6 } },
+                            m.falta ? "faltam ".concat(nInt(m.falta)) : "meta batida",
+                            " \u00B7 ",
+                            nNum(m.pct * 100, 0),
+                            "%")));
+                })))),
             React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 16, paddingTop: 12,
                     borderTop: "1px dashed ".concat(T.hair), lineHeight: 1.6 } },
                 "Dias contados de segunda a s\u00E1bado. O ritmo atual \u00E9 o realizado ",
@@ -1102,11 +1146,11 @@ function AbaCoordenador(_a) {
                 " dividido pelos dias j\u00E1 trabalhados \u2014 incluir o dia em curso diria toda manh\u00E3 que o time est\u00E1 pior do que est\u00E1. A meta vem de ",
                 React.createElement("code", null, "meta_do_mes"),
                 " no banco: para mudar, altera l\u00E1, sem republicar o painel.",
-                ehStore && " A meta mostrada ainda é a do Car Service — o Car Store não tem meta própria cadastrada.")),
+                ehStore && " O total de carros é a soma das três metas por intenção; quem manda são elas, em metas_intencao.")),
         React.createElement("div", { className: "colsRotina", style: { display: "grid", gap: 16, marginTop: 16,
                 alignItems: "start" } },
             React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12 } },
-                React.createElement(Bloco, { hora: "08:00", check: rotina.porBloco["08:00"], titulo: "Distribuir para os closers", alerta: totalRepasse > 0, etiqueta: "".concat(nReal(valorRepasse), " parados"), nota: "O SDR n\u00E3o faz follow-up de or\u00E7amento \u2014 se o lead ficar com ele, para. Tudo que passou da primeira conversa vai para o closer na abertura do dia." },
+                React.createElement(Bloco, { hora: "08:00", check: rotina.porBloco["08:00"], titulo: "Distribuir para os closers", alerta: totalRepasse > 0, etiqueta: ehStore ? "".concat(nInt(totalRepasse), " para repassar") : "".concat(nReal(valorRepasse), " parados"), nota: "O SDR n\u00E3o faz follow-up de or\u00E7amento \u2014 se o lead ficar com ele, para. Tudo que passou da primeira conversa vai para o closer na abertura do dia." },
                     paraRepassar.map(function (r) { return (React.createElement(Linha, { key: r.etapa, valor: nInt(r.leads), cor: Number(r.dias_sem_mexer) >= 5 ? T.bad : null },
                         r.etapa,
                         React.createElement("span", { style: { fontSize: 12, color: T.muted } },
@@ -1116,7 +1160,7 @@ function AbaCoordenador(_a) {
                             Number(r.dias_sem_mexer) === 1 ? "dia" : "dias",
                             " sem mexer \u00B7 ",
                             nReal(r.valor_parado)))); }),
-                    React.createElement(Linha, { total: true, valor: "".concat(nInt(totalRepasse), " leads \u00B7 ").concat(nReal(valorRepasse)), cor: T.bad },
+                    React.createElement(Linha, { total: true, valor: ehStore ? "".concat(nInt(totalRepasse), " leads") : "".concat(nInt(totalRepasse), " leads \u00B7 ").concat(nReal(valorRepasse)), cor: T.bad },
                         React.createElement("b", null, "A repassar para o closer"))),
                 React.createElement(Bloco, { hora: "09:00", check: rotina.porBloco["09:00"], titulo: "Reuni\u00E3o de time", etiqueta: "O dia at\u00E9 agora \u00D7 meta", nota: "Meta do dia: ".concat(ehStore ? "" : nReal(c.metaReceitaDia) + " e ").concat(nNum(c.metaVendaDia, 1), " vendas por pessoa \u2014 a meta do m\u00EAs dividida pelos dias \u00FAteis e pelas ").concat(c.pessoas, " pessoas que atendem. Liga\u00E7\u00F5es e conversas s\u00E3o meta fixa da casa.") },
                     React.createElement("div", { className: "rolagem" },
@@ -1203,8 +1247,8 @@ function AbaCoordenador(_a) {
                             "de ",
                             nInt((qualidade || {}).leads_total),
                             " na base")),
-                    React.createElement(Linha, { valor: nInt((qualidade || {}).sem_servico), cor: T.bad }, "Leads sem servi\u00E7o preenchido"),
-                    React.createElement(Linha, { valor: nInt((qualidade || {}).ganho_sem_valor), cor: T.bad }, "Vendas ganhas sem valor lan\u00E7ado"),
+                    React.createElement(Linha, { valor: nInt((qualidade || {}).sem_servico), cor: T.bad }, ehStore ? "Leads sem interesse preenchido" : "Leads sem serviço preenchido"),
+                    !ehStore && (React.createElement(Linha, { valor: nInt((qualidade || {}).ganho_sem_valor), cor: T.bad }, "Vendas ganhas sem valor lan\u00E7ado")),
                     React.createElement(Linha, { valor: nInt((qualidade || {}).sem_sdr) }, "Leads sem SDR atribu\u00EDdo"))),
             React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12 } },
                 React.createElement(QuadroRotina, { r: rotina }),
@@ -1563,6 +1607,24 @@ function ModoTV(_a) {
                         color: "#79808A", margin: "8px 0 12px" } },
                     React.createElement("span", null, b.esq),
                     React.createElement("span", null, b.dir)))); })),
+        ehStore && c.metasIntencao.length > 0 && (React.createElement("div", { style: { display: "grid", gap: 18, gridTemplateColumns: "repeat(".concat(c.metasIntencao.length, ", 1fr)") } }, c.metasIntencao.map(function (m) {
+            var esperado = m.meta * (c.trabalhados / Math.max(1, c.trabalhados + c.pelaFrente));
+            var ok = m.feito >= esperado;
+            return (React.createElement("div", { key: m.intencao, style: { background: FUNDO2, border: "1px solid ".concat(LINHA),
+                    borderRadius: 8, padding: "14px 18px" } },
+                React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 12, letterSpacing: ".14em",
+                        textTransform: "uppercase", color: CINZA, fontWeight: 700 } }, m.rotulo),
+                React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 34, fontWeight: 700, lineHeight: 1.1,
+                        marginTop: 8, fontVariantNumeric: "tabular-nums" } },
+                    nInt(m.feito),
+                    " ",
+                    React.createElement("span", { style: { fontSize: 16, color: "#79808A", fontWeight: 700 } },
+                        "de ",
+                        nInt(m.meta))),
+                React.createElement("div", { style: { height: 12, background: LINHA, borderRadius: 3, overflow: "hidden", marginTop: 10 } },
+                    React.createElement("div", { style: { height: "100%", width: Math.min(100, m.pct * 100) + "%",
+                            background: ok ? VERDE : T.marca, borderRadius: 3 } }))));
+        }))),
         React.createElement(FaixaSdrHoje, { c: c }),
         React.createElement("div", { style: { display: "grid", gap: 22, gridTemplateColumns: "1.45fr 1fr" } },
             React.createElement("div", { style: { background: FUNDO2, border: "1px solid ".concat(LINHA), borderRadius: 8,
@@ -1849,7 +1911,7 @@ function usarDados(de, ate, prevDe, negocio) {
         });
     }); };
     var buscar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var doNegocio_1, timeTudo, doOutroTime_1, semOutroTime, _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, sl, ag, co, es, vp, ce, rb, pr, opcional, opcionalPaginado, inicioDoMes_1, oDiaDeHoje_1, _b, q, fa, ms, mt, sd, tf, lst, mm, eq, fm, eh, th, vh, ch, e_1;
+        var doNegocio_1, timeTudo, doOutroTime_1, semOutroTime, _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, sl, ag, co, es, vp, ce, rb, pr, opcional, opcionalPaginado, inicioDoMes_1, oDiaDeHoje_1, _b, q, fa, ms, mt, sd, tf, lst, mm, eq, fm, eh, th, vh, ch, mi, e_1;
         var _this = this;
         return __generator(this, function (_c) {
             switch (_c.label) {
@@ -1995,7 +2057,7 @@ function usarDados(de, ate, prevDe, negocio) {
                             opcional(function () { return doNegocio_1(db.from("leads_sem_tarefa").select("*")); }, []),
                             /* a linha do mês corrente; se ainda não cadastraram, vale a última
                                anterior — nunca a primeira que o banco devolver. */
-                            opcional(function () { return db.from("meta_do_mes").select("*").lte("mes", inicioDoMes_1).order("mes", { ascending: false }).limit(1); }, []),
+                            opcional(function () { return doNegocio_1(db.from("meta_do_mes").select("*")).lte("mes", inicioDoMes_1).order("mes", { ascending: false }).limit(1); }, []),
                             opcional(function () { return doNegocio_1(db.from("equipe_sdr").select("sdr,ativo")).eq("ativo", true); }, []),
                             opcionalPaginado(function () { return doNegocio_1(db.from("fato_dia").select("*")
                                 .gte("data", inicioDoMes_1).lte("data", oDiaDeHoje_1).order("data")); }, []),
@@ -2008,9 +2070,12 @@ function usarDados(de, ate, prevDe, negocio) {
                                conta no dia em que ENTROU, não no dia em que o agendamento
                                aconteceu. Por isso o número ainda sobe depois que a TV desliga. */
                             opcional(function () { return doNegocio_1(db.from("coorte_agendamento_v").select("*")).eq("dia", oDiaDeHoje_1); }, []),
+                            /* v50 — as metas do Car Store não são um bolo de 60 carros: são
+                               três metas separadas, por intenção. Vazio no Car Service. */
+                            opcional(function () { return doNegocio_1(db.from("metas_intencao").select("*")).order("ordem"); }, []),
                         ])];
                 case 15:
-                    _b = __read.apply(void 0, [_c.sent(), 14]), q = _b[0], fa = _b[1], ms = _b[2], mt = _b[3], sd = _b[4], tf = _b[5], lst = _b[6], mm = _b[7], eq = _b[8], fm = _b[9], eh = _b[10], th = _b[11], vh = _b[12], ch = _b[13];
+                    _b = __read.apply(void 0, [_c.sent(), 15]), q = _b[0], fa = _b[1], ms = _b[2], mt = _b[3], sd = _b[4], tf = _b[5], lst = _b[6], mm = _b[7], eq = _b[8], fm = _b[9], eh = _b[10], th = _b[11], vh = _b[12], ch = _b[13], mi = _b[14];
                     setQualidade(q[0] || null);
                     setFunilAgora(fa);
                     setMetas({ sdr: ms, taxa: mt[0] || null });
@@ -2021,6 +2086,7 @@ function usarDados(de, ate, prevDe, negocio) {
                         meta: mm[0] || null,
                         equipe: (eq || []).map(function (x) { return x.sdr; }),
                         fatoMes: fm, esforcoHoje: semOutroTime(eh), tempoHoje: th, visitasHoje: vh, coorteHoje: ch,
+                        metasIntencao: mi || [],
                         inicioDoMes: inicioDoMes_1,
                         oDiaDeHoje: oDiaDeHoje_1,
                         negocio: negocio,
@@ -2461,6 +2527,14 @@ function Painel(_a) {
         var x = porServico.find(function (y) { return y.nome === nome; });
         return x ? x.vendas : 0;
     };
+    /* A meta de mix não é chute: sai das três metas por intenção do mês —
+       40 intermediações em 60 carros dá 67%. */
+    var metaMix = (function () {
+        var lista = (rot && rot.metasIntencao) || [];
+        var tot = lista.reduce(function (x, m) { return x + m.meta; }, 0);
+        var inter = lista.filter(function (m) { return m.intencao === "Intermediação"; }).reduce(function (x, m) { return x + m.meta; }, 0);
+        return tot ? inter / tot : 0;
+    })();
     var KPIS = [
         { l: "Leads recebidos", v: nInt(a.leads_recebidos), d: React.createElement(Delta, { atual: a.leads_recebidos, anterior: aPrev.leads_recebidos }) },
         { l: "Leads trabalhados", v: nInt(a.leads_trabalhados), s: "".concat(nPct(a.pct_trabalhados), " dos recebidos"),
@@ -2497,7 +2571,11 @@ function Painel(_a) {
             : { l: "Vendas", v: nInt(a.vendas), d: React.createElement(Delta, { atual: a.vendas, anterior: aPrev.vendas }) },
         ehStore
             ? { l: "Mix intermediação", v: a.vendas ? nPct(div(vendasDaIntencao("Intermediação"), a.vendas)) : "—",
-                s: a.vendas ? "".concat(nInt(vendasDaIntencao("Intermediação")), " das ").concat(nInt(a.vendas), " vendas") : "nenhuma venda no período" }
+                s: a.vendas
+                    ? "".concat(nInt(vendasDaIntencao("Intermediação")), " das ").concat(nInt(a.vendas), " vendas").concat(metaMix ? " \u00B7 meta de mix: ".concat(nNum(metaMix * 100, 0), "%") : "")
+                    : "nenhuma venda no período",
+                tone: !a.vendas || !metaMix ? undefined
+                    : (div(vendasDaIntencao("Intermediação"), a.vendas) >= metaMix ? "good" : "bad") }
             : { l: "Receita", v: nReal(a.receita), s: "Ticket m\u00E9dio ".concat(nReal(a.ticket)) },
         ehStore
             ? { l: "Trocas", v: nInt(vendasDaIntencao("Troca")), s: "Entra um carro e sai outro · conta 1" }
