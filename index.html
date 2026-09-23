@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v50 — CAR SERVICE</title>
-<meta name="painel-versao" content="v50">
+<title>Painel de SDR v52 — CAR SERVICE</title>
+<meta name="painel-versao" content="v52">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -2008,8 +2008,11 @@ function usarDados(de, ate, prevDe, negocio) {
                 case 13:
                     rb = _c.sent();
                     setRobo(semOutroTime(rb));
-                    return [4 /*yield*/, buscarSePuder("Nota de preenchimento", function () { return doNegocio_1(db.from("preenchimento_sdr")
-                            .select("*").gte("data", de).lte("data", ate).order("data")); })];
+                    return [4 /*yield*/, buscarSePuder("Nota de preenchimento", function () {
+                            return negocio === "car_store"
+                                ? db.from("preenchimento_cars").select("*").gte("data", de).lte("data", ate).order("data")
+                                : doNegocio_1(db.from("preenchimento_sdr").select("*").gte("data", de).lte("data", ate).order("data"));
+                        })];
                 case 14:
                     pr = _c.sent();
                     setPreench(pr || []);
@@ -2157,18 +2160,26 @@ function Painel(_a) {
     /* Perfil de acesso (15/09/2026): vem do JWT (app_metadata.perfil). 'admin'
        vê tudo; 'importador' (16/09) vê só Importar e Resumo — é o login de
        quem exporta os relatórios do Oficina e manda os cartões do dia;
-       qualquer outro (ou nenhum) vê só SDR, Coordenador e Modo TV. O banco
+       'agencia' (23/09) vê SÓ a aba SDR, nos dois negócios — é o login da
+       agência de marketing, que acompanha o que acontece com o lead que ela
+       entrega e não participa da rotina do time; qualquer outro (ou nenhum)
+       vê SDR, Coordenador e Modo TV. O banco
        recusa as tabelas do comercial para quem não pode — aqui é só a parte
        visível da regra, não a segurança em si. */
     var perfil = ((sessao && sessao.user && sessao.user.app_metadata) || {}).perfil || "sdr";
     var ehAdmin = perfil === "admin";
     var ehImportador = perfil === "importador";
+    var ehAgencia = perfil === "agencia";
     var ABAS = [["painel", "SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["closers", "Closers"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]];
     var ABAS_SDR = ["painel", "coordenador", "tv"];
     // 16/09: o importador também monta e envia os resumos do dia, então vê
     // Importar + Resumo (e nada além disso).
     var ABAS_IMPORTADOR = ["importar", "resumo"];
-    var podeVer = function (v) { return (ehAdmin ? true : ehImportador ? ABAS_IMPORTADOR.indexOf(v) >= 0 : ABAS_SDR.indexOf(v) >= 0); };
+    var ABAS_AGENCIA = ["painel"];
+    var podeVer = function (v) { return (ehAdmin ? true
+        : ehImportador ? ABAS_IMPORTADOR.indexOf(v) >= 0
+            : ehAgencia ? ABAS_AGENCIA.indexOf(v) >= 0
+                : ABAS_SDR.indexOf(v) >= 0); };
     var abaInicial = ehImportador ? "importar" : "painel";
     var abaDaURL = function () {
         var h = String(window.location.hash || "").replace("#", "");
@@ -2470,7 +2481,9 @@ function Painel(_a) {
         aplicar(d.preench).forEach(function (r) {
             var k = r.sdr || "—";
             var o = m.get(k) || { nome: k, leads: 0, agendados: 0, ganhos: 0, com_unidade: 0,
-                com_servico: 0, com_data: 0, com_nota: 0, com_valor: 0, exigidos: 0, ok: 0 };
+                com_servico: 0, com_data: 0, com_nota: 0, com_valor: 0, exigidos: 0, ok: 0,
+                exige_carro_cliente: 0, com_carro_cliente: 0, exige_carro_estoque: 0,
+                com_carro_estoque: 0, exige_contrato: 0, com_contrato: 0 };
             o.leads += Number(r.leads) || 0;
             o.agendados += Number(r.agendados) || 0;
             o.ganhos += Number(r.ganhos) || 0;
@@ -2479,6 +2492,12 @@ function Painel(_a) {
             o.com_data += Number(r.com_data) || 0;
             o.com_nota += Number(r.com_nota) || 0;
             o.com_valor += Number(r.com_valor) || 0;
+            o.exige_carro_cliente += Number(r.exige_carro_cliente) || 0;
+            o.com_carro_cliente += Number(r.com_carro_cliente) || 0;
+            o.exige_carro_estoque += Number(r.exige_carro_estoque) || 0;
+            o.com_carro_estoque += Number(r.com_carro_estoque) || 0;
+            o.exige_contrato += Number(r.exige_contrato) || 0;
+            o.com_contrato += Number(r.com_contrato) || 0;
             o.exigidos += Number(r.campos_exigidos) || 0;
             o.ok += Number(r.campos_ok) || 0;
             m.set(k, o);
@@ -3107,7 +3126,9 @@ function Painel(_a) {
                                         temValor && React.createElement(Td, null),
                                         React.createElement(Td, null)))))));
                 })()),
-                notaPreench.lista.length > 0 && (React.createElement(Secao, { n: 11, titulo: "Preenchimento \u2014 nota por SDR", nota: "A nota \u00E9 campos preenchidos dividido por campos exigidos, em tr\u00EAs camadas: todo lead exige unidade e servi\u00E7o; lead agendado exige tamb\u00E9m data da visita e a nota para o closer; lead que virou venda exige o valor. Quem n\u00E3o agendou ou n\u00E3o vendeu n\u00E3o \u00E9 cobrado por campo que ainda n\u00E3o existe. O desfecho da visita fica de fora \u2014 hoje ningu\u00E9m tem essa tarefa." },
+                notaPreench.lista.length > 0 && (React.createElement(Secao, { n: 11, titulo: "Preenchimento \u2014 nota por SDR", nota: ehStore
+                        ? "A nota é campos preenchidos dividido por campos exigidos. As camadas do Car Store: todo lead exige unidade e interesse; quem vem vender, intermediar ou trocar exige o carro do cliente; quem vem comprar ou trocar exige o carro do estoque; lead agendado exige a data da visita e a nota para o closer; intermediação ganha exige a data da assinatura do contrato. Ninguém é cobrado pelo campo que a intenção dele não usa."
+                        : "A nota \u00E9 campos preenchidos dividido por campos exigidos, em tr\u00EAs camadas: todo lead exige unidade e servi\u00E7o; lead agendado exige tamb\u00E9m data da visita e a nota para o closer; lead que virou venda exige o valor. Quem n\u00E3o agendou ou n\u00E3o vendeu n\u00E3o \u00E9 cobrado por campo que ainda n\u00E3o existe. O desfecho da visita fica de fora \u2014 hoje ningu\u00E9m tem essa tarefa." },
                     React.createElement("div", { className: "grid-kpi", style: { marginBottom: 12 } },
                         React.createElement(Kpi, { label: "Nota do time", value: nPct(notaPreench.geral, 0), sub: "".concat(nInt(notaPreench.tot.ok), " de ").concat(nInt(notaPreench.tot.exigidos), " campos"), tone: notaPreench.geral >= 0.9 ? "good" : notaPreench.geral < 0.7 ? "bad" : undefined }),
                         React.createElement(Kpi, { label: "Melhor", value: notaPreench.lista[0].nome, sub: nPct(notaPreench.lista[0].nota, 0), tone: "good" }),
@@ -3120,12 +3141,14 @@ function Painel(_a) {
                                     React.createElement(Th, { right: true }, "Nota"),
                                     React.createElement(Th, { right: true }, "Leads"),
                                     React.createElement(Th, { right: true }, "Unidade"),
-                                    React.createElement(Th, { right: true }, "Servi\u00E7o"),
+                                    React.createElement(Th, { right: true }, ehStore ? "Interesse" : "Serviço"),
+                                    ehStore && React.createElement(Th, { right: true }, "Carro do cliente"),
+                                    ehStore && React.createElement(Th, { right: true }, "Carro do estoque"),
                                     React.createElement(Th, { right: true }, "Agendados"),
                                     React.createElement(Th, { right: true }, "Data da visita"),
                                     React.createElement(Th, { right: true }, "Nota ao closer"),
-                                    React.createElement(Th, { right: true }, "Vendas"),
-                                    React.createElement(Th, { right: true }, "Valor preenchido"))),
+                                    React.createElement(Th, { right: true }, ehStore ? "Ganhos" : "Vendas"),
+                                    React.createElement(Th, { right: true }, ehStore ? "Contrato assinado" : "Valor preenchido"))),
                             React.createElement("tbody", null, notaPreench.lista.map(function (x) {
                                 var cel = function (feitos, total) { return total
                                     ? React.createElement(Td, { right: true, color: div(feitos, total) >= 0.9 ? T.good
@@ -3142,11 +3165,13 @@ function Painel(_a) {
                                     React.createElement(Td, { right: true }, nInt(x.leads)),
                                     cel(x.com_unidade, x.leads),
                                     cel(x.com_servico, x.leads),
+                                    ehStore && cel(x.com_carro_cliente, x.exige_carro_cliente),
+                                    ehStore && cel(x.com_carro_estoque, x.exige_carro_estoque),
                                     React.createElement(Td, { right: true }, nInt(x.agendados)),
                                     cel(x.com_data, x.agendados),
                                     cel(x.com_nota, x.agendados),
                                     React.createElement(Td, { right: true }, nInt(x.ganhos)),
-                                    cel(x.com_valor, x.ganhos)));
+                                    ehStore ? cel(x.com_contrato, x.exige_contrato) : cel(x.com_valor, x.ganhos)));
                             })))),
                     React.createElement(Card, { className: "p16", style: { marginTop: 12, fontSize: 12.5, color: T.ink2, lineHeight: 1.6 } }, "\"Nota ao closer\" mede se existe uma nota escrita por gente no lead. A qualidade do que foi escrito \u00E9 outra conversa, que nenhum painel resolve \u2014 esta coluna serve para achar quem n\u00E3o escreve nada."))),
                 q && (React.createElement(Secao, { n: 12, titulo: "Qualidade do preenchimento no CRM", nota: "Os mesmos buracos, vistos por campo em vez de por pessoa. As visitas sem desfecho aparecem aqui e n\u00E3o na nota acima de prop\u00F3sito: hoje ningu\u00E9m tem essa tarefa, e cobrar de quem n\u00E3o a recebeu destruiria a confian\u00E7a na nota." },
@@ -3186,7 +3211,11 @@ function Painel(_a) {
                 React.createElement("footer", { style: { marginTop: 48, paddingTop: 18, borderTop: "1px solid ".concat(T.hair),
                         fontSize: 11.5, color: T.muted, lineHeight: 1.7, maxWidth: "80ch" } },
                     React.createElement("b", null, "De onde vem cada n\u00FAmero."),
-                    " A carteira \u2014 leads, agendamentos, visitas, vendas e receita \u2014 vem do funil do CAR SERVICE no Kommo \u2014 que l\u00E1 dentro ainda se chama \"Auto Care\", id 13727267, um dos 29 funis da conta \u2014 e \u00E9 creditada ao dono do lead. O esfor\u00E7o \u2014 liga\u00E7\u00F5es, tempo ao telefone e taxa de atendimento \u2014 vem do discador API4COM, que \u00E9 quem sabe qual ramal discou; o Kommo n\u00E3o sabe, porque quem escreve a nota da liga\u00E7\u00E3o \u00E9 a integra\u00E7\u00E3o e n\u00E3o a pessoa. Por isso a se\u00E7\u00E3o 4 tem uma chave diferente da se\u00E7\u00E3o 3, e por isso trocar o API4COM por outro discador exige refazer essa parte. O WhatsApp vem do Kommo, onde o autor da mensagem \u00E9 confi\u00E1vel.",
+                    " ",
+                    ehStore
+                        ? 'A carteira — leads, agendamentos, visitas e carros — vem do funil CAR STORE no Kommo (id 13911104) e é creditada ao dono do lead. Aqui não existe receita: o resultado é contado em carros, e a intenção do cliente (comprar, vender, intermediar, trocar) ocupa o lugar do serviço.'
+                        : 'A carteira — leads, agendamentos, visitas, vendas e receita — vem do funil do CAR SERVICE no Kommo — que lá dentro ainda se chama "Auto Care", id 13727267, um dos 29 funis da conta — e é creditada ao dono do lead.',
+                    " O esfor\u00E7o \u2014 liga\u00E7\u00F5es, tempo ao telefone e taxa de atendimento \u2014 vem do discador API4COM, que \u00E9 quem sabe qual ramal discou; o Kommo n\u00E3o sabe, porque quem escreve a nota da liga\u00E7\u00E3o \u00E9 a integra\u00E7\u00E3o e n\u00E3o a pessoa. Por isso a se\u00E7\u00E3o 4 tem uma chave diferente da se\u00E7\u00E3o 3, e por isso trocar o API4COM por outro discador exige refazer essa parte. O WhatsApp vem do Kommo, onde o autor da mensagem \u00E9 confi\u00E1vel.",
                     React.createElement("br", null),
                     React.createElement("br", null),
                     React.createElement("b", null, "Como o dia \u00E9 contado."),
