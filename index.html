@@ -6028,7 +6028,7 @@ function AbaOrigem() {
 
    De onde vem cada número:
      · lead, agendamento, comparecimento, venda e receita saem de
-       comercial.campanha_v, que usa a MESMA régua da aba SDR (mesmo
+       comercial.campanha_dia, que usa a MESMA régua da aba SDR (mesmo
        filtro de funil, mesma função de desfecho da visita, mesmo corte de
        valor suspeito). Se esta aba divergir da aba SDR, o erro está na
        regra de campanha — nunca no critério.
@@ -6200,9 +6200,17 @@ function AbaMarketing(_a) {
     var negocio = _a.negocio;
     var _b = __read(useState("mes"), 2), periodo = _b[0], setPeriodo = _b[1];
     var _c = __read(useState(null), 2), linhas = _c[0], setLinhas = _c[1];
-    var _d = __read(useState([]), 2), orcamento = _d[0], setOrcamento = _d[1];
-    var _f = __read(useState(null), 2), erro = _f[0], setErro = _f[1];
+    var _d = __read(useState([]), 2), verba = _d[0], setVerba = _d[1];
+    var _f = __read(useState([]), 2), orcamento = _f[0], setOrcamento = _f[1];
+    var _g = __read(useState(null), 2), erro = _g[0], setErro = _g[1];
     var faixa = useMemo(function () { return mktFaixa(periodo); }, [periodo]);
+    /* 24/09: a aba lia comercial.campanha_v, que já vinha com o dinheiro
+       colado no resultado. Ficou bonito e estourou o tempo do banco: a view
+       usa FULL JOIN, e o Postgres não consegue empurrar o filtro de data
+       para dentro de um FULL JOIN — ele montava o mês inteiro dos 7 mil
+       leads antes de olhar a data. Aqui as três consultas saem separadas,
+       cada uma com o filtro de data que o banco sabe aproveitar, e o
+       encontro dos números acontece no navegador, que faz isso de graça. */
     useEffect(function () {
         var vivo = true;
         setErro(null);
@@ -6217,14 +6225,14 @@ function AbaMarketing(_a) {
                     return [2 /*return*/, data || []];
             }
         }); }); };
-        Promise.all([
-            pega(db.from("campanha_v").select("*").eq("negocio", negocio).gte("data", faixa.de).lte("data", faixa.ate)),
-            pega(db.from("orcamento_dia").select("*").eq("negocio", negocio).gte("data", faixa.de).lte("data", faixa.ate)),
-        ]).then(function (_a) {
-            var _b = __read(_a, 2), c = _b[0], o = _b[1];
+        var naFaixa = function (t) { return db.from(t).select("*").eq("negocio", negocio).gte("data", faixa.de).lte("data", faixa.ate); };
+        Promise.all([pega(naFaixa("campanha_dia")), pega(naFaixa("verba_dia")), pega(naFaixa("orcamento_dia"))])
+            .then(function (_a) {
+            var _b = __read(_a, 3), c = _b[0], v = _b[1], o = _b[2];
             if (!vivo)
                 return;
             setLinhas(c);
+            setVerba(v);
             setOrcamento(o);
         })
             .catch(function (e) { if (vivo)
@@ -6237,8 +6245,20 @@ function AbaMarketing(_a) {
             erro);
     if (!linhas)
         return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando\u2026");
-    var porCampanha = mktAgrupar(linhas, function (l) { return "".concat(l.canal, "\u0001").concat(l.campanha); });
-    var pago = porCampanha.filter(function (l) { return MKT_CANAIS.indexOf(l.canal) >= 0; });
+    var chaveDe = function (l) { return "".concat(l.canal, "\u0001").concat(l.campanha); };
+    var porCampanha = mktAgrupar(linhas, chaveDe);
+    /* Cola o investimento no resultado. Campanha que gastou e não trouxe
+       lead nenhum (a de engajamento, a de remarketing sem frase própria)
+       entra aqui como linha nova: dinheiro queimado tem que aparecer. */
+    var porChave = {};
+    porCampanha.forEach(function (l) { porChave[l.chave] = l; });
+    verba.forEach(function (v) {
+        var k = "".concat(v.canal, "\u0001").concat(v.campanha);
+        var a = porChave[k] || (porChave[k] = { chave: k, canal: v.canal, campanha: v.campanha, via: "verba",
+            leads: 0, agendados: 0, compareceram: 0, vendas: 0, receita: 0, investido: 0 });
+        a.investido += Number(v.investido) || 0;
+    });
+    var pago = Object.keys(porChave).map(function (k) { return porChave[k]; }).filter(function (l) { return MKT_CANAIS.indexOf(l.canal) >= 0; });
     var doCanal = function (c) { return pago.filter(function (l) { return l.canal === c; }); };
     var somar = function (lista) { return lista.reduce(function (s, l) { return ({
         leads: s.leads + l.leads, agendados: s.agendados + l.agendados,
