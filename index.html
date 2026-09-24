@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v55 — CAR SERVICE</title>
-<meta name="painel-versao" content="v55">
+<title>Painel de SDR v56 — CAR SERVICE</title>
+<meta name="painel-versao" content="v56">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -38,9 +38,17 @@
   .grid-kpi { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); }
   .grid-kpi-2 { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
                 align-content: start; }
+  /* Quatro colunas fixas, não auto-fit: a aba Marketing mostra oito
+     números por canal e precisa que eles fechem 4 + 4, em bloco. Com
+     auto-fit sobrava um cartão órfão na segunda linha, e o cartão do
+     Google deixava de ficar exatamente em cima do mesmo cartão do Meta,
+     que é o que faz a comparação funcionar. */
+  .grid-kpi-4 { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .col2 { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; }
   .mini4 { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-  @media (max-width: 1000px) { .col2 { grid-template-columns: 1fr; } }
+  @media (max-width: 1000px) { .col2 { grid-template-columns: 1fr; }
+                               .grid-kpi-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px)  { .grid-kpi-4 { grid-template-columns: 1fr; } }
 
   .rolagem { overflow-x: auto; }
 
@@ -6083,39 +6091,37 @@ function mktAgrupar(linhas, chave) {
     });
     return Object.keys(m).map(function (k) { return m[k]; });
 }
-/* O bloco de oito números de um canal. É o mesmo desenho dos dois lados,
-   de propósito: a comparação tem que ser de olho, sem conta na cabeça. */
-function MktCartaoCanal(_a) {
-    var canal = _a.canal, t = _a.t, campanhas = _a.campanhas;
-    var roas = div(t.receita, t.investido);
-    return (React.createElement(Card, { className: "p16" },
-        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, marginBottom: 13 } },
-            React.createElement("span", { style: { fontFamily: F_MARCA, fontSize: 11, fontWeight: 700, letterSpacing: ".06em",
-                    textTransform: "uppercase", background: T.canvas, color: T.ink,
-                    border: "1px solid ".concat(T.hair), borderRadius: 5, padding: "3px 8px" } },
-                canal,
-                " Ads"),
-            React.createElement("span", { style: { fontSize: 12, color: T.muted } }, campanhas ? "".concat(nInt(campanhas), " campanha").concat(campanhas > 1 ? "s" : "", " com lead") : "sem campanha no período")),
-        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: 10 } },
-            React.createElement(MktNum, { rotulo: "Investido", valor: nReal(t.investido), pe: t.investido ? null : "não lançado" }),
-            React.createElement(MktNum, { rotulo: "Leads", valor: nInt(t.leads) }),
-            React.createElement(MktNum, { rotulo: "Custo por lead", valor: t.investido ? nReal(div(t.investido, t.leads)) : "—" }),
-            React.createElement(MktNum, { rotulo: "Agendou", valor: nInt(t.agendados), pe: nPct(div(t.agendados, t.leads), 1) }),
-            React.createElement(MktNum, { rotulo: "Compareceu", valor: nInt(t.compareceram), pe: !t.agendados ? "sem agendamento no período"
-                    : t.compareceram > t.agendados ? "inclui agendado antes"
-                        : nPct(div(t.compareceram, t.agendados), 0) + " dos agendados" }),
-            React.createElement(MktNum, { rotulo: "Vendas", valor: nInt(t.vendas) }),
-            React.createElement(MktNum, { rotulo: "CAC", valor: t.investido && t.vendas ? nReal(div(t.investido, t.vendas)) : "—" }),
-            React.createElement(MktNum, { rotulo: "ROAS", valor: t.investido ? "".concat((roas).toFixed(2).replace(".", ","), "x") : "—", cor: t.investido ? (roas >= 2 ? T.good : roas < 1 ? T.bad : T.ink) : T.muted, pe: t.investido ? nReal(t.receita) + " de receita" : null }))));
+/* A faixa que abre cada canal. Só um rótulo: quem carrega o número é o
+   cartão de KPI logo abaixo, igual a todas as outras abas do painel. */
+function MktFaixaCanal(_a) {
+    var canal = _a.canal, direita = _a.direita;
+    return (React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, margin: "18px 0 10px" } },
+        React.createElement("span", { style: { fontFamily: F_MARCA, fontSize: 11.5, fontWeight: 700, letterSpacing: ".06em",
+                textTransform: "uppercase", background: canal === "Os dois juntos" ? T.ink : T.canvas,
+                color: canal === "Os dois juntos" ? "#fff" : T.ink,
+                border: "1px solid ".concat(canal === "Os dois juntos" ? T.ink : T.hair),
+                borderRadius: 5, padding: "4px 9px" } }, canal),
+        direita && React.createElement("span", { style: { fontSize: 12, color: T.muted } }, direita)));
 }
-function MktNum(_a) {
-    var rotulo = _a.rotulo, valor = _a.valor, pe = _a.pe, cor = _a.cor;
-    return (React.createElement("div", null,
-        React.createElement("div", { style: { fontSize: 10, letterSpacing: ".05em", textTransform: "uppercase",
-                color: T.muted, fontWeight: 600 } }, rotulo),
-        React.createElement("div", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 20, letterSpacing: "-.02em",
-                color: cor || T.ink, fontVariantNumeric: "tabular-nums", marginTop: 1 } }, valor),
-        pe && React.createElement("div", { style: { fontSize: 11, color: T.muted, marginTop: 1 } }, pe)));
+/* Os oito números de um canal, em cartão de KPI — o mesmo componente da
+   aba SDR, do Coordenador e das Lojas. A régua é a mesma dos dois lados
+   de propósito: a comparação entre Google e Meta tem que ser de bater o
+   olho, sem conta na cabeça. */
+function MktKpisCanal(_a) {
+    var t = _a.t;
+    var roas = div(t.receita, t.investido);
+    var temVerba = t.investido > 0;
+    return (React.createElement("div", { className: "grid-kpi-4" },
+        React.createElement(Kpi, { label: "Investido", value: temVerba ? nReal(t.investido) : "—", sub: temVerba ? "no período" : "verba não lançada" }),
+        React.createElement(Kpi, { label: "Leads", value: nInt(t.leads), sub: "entraram no Kommo" }),
+        React.createElement(Kpi, { label: "Custo por lead", value: temVerba ? nReal(div(t.investido, t.leads)) : "—", sub: temVerba ? "investido ÷ leads" : "depende da verba" }),
+        React.createElement(Kpi, { label: "Agendou", value: nInt(t.agendados), sub: "".concat(nPct(div(t.agendados, t.leads), 1), " dos leads") }),
+        React.createElement(Kpi, { label: "Compareceu", value: nInt(t.compareceram), sub: !t.agendados ? "sem agendamento no período"
+                : t.compareceram > t.agendados ? "inclui agendado antes"
+                    : "".concat(nPct(div(t.compareceram, t.agendados), 0), " dos agendados") }),
+        React.createElement(Kpi, { label: "Vendas", value: nInt(t.vendas), sub: "".concat(nPct(div(t.vendas, t.leads), 1), " dos leads") }),
+        React.createElement(Kpi, { label: "CAC", value: temVerba && t.vendas ? nReal(div(t.investido, t.vendas)) : "—", sub: temVerba && t.vendas ? "custo ÷ vendas" : "sem venda no período" }),
+        React.createElement(Kpi, { label: "ROAS", value: temVerba ? "".concat(roas.toFixed(2).replace(".", ","), "x") : "—", sub: temVerba ? "".concat(nReal(t.receita), " de receita") : "depende da verba", tone: temVerba ? tomRoas(roas) : undefined })));
 }
 /* A tabela de campanhas de um canal. Ordenada por ROAS: quem devolve
    menos fica embaixo, que é onde a conversa costuma terminar. */
@@ -6305,18 +6311,14 @@ function AbaMarketing(_a) {
                 " a ",
                 faixa.ate.split("-").reverse().join("/")),
             React.createElement("span", { style: { marginLeft: "auto", fontSize: 12, color: T.muted } }, ehStore ? "Car Store" : "Car Service")),
-        React.createElement(Secao, { n: 1, titulo: "Resultado do tr\u00E1fego pago, por canal", nota: "Google e Meta nunca somados no mesmo cart\u00E3o: s\u00E3o leil\u00F5es diferentes, custos diferentes e comportamentos de lead diferentes. O total aparece embaixo, para a conta fechar." },
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: 14 } }, MKT_CANAIS.map(function (c) { return React.createElement(MktCartaoCanal, { key: c, canal: c, t: tot[c], campanhas: doCanal(c).length }); })),
-            React.createElement(Card, { className: "p16", style: { marginTop: 14, display: "flex", gap: 26, alignItems: "center", flexWrap: "wrap" } },
-                React.createElement("span", { style: { fontFamily: F_MARCA, fontSize: 11, fontWeight: 700, letterSpacing: ".06em",
-                        textTransform: "uppercase", color: T.muted } }, "Os dois juntos"),
-                React.createElement(MktNum, { rotulo: "Investido", valor: nReal(juntos.investido) }),
-                React.createElement(MktNum, { rotulo: "Leads", valor: nInt(juntos.leads) }),
-                React.createElement(MktNum, { rotulo: "CPL", valor: juntos.investido ? nReal(div(juntos.investido, juntos.leads)) : "—" }),
-                React.createElement(MktNum, { rotulo: "Vendas", valor: nInt(juntos.vendas) }),
-                React.createElement(MktNum, { rotulo: "CAC", valor: juntos.investido && juntos.vendas ? nReal(div(juntos.investido, juntos.vendas)) : "—" }),
-                React.createElement(MktNum, { rotulo: "Receita", valor: nReal(juntos.receita) }),
-                React.createElement(MktNum, { rotulo: "ROAS", valor: juntos.investido ? "".concat(div(juntos.receita, juntos.investido).toFixed(2).replace(".", ","), "x") : "—", cor: juntos.investido ? (div(juntos.receita, juntos.investido) >= 2 ? T.good : T.bad) : T.muted }))),
+        React.createElement(Secao, { n: 1, titulo: "Resultado do tr\u00E1fego pago, por canal", nota: "Google e Meta nunca somados no mesmo cart\u00E3o: s\u00E3o leil\u00F5es diferentes, custos diferentes e comportamentos de lead diferentes. Cada canal tem a mesma fileira de n\u00FAmeros, um em cima do outro, para a compara\u00E7\u00E3o ser de bater o olho. O total fecha embaixo." },
+            MKT_CANAIS.map(function (c) { return (React.createElement(React.Fragment, { key: c },
+                React.createElement(MktFaixaCanal, { canal: "".concat(c, " Ads"), direita: doCanal(c).length
+                        ? "".concat(nInt(doCanal(c).length), " campanha").concat(doCanal(c).length > 1 ? "s" : "", " no per\u00EDodo")
+                        : "nenhuma campanha no período" }),
+                React.createElement(MktKpisCanal, { t: tot[c] }))); }),
+            React.createElement(MktFaixaCanal, { canal: "Os dois juntos", direita: "s\u00F3 para a conta do m\u00EAs fechar" }),
+            React.createElement(MktKpisCanal, { t: juntos })),
         React.createElement(Secao, { n: 2, titulo: "Campanhas do Google", nota: "Ordenada por ROAS. O dinheiro vem do Reportei; lead, agendamento e venda v\u00EAm do Kommo, pelo mesmo crit\u00E9rio da aba SDR \u2014 nunca das convers\u00F5es da plataforma, que contam clique no WhatsApp." }, doCanal("Google").length
             ? React.createElement(MktTabela, { canal: "Google", linhas: doCanal("Google") })
             : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } },
