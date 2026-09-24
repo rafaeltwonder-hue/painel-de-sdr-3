@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v52 — CAR SERVICE</title>
-<meta name="painel-versao" content="v52">
+<title>Painel de SDR v55 — CAR SERVICE</title>
+<meta name="painel-versao" content="v55">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -1150,7 +1150,10 @@ function AbaCoordenador(_a) {
         React.createElement("div", { className: "colsRotina", style: { display: "grid", gap: 16, marginTop: 16,
                 alignItems: "start" } },
             React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12 } },
-                React.createElement(Bloco, { hora: "08:00", check: rotina.porBloco["08:00"], titulo: "Distribuir para os closers", alerta: totalRepasse > 0, etiqueta: ehStore ? "".concat(nInt(totalRepasse), " para repassar") : "".concat(nReal(valorRepasse), " parados"), nota: "O SDR n\u00E3o faz follow-up de or\u00E7amento \u2014 se o lead ficar com ele, para. Tudo que passou da primeira conversa vai para o closer na abertura do dia." },
+                ehStore && (React.createElement(Card, { className: "p16", style: { borderColor: "#F0DCB4", background: "#FDF4E4" } },
+                    React.createElement("div", { style: { fontSize: 13, color: T.ink, fontWeight: 600 } }, "A rotina abaixo \u00E9 a do Car Service"),
+                    React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 6, lineHeight: 1.6 } }, "O Car Store ainda n\u00E3o tem coordenador nem rotina pr\u00F3pria. Os hor\u00E1rios, os blocos e os marcadores de \"feito\" s\u00E3o os do outro time \u2014 o que muda aqui \u00E9 s\u00F3 o dado. O bloco das 08:00 fica de fora porque a regra de repasse para o closer n\u00E3o existe no Car Store."))),
+                !ehStore && (React.createElement(Bloco, { hora: "08:00", check: rotina.porBloco["08:00"], titulo: "Distribuir para os closers", alerta: totalRepasse > 0, etiqueta: ehStore ? "".concat(nInt(totalRepasse), " para repassar") : "".concat(nReal(valorRepasse), " parados"), nota: "O SDR n\u00E3o faz follow-up de or\u00E7amento \u2014 se o lead ficar com ele, para. Tudo que passou da primeira conversa vai para o closer na abertura do dia." },
                     paraRepassar.map(function (r) { return (React.createElement(Linha, { key: r.etapa, valor: nInt(r.leads), cor: Number(r.dias_sem_mexer) >= 5 ? T.bad : null },
                         r.etapa,
                         React.createElement("span", { style: { fontSize: 12, color: T.muted } },
@@ -1161,7 +1164,7 @@ function AbaCoordenador(_a) {
                             " sem mexer \u00B7 ",
                             nReal(r.valor_parado)))); }),
                     React.createElement(Linha, { total: true, valor: ehStore ? "".concat(nInt(totalRepasse), " leads") : "".concat(nInt(totalRepasse), " leads \u00B7 ").concat(nReal(valorRepasse)), cor: T.bad },
-                        React.createElement("b", null, "A repassar para o closer"))),
+                        React.createElement("b", null, "A repassar para o closer")))),
                 React.createElement(Bloco, { hora: "09:00", check: rotina.porBloco["09:00"], titulo: "Reuni\u00E3o de time", etiqueta: "O dia at\u00E9 agora \u00D7 meta", nota: "Meta do dia: ".concat(ehStore ? "" : nReal(c.metaReceitaDia) + " e ").concat(nNum(c.metaVendaDia, 1), " vendas por pessoa \u2014 a meta do m\u00EAs dividida pelos dias \u00FAteis e pelas ").concat(c.pessoas, " pessoas que atendem. Liga\u00E7\u00F5es e conversas s\u00E3o meta fixa da casa.") },
                     React.createElement("div", { className: "rolagem" },
                         React.createElement("table", null,
@@ -2170,12 +2173,16 @@ function Painel(_a) {
     var ehAdmin = perfil === "admin";
     var ehImportador = perfil === "importador";
     var ehAgencia = perfil === "agencia";
-    var ABAS = [["painel", "SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["closers", "Closers"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]];
+    var ABAS = [["painel", "SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["marketing", "Marketing"], ["closers", "Closers"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]];
     var ABAS_SDR = ["painel", "coordenador", "tv"];
     // 16/09: o importador também monta e envia os resumos do dia, então vê
     // Importar + Resumo (e nada além disso).
     var ABAS_IMPORTADOR = ["importar", "resumo"];
-    var ABAS_AGENCIA = ["painel"];
+    /* 24/09: a agência passou a ver também a aba Marketing. Faz sentido —
+       é o resultado da verba que ela própria administra, e a reunião fica
+       mais rápida se os dois lados olham a mesma tela. Continua sem as
+       abas de operação: Closers, Lojas, Origem, Resumo e Importar. */
+    var ABAS_AGENCIA = ["painel", "marketing"];
     var podeVer = function (v) { return (ehAdmin ? true
         : ehImportador ? ABAS_IMPORTADOR.indexOf(v) >= 0
             : ehAgencia ? ABAS_AGENCIA.indexOf(v) >= 0
@@ -2368,8 +2375,18 @@ function Painel(_a) {
         var antes = new Map();
         var naLoja = new Map();
         var historico = 0;
+        /* 23/09 — o carimbo automático virou um número à parte. Quando
+           ninguém escolhe motivo no Kommo, a ingestão grava o padrão da etapa,
+           e isso responde por 9 de cada 10 perdas: somado ao resto, apagava os
+           motivos escritos por gente. Não é perda sem causa, é perda sem
+           registro — e a conta que se cobra é outra. */
+        var semMotivo = 0;
         aplicar(d.motivos).forEach(function (r) {
             var n = Number(r.leads) || 0;
+            if (r.automatico) {
+                semMotivo += n;
+                return;
+            }
             // A coluna "atual" só existe depois do motivos_limpos.sql; sem ela
             // o painel se comporta como antes.
             if (r.atual === false) {
@@ -2395,6 +2412,9 @@ function Painel(_a) {
             totalAntes: somar(antes),
             totalNaLoja: somar(naLoja),
             historico: historico,
+            semMotivo: semMotivo,
+            /* a base honesta do gráfico: com motivo escrito + sem motivo */
+            comMotivo: somar(antes) + somar(naLoja),
         };
     }, [d.motivos, f]);
     /* Tarefas: junta as duas fontes numa linha por pessoa.
@@ -2698,12 +2718,13 @@ function Painel(_a) {
                         background: aba === v ? T.ink : "transparent",
                         color: aba === v ? "#fff" : T.ink2 } }, l));
             })),
-            aba !== "painel" && aba !== "importar" && aba !== "resumo" && aba !== "closers" && aba !== "lojas" && aba !== "origem" && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
+            aba !== "painel" && aba !== "importar" && aba !== "resumo" && aba !== "closers" && aba !== "lojas" && aba !== "origem" && aba !== "marketing" && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
             (ehAdmin || ehImportador) && aba === "importar" && React.createElement(AbaImportar, { sessao: sessao }),
             (ehAdmin || ehImportador) && aba === "resumo" && React.createElement(AbaResumo, { sessao: sessao }),
             ehAdmin && aba === "closers" && React.createElement(AbaClosers, null),
             ehAdmin && aba === "lojas" && React.createElement(AbaLojas, null),
             ehAdmin && aba === "origem" && React.createElement(AbaOrigem, null),
+            (ehAdmin || ehAgencia) && aba === "marketing" && React.createElement(AbaMarketing, { negocio: negocio }),
             aba === "coordenador" && rot && React.createElement(AbaCoordenador, { sessao: sessao, c: rot, funil: d.funilAgora, qualidade: d.qualidade, tarefas: d.tarefas, semTarefa: d.semTarefa }),
             aba === "painel" && (React.createElement(React.Fragment, null,
                 React.createElement(Card, { className: "p12", style: { position: "sticky", top: 54, zIndex: 20 } },
@@ -2953,6 +2974,9 @@ function Painel(_a) {
                 React.createElement(Secao, { n: 8, titulo: "Tempo at\u00E9 a primeira liga\u00E7\u00E3o", nota: d.tempoAntigo
                         ? "Medida antiga, pela saída do lead da etapa de entrada. Rode o filtro_usuarios.sql para passar a medir pela ligação de verdade."
                         : "Da entrada do lead até a primeira ligação DISCADA — vale a discagem, não o atendimento: o SDR controla quando liga, não se o cliente atende. Isto não é o que a casa chama de SLA; SLA aqui quer dizer que o lead atende aos padrões mínimos para ser atendido." },
+                    ehStore && tempoTot.com_medida === 0 && (React.createElement(Card, { className: "p16", style: { marginBottom: 12, borderColor: "#F0DCB4", background: "#FDF4E4" } },
+                        React.createElement("div", { style: { fontSize: 13, color: T.ink, fontWeight: 600 } }, "Nenhuma liga\u00E7\u00E3o registrada no discador"),
+                        React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 6, lineHeight: 1.6 } }, "O time do Car Store atende por WhatsApp e ainda n\u00E3o tem ramal no API4COM. Enquanto isso, esta se\u00E7\u00E3o mede a aus\u00EAncia de medida, n\u00E3o a aus\u00EAncia de trabalho \u2014 os n\u00FAmeros abaixo ficam zerados de prop\u00F3sito."))),
                     React.createElement("div", { className: "col2" },
                         React.createElement(Card, { className: "p16" },
                             React.createElement(Label, null,
@@ -3075,6 +3099,19 @@ function Painel(_a) {
                                 "Nenhuma perda registrada com motivo de loja neste per\u00EDodo. Este bloco s\u00F3 enche quando o closer marca o motivo ",
                                 React.createElement("b", { style: { color: T.ink2 } }, "Veio em loja e n\u00E3o fechou"),
                                 " no Kommo \u2014 vazio aqui pode significar que n\u00E3o aconteceu, ou que aconteceu e ningu\u00E9m registrou.")) : (React.createElement(BarrasHorizontais, { dados: motivos.naLoja }))),
+                        motivos.semMotivo > 0 && (React.createElement("div", { style: { marginTop: 16, paddingTop: 12, borderTop: "1px solid ".concat(T.hair) } },
+                            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline" } },
+                                React.createElement("span", { style: { fontSize: 11, letterSpacing: ".06em", textTransform: "uppercase",
+                                        color: T.muted, fontWeight: 700 } }, "Descartados sem motivo"),
+                                React.createElement("span", { style: { fontFamily: F_NUM, fontWeight: 700, fontSize: 18,
+                                        color: motivos.semMotivo > motivos.comMotivo ? T.bad : T.ink } },
+                                    nInt(motivos.semMotivo),
+                                    React.createElement("span", { style: { fontSize: 12, color: T.muted, fontWeight: 400 } },
+                                        " ",
+                                        "de ",
+                                        nInt(motivos.semMotivo + motivos.comMotivo),
+                                        " perdas"))),
+                            React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 6, lineHeight: 1.6 } }, "Ningu\u00E9m escolheu motivo no Kommo \u2014 o lead saiu com o carimbo padr\u00E3o da etapa. Enquanto esse n\u00FAmero for maior que o dos motivos escritos, o gr\u00E1fico acima fala de uma minoria das perdas."))),
                         motivos.historico > 0 && (React.createElement("div", { style: { marginTop: 16, paddingTop: 12, borderTop: "1px solid ".concat(T.hair),
                                 fontSize: 12, color: T.muted, lineHeight: 1.6 } },
                             "Mais ",
@@ -5979,6 +6016,366 @@ function AbaOrigem() {
                             React.createElement(Td, { right: true, color: s["(em branco)"] ? T.bad : T.muted }, nReal(s["(em branco)"] || 0)),
                             React.createElement(Td, { right: true, bold: true }, nPct(div(s.SDR || 0, t), 0))));
                     })))))));
+}
+/* ===================== a aba Marketing =====================
+
+   Para que serve: a reunião com a agência. Ela responde uma pergunta só —
+   cada real que entrou em anúncio voltou? — e responde SEMPRE separando
+   Google de Meta. São leilões diferentes, com custo por lead e
+   comportamento de lead diferentes; somar os dois num cartão só esconde
+   exatamente aquilo que a reunião precisa decidir, que é de onde tirar
+   verba e para onde levar. O total existe, mas embaixo, em letra menor.
+
+   De onde vem cada número:
+     · lead, agendamento, comparecimento, venda e receita saem de
+       comercial.campanha_v, que usa a MESMA régua da aba SDR (mesmo
+       filtro de funil, mesma função de desfecho da visita, mesmo corte de
+       valor suspeito). Se esta aba divergir da aba SDR, o erro está na
+       regra de campanha — nunca no critério.
+     · investimento sai de comercial.verba, lançado à mão a partir do
+       Reportei. O Kommo não sabe quanto foi gasto: essa informação só
+       existe nas plataformas.
+     · orçamento vem da planilha da BREV e fica guardado à parte de
+       propósito. Plano não é gasto. Misturar os dois estraga CPL, CAC e
+       ROAS — em setembro o orçado do Google era R$ 34.980 e saiu
+       R$ 26.637 da conta.
+
+   Como o lead sabe de qual campanha veio: no Google, pela UTM. No Meta,
+   pelo nome que o Lead Ads passou a mandar em 23/09/2026 e, antes disso,
+   pela frase do anúncio de clique-para-WhatsApp. Por isso setembro é um
+   mês partido, e a aba avisa isso em vez de fingir que fecha. */
+var MKT_CANAIS = ["Google", "Meta"];
+/* ROAS abaixo de 1 é dinheiro perdido; acima de 2 é o que a casa espera.
+   A cor serve para a mesa inteira enxergar isso sem ler o número. */
+var tomRoas = function (x) { return (x >= 2 ? "good" : x < 1 ? "bad" : undefined); };
+function mktFaixa(periodo) {
+    var h = hoje();
+    var inicioMes = h.slice(0, 8) + "01";
+    if (periodo === "ant") {
+        var d = new Date("".concat(inicioMes, "T12:00:00"));
+        d.setMonth(d.getMonth() - 1);
+        var ini = iso(d);
+        var fim = new Date("".concat(inicioMes, "T12:00:00"));
+        fim.setDate(0);
+        return { de: ini, ate: iso(fim), rotulo: "Mês passado" };
+    }
+    if (periodo === "30") {
+        var d = new Date("".concat(h, "T12:00:00"));
+        d.setDate(d.getDate() - 29);
+        return { de: iso(d), ate: h, rotulo: "Últimos 30 dias" };
+    }
+    return { de: inicioMes, ate: h, rotulo: "Mês atual" };
+}
+/* Soma as linhas diárias numa chave só. A view entrega um registro por dia
+   por campanha; a reunião olha o período inteiro. */
+function mktAgrupar(linhas, chave) {
+    var m = {};
+    (linhas || []).forEach(function (l) {
+        var k = chave(l);
+        var a = m[k] || (m[k] = { chave: k, canal: l.canal, campanha: l.campanha, via: l.via,
+            leads: 0, agendados: 0, compareceram: 0, vendas: 0, receita: 0, investido: 0 });
+        a.leads += Number(l.leads) || 0;
+        a.agendados += Number(l.agendados) || 0;
+        a.compareceram += Number(l.compareceram) || 0;
+        a.vendas += Number(l.vendas) || 0;
+        a.receita += Number(l.receita) || 0;
+        a.investido += Number(l.investido) || 0;
+    });
+    return Object.keys(m).map(function (k) { return m[k]; });
+}
+/* O bloco de oito números de um canal. É o mesmo desenho dos dois lados,
+   de propósito: a comparação tem que ser de olho, sem conta na cabeça. */
+function MktCartaoCanal(_a) {
+    var canal = _a.canal, t = _a.t, campanhas = _a.campanhas;
+    var roas = div(t.receita, t.investido);
+    return (React.createElement(Card, { className: "p16" },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, marginBottom: 13 } },
+            React.createElement("span", { style: { fontFamily: F_MARCA, fontSize: 11, fontWeight: 700, letterSpacing: ".06em",
+                    textTransform: "uppercase", background: T.canvas, color: T.ink,
+                    border: "1px solid ".concat(T.hair), borderRadius: 5, padding: "3px 8px" } },
+                canal,
+                " Ads"),
+            React.createElement("span", { style: { fontSize: 12, color: T.muted } }, campanhas ? "".concat(nInt(campanhas), " campanha").concat(campanhas > 1 ? "s" : "", " com lead") : "sem campanha no período")),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: 10 } },
+            React.createElement(MktNum, { rotulo: "Investido", valor: nReal(t.investido), pe: t.investido ? null : "não lançado" }),
+            React.createElement(MktNum, { rotulo: "Leads", valor: nInt(t.leads) }),
+            React.createElement(MktNum, { rotulo: "Custo por lead", valor: t.investido ? nReal(div(t.investido, t.leads)) : "—" }),
+            React.createElement(MktNum, { rotulo: "Agendou", valor: nInt(t.agendados), pe: nPct(div(t.agendados, t.leads), 1) }),
+            React.createElement(MktNum, { rotulo: "Compareceu", valor: nInt(t.compareceram), pe: !t.agendados ? "sem agendamento no período"
+                    : t.compareceram > t.agendados ? "inclui agendado antes"
+                        : nPct(div(t.compareceram, t.agendados), 0) + " dos agendados" }),
+            React.createElement(MktNum, { rotulo: "Vendas", valor: nInt(t.vendas) }),
+            React.createElement(MktNum, { rotulo: "CAC", valor: t.investido && t.vendas ? nReal(div(t.investido, t.vendas)) : "—" }),
+            React.createElement(MktNum, { rotulo: "ROAS", valor: t.investido ? "".concat((roas).toFixed(2).replace(".", ","), "x") : "—", cor: t.investido ? (roas >= 2 ? T.good : roas < 1 ? T.bad : T.ink) : T.muted, pe: t.investido ? nReal(t.receita) + " de receita" : null }))));
+}
+function MktNum(_a) {
+    var rotulo = _a.rotulo, valor = _a.valor, pe = _a.pe, cor = _a.cor;
+    return (React.createElement("div", null,
+        React.createElement("div", { style: { fontSize: 10, letterSpacing: ".05em", textTransform: "uppercase",
+                color: T.muted, fontWeight: 600 } }, rotulo),
+        React.createElement("div", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 20, letterSpacing: "-.02em",
+                color: cor || T.ink, fontVariantNumeric: "tabular-nums", marginTop: 1 } }, valor),
+        pe && React.createElement("div", { style: { fontSize: 11, color: T.muted, marginTop: 1 } }, pe)));
+}
+/* A tabela de campanhas de um canal. Ordenada por ROAS: quem devolve
+   menos fica embaixo, que é onde a conversa costuma terminar. */
+function MktTabela(_a) {
+    var canal = _a.canal, linhas = _a.linhas;
+    var t = linhas.reduce(function (s, l) { return ({ leads: s.leads + l.leads, agendados: s.agendados + l.agendados,
+        vendas: s.vendas + l.vendas, receita: s.receita + l.receita, investido: s.investido + l.investido }); }, { leads: 0, agendados: 0, vendas: 0, receita: 0, investido: 0 });
+    var ord = linhas.slice().sort(function (a, b) { return div(b.receita, b.investido) - div(a.receita, a.investido) || b.leads - a.leads; });
+    return (React.createElement(Card, { className: "p0 rolagem" },
+        React.createElement("table", { style: { minWidth: 900 } },
+            React.createElement("thead", null,
+                React.createElement("tr", null,
+                    React.createElement(Th, null, "Campanha"),
+                    React.createElement(Th, { right: true }, "Investido"),
+                    React.createElement(Th, { right: true }, "Leads"),
+                    React.createElement(Th, { right: true }, "CPL"),
+                    React.createElement(Th, { right: true }, "Agendou"),
+                    React.createElement(Th, { right: true }, "Taxa"),
+                    React.createElement(Th, { right: true }, "Vendas"),
+                    React.createElement(Th, { right: true }, "CAC"),
+                    React.createElement(Th, { right: true }, "Receita"),
+                    React.createElement(Th, { right: true }, "ROAS"))),
+            React.createElement("tbody", null,
+                ord.map(function (l) {
+                    var roas = div(l.receita, l.investido);
+                    var cpl = div(l.investido, l.leads);
+                    return (React.createElement("tr", { key: l.campanha },
+                        React.createElement(Td, { bold: true }, l.campanha),
+                        React.createElement(Td, { right: true }, l.investido ? nReal(l.investido) : React.createElement("span", { style: { color: T.muted } }, "n\u00E3o lan\u00E7ado")),
+                        React.createElement(Td, { right: true }, nInt(l.leads)),
+                        React.createElement(Td, { right: true, color: !l.investido ? T.muted : cpl > 150 ? T.bad : cpl < 40 ? T.good : T.ink }, l.investido ? nReal(cpl) : "—"),
+                        React.createElement(Td, { right: true }, nInt(l.agendados)),
+                        React.createElement(Td, { right: true, color: div(l.agendados, l.leads) >= 0.2 ? T.good : T.ink }, nPct(div(l.agendados, l.leads), 1)),
+                        React.createElement(Td, { right: true, bold: true }, nInt(l.vendas)),
+                        React.createElement(Td, { right: true, color: !l.investido || !l.vendas ? T.muted : div(l.investido, l.vendas) > 3000 ? T.bad : T.ink }, l.investido && l.vendas ? nReal(div(l.investido, l.vendas)) : "—"),
+                        React.createElement(Td, { right: true }, l.receita ? nReal(l.receita) : "—"),
+                        React.createElement(Td, { right: true, bold: true, color: !l.investido ? T.muted : roas >= 2 ? T.good : roas < 1 ? T.bad : T.ink }, l.investido ? "".concat(roas.toFixed(2).replace(".", ","), "x") : "—")));
+                }),
+                React.createElement("tr", { style: { background: T.canvas } },
+                    React.createElement(Td, { bold: true },
+                        "Total ",
+                        canal),
+                    React.createElement(Td, { right: true, bold: true }, nReal(t.investido)),
+                    React.createElement(Td, { right: true, bold: true }, nInt(t.leads)),
+                    React.createElement(Td, { right: true, bold: true }, t.investido ? nReal(div(t.investido, t.leads)) : "—"),
+                    React.createElement(Td, { right: true, bold: true }, nInt(t.agendados)),
+                    React.createElement(Td, { right: true, bold: true }, nPct(div(t.agendados, t.leads), 1)),
+                    React.createElement(Td, { right: true, bold: true }, nInt(t.vendas)),
+                    React.createElement(Td, { right: true, bold: true }, t.investido && t.vendas ? nReal(div(t.investido, t.vendas)) : "—"),
+                    React.createElement(Td, { right: true, bold: true }, nReal(t.receita)),
+                    React.createElement(Td, { right: true, bold: true }, t.investido ? "".concat(div(t.receita, t.investido).toFixed(2).replace(".", ","), "x") : "—"))))));
+}
+/* O funil do canal, na mesma cadeia da aba SDR: lead → agendou → vendeu.
+   Lado a lado é onde aparece a diferença de qualidade entre os dois. */
+function MktFunil(_a) {
+    var canal = _a.canal, t = _a.t;
+    var linha = function (rot, n, base, cor) { return (React.createElement("div", { style: { marginBottom: 9 } },
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 3 } },
+            React.createElement("span", { style: { color: T.ink2 } }, rot),
+            React.createElement("span", { style: { fontWeight: 700, fontVariantNumeric: "tabular-nums" } },
+                nInt(n),
+                base ? React.createElement("span", { style: { color: T.muted, fontWeight: 400 } },
+                    " \u00B7 ",
+                    nPct(div(n, base), 1)) : null)),
+        React.createElement(Barra, { pct: div(n, t.leads), cor: cor, alt: 7 }))); };
+    return (React.createElement(Card, { className: "p16" },
+        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 11, fontWeight: 700, letterSpacing: ".06em",
+                textTransform: "uppercase", color: T.ink, marginBottom: 12 } },
+            canal,
+            " Ads"),
+        linha("Leads", t.leads, 0, T.ink),
+        linha("↳ agendou", t.agendados, t.leads, T.ink2),
+        linha("↳ compareceu", t.compareceram, t.leads, T.marca),
+        linha("↳ vendeu", t.vendas, t.leads, T.good),
+        React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 10, borderTop: "1px solid ".concat(T.hair), paddingTop: 8 } },
+            "Convers\u00E3o final de ",
+            nPct(div(t.vendas, t.leads), 1),
+            t.investido ? " \u00B7 CAC ".concat(t.vendas ? nReal(div(t.investido, t.vendas)) : "sem venda") : "")));
+}
+function AbaMarketing(_a) {
+    var _this = this;
+    var negocio = _a.negocio;
+    var _b = __read(useState("mes"), 2), periodo = _b[0], setPeriodo = _b[1];
+    var _c = __read(useState(null), 2), linhas = _c[0], setLinhas = _c[1];
+    var _d = __read(useState([]), 2), orcamento = _d[0], setOrcamento = _d[1];
+    var _f = __read(useState(null), 2), erro = _f[0], setErro = _f[1];
+    var faixa = useMemo(function () { return mktFaixa(periodo); }, [periodo]);
+    useEffect(function () {
+        var vivo = true;
+        setErro(null);
+        setLinhas(null);
+        var pega = function (q) { return __awaiter(_this, void 0, void 0, function () { var _a, data, error; return __generator(this, function (_b) {
+            switch (_b.label) {
+                case 0: return [4 /*yield*/, q];
+                case 1:
+                    _a = _b.sent(), data = _a.data, error = _a.error;
+                    if (error)
+                        throw new Error(error.message);
+                    return [2 /*return*/, data || []];
+            }
+        }); }); };
+        Promise.all([
+            pega(db.from("campanha_v").select("*").eq("negocio", negocio).gte("data", faixa.de).lte("data", faixa.ate)),
+            pega(db.from("orcamento_dia").select("*").eq("negocio", negocio).gte("data", faixa.de).lte("data", faixa.ate)),
+        ]).then(function (_a) {
+            var _b = __read(_a, 2), c = _b[0], o = _b[1];
+            if (!vivo)
+                return;
+            setLinhas(c);
+            setOrcamento(o);
+        })
+            .catch(function (e) { if (vivo)
+            setErro(e.message); });
+        return function () { vivo = false; };
+    }, [negocio, faixa.de, faixa.ate]);
+    if (erro)
+        return React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.bad } },
+            "N\u00E3o consegui ler os dados: ",
+            erro);
+    if (!linhas)
+        return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando\u2026");
+    var porCampanha = mktAgrupar(linhas, function (l) { return "".concat(l.canal, "\u0001").concat(l.campanha); });
+    var pago = porCampanha.filter(function (l) { return MKT_CANAIS.indexOf(l.canal) >= 0; });
+    var doCanal = function (c) { return pago.filter(function (l) { return l.canal === c; }); };
+    var somar = function (lista) { return lista.reduce(function (s, l) { return ({
+        leads: s.leads + l.leads, agendados: s.agendados + l.agendados,
+        compareceram: s.compareceram + l.compareceram, vendas: s.vendas + l.vendas,
+        receita: s.receita + l.receita, investido: s.investido + l.investido,
+    }); }, { leads: 0, agendados: 0, compareceram: 0, vendas: 0, receita: 0, investido: 0 }); };
+    var tot = { Google: somar(doCanal("Google")), Meta: somar(doCanal("Meta")) };
+    var juntos = somar(pago);
+    /* Identificação: quanto do que entrou a gente consegue nomear. É a seção
+       mais honesta da aba — existe para o número de cima nunca ser lido como
+       se fosse o total de leads da casa. */
+    var ident = mktAgrupar(linhas, function (l) { return (MKT_CANAIS.indexOf(l.canal) >= 0 ? l.canal
+        : l.canal === "Sem identificação" ? "Sem identificação" : "Orgânico e outros"); });
+    var totalLeads = somaCampo(ident, "leads");
+    var ordemIdent = ["Google", "Meta", "Orgânico e outros", "Sem identificação"];
+    /* Planejado × gasto, por campanha. A planilha da BREV diz o plano; o
+       Reportei diz o que saiu. A diferença é conversa de reunião. */
+    /* A chave usa \u0001 e não "|": os nomes das campanhas da BREV já têm
+       barra vertical ("Brev | Leads SRC - PPF"), e partir por ela devolvia
+       "Brev" como nome de todas. */
+    var orcPorCampanha = {};
+    orcamento.forEach(function (o) {
+        var k = "".concat(o.canal, "\u0001").concat(o.campanha);
+        var a = orcPorCampanha[k] || (orcPorCampanha[k] = { canal: o.canal, campanha: o.campanha, orcado: 0 });
+        a.orcado += Number(o.orcado) || 0;
+    });
+    var planoVsGasto = Object.keys(orcPorCampanha).map(function (k) {
+        var o = orcPorCampanha[k];
+        var achou = pago.filter(function (l) { return l.canal === o.canal && l.campanha === o.campanha; })[0];
+        return { chave: k, canal: o.canal, campanha: o.campanha,
+            orcado: o.orcado, gasto: achou ? achou.investido : 0, leads: achou ? achou.leads : 0 };
+    }).sort(function (a, b) { return b.orcado - a.orcado; });
+    var totOrc = somaCampo(planoVsGasto, "orcado");
+    var totGasto = somaCampo(planoVsGasto, "gasto");
+    var semVerba = pago.filter(function (l) { return !l.investido; }).length;
+    var ehStore = negocio === "car_store";
+    return (React.createElement("div", null,
+        React.createElement(Card, { className: "p12", style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
+            React.createElement(Select, { value: periodo, onChange: setPeriodo, options: [
+                    { v: "mes", l: "Mês atual" }, { v: "ant", l: "Mês passado" }, { v: "30", l: "Últimos 30 dias" }
+                ] }),
+            React.createElement("span", { style: { fontSize: 12, color: T.muted } },
+                faixa.de.split("-").reverse().join("/"),
+                " a ",
+                faixa.ate.split("-").reverse().join("/")),
+            React.createElement("span", { style: { marginLeft: "auto", fontSize: 12, color: T.muted } }, ehStore ? "Car Store" : "Car Service")),
+        React.createElement(Secao, { n: 1, titulo: "Resultado do tr\u00E1fego pago, por canal", nota: "Google e Meta nunca somados no mesmo cart\u00E3o: s\u00E3o leil\u00F5es diferentes, custos diferentes e comportamentos de lead diferentes. O total aparece embaixo, para a conta fechar." },
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))", gap: 14 } }, MKT_CANAIS.map(function (c) { return React.createElement(MktCartaoCanal, { key: c, canal: c, t: tot[c], campanhas: doCanal(c).length }); })),
+            React.createElement(Card, { className: "p16", style: { marginTop: 14, display: "flex", gap: 26, alignItems: "center", flexWrap: "wrap" } },
+                React.createElement("span", { style: { fontFamily: F_MARCA, fontSize: 11, fontWeight: 700, letterSpacing: ".06em",
+                        textTransform: "uppercase", color: T.muted } }, "Os dois juntos"),
+                React.createElement(MktNum, { rotulo: "Investido", valor: nReal(juntos.investido) }),
+                React.createElement(MktNum, { rotulo: "Leads", valor: nInt(juntos.leads) }),
+                React.createElement(MktNum, { rotulo: "CPL", valor: juntos.investido ? nReal(div(juntos.investido, juntos.leads)) : "—" }),
+                React.createElement(MktNum, { rotulo: "Vendas", valor: nInt(juntos.vendas) }),
+                React.createElement(MktNum, { rotulo: "CAC", valor: juntos.investido && juntos.vendas ? nReal(div(juntos.investido, juntos.vendas)) : "—" }),
+                React.createElement(MktNum, { rotulo: "Receita", valor: nReal(juntos.receita) }),
+                React.createElement(MktNum, { rotulo: "ROAS", valor: juntos.investido ? "".concat(div(juntos.receita, juntos.investido).toFixed(2).replace(".", ","), "x") : "—", cor: juntos.investido ? (div(juntos.receita, juntos.investido) >= 2 ? T.good : T.bad) : T.muted }))),
+        React.createElement(Secao, { n: 2, titulo: "Campanhas do Google", nota: "Ordenada por ROAS. O dinheiro vem do Reportei; lead, agendamento e venda v\u00EAm do Kommo, pelo mesmo crit\u00E9rio da aba SDR \u2014 nunca das convers\u00F5es da plataforma, que contam clique no WhatsApp." }, doCanal("Google").length
+            ? React.createElement(MktTabela, { canal: "Google", linhas: doCanal("Google") })
+            : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } },
+                "Nenhum lead de Google no per\u00EDodo. ",
+                ehStore ? "O Car Store não anuncia no Google hoje." : "")),
+        React.createElement(Secao, { n: 3, titulo: "Campanhas do Meta", nota: "Mesma tabela, mesma r\u00E9gua. Desde 23/09/2026 o nome da campanha chega exato do Lead Ads; antes disso a identifica\u00E7\u00E3o era pela frase do an\u00FAncio, ent\u00E3o campanha sem frase pr\u00F3pria aparece junto de outra." }, doCanal("Meta").length
+            ? React.createElement(MktTabela, { canal: "Meta", linhas: doCanal("Meta") })
+            : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhum lead de Meta no per\u00EDodo.")),
+        React.createElement(Secao, { n: 4, titulo: "O funil de cada canal", nota: "A mesma cadeia da aba SDR, lado a lado. \u00C9 aqui que aparece a diferen\u00E7a de qualidade: um canal pode trazer mais lead pelo mesmo dinheiro e ainda assim agendar menos." },
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(380px, 1fr))", gap: 14 } }, MKT_CANAIS.map(function (c) { return React.createElement(MktFunil, { key: c, canal: c, t: tot[c] }); }))),
+        React.createElement(Secao, { n: 5, titulo: "Planejado \u00D7 gasto", nota: "O or\u00E7amento \u00E9 o que a ag\u00EAncia planejou na planilha; o gasto \u00E9 o que saiu da conta. Guardamos os dois separados de prop\u00F3sito \u2014 plano n\u00E3o \u00E9 gasto, e usar o plano como se fosse gasto estraga CPL, CAC e ROAS." }, planoVsGasto.length ? (React.createElement(Card, { className: "p0 rolagem" },
+            React.createElement("table", { style: { minWidth: 700 } },
+                React.createElement("thead", null,
+                    React.createElement("tr", null,
+                        React.createElement(Th, null, "Campanha"),
+                        React.createElement(Th, { right: true }, "Canal"),
+                        React.createElement(Th, { right: true }, "Or\u00E7ado no per\u00EDodo"),
+                        React.createElement(Th, { right: true }, "Gasto"),
+                        React.createElement(Th, { right: true }, "Diferen\u00E7a"),
+                        React.createElement(Th, { right: true }, "Leads"))),
+                React.createElement("tbody", null,
+                    planoVsGasto.map(function (p) {
+                        var dif = p.gasto - p.orcado;
+                        return (React.createElement("tr", { key: p.chave },
+                            React.createElement(Td, { bold: true }, p.campanha),
+                            React.createElement(Td, { right: true }, p.canal),
+                            React.createElement(Td, { right: true }, nReal(p.orcado)),
+                            React.createElement(Td, { right: true }, p.gasto ? nReal(p.gasto) : React.createElement("span", { style: { color: T.muted } }, "n\u00E3o lan\u00E7ado")),
+                            React.createElement(Td, { right: true, color: !p.gasto ? T.muted : Math.abs(div(dif, p.orcado)) > 0.15 ? T.bad : T.ink }, p.gasto ? "".concat(dif >= 0 ? "+" : "−").concat(nReal(Math.abs(dif))) : "—"),
+                            React.createElement(Td, { right: true }, nInt(p.leads))));
+                    }),
+                    React.createElement("tr", { style: { background: T.canvas } },
+                        React.createElement(Td, { bold: true }, "Total"),
+                        React.createElement(Td, { right: true }),
+                        React.createElement(Td, { right: true, bold: true }, nReal(totOrc)),
+                        React.createElement(Td, { right: true, bold: true }, nReal(totGasto)),
+                        React.createElement(Td, { right: true, bold: true }, totGasto ? "".concat(totGasto - totOrc >= 0 ? "+" : "−").concat(nReal(Math.abs(totGasto - totOrc))) : "—"),
+                        React.createElement(Td, { right: true })))))) : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhum or\u00E7amento lan\u00E7ado para este per\u00EDodo.")),
+        React.createElement(Secao, { n: 6, titulo: "De onde vem a identifica\u00E7\u00E3o", nota: "Quanto do que entrou a gente consegue nomear, e por qual caminho. Esta se\u00E7\u00E3o existe para o n\u00FAmero l\u00E1 de cima nunca ser lido como se fosse o total de leads da casa." },
+            React.createElement(Card, { className: "p16" },
+                ordemIdent.map(function (k) {
+                    var l = ident.filter(function (x) { return x.chave === k; })[0] || { leads: 0 };
+                    var cor = k === "Sem identificação" ? T.bad : k === "Orgânico e outros" ? T.ink2 : T.ink;
+                    return (React.createElement("div", { key: k, style: { marginBottom: 11 } },
+                        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 3 } },
+                            React.createElement("span", { style: { color: T.ink2 } },
+                                k,
+                                React.createElement("span", { style: { color: T.muted } }, k === "Google" ? " · pela UTM" : k === "Meta" ? " · pelo Lead Ads e pela frase" : "")),
+                            React.createElement("span", { style: { fontWeight: 700, fontVariantNumeric: "tabular-nums", color: cor } },
+                                nInt(l.leads),
+                                " ",
+                                React.createElement("span", { style: { color: T.muted, fontWeight: 400 } }, nPct(div(l.leads, totalLeads), 0)))),
+                        React.createElement(Barra, { pct: div(l.leads, totalLeads), cor: cor, alt: 7 })));
+                }),
+                React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 12, borderTop: "1px solid ".concat(T.hair), paddingTop: 9 } },
+                    nPct(div(totalLeads - (ident.filter(function (x) { return x.chave === "Sem identificação"; })[0] || { leads: 0 }).leads, totalLeads), 0),
+                    " do per\u00EDodo tem origem conhecida. O resto entra sem UTM e sem frase reconhecida \u2014 parte \u00E9 org\u00E2nico de verdade, parte \u00E9 an\u00FAncio de Meta sem par\u00E2metro. Encolher essa barra \u00E9 a meta do trimestre."))),
+        React.createElement(Secao, { n: 7, titulo: "O que esta aba ainda depende", nota: "O que falta para os n\u00FAmeros pararem de ter ressalva. Fica na tela de prop\u00F3sito: ressalva escondida vira n\u00FAmero errado na reuni\u00E3o seguinte." },
+            React.createElement(Card, { className: "p16", style: { fontSize: 13, lineHeight: 1.7 } },
+                React.createElement("ul", { style: { margin: 0, paddingLeft: 18 } },
+                    React.createElement("li", null,
+                        React.createElement("b", null, "Investimento por dia"),
+                        " \u2014 hoje o n\u00FAmero do Reportei \u00E9 do per\u00EDodo inteiro e entra \u00E0 m\u00E3o. Com a API do Google e do Meta ligadas, o gasto entra sozinho por dia e a aba passa a mostrar pico de verba sem retorno."),
+                    React.createElement("li", null,
+                        React.createElement("b", null, "Meta antes de 23/09/2026"),
+                        " \u2014 a integra\u00E7\u00E3o de Lead Ads s\u00F3 come\u00E7ou nessa data. Os leads anteriores t\u00EAm produto, n\u00E3o campanha, e aparecem com o nome \"Wpp (at\u00E9 22/09)\"."),
+                    semVerba ? React.createElement("li", null,
+                        React.createElement("b", null,
+                            nInt(semVerba),
+                            " campanha",
+                            semVerba > 1 ? "s" : "",
+                            " sem verba lan\u00E7ada"),
+                        " no per\u00EDodo \u2014 aparece com lead e sem custo, ent\u00E3o o ROAS delas fica em branco em vez de errado.") : null,
+                    React.createElement("li", null,
+                        React.createElement("b", null, "Tempo at\u00E9 a primeira liga\u00E7\u00E3o por campanha"),
+                        " \u2014 a aba SDR j\u00E1 mede isso por SDR; falta cruzar com campanha para separar o que \u00E9 problema de an\u00FAncio do que \u00E9 problema de atendimento.")))),
+        React.createElement("p", { style: { fontSize: 11.5, color: T.muted, marginTop: 26, maxWidth: "90ch" } },
+            React.createElement("b", null, "De onde vem cada n\u00FAmero."),
+            " Investimento e or\u00E7amento: tabela de verba, lan\u00E7ada a partir do Reportei e da planilha da BREV. Leads, agendamentos, comparecimentos e vendas: Kommo, pelo mesmo crit\u00E9rio da aba SDR \u2014 nunca as convers\u00F5es da plataforma, que contam clique no WhatsApp e liga\u00E7\u00E3o. Google \u00E9 identificado por UTM; Meta, pelo nome da campanha do Lead Ads e, antes de 23/09/2026, pela frase padr\u00E3o do an\u00FAncio.")));
 }
 function App() {
     var _a = __read(useState(undefined), 2), sessao = _a[0], setSessao = _a[1];
