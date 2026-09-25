@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v56 — CAR SERVICE</title>
-<meta name="painel-versao" content="v56">
+<title>Painel de SDR v57 — CAR SERVICE</title>
+<meta name="painel-versao" content="v57">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -214,7 +214,7 @@ const CONFIG = {
 <script>
 function iniciarPainel() {
 "use strict";
-/* Painel de SDR — The Wonder / Car Service
+/* Painel de SDR — The Wonder / Car Service (v57: piloto do closer)
    Lê as views do Supabase. Sem lançamento manual: o dado vem do Kommo. */
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function(t) {
@@ -2181,7 +2181,7 @@ function Painel(_a) {
     var ehAdmin = perfil === "admin";
     var ehImportador = perfil === "importador";
     var ehAgencia = perfil === "agencia";
-    var ABAS = [["painel", "SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["marketing", "Marketing"], ["closers", "Closers"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]];
+    var ABAS = [["painel", "SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["marketing", "Marketing"], ["closers", "Closers"], ["piloto", "Piloto"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]];
     var ABAS_SDR = ["painel", "coordenador", "tv"];
     // 16/09: o importador também monta e envia os resumos do dia, então vê
     // Importar + Resumo (e nada além disso).
@@ -2726,10 +2726,11 @@ function Painel(_a) {
                         background: aba === v ? T.ink : "transparent",
                         color: aba === v ? "#fff" : T.ink2 } }, l));
             })),
-            aba !== "painel" && aba !== "importar" && aba !== "resumo" && aba !== "closers" && aba !== "lojas" && aba !== "origem" && aba !== "marketing" && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
+            aba !== "painel" && aba !== "importar" && aba !== "resumo" && aba !== "closers" && aba !== "piloto" && aba !== "lojas" && aba !== "origem" && aba !== "marketing" && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
             (ehAdmin || ehImportador) && aba === "importar" && React.createElement(AbaImportar, { sessao: sessao }),
             (ehAdmin || ehImportador) && aba === "resumo" && React.createElement(AbaResumo, { sessao: sessao }),
             ehAdmin && aba === "closers" && React.createElement(AbaClosers, null),
+            ehAdmin && aba === "piloto" && React.createElement(Piloto, { sessao: sessao, todos: true, embutido: true }),
             ehAdmin && aba === "lojas" && React.createElement(AbaLojas, null),
             ehAdmin && aba === "origem" && React.createElement(AbaOrigem, null),
             (ehAdmin || ehAgencia) && aba === "marketing" && React.createElement(AbaMarketing, { negocio: negocio }),
@@ -6399,6 +6400,869 @@ function AbaMarketing(_a) {
             React.createElement("b", null, "De onde vem cada n\u00FAmero."),
             " Investimento e or\u00E7amento: tabela de verba, lan\u00E7ada a partir do Reportei e da planilha da BREV. Leads, agendamentos, comparecimentos e vendas: Kommo, pelo mesmo crit\u00E9rio da aba SDR \u2014 nunca as convers\u00F5es da plataforma, que contam clique no WhatsApp e liga\u00E7\u00E3o. Google \u00E9 identificado por UTM; Meta, pelo nome da campanha do Lead Ads e, antes de 23/09/2026, pela frase padr\u00E3o do an\u00FAncio.")));
 }
+/* ===================== piloto do closer (v57, 25/09/2026) =====================
+
+   A tela que o closer abre ao chegar na loja. Responde três perguntas,
+   nesta ordem: como está o meu mês, o que eu preciso fazer hoje, e onde
+   estão os meus orçamentos. Tudo que aparece aqui é DELE: o banco filtra
+   pelo login (comercial.pode_closer), e o painel só mostra o que chegou.
+
+   Quem vê todos (admin e a Gerente Geral Comercial, perfil 'gerente')
+   entra na mesma tela com um seletor de closer no topo. O líder da loja
+   não entra: decisão do Rafael, 25/09.
+
+   O orçamento é livre nesta fase — item e preço na mão do closer. O
+   catálogo entra quando a tabela de preços estiver pronta. O que NÃO é
+   livre: origem e prazo de execução, obrigatórios em todo orçamento. */
+var ORIGENS = [["crm", "CRM · SDR"], ["indicacao", "Indicação"], ["passagem", "Passagem"], ["cliente_loja", "Cliente loja"], ["dw_cars", "DW Cars"]];
+var FORMATOS = [["cardapio", "Cardápio", "cada item com seu preço — PPF, película"], ["projeto", "Projeto", "itens que somam um total — som, funilaria"], ["opcoes", "Opções", "2 ou 3 níveis lado a lado — multimídia"]];
+var PRAZOS = [["mesmo_dia", "No mesmo dia"], ["1_dia", "1 dia útil"], ["2_dias", "2 dias úteis"], ["3_dias", "3 dias úteis"], ["4_dias", "4 dias úteis"], ["5_dias", "5 dias úteis"], ["a_combinar", "A combinar"]];
+var STATUS_ORC = {
+    rascunho: { l: "Rascunho", cor: T.muted }, enviado: { l: "Enviado", cor: T.ink },
+    negociando: { l: "Negociando", cor: T.warn }, aguardando: { l: "Aguardando", cor: T.warn },
+    fechado: { l: "Fechado", cor: T.good }, perdido: { l: "Perdido", cor: T.muted }, vencido: { l: "Vencido", cor: T.bad },
+};
+var EM_ABERTO = ["enviado", "negociando", "aguardando"];
+var rotOrigem = function (v) { return (ORIGENS.find(function (o) { return o[0] === v; }) || [v, v])[1]; };
+var rotFormato = function (v) { return (FORMATOS.find(function (o) { return o[0] === v; }) || [v, v])[1]; };
+var rotPrazo = function (v) { return (PRAZOS.find(function (o) { return o[0] === v; }) || [v, v])[1]; };
+var nReal2 = function (n) {
+    var v = Number(n) || 0;
+    try {
+        return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    catch (e) {
+        return "R$ " + v.toFixed(2).replace(".", ",");
+    }
+};
+var brData = function (s) { return (s ? br(String(s).slice(0, 10)) : "—"); };
+var primeiroDia = function (isoDia) { return String(isoDia).slice(0, 7) + "-01"; };
+var mesAnteriorDe = function (isoDia) { var d = parseISO(primeiroDia(isoDia)); d.setMonth(d.getMonth() - 1); return iso(d); };
+var nomeMes = function (isoDia) { return parseISO(primeiroDia(isoDia)).toLocaleDateString("pt-BR", { month: "long" }); };
+var placaLimpa = function (p) { return String(p || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); };
+/* Um insert/update do Supabase devolve {data,error}; aqui vira exceção
+   com a mensagem do banco, para o formulário mostrar em vez de engolir. */
+var exigir = function (q) { return __awaiter(void 0, void 0, void 0, function () { var _a, data, error; return __generator(this, function (_b) {
+    switch (_b.label) {
+        case 0: return [4 /*yield*/, q];
+        case 1:
+            _a = _b.sent(), data = _a.data, error = _a.error;
+            if (error)
+                throw new Error(error.message);
+            return [2 /*return*/, data];
+    }
+}); }); };
+/* .single() devolve objeto; o Supabase de teste devolve lista. Aceita os dois. */
+var umSo = function (d) { return (Array.isArray(d) ? d[0] : d); };
+/* ---------- dados do piloto ---------- */
+function usePiloto(closerCodigo, versao) {
+    var _this = this;
+    var _a = __read(useState({ carregando: true, erro: null, mes: null, mesAnt: null, ranking: null, osAbertas: [], posVisita: [], orcamentos: [], osSemOrc: [], em: null }), 2), d = _a[0], setD = _a[1];
+    useEffect(function () {
+        if (!closerCodigo)
+            return undefined;
+        var vivo = true;
+        setD(function (x) { return (__assign(__assign({}, x), { carregando: true, erro: null })); });
+        var h = hoje(), m0 = primeiroDia(h), mAnt = mesAnteriorDe(h);
+        var pega = function (q) { return __awaiter(_this, void 0, void 0, function () { var _a, data, error; return __generator(this, function (_b) {
+            switch (_b.label) {
+                case 0: return [4 /*yield*/, q];
+                case 1:
+                    _a = _b.sent(), data = _a.data, error = _a.error;
+                    if (error)
+                        throw new Error(error.message);
+                    return [2 /*return*/, data || []];
+            }
+        }); }); };
+        Promise.all([
+            pega(db.from("closer_mes_v").select("*").eq("closer_codigo", closerCodigo).in("mes", [m0, mAnt])),
+            pega(db.from("closer_ranking_v").select("*").eq("closer_codigo", closerCodigo).eq("mes", m0)),
+            pega(db.from("closer_os_abertas_v").select("*").eq("closer_codigo", closerCodigo).order("dt_os", { ascending: true })),
+            pega(db.from("closer_pos_visita_v").select("*").eq("closer_codigo", closerCodigo)),
+            pega(db.from("orcamento_v").select("*").eq("closer_codigo", closerCodigo).order("criado_em", { ascending: false }).limit(400)),
+            pega(db.from("closer_os_sem_orcamento_v").select("*").eq("closer_codigo", closerCodigo)),
+        ]).then(function (_a) {
+            var _b = __read(_a, 6), meses = _b[0], rk = _b[1], os = _b[2], pv = _b[3], orc = _b[4], som = _b[5];
+            if (!vivo)
+                return;
+            setD({ carregando: false, erro: null,
+                mes: meses.find(function (x) { return String(x.mes).slice(0, 10) === m0; }) || null,
+                mesAnt: meses.find(function (x) { return String(x.mes).slice(0, 10) === mAnt; }) || null,
+                ranking: rk[0] || null, osAbertas: os, posVisita: pv, orcamentos: orc, osSemOrc: som, em: new Date() });
+        }).catch(function (e) { if (vivo)
+            setD(function (x) { return (__assign(__assign({}, x), { carregando: false, erro: e.message })); }); });
+        return function () { vivo = false; };
+    }, [closerCodigo, versao]);
+    return d;
+}
+/* O cadastro do closer logado, ou a lista inteira para quem vê todos. */
+function useClosers(sessao, todos) {
+    var _a = __read(useState({ lista: null, erro: null }), 2), st = _a[0], setSt = _a[1];
+    useEffect(function () {
+        var vivo = true;
+        db.from("map_closer").select("erp_codigo, nome_oficial, unidade, meta_mensal, auth_user_id, email, ativo").eq("ativo", true).order("unidade").order("nome_oficial")
+            .then(function (_a) {
+            var data = _a.data, error = _a.error;
+            if (!vivo)
+                return;
+            if (error)
+                setSt({ lista: null, erro: error.message });
+            else
+                setSt({ lista: data || [], erro: null });
+        });
+        return function () { vivo = false; };
+    }, [sessao && sessao.user && sessao.user.id, todos]);
+    return st;
+}
+/* ---------- pedaços de tela ---------- */
+var Tag = function (_a) {
+    var children = _a.children, _b = _a.cor, cor = _b === void 0 ? T.ink : _b;
+    return (React.createElement("span", { style: { fontSize: 11, fontWeight: 600, color: cor, background: cor + "14", border: "1px solid ".concat(cor, "33"),
+            borderRadius: 5, padding: "2px 7px", whiteSpace: "nowrap", display: "inline-block" } }, children));
+};
+var Campo = function (_a) {
+    var l = _a.l, children = _a.children, _b = _a.style, style = _b === void 0 ? {} : _b;
+    return (React.createElement("div", { style: style },
+        React.createElement(Label, { style: { marginBottom: 5 } }, l),
+        children));
+};
+var inputStyle = { fontFamily: F_UI, fontSize: 13, color: T.ink, background: T.surface, border: "1px solid ".concat(T.hair),
+    borderRadius: 6, padding: "8px 10px", outline: "none", width: "100%", boxSizing: "border-box" };
+var Inp = function (props) { return React.createElement("input", __assign({}, props, { style: __assign(__assign({}, inputStyle), (props.style || {})) })); };
+var Chips = function (_a) {
+    var value = _a.value, onChange = _a.onChange, options = _a.options;
+    return (React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } }, options.map(function (_a) {
+        var _b = __read(_a, 2), v = _b[0], l = _b[1];
+        return (React.createElement("button", { key: v, type: "button", onClick: function () { return onChange(v); }, style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 600,
+                padding: "6px 11px", borderRadius: 99, cursor: "pointer",
+                border: "1px solid ".concat(value === v ? T.ink : T.hair), background: value === v ? T.ink : T.surface,
+                color: value === v ? "#fff" : T.ink2 } }, l));
+    })));
+};
+/* Meta do mês + ranking. É a primeira coisa que o closer vê. */
+function CartaoMeta(_a) {
+    var mes = _a.mes, ranking = _a.ranking, closer = _a.closer, hojeISO = _a.hojeISO;
+    var meta = Number((mes && mes.meta) || (closer && closer.meta_mensal)) || 0;
+    var fat = Number(mes && mes.faturado) || 0;
+    var p = meta ? fat / meta : 0;
+    var du = diasUteisDoMes(hojeISO);
+    var falta = Math.max(0, meta - fat);
+    var porDia = falta / du.restantes;
+    /* ritmo só até ontem: às 9h da manhã o dia sempre parece um desastre */
+    var passadosAteOntem = Math.max(1, du.passados - 1);
+    var projecao = fat / passadosAteOntem * (passadosAteOntem + du.restantes);
+    var est = meta ? estadoMeta(p, du.passados / (du.passados + du.restantes)) : null;
+    return (React.createElement(Card, { className: "p16", style: { display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" } },
+        React.createElement("div", { style: { flex: 1, minWidth: 280 } },
+            React.createElement(Label, null,
+                "Meta de ",
+                nomeMes(hojeISO)),
+            React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 10, marginTop: 4 } },
+                React.createElement(Metric, { value: nReal(fat) }),
+                meta > 0 && React.createElement("span", { style: { fontSize: 14, color: T.muted } },
+                    "de ",
+                    nReal(meta),
+                    " \u00B7 ",
+                    nPct(p, 0)),
+                est && React.createElement(Pill, { cor: est.cor }, est.nome)),
+            React.createElement("div", { style: { marginTop: 10 } },
+                React.createElement(Barra, { pct: p, cor: T.marca, alt: 11 })),
+            React.createElement("div", { style: { fontSize: 12, color: T.ink2, marginTop: 7 } }, meta === 0 ? "Sem meta cadastrada — fala com a gestão."
+                : falta === 0 ? React.createElement("span", null, "Meta batida. Tudo daqui em diante \u00E9 acima da meta.")
+                    : React.createElement("span", null,
+                        "Faltam ",
+                        React.createElement("b", null, nReal(falta)),
+                        " em ",
+                        du.restantes,
+                        " dia",
+                        du.restantes === 1 ? "" : "s",
+                        " \u00FAte",
+                        du.restantes === 1 ? "l" : "is",
+                        " \u2014 ",
+                        React.createElement("b", null,
+                            nReal(porDia),
+                            " por dia"),
+                        ".",
+                        fat > 0 && React.createElement("span", null,
+                            " No ritmo do m\u00EAs, fecha em ",
+                            nReal(projecao),
+                            ".")))),
+        React.createElement("div", { style: { width: 1, alignSelf: "stretch", background: T.hair } }),
+        React.createElement("div", { style: { textAlign: "center", minWidth: 170 } },
+            React.createElement(Label, null, "Ranking da casa"),
+            ranking ? (React.createElement(React.Fragment, null,
+                React.createElement("div", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 34, lineHeight: 1, marginTop: 6 } },
+                    ranking.posicao,
+                    "\u00BA ",
+                    React.createElement("span", { style: { fontSize: 15, color: T.muted } },
+                        "de ",
+                        ranking.total_closers)),
+                React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 4 } }, Number(ranking.posicao) === 1 ? "em faturamento · você está na frente"
+                    : "em faturamento \u00B7 sobe 1 posi\u00E7\u00E3o com ".concat(nReal(ranking.falta_para_subir))))) : React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 8 } }, "Sem faturamento no m\u00EAs ainda"))));
+}
+/* Uma linha de "Hoje você precisa". */
+var Tarefa = function (_a) {
+    var n = _a.n, _b = _a.cor, cor = _b === void 0 ? T.ink : _b, titulo = _a.titulo, sub = _a.sub, acao = _a.acao, onClick = _a.onClick;
+    return (React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderBottom: "1px solid ".concat(T.hair) } },
+        React.createElement("div", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 24, color: cor, minWidth: 34, textAlign: "center" } }, n),
+        React.createElement("div", { style: { flex: 1 } },
+            React.createElement("div", { style: { fontSize: 13.5, fontWeight: 600 } }, titulo),
+            sub && React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 2 } }, sub)),
+        acao && React.createElement(Btn, { onClick: onClick, style: { padding: "6px 11px", fontSize: 12 } }, acao)));
+};
+/* Barras horizontais simples: rótulo, quantidade, barra. */
+var Faixas = function (_a) {
+    var linhas = _a.linhas, total = _a.total, _b = _a.cor, cor = _b === void 0 ? T.ink : _b;
+    return (React.createElement("div", { style: { display: "grid", gap: 8, marginTop: 10 } },
+        linhas.map(function (l) { return (React.createElement("div", { key: l.nome, style: { display: "grid", gridTemplateColumns: "1fr auto", gap: 8, alignItems: "center" } },
+            React.createElement("div", { style: { fontSize: 12.5, color: T.ink2 } }, l.nome),
+            React.createElement("div", { style: { fontSize: 12.5, fontWeight: 700, fontVariantNumeric: "tabular-nums" } }, l.texto),
+            React.createElement("div", { style: { gridColumn: "1 / -1" } },
+                React.createElement(Barra, { pct: total ? l.v / total : 0, cor: l.cor || cor, alt: 7 })))); }),
+        !linhas.length && React.createElement("div", { style: { fontSize: 12.5, color: T.muted } }, "Nada no m\u00EAs ainda.")));
+};
+/* ---------- MEU PAINEL ---------- */
+function MeuPainel(_a) {
+    var d = _a.d, closer = _a.closer, irParaOrcamentos = _a.irParaOrcamentos, novoDoLead = _a.novoDoLead, abrirOrcamento = _a.abrirOrcamento;
+    var h = hoje(), m0 = primeiroDia(h);
+    var mes = d.mes || {};
+    var orcMes = d.orcamentos.filter(function (o) { return String(o.criado_em).slice(0, 7) === m0.slice(0, 7); });
+    var emAberto = d.orcamentos.filter(function (o) { return EM_ABERTO.indexOf(o.status) >= 0; });
+    var valorAberto = emAberto.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0);
+    var fechadosMes = orcMes.filter(function (o) { return o.status === "fechado"; }).length;
+    var daCasa = orcMes.filter(function (o) { return o.cliente_da_casa; }).length;
+    var fat = Number(mes.faturado) || 0, osQtd = Number(mes.os_qtd) || 0;
+    var fatAnt = d.mesAnt ? Number(d.mesAnt.faturado) || 0 : null;
+    /* o que o painel achou sozinho */
+    var retornoHoje = emAberto.filter(function (o) { return o.retorno_em && String(o.retorno_em).slice(0, 10) === h; });
+    var retornoVencido = emAberto.filter(function (o) { return o.retorno_vencido; });
+    var fechadoSemOs = d.orcamentos.filter(function (o) { return o.fechado_sem_os; });
+    var vencendo = emAberto.filter(function (o) { return o.validade && String(o.validade).slice(0, 10) < h; });
+    var osVelhas = d.osAbertas.filter(function (o) { return Number(o.dias_aberta) > 7; });
+    var tarefas = [
+        retornoHoje.length && { n: retornoHoje.length, titulo: "or\u00E7amento".concat(retornoHoje.length > 1 ? "s" : "", " com retorno marcado para hoje"),
+            sub: retornoHoje.slice(0, 2).map(function (o) { return "".concat(o.cliente_nome || "sem nome", " \u00B7 ").concat(o.veiculo || o.placa || "", " \u00B7 ").concat(nReal(o.total)); }).join(" — "), acao: "Ver", ir: function () { return abrirOrcamento(retornoHoje[0].id); } },
+        retornoVencido.length && { n: retornoVencido.length, cor: T.bad, titulo: "retorno".concat(retornoVencido.length > 1 ? "s" : "", " ao cliente atrasado").concat(retornoVencido.length > 1 ? "s" : ""),
+            sub: "Você marcou uma data para voltar a falar e ela passou", acao: "Ver", ir: function () { return abrirOrcamento(retornoVencido[0].id); } },
+        d.posVisita.length && { n: d.posVisita.length, cor: T.bad, titulo: "cliente".concat(d.posVisita.length > 1 ? "s" : "", " da p\u00F3s-visita sem or\u00E7amento registrado"),
+            sub: "Vieram pelo CRM, visitaram a loja e não têm orçamento aqui", acao: "Criar orçamento", ir: function () { return novoDoLead(d.posVisita[0]); } },
+        fechadoSemOs.length && { n: fechadoSemOs.length, cor: T.warn, titulo: "or\u00E7amento".concat(fechadoSemOs.length > 1 ? "s" : "", " marcado").concat(fechadoSemOs.length > 1 ? "s" : "", " como fechado que ainda n\u00E3o virou O.S."),
+            sub: fechadoSemOs.slice(0, 2).map(function (o) { return "N\u00BA ".concat(o.numero, " \u00B7 ").concat(o.cliente_nome || "", " \u00B7 placa ").concat(o.placa || "?"); }).join(" — ") + " — nenhuma O.S. com a placa no Oficina", acao: "Conferir", ir: function () { return abrirOrcamento(fechadoSemOs[0].id); } },
+        vencendo.length && { n: vencendo.length, cor: T.warn, titulo: "or\u00E7amento".concat(vencendo.length > 1 ? "s" : "", " em aberto com validade vencida"),
+            sub: "Ou o cliente responde, ou vira perdido/vencido — não deixa pendurado", acao: "Ver", ir: function () { return abrirOrcamento(vencendo[0].id); } },
+        osVelhas.length && { n: osVelhas.length, cor: T.warn, titulo: "O.S. aberta".concat(osVelhas.length > 1 ? "s" : "", " h\u00E1 mais de 7 dias"),
+            sub: "".concat(nReal(osVelhas.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0)), " em carros que ainda n\u00E3o sa\u00EDram \u2014 a mais antiga h\u00E1 ").concat(Math.max.apply(Math, __spreadArray([], __read(osVelhas.map(function (o) { return Number(o.dias_aberta) || 0; })), false)), " dias") },
+        d.osSemOrc.length && { n: d.osSemOrc.length, cor: T.warn, titulo: "venda".concat(d.osSemOrc.length > 1 ? "s" : "", " que n\u00E3o passou pelo painel"),
+            sub: "O.S. aberta no Oficina sem orçamento registrado aqui — registra para o histórico ficar completo" },
+    ].filter(Boolean);
+    /* carteira do mês */
+    var porStatus = Object.keys(STATUS_ORC).map(function (k) {
+        var ls = orcMes.filter(function (o) { return o.status === k; });
+        return ls.length ? { nome: STATUS_ORC[k].l, v: ls.length, cor: STATUS_ORC[k].cor, texto: "".concat(ls.length, " \u00B7 ").concat(nReal(ls.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0))) } : null;
+    }).filter(Boolean);
+    var porOrigem = ORIGENS.map(function (_a) {
+        var _b = __read(_a, 2), k = _b[0], l = _b[1];
+        var ls = orcMes.filter(function (o) { return o.origem === k; });
+        if (!ls.length)
+            return null;
+        var fech = ls.filter(function (o) { return o.status === "fechado"; }).length;
+        return { nome: l, v: fech / ls.length, texto: "".concat(fech, " de ").concat(ls.length, " \u00B7 ").concat(nPct(fech / ls.length, 0)) };
+    }).filter(Boolean);
+    return (React.createElement(React.Fragment, null,
+        React.createElement(CartaoMeta, { mes: d.mes, ranking: d.ranking, closer: closer, hojeISO: h }),
+        React.createElement(Secao, { n: 1, titulo: "Meu m\u00EAs", nota: "Os mesmos n\u00FAmeros que a gest\u00E3o v\u00EA, s\u00F3 que os seus. Faturamento, O.S. e ticket v\u00EAm do Oficina; or\u00E7amentos v\u00EAm desta tela." },
+            React.createElement("div", { className: "grid-kpi-4" },
+                React.createElement(Kpi, { label: "Faturado", value: nReal(fat), sub: mes.meta ? "".concat(nPct(fat / Number(mes.meta), 0), " da meta") : "sem meta cadastrada", foot: fatAnt != null ? React.createElement(Delta, { atual: fat, anterior: fatAnt }) : null }),
+                React.createElement(Kpi, { label: "O.S. no m\u00EAs", value: nInt(osQtd), sub: "".concat(nInt(mes.carros), " carro").concat(Number(mes.carros) === 1 ? "" : "s", " diferente").concat(Number(mes.carros) === 1 ? "" : "s") }),
+                React.createElement(Kpi, { label: "Ticket m\u00E9dio", value: osQtd ? nReal(fat / osQtd) : "—", sub: "por O.S. faturada" }),
+                React.createElement(Kpi, { label: "Or\u00E7amentos no m\u00EAs", value: nInt(orcMes.length), sub: "".concat(nReal(orcMes.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0)), " or\u00E7ados") }),
+                React.createElement(Kpi, { label: "Em aberto", value: nInt(emAberto.length), sub: "".concat(nReal(valorAberto), " esperando resposta") }),
+                React.createElement(Kpi, { label: "Convers\u00E3o de or\u00E7amento", value: orcMes.length ? nPct(fechadosMes / orcMes.length, 0) : "—", sub: "".concat(fechadosMes, " de ").concat(orcMes.length, " fecharam"), tone: orcMes.length >= 5 && fechadosMes / orcMes.length < 0.25 ? "bad" : undefined }),
+                React.createElement(Kpi, { label: "Cliente da casa", value: orcMes.length ? nPct(daCasa / orcMes.length, 0) : "—", sub: "dos or\u00E7amentos \u00E9 recompra" }),
+                React.createElement(Kpi, { label: "Retorno atrasado", value: nInt(retornoVencido.length), sub: retornoVencido.length ? "cliente esperando você voltar" : "nenhum cliente esperando", tone: retornoVencido.length ? "bad" : "good" }))),
+        React.createElement(Secao, { n: 2, titulo: "Hoje voc\u00EA precisa", nota: "O que o painel encontrou sozinho cruzando Kommo, or\u00E7amentos e Oficina. Some da lista quando resolve." },
+            React.createElement(Card, { className: "p0" },
+                tarefas.map(function (t, i) { return React.createElement(Tarefa, { key: i, n: t.n, cor: t.cor, titulo: t.titulo, sub: t.sub, acao: t.acao, onClick: t.ir }); }),
+                !tarefas.length && React.createElement("div", { style: { padding: 16, fontSize: 13, color: T.good, fontWeight: 600 } }, "Nada pendente. Vai vender."))),
+        React.createElement(Secao, { n: 3, titulo: "Minha carteira de or\u00E7amentos", nota: "Tudo que voc\u00EA or\u00E7ou no m\u00EAs, venha de onde vier. Fechar lead de SDR e fechar cliente de passagem s\u00E3o habilidades diferentes \u2014 a convers\u00E3o por origem mostra onde voc\u00EA \u00E9 forte." },
+            React.createElement("div", { className: "col2" },
+                React.createElement(Card, { className: "p16" },
+                    React.createElement(Label, null,
+                        "Onde est\u00E3o os ",
+                        orcMes.length,
+                        " do m\u00EAs"),
+                    React.createElement(Faixas, { linhas: porStatus, total: orcMes.length })),
+                React.createElement(Card, { className: "p16" },
+                    React.createElement(Label, null, "Convers\u00E3o por origem"),
+                    React.createElement(Faixas, { linhas: porOrigem, total: 1, cor: T.good })))),
+        React.createElement(Secao, { n: 4, titulo: "P\u00F3s-visita sem or\u00E7amento", nota: "Lead novo do CRM que visitou a loja e ainda n\u00E3o tem or\u00E7amento registrado aqui. Criar o or\u00E7amento j\u00E1 puxa cliente, ve\u00EDculo e o SDR que agendou." },
+            React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "Cliente"),
+                            React.createElement(Th, null, "Ve\u00EDculo"),
+                            React.createElement(Th, null, "Interesse"),
+                            React.createElement(Th, { right: true }, "Visitou"),
+                            React.createElement(Th, null, "SDR"),
+                            React.createElement(Th, { right: true }, "Parado h\u00E1"),
+                            React.createElement(Th, null))),
+                    React.createElement("tbody", null,
+                        d.posVisita.slice().sort(function (a, b) { return (Number(b.parado_ha_dias) || 0) - (Number(a.parado_ha_dias) || 0); }).map(function (l) { return (React.createElement("tr", { key: l.kommo_id },
+                            React.createElement(Td, { bold: true }, l.cliente || "—"),
+                            React.createElement(Td, null, l.veiculo || "—"),
+                            React.createElement(Td, null, l.interesse || "—"),
+                            React.createElement(Td, { right: true }, brData(l.visitou_em)),
+                            React.createElement(Td, null, l.sdr || "—"),
+                            React.createElement(Td, { right: true, color: Number(l.parado_ha_dias) >= 3 ? T.bad : T.ink, bold: Number(l.parado_ha_dias) >= 3 },
+                                nInt(l.parado_ha_dias),
+                                " dia",
+                                Number(l.parado_ha_dias) === 1 ? "" : "s"),
+                            React.createElement(Td, { style: { textAlign: "right" } },
+                                React.createElement(Btn, { kind: "accent", onClick: function () { return novoDoLead(l); }, style: { padding: "6px 11px", fontSize: 12 } }, "Criar or\u00E7amento")))); }),
+                        !d.posVisita.length && React.createElement("tr", null,
+                            React.createElement(Td, { color: T.muted }, "Nenhum lead do CRM esperando or\u00E7amento.")))))),
+        React.createElement(Secao, { n: 5, titulo: "Minhas O.S. em aberto", nota: "Direto do Oficina. O.S. aberta h\u00E1 mais de 7 dias em vermelho \u2014 carro que ainda n\u00E3o saiu \u00E9 dinheiro que ainda n\u00E3o entrou." },
+            React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "O.S."),
+                            React.createElement(Th, null, "Placa"),
+                            React.createElement(Th, null, "Ve\u00EDculo"),
+                            React.createElement(Th, null, "Origem (Oficina)"),
+                            React.createElement(Th, { right: true }, "Itens"),
+                            React.createElement(Th, { right: true }, "Valor"),
+                            React.createElement(Th, { right: true }, "Aberta em"),
+                            React.createElement(Th, { right: true }, "Aberta h\u00E1"))),
+                    React.createElement("tbody", null,
+                        d.osAbertas.map(function (o) { return (React.createElement("tr", { key: o.os_numero },
+                            React.createElement(Td, { bold: true }, o.os_numero),
+                            React.createElement(Td, null, o.placa || "—"),
+                            React.createElement(Td, null, o.veiculo || "—"),
+                            React.createElement(Td, null, o.pesquisa || "—"),
+                            React.createElement(Td, { right: true }, nInt(o.itens)),
+                            React.createElement(Td, { right: true, bold: true }, nReal(o.total)),
+                            React.createElement(Td, { right: true }, brData(o.dt_os)),
+                            React.createElement(Td, { right: true, color: Number(o.dias_aberta) > 7 ? T.bad : T.ink, bold: Number(o.dias_aberta) > 7 },
+                                nInt(o.dias_aberta),
+                                " dia",
+                                Number(o.dias_aberta) === 1 ? "" : "s"))); }),
+                        !d.osAbertas.length && React.createElement("tr", null,
+                            React.createElement(Td, { color: T.muted }, "Nenhuma O.S. em aberto no seu nome."))))))));
+}
+/* ---------- ORÇAMENTOS ---------- */
+var ITEM_VAZIO = function () { return ({ nome: "", aplicacao: "", garantia: "", preco: "", opcao: "", destaque: false }); };
+var FORM_VAZIO = function () { return ({
+    origem: "crm", indicado_por: "", lead_kommo_id: null,
+    cliente_nome: "", cliente_whatsapp: "", placa: "", veiculo: "", cor: "",
+    formato: "cardapio", titulo: "", prazo_execucao: "", cortesia: "", condicao_pagamento: "6x sem juros no cartão",
+    observacoes: "", retorno_em: "", validade: addDays(hoje(), 7),
+    itens: [ITEM_VAZIO()],
+}); };
+var paraNumero = function (s) { var n = Number(String(s).replace(/\./g, "").replace(",", ".")); return isNaN(n) ? 0 : n; };
+function NovoOrcamento(_a) {
+    var _this = this;
+    var closer = _a.closer, inicial = _a.inicial, aoSalvar = _a.aoSalvar;
+    var _b = __read(useState(function () { return (__assign(__assign({}, FORM_VAZIO()), (inicial || {}))); }), 2), f = _b[0], setF = _b[1];
+    var _c = __read(useState(false), 2), salvando = _c[0], setSalvando = _c[1];
+    var _d = __read(useState(null), 2), erro = _d[0], setErro = _d[1];
+    var _f = __read(useState(null), 2), daCasa = _f[0], setDaCasa = _f[1];
+    useEffect(function () { if (inicial)
+        setF(__assign(__assign({}, FORM_VAZIO()), inicial)); }, [inicial]);
+    var set = function (k, v) { return setF(function (x) {
+        var _a;
+        return (__assign(__assign({}, x), (_a = {}, _a[k] = v, _a)));
+    }); };
+    var setItem = function (i, k, v) { return setF(function (x) { return (__assign(__assign({}, x), { itens: x.itens.map(function (it, j) {
+            var _a;
+            return (j === i ? __assign(__assign({}, it), (_a = {}, _a[k] = v, _a)) : it);
+        }) })); }); };
+    var addItem = function () { return setF(function (x) { return (__assign(__assign({}, x), { itens: __spreadArray(__spreadArray([], __read(x.itens), false), [ITEM_VAZIO()], false) })); }); };
+    var rmItem = function (i) { return setF(function (x) { return (__assign(__assign({}, x), { itens: x.itens.length > 1 ? x.itens.filter(function (_, j) { return j !== i; }) : x.itens })); }); };
+    var total = f.itens.reduce(function (s, it) { return s + paraNumero(it.preco); }, 0);
+    /* placa digitada → o banco responde se o carro já passou pela casa */
+    useEffect(function () {
+        var p = placaLimpa(f.placa);
+        if (p.length < 7) {
+            setDaCasa(null);
+            return undefined;
+        }
+        var vivo = true;
+        db.rpc("placa_ja_cliente", { p_placa: p, p_antes: addDays(hoje(), 1) })
+            .then(function (_a) {
+            var data = _a.data, error = _a.error;
+            if (vivo && !error)
+                setDaCasa(data === true);
+        })
+            .catch(function () { });
+        return function () { vivo = false; };
+    }, [f.placa]);
+    var itensValidos = f.itens.filter(function (it) { return it.nome.trim(); });
+    var pronto = f.prazo_execucao && itensValidos.length > 0 && (f.cliente_nome.trim() || f.placa.trim());
+    var salvar = function (statusInicial) { return __awaiter(_this, void 0, void 0, function () {
+        var cab, novo, _a, id_1, e_16;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
+                case 0:
+                    if (!pronto || salvando)
+                        return [2 /*return*/];
+                    setSalvando(true);
+                    setErro(null);
+                    _b.label = 1;
+                case 1:
+                    _b.trys.push([1, 4, , 5]);
+                    cab = {
+                        closer_codigo: closer.erp_codigo, origem: f.origem,
+                        indicado_por: f.origem === "indicacao" ? f.indicado_por || null : null,
+                        lead_kommo_id: f.origem === "crm" ? f.lead_kommo_id || null : null,
+                        cliente_nome: f.cliente_nome || null, cliente_whatsapp: f.cliente_whatsapp || null,
+                        placa: f.placa ? placaLimpa(f.placa) : null, veiculo: f.veiculo || null, cor: f.cor || null,
+                        formato: f.formato, titulo: f.titulo || null, prazo_execucao: f.prazo_execucao,
+                        cortesia: f.cortesia || null, condicao_pagamento: f.condicao_pagamento || null, observacoes: f.observacoes || null,
+                        status: statusInicial, validade: f.validade || null, retorno_em: f.retorno_em || null,
+                    };
+                    _a = umSo;
+                    return [4 /*yield*/, exigir(db.from("orcamento").insert(cab).select("id, ano, seq").single())];
+                case 2:
+                    novo = _a.apply(void 0, [_b.sent()]);
+                    id_1 = novo && novo.id;
+                    if (!id_1)
+                        throw new Error("o banco não devolveu o número do orçamento");
+                    return [4 /*yield*/, exigir(db.from("orcamento_item").insert(itensValidos.map(function (it, i) { return ({
+                            orcamento_id: id_1, ordem: i + 1, nome: it.nome.trim(), aplicacao: it.aplicacao || null, garantia: it.garantia || null,
+                            preco: paraNumero(it.preco), opcao: f.formato === "opcoes" ? it.opcao || null : null, destaque: !!it.destaque,
+                        }); })))];
+                case 3:
+                    _b.sent();
+                    setF(FORM_VAZIO());
+                    setDaCasa(null);
+                    aoSalvar(id_1, novo);
+                    return [3 /*break*/, 5];
+                case 4:
+                    e_16 = _b.sent();
+                    setErro(e_16.message);
+                    return [3 /*break*/, 5];
+                case 5:
+                    setSalvando(false);
+                    return [2 /*return*/];
+            }
+        });
+    }); };
+    return (React.createElement("div", { className: "col2", style: { gridTemplateColumns: "minmax(0,1.5fr) minmax(0,1fr)" } },
+        React.createElement(Card, { className: "p16" },
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "170px 1fr", gap: 14, alignItems: "end" } },
+                React.createElement(Campo, { l: "Placa" },
+                    React.createElement(Inp, { value: f.placa, onChange: function (e) { return set("placa", e.target.value.toUpperCase()); }, placeholder: "ABC1D23", style: { fontFamily: F_MARCA, fontWeight: 700, letterSpacing: ".05em" } })),
+                React.createElement("div", { style: { fontSize: 12.5, minHeight: 34, display: "flex", alignItems: "center" } },
+                    daCasa === true && React.createElement(Tag, { cor: T.good }, "Cliente da casa \u2014 esse carro j\u00E1 passou aqui"),
+                    daCasa === false && React.createElement("span", { style: { color: T.muted } }, "Carro novo na casa."),
+                    daCasa === null && React.createElement("span", { style: { color: T.muted } }, "Digitou a placa, o painel confere no Oficina se o carro j\u00E1 \u00E9 cliente."))),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr .6fr", gap: 12, marginTop: 14 } },
+                React.createElement(Campo, { l: "Cliente" },
+                    React.createElement(Inp, { value: f.cliente_nome, onChange: function (e) { return set("cliente_nome", e.target.value); }, placeholder: "Nome" })),
+                React.createElement(Campo, { l: "WhatsApp" },
+                    React.createElement(Inp, { value: f.cliente_whatsapp, onChange: function (e) { return set("cliente_whatsapp", e.target.value); }, placeholder: "(11) 9\u2026" })),
+                React.createElement(Campo, { l: "Ve\u00EDculo" },
+                    React.createElement(Inp, { value: f.veiculo, onChange: function (e) { return set("veiculo", e.target.value); }, placeholder: "Marca, modelo e ano" })),
+                React.createElement(Campo, { l: "Cor" },
+                    React.createElement(Inp, { value: f.cor, onChange: function (e) { return set("cor", e.target.value); } }))),
+            React.createElement("div", { style: { marginTop: 14 } },
+                React.createElement(Campo, { l: "De onde veio" },
+                    React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                        React.createElement(Chips, { value: f.origem, onChange: function (v) { return set("origem", v); }, options: ORIGENS }),
+                        f.origem === "indicacao" && React.createElement(Inp, { value: f.indicado_por, onChange: function (e) { return set("indicado_por", e.target.value); }, placeholder: "indicado por quem?", style: { width: 220 } }),
+                        f.origem === "crm" && f.lead_kommo_id && React.createElement(Tag, null,
+                            "lead #",
+                            f.lead_kommo_id,
+                            " do Kommo")))),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 14 } },
+                React.createElement(Campo, { l: "Formato" },
+                    React.createElement("div", { style: { display: "grid", gap: 6 } }, FORMATOS.map(function (_a) {
+                        var _b = __read(_a, 3), v = _b[0], l = _b[1], s = _b[2];
+                        return (React.createElement("button", { key: v, type: "button", onClick: function () { return set("formato", v); }, style: { textAlign: "left", cursor: "pointer", fontFamily: F_UI,
+                                border: "1px solid ".concat(f.formato === v ? T.ink : T.hair), background: f.formato === v ? "#F7F7F7" : T.surface, borderRadius: 6, padding: "7px 10px" } },
+                            React.createElement("b", { style: { fontSize: 13 } }, l),
+                            " ",
+                            React.createElement("span", { style: { fontSize: 11.5, color: T.muted } },
+                                "\u00B7 ",
+                                s)));
+                    }))),
+                React.createElement("div", { style: { display: "grid", gap: 12, alignContent: "start" } },
+                    React.createElement(Campo, { l: "T\u00EDtulo do or\u00E7amento (opcional)" },
+                        React.createElement(Inp, { value: f.titulo, onChange: function (e) { return set("titulo", e.target.value); }, placeholder: "ex.: Prote\u00E7\u00E3o full body + vidros" })),
+                    React.createElement(Campo, { l: React.createElement("span", null,
+                            "Prazo de execu\u00E7\u00E3o ",
+                            React.createElement("span", { style: { color: T.bad } }, "\u00B7 obrigat\u00F3rio")) },
+                        React.createElement(Select, { value: f.prazo_execucao, onChange: function (v) { return set("prazo_execucao", v); }, style: { width: "100%", borderColor: f.prazo_execucao ? T.hair : "#F0C3C6" }, options: [{ v: "", l: "Escolha o prazo…" }].concat(PRAZOS.map(function (_a) {
+                                var _b = __read(_a, 2), v = _b[0], l = _b[1];
+                                return ({ v: v, l: l });
+                            })) })))),
+            React.createElement("div", { style: { marginTop: 16 } },
+                React.createElement(Label, { style: { marginBottom: 6 } }, "Itens \u00B7 livre nesta fase: voc\u00EA escreve o item e o pre\u00E7o"),
+                React.createElement("div", { style: { border: "1px solid ".concat(T.hair), borderRadius: 6, overflow: "hidden" } },
+                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+                        React.createElement("thead", null,
+                            React.createElement("tr", null,
+                                f.formato === "opcoes" && React.createElement(Th, { w: 64 }, "Op\u00E7\u00E3o"),
+                                React.createElement(Th, null, "Item"),
+                                React.createElement(Th, null, "Aplica\u00E7\u00E3o"),
+                                React.createElement(Th, { w: 110 }, "Garantia"),
+                                React.createElement(Th, { w: 130, right: true }, "Pre\u00E7o (R$)"),
+                                React.createElement(Th, { w: 36 }))),
+                        React.createElement("tbody", null, f.itens.map(function (it, i) { return (React.createElement("tr", { key: i },
+                            f.formato === "opcoes" && React.createElement("td", { style: { padding: 4 } },
+                                React.createElement(Inp, { value: it.opcao, onChange: function (e) { return setItem(i, "opcao", e.target.value.toUpperCase().slice(0, 1)); }, placeholder: "A" })),
+                            React.createElement("td", { style: { padding: 4 } },
+                                React.createElement(Inp, { value: it.nome, onChange: function (e) { return setItem(i, "nome", e.target.value); }, placeholder: "ex.: PPF Vorza Black Series" })),
+                            React.createElement("td", { style: { padding: 4 } },
+                                React.createElement(Inp, { value: it.aplicacao, onChange: function (e) { return setItem(i, "aplicacao", e.target.value); }, placeholder: "ex.: cap\u00F4, para-choque e retrovisores" })),
+                            React.createElement("td", { style: { padding: 4 } },
+                                React.createElement(Inp, { value: it.garantia, onChange: function (e) { return setItem(i, "garantia", e.target.value); }, placeholder: "ex.: 10 anos" })),
+                            React.createElement("td", { style: { padding: 4 } },
+                                React.createElement(Inp, { value: it.preco, onChange: function (e) { return setItem(i, "preco", e.target.value); }, placeholder: "0,00", inputMode: "decimal", style: { textAlign: "right", fontWeight: 700 } })),
+                            React.createElement("td", { style: { padding: 4, textAlign: "center" } },
+                                React.createElement("button", { type: "button", onClick: function () { return rmItem(i); }, title: "tirar item", style: { border: 0, background: "transparent", color: T.muted, cursor: "pointer", fontSize: 15 } }, "\u2715")))); })))),
+                React.createElement("div", { style: { marginTop: 8, display: "flex", gap: 8, alignItems: "center" } },
+                    React.createElement(Btn, { onClick: addItem, style: { padding: "6px 11px", fontSize: 12 } }, "+ Item"),
+                    React.createElement(Inp, { value: f.cortesia, onChange: function (e) { return set("cortesia", e.target.value); }, placeholder: "Cortesia (ex.: higieniza\u00E7\u00E3o interna)", style: { flex: 1 } }))),
+            React.createElement("div", { style: { marginTop: 14 } },
+                React.createElement(Campo, { l: "Observa\u00E7\u00F5es" },
+                    React.createElement("textarea", { value: f.observacoes, onChange: function (e) { return set("observacoes", e.target.value); }, rows: 2, style: __assign(__assign({}, inputStyle), { resize: "vertical" }), placeholder: "O que o cliente precisa saber e n\u00E3o cabe nos itens" })))),
+        React.createElement("div", null,
+            React.createElement(Card, { className: "p16" },
+                React.createElement(Campo, { l: "Condi\u00E7\u00E3o de pagamento" },
+                    React.createElement(Inp, { value: f.condicao_pagamento, onChange: function (e) { return set("condicao_pagamento", e.target.value); } })),
+                React.createElement("div", { style: { marginTop: 16 } },
+                    React.createElement(Label, null, "Resumo \u2014 se levar tudo"),
+                    itensValidos.map(function (it, i) { return (React.createElement("div", { key: i, style: { display: "flex", justifyContent: "space-between", fontSize: 12.5, padding: "6px 0", borderBottom: "1px solid ".concat(T.hair) } },
+                        React.createElement("span", { style: { color: T.ink2 } },
+                            f.formato === "opcoes" && it.opcao ? "".concat(it.opcao, " \u00B7 ") : "",
+                            it.nome),
+                        React.createElement("b", null, nReal2(paraNumero(it.preco))))); }),
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "10px 0 0" } },
+                        React.createElement("span", { style: { fontSize: 13 } }, f.formato === "opcoes" ? "Soma das opções" : "Total"),
+                        React.createElement("span", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 20 } }, nReal2(total))),
+                    f.prazo_execucao && React.createElement("div", { style: { fontSize: 12, color: T.ink2, marginTop: 4 } },
+                        "Prazo de execu\u00E7\u00E3o: ",
+                        React.createElement("b", null, rotPrazo(f.prazo_execucao)))),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 14 } },
+                    React.createElement(Campo, { l: "Validade" },
+                        React.createElement(Inp, { type: "date", value: f.validade, onChange: function (e) { return set("validade", e.target.value); } })),
+                    React.createElement(Campo, { l: "Retorno ao cliente" },
+                        React.createElement(Inp, { type: "date", value: f.retorno_em, onChange: function (e) { return set("retorno_em", e.target.value); } })))),
+            React.createElement(Card, { className: "p16", style: { marginTop: 12 } },
+                erro && React.createElement("div", { style: { fontSize: 12.5, color: T.bad, marginBottom: 10 } },
+                    "N\u00E3o salvou: ",
+                    erro),
+                React.createElement(Btn, { kind: "solid", onClick: function () { return salvar("enviado"); }, style: { display: "block", width: "100%", padding: 10, opacity: pronto && !salvando ? 1 : .45 } }, salvando ? "Salvando…" : "Salvar e marcar como enviado"),
+                React.createElement(Btn, { onClick: function () { return salvar("rascunho"); }, style: { display: "block", width: "100%", padding: 9, marginTop: 8, opacity: pronto && !salvando ? 1 : .45 } }, "Salvar como rascunho"),
+                React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 9, lineHeight: 1.5 } }, !pronto ? "Para salvar: pelo menos um item com nome, o prazo de execução e o cliente ou a placa."
+                    : "Depois de salvo, o orçamento fica em \"Orçamentos gerados\" com número próprio. A imagem para o cliente e o PDF saem de lá — próxima versão.")))));
+}
+/* Um orçamento aberto: itens, status, retorno, motivo. */
+function DetalheOrcamento(_a) {
+    var _this = this;
+    var o = _a.o, aoMudar = _a.aoMudar, fechar = _a.fechar;
+    var _b = __read(useState(null), 2), itens = _b[0], setItens = _b[1];
+    var _c = __read(useState(o.status), 2), status = _c[0], setStatus = _c[1];
+    var _d = __read(useState(o.motivo_perda || ""), 2), motivo = _d[0], setMotivo = _d[1];
+    var _f = __read(useState(o.retorno_em ? String(o.retorno_em).slice(0, 10) : ""), 2), retorno = _f[0], setRetorno = _f[1];
+    var _g = __read(useState(o.os_numero || ""), 2), os = _g[0], setOs = _g[1];
+    var _h = __read(useState(false), 2), salvando = _h[0], setSalvando = _h[1];
+    var _j = __read(useState(null), 2), erro = _j[0], setErro = _j[1];
+    useEffect(function () {
+        var vivo = true;
+        db.from("orcamento_item").select("*").eq("orcamento_id", o.id).order("ordem")
+            .then(function (_a) {
+            var data = _a.data;
+            if (vivo)
+                setItens(data || []);
+        });
+        return function () { vivo = false; };
+    }, [o.id]);
+    var mudou = status !== o.status || motivo !== (o.motivo_perda || "") || retorno !== (o.retorno_em ? String(o.retorno_em).slice(0, 10) : "") || os !== (o.os_numero || "");
+    var precisaMotivo = status === "perdido" && !motivo.trim();
+    var salvar = function () { return __awaiter(_this, void 0, void 0, function () {
+        var e_17;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    if (!mudou || precisaMotivo || salvando)
+                        return [2 /*return*/];
+                    setSalvando(true);
+                    setErro(null);
+                    _a.label = 1;
+                case 1:
+                    _a.trys.push([1, 3, , 4]);
+                    return [4 /*yield*/, exigir(db.from("orcamento").update({ status: status, motivo_perda: status === "perdido" ? motivo.trim() : null,
+                            retorno_em: retorno || null, os_numero: os.trim() || null }).eq("id", o.id))];
+                case 2:
+                    _a.sent();
+                    aoMudar();
+                    return [3 /*break*/, 4];
+                case 3:
+                    e_17 = _a.sent();
+                    setErro(e_17.message);
+                    return [3 /*break*/, 4];
+                case 4:
+                    setSalvando(false);
+                    return [2 /*return*/];
+            }
+        });
+    }); };
+    return (React.createElement("tr", null,
+        React.createElement("td", { colSpan: 10, style: { padding: 0, borderBottom: "1px solid #D6D6D6", background: "#FAFAFA" } },
+            React.createElement("div", { style: { padding: 16, display: "grid", gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1fr)", gap: 16 } },
+                React.createElement("div", null,
+                    React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 } },
+                        React.createElement("span", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 15 } },
+                            "N\u00BA ",
+                            o.numero),
+                        React.createElement(Tag, null, rotFormato(o.formato)),
+                        React.createElement(Tag, null,
+                            rotOrigem(o.origem),
+                            o.indicado_por ? " \u00B7 ".concat(o.indicado_por) : ""),
+                        React.createElement(Tag, { cor: T.warn },
+                            "prazo: ",
+                            o.prazo || rotPrazo(o.prazo_execucao)),
+                        o.cliente_da_casa && React.createElement(Tag, { cor: T.good }, "cliente da casa"),
+                        o.os_encontrada && React.createElement(Tag, { cor: T.good },
+                            "O.S. ",
+                            o.os_encontrada,
+                            " no Oficina")),
+                    o.titulo && React.createElement("div", { style: { fontSize: 13.5, fontWeight: 600, marginBottom: 6 } }, o.titulo),
+                    React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginBottom: 10 } }, [o.cliente_nome, o.cliente_whatsapp, o.veiculo, o.cor, o.placa].filter(Boolean).join(" · ") || "sem dados do cliente"),
+                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+                        React.createElement("thead", null,
+                            React.createElement("tr", null,
+                                o.formato === "opcoes" && React.createElement(Th, null, "Op\u00E7\u00E3o"),
+                                React.createElement(Th, null, "Item"),
+                                React.createElement(Th, null, "Aplica\u00E7\u00E3o"),
+                                React.createElement(Th, null, "Garantia"),
+                                React.createElement(Th, { right: true }, "Pre\u00E7o"))),
+                        React.createElement("tbody", null,
+                            (itens || []).map(function (it) { return (React.createElement("tr", { key: it.id },
+                                o.formato === "opcoes" && React.createElement(Td, { bold: true }, it.opcao || "—"),
+                                React.createElement(Td, { bold: true }, it.nome),
+                                React.createElement(Td, null, it.aplicacao || "—"),
+                                React.createElement(Td, null, it.garantia || "—"),
+                                React.createElement(Td, { right: true, bold: true }, nReal2(it.preco)))); }),
+                            itens === null && React.createElement("tr", null,
+                                React.createElement(Td, { color: T.muted }, "Carregando itens\u2026")))),
+                    React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: 16, marginTop: 8, fontSize: 13 } },
+                        o.cortesia && React.createElement("span", { style: { color: T.ink2 } },
+                            "Cortesia: ",
+                            React.createElement("b", null, o.cortesia)),
+                        o.condicao_pagamento && React.createElement("span", { style: { color: T.ink2 } }, o.condicao_pagamento),
+                        React.createElement("span", null,
+                            "Total ",
+                            React.createElement("b", { style: { fontFamily: F_MARCA, fontSize: 16 } }, nReal2(o.total)))),
+                    o.observacoes && React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 8 } },
+                        "Obs.: ",
+                        o.observacoes)),
+                React.createElement("div", null,
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
+                        React.createElement(Campo, { l: "Status" },
+                            React.createElement(Select, { value: status, onChange: setStatus, style: { width: "100%" }, options: Object.keys(STATUS_ORC).map(function (k) { return ({ v: k, l: STATUS_ORC[k].l }); }) })),
+                        React.createElement(Campo, { l: "Retorno ao cliente" },
+                            React.createElement(Inp, { type: "date", value: retorno, onChange: function (e) { return setRetorno(e.target.value); } }))),
+                    status === "perdido" && (React.createElement("div", { style: { marginTop: 10 } },
+                        React.createElement(Campo, { l: React.createElement("span", null,
+                                "Por que perdeu ",
+                                React.createElement("span", { style: { color: T.bad } }, "\u00B7 obrigat\u00F3rio")) },
+                            React.createElement("textarea", { value: motivo, onChange: function (e) { return setMotivo(e.target.value); }, rows: 3, style: __assign(__assign({}, inputStyle), { resize: "vertical", borderColor: precisaMotivo ? "#F0C3C6" : T.hair }), placeholder: "Pre\u00E7o? Prazo? Fechou com concorrente? Sumiu? Escreve o que aconteceu \u2014 \u00E9 isso que a gest\u00E3o vai ler." })))),
+                    status === "fechado" && (React.createElement("div", { style: { marginTop: 10 } },
+                        React.createElement(Campo, { l: "N\u00FAmero da O.S. no Oficina (se j\u00E1 abriu)" },
+                            React.createElement(Inp, { value: os, onChange: function (e) { return setOs(e.target.value); }, placeholder: o.os_encontrada ? "o painel achou a ".concat(o.os_encontrada) : "ex.: 48.211" })),
+                        !o.os_encontrada && !os && React.createElement("div", { style: { fontSize: 11.5, color: T.warn, marginTop: 6 } },
+                            "Sem O.S. com a placa ",
+                            o.placa || "?",
+                            " no Oficina ainda. Fechado sem O.S. fica em alerta at\u00E9 aparecer."))),
+                    erro && React.createElement("div", { style: { fontSize: 12.5, color: T.bad, marginTop: 10 } },
+                        "N\u00E3o salvou: ",
+                        erro),
+                    React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 12 } },
+                        React.createElement(Btn, { kind: "solid", onClick: salvar, style: { opacity: mudou && !precisaMotivo && !salvando ? 1 : .45 } }, salvando ? "Salvando…" : "Salvar"),
+                        React.createElement(Btn, { onClick: fechar }, "Fechar"),
+                        React.createElement("span", { style: { flex: 1 } }),
+                        React.createElement(Btn, { style: { opacity: .45 }, title: "pr\u00F3xima vers\u00E3o" }, "Imagem"),
+                        React.createElement(Btn, { style: { opacity: .45 }, title: "pr\u00F3xima vers\u00E3o" }, "PDF")),
+                    React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 8 } }, "Imagem para o cliente e PDF entram na pr\u00F3xima vers\u00E3o. Toda mudan\u00E7a de status fica no hist\u00F3rico."))))));
+}
+function AbaOrcamentos(_a) {
+    var d = _a.d, closer = _a.closer, recarregar = _a.recarregar, prefill = _a.prefill, limparPrefill = _a.limparPrefill, abertoId = _a.abertoId, setAbertoId = _a.setAbertoId;
+    var h = hoje(), m0 = primeiroDia(h);
+    var _b = __read(useState("abertos"), 2), filtro = _b[0], setFiltro = _b[1];
+    var _c = __read(useState(null), 2), aviso = _c[0], setAviso = _c[1];
+    var orcMes = d.orcamentos.filter(function (o) { return String(o.criado_em).slice(0, 7) === m0.slice(0, 7); });
+    var emAberto = d.orcamentos.filter(function (o) { return EM_ABERTO.indexOf(o.status) >= 0; });
+    var fechadosMes = orcMes.filter(function (o) { return o.status === "fechado"; }).length;
+    var retornoVencido = emAberto.filter(function (o) { return o.retorno_vencido; }).length;
+    var lista = d.orcamentos.filter(function (o) { return filtro === "todos" ? true
+        : filtro === "abertos" ? EM_ABERTO.indexOf(o.status) >= 0 || o.status === "rascunho"
+            : filtro === "fechados" ? o.status === "fechado"
+                : o.status === "perdido" || o.status === "vencido"; });
+    var aoSalvar = function (id, novo) {
+        setAviso("Or\u00E7amento ".concat(novo && novo.ano ? "".concat(novo.ano, "-").concat(String(novo.seq).padStart(4, "0")) : "", " salvo."));
+        limparPrefill();
+        recarregar();
+        setAbertoId(id);
+        setFiltro("abertos");
+        setTimeout(function () { return setAviso(null); }, 6000);
+    };
+    return (React.createElement(React.Fragment, null,
+        React.createElement(Secao, { n: 1, titulo: "Novo or\u00E7amento", nota: "Monta aqui, fica salvo embaixo com n\u00FAmero pr\u00F3prio. Origem e prazo de execu\u00E7\u00E3o s\u00E3o obrigat\u00F3rios em todo or\u00E7amento; item e pre\u00E7o s\u00E3o livres nesta fase." },
+            prefill && React.createElement("div", { style: { marginBottom: 10 } },
+                React.createElement(Tag, { cor: T.good },
+                    "Puxado do CRM: ",
+                    prefill.cliente_nome || "lead",
+                    prefill.veiculo ? " \u00B7 ".concat(prefill.veiculo) : ""),
+                " ",
+                React.createElement(Btn, { onClick: limparPrefill, style: { padding: "3px 9px", fontSize: 11.5, marginLeft: 6 } }, "limpar")),
+            React.createElement(NovoOrcamento, { closer: closer, inicial: prefill, aoSalvar: aoSalvar })),
+        React.createElement(Secao, { n: 2, titulo: "Or\u00E7amentos gerados", nota: 'Todos os seus or\u00E7amentos num lugar s\u00F3. "Fechado" \u00E9 conferido no Oficina pela placa \u2014 or\u00E7amento marcado como fechado sem O.S. fica em alerta at\u00E9 aparecer.' },
+            aviso && React.createElement(Card, { className: "p12", style: { marginBottom: 12, borderColor: "#B7DFD0", background: "#E6F4EF", fontSize: 13, color: T.good, fontWeight: 600 } }, aviso),
+            React.createElement("div", { className: "grid-kpi-4", style: { marginBottom: 12 } },
+                React.createElement(Kpi, { label: "Em aberto", value: nInt(emAberto.length), sub: nReal(emAberto.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0)) }),
+                React.createElement(Kpi, { label: "Retorno atrasado", value: nInt(retornoVencido), sub: retornoVencido ? "cliente sem resposta sua" : "nenhum", tone: retornoVencido ? "bad" : undefined }),
+                React.createElement(Kpi, { label: "Convers\u00E3o do m\u00EAs", value: orcMes.length ? nPct(fechadosMes / orcMes.length, 0) : "—", sub: "".concat(fechadosMes, " de ").concat(orcMes.length), tone: orcMes.length && fechadosMes / orcMes.length >= 0.4 ? "good" : undefined }),
+                React.createElement(Kpi, { label: "O.S. sem or\u00E7amento", value: nInt(d.osSemOrc.length), sub: "venda que n\u00E3o passou por aqui", tone: d.osSemOrc.length ? "bad" : undefined })),
+            React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 10 } },
+                React.createElement(Chips, { value: filtro, onChange: setFiltro, options: [["abertos", "Em aberto (".concat(emAberto.length + d.orcamentos.filter(function (o) { return o.status === "rascunho"; }).length, ")")], ["fechados", "Fechados"], ["perdidos", "Perdidos e vencidos"], ["todos", "Todos (".concat(d.orcamentos.length, ")")]] })),
+            React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "N\u00BA"),
+                            React.createElement(Th, null, "Data"),
+                            React.createElement(Th, null, "Cliente"),
+                            React.createElement(Th, null, "Ve\u00EDculo \u00B7 placa"),
+                            React.createElement(Th, null, "Origem"),
+                            React.createElement(Th, null, "Formato"),
+                            React.createElement(Th, { right: true }, "Valor"),
+                            React.createElement(Th, null, "Status"),
+                            React.createElement(Th, { right: true }, "Retorno"),
+                            React.createElement(Th, null))),
+                    React.createElement("tbody", null,
+                        lista.map(function (o) {
+                            var st = STATUS_ORC[o.status] || { l: o.status, cor: T.ink };
+                            var aberto = abertoId === o.id;
+                            return (React.createElement(React.Fragment, { key: o.id },
+                                React.createElement("tr", { onClick: function () { return setAbertoId(aberto ? null : o.id); }, style: { cursor: "pointer", background: aberto ? "#FAFAFA" : "transparent" } },
+                                    React.createElement(Td, { bold: true }, o.numero),
+                                    React.createElement(Td, null, brData(o.criado_em)),
+                                    React.createElement(Td, { bold: true },
+                                        o.cliente_nome || "—",
+                                        " ",
+                                        o.cliente_da_casa && React.createElement(Tag, { cor: T.good }, "da casa")),
+                                    React.createElement(Td, null, [o.veiculo, o.placa].filter(Boolean).join(" · ") || "—"),
+                                    React.createElement(Td, null, rotOrigem(o.origem)),
+                                    React.createElement(Td, null, rotFormato(o.formato)),
+                                    React.createElement(Td, { right: true, bold: true }, nReal(o.total)),
+                                    React.createElement(Td, null, o.status === "fechado" && o.fechado_sem_os ? React.createElement(Tag, { cor: T.bad }, "Fechado \u00B7 sem O.S. no Oficina")
+                                        : o.status === "fechado" ? React.createElement(Tag, { cor: T.good },
+                                            "Fechado",
+                                            o.os_numero || o.os_encontrada ? " \u00B7 O.S. ".concat(o.os_numero || o.os_encontrada, " \u2713") : "")
+                                            : o.status === "perdido" ? React.createElement(Tag, { cor: T.muted },
+                                                "Perdido",
+                                                o.motivo_perda ? " \u00B7 ".concat(String(o.motivo_perda).slice(0, 28)) : "")
+                                                : React.createElement(Tag, { cor: st.cor }, st.l)),
+                                    React.createElement(Td, { right: true, color: o.retorno_vencido ? T.bad : T.ink, bold: !!o.retorno_vencido }, EM_ABERTO.indexOf(o.status) >= 0 ? brData(o.retorno_em) : "—"),
+                                    React.createElement(Td, { style: { textAlign: "right" } },
+                                        React.createElement("span", { style: { fontSize: 12, color: T.muted } }, aberto ? "▲" : "▼"))),
+                                aberto && React.createElement(DetalheOrcamento, { o: o, aoMudar: function () { recarregar(); }, fechar: function () { return setAbertoId(null); } })));
+                        }),
+                        !lista.length && React.createElement("tr", null,
+                            React.createElement(Td, { color: T.muted }, d.orcamentos.length ? "Nada nesse filtro." : "Nenhum orçamento ainda. O primeiro sai ali em cima."))))))));
+}
+/* ---------- a tela inteira ---------- */
+function Piloto(_a) {
+    var sessao = _a.sessao, todos = _a.todos, embutido = _a.embutido;
+    var _b = useClosers(sessao, todos), lista = _b.lista, erroLista = _b.erro;
+    var meuId = sessao && sessao.user && sessao.user.id;
+    var _c = __read(useState(null), 2), sel = _c[0], setSel = _c[1];
+    var closer = useMemo(function () {
+        if (!lista)
+            return null;
+        if (sel)
+            return lista.find(function (c) { return String(c.erp_codigo) === String(sel); }) || null;
+        return lista.find(function (c) { return c.auth_user_id === meuId; }) || (todos ? lista[0] : null) || null;
+    }, [lista, sel, meuId, todos]);
+    var _d = __read(useState("painel"), 2), aba = _d[0], setAba = _d[1];
+    var _f = __read(useState(0), 2), versao = _f[0], setVersao = _f[1];
+    var _g = __read(useState(null), 2), prefill = _g[0], setPrefill = _g[1];
+    var _h = __read(useState(null), 2), abertoId = _h[0], setAbertoId = _h[1];
+    var d = usePiloto(closer && closer.erp_codigo, versao);
+    var recarregar = function () { return setVersao(function (v) { return v + 1; }); };
+    var novoDoLead = function (l) {
+        setPrefill({ origem: "crm", lead_kommo_id: l.kommo_id, cliente_nome: l.cliente || "", veiculo: l.veiculo || "", titulo: l.interesse || "" });
+        setAba("orcamentos");
+        try {
+            window.scrollTo(0, 0);
+        }
+        catch (e) { /* segue */ }
+    };
+    var abrirOrcamento = function (id) { setAbertoId(id); setAba("orcamentos"); };
+    if (erroLista)
+        return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.bad } },
+            "N\u00E3o consegui ler o cadastro de closers: ",
+            erroLista);
+    if (!lista)
+        return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando\u2026");
+    if (!closer) {
+        return (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.ink2, lineHeight: 1.6 } },
+            React.createElement("b", null, "Seu login ainda n\u00E3o est\u00E1 ligado a um cadastro de closer."),
+            React.createElement("br", null),
+            "Fala com o Rafael: \u00E9 ele quem liga o e-mail ",
+            sessao.user.email,
+            " ao seu nome no sistema. Sem isso a tela fica vazia \u2014 n\u00E3o \u00E9 erro seu."));
+    }
+    return (React.createElement(React.Fragment, null,
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 } },
+            React.createElement("div", { style: { display: "flex", gap: 4, background: T.surface, border: "1px solid ".concat(T.hair), borderRadius: 8, padding: 4 } }, [["painel", "Meu painel"], ["orcamentos", "Orçamentos"]].map(function (_a) {
+                var _b = __read(_a, 2), v = _b[0], l = _b[1];
+                return (React.createElement("button", { key: v, onClick: function () { return setAba(v); }, style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700, padding: "8px 16px",
+                        border: 0, borderRadius: 5, cursor: "pointer", background: aba === v ? T.ink : "transparent", color: aba === v ? "#fff" : T.ink2 } }, l));
+            })),
+            todos && (React.createElement(Select, { value: String(closer.erp_codigo), onChange: function (v) { setSel(v); setAbertoId(null); setPrefill(null); }, options: lista.map(function (c) { return ({ v: String(c.erp_codigo), l: "".concat(c.nome_oficial, " \u00B7 ").concat(c.unidade) }); }) })),
+            !embutido && React.createElement("span", { style: { fontSize: 12, color: T.muted } },
+                closer.nome_oficial,
+                " \u00B7 ",
+                closer.unidade),
+            React.createElement("span", { style: { flex: 1 } }),
+            React.createElement("span", { style: { fontSize: 11.5, color: T.muted } }, d.carregando ? "atualizando…" : d.em ? "atualizado ".concat(d.em.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })) : ""),
+            React.createElement(Btn, { onClick: recarregar, style: { padding: "6px 11px", fontSize: 12 } }, "Atualizar")),
+        d.erro && React.createElement(Card, { className: "p12", style: { marginBottom: 12, borderColor: "#F0C3C6", background: "#FDF3F3", fontSize: 12.5, color: T.bad } },
+            "N\u00E3o consegui ler os dados: ",
+            d.erro),
+        d.carregando && !d.em && React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando o seu m\u00EAs\u2026"),
+        (d.em || !d.carregando) && !d.erro && (aba === "painel"
+            ? React.createElement(MeuPainel, { d: d, closer: closer, irParaOrcamentos: function () { return setAba("orcamentos"); }, novoDoLead: novoDoLead, abrirOrcamento: abrirOrcamento })
+            : React.createElement(AbaOrcamentos, { d: d, closer: closer, recarregar: recarregar, prefill: prefill, limparPrefill: function () { return setPrefill(null); }, abertoId: abertoId, setAbertoId: setAbertoId }))));
+}
+/* A casca do closer: cabeçalho preto com o nome dele, sem as abas de SDR.
+   O closer não precisa do funil do time para trabalhar o dia dele. */
+function PainelCloser(_a) {
+    var sessao = _a.sessao, todos = _a.todos;
+    var perfil = ((sessao && sessao.user && sessao.user.app_metadata) || {}).perfil || "";
+    return (React.createElement("div", { style: { background: T.canvas, minHeight: "100vh", fontFamily: F_UI, color: T.ink } },
+        React.createElement("header", { style: { background: T.preto, position: "sticky", top: 0, zIndex: 30 } },
+            React.createElement("div", { className: "wrap", style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, padding: "11px 24px" } },
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 13 } },
+                    React.createElement(Selo, { tam: 32 }),
+                    React.createElement("div", { style: { lineHeight: 1.2 } },
+                        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 15, fontWeight: 700, color: "#fff" } }, todos ? "Piloto dos closers" : "Meu piloto"),
+                        React.createElement("div", { style: { fontSize: 11.5, color: "rgba(255,255,255,.6)" } }, todos ? "Gerência comercial · todos os closers" : "Car Service · painel do closer"))),
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+                    React.createElement("span", { style: { fontSize: 12, color: "rgba(255,255,255,.55)" } },
+                        sessao.user.email,
+                        perfil ? " \u00B7 ".concat(perfil) : ""),
+                    React.createElement("button", { onClick: function () { return db.auth.signOut(); }, style: { background: "transparent", border: "1px solid rgba(255,255,255,.28)", color: "rgba(255,255,255,.85)",
+                            borderRadius: 7, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: F_UI } }, "Sair")))),
+        React.createElement("main", { className: "wrap", style: { padding: "24px 24px 80px" } },
+            React.createElement(Piloto, { sessao: sessao, todos: todos }))));
+}
 function App() {
     var _a = __read(useState(undefined), 2), sessao = _a[0], setSessao = _a[1];
     useEffect(function () {
@@ -6441,6 +7305,14 @@ function App() {
     if (sessao === undefined) {
         return React.createElement("div", { style: { padding: 48, color: T.muted, fontFamily: F_UI } }, "Verificando o login\u2026");
     }
+    /* 25/09: perfis 'closer' e 'gerente' não entram no painel de SDR. O
+       closer vê só o dele; a gerente (Gerente Geral Comercial) vê todos.
+       O banco garante isso (pode_closer); aqui é só a porta certa. */
+    var perfilSessao = ((sessao && sessao.user && sessao.user.app_metadata) || {}).perfil || "";
+    if (sessao && perfilSessao === "closer")
+        return React.createElement(PainelCloser, { sessao: sessao });
+    if (sessao && perfilSessao === "gerente")
+        return React.createElement(PainelCloser, { sessao: sessao, todos: true });
     return sessao ? React.createElement(Painel, { sessao: sessao }) : React.createElement(Login, null);
 }
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
