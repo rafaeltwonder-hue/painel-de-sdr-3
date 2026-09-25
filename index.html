@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v62 — CAR SERVICE</title>
-<meta name="painel-versao" content="v62">
+<title>Painel de SDR v63 — CAR SERVICE</title>
+<meta name="painel-versao" content="v63">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -220,7 +220,7 @@ window.FOTOS_ORC = {"hero_rear_logo": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ
 <script>
 function iniciarPainel() {
 "use strict";
-/* Painel de SDR — The Wonder / Car Service (v62: visão geral do que o SDR entrega, na aba Closers)
+/* Painel de SDR — The Wonder / Car Service (v63: cadeia agendamentos → compareceram → convertidos/follow-up/perdidos)
    Lê as views do Supabase. Sem lançamento manual: o dado vem do Kommo. */
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function(t) {
@@ -5508,16 +5508,19 @@ function SecaoSdrGeral(_a) {
             React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando\u2026"));
     var N = function (v) { return Number(v) || 0; };
     var porCloser = {};
-    s.closers.forEach(function (c) { porCloser[c.erp_codigo] = { closer: c.nome_oficial, loja: c.unidade, codigo: c.erp_codigo, recebidos: 0, visitaram: 0, fecharam: 0, agendados: 0, conv: 0, perd: 0, and: 0, agPass: 0, compPass: 0, naoVieram: 0, diasComDado: new Set() }; });
+    s.closers.forEach(function (c) { porCloser[c.erp_codigo] = { closer: c.nome_oficial, loja: c.unidade, codigo: c.erp_codigo, recebidos: 0, visitaram: 0, fecharam: 0, agendados: 0, comp: 0, falt: 0, agu: 0, conv: 0, fup: 0, perd: 0, agPass: 0, compPass: 0, naoVieram: 0, diasComDado: new Set() }; });
     s.funil.filter(function (f) { return f.closer_codigo != null && porCloser[f.closer_codigo]; }).forEach(function (f) {
         var c = porCloser[f.closer_codigo];
         c.recebidos = N(f.recebidos);
         c.visitaram = N(f.visitaram);
         c.fecharam = N(f.fecharam);
         c.agendados = N(f.agendados);
-        c.conv = N(f.ag_converteu);
-        c.perd = N(f.ag_perdeu);
-        c.and = N(f.ag_andamento);
+        c.comp = N(f.ag_compareceram);
+        c.falt = N(f.ag_faltaram);
+        c.agu = N(f.ag_aguardando);
+        c.conv = N(f.comp_converteu);
+        c.fup = N(f.comp_followup);
+        c.perd = N(f.comp_perdeu);
     });
     s.dias.forEach(function (d) {
         var c = porCloser[d.closer_codigo];
@@ -5540,27 +5543,28 @@ function SecaoSdrGeral(_a) {
         if ((l.desfecho === "nao_compareceu" || l.desfecho === "cancelou") && String(l.dia).slice(0, 10) < h && !futuras.has(l.kommo_id) && l.etapa_grupo !== "ganho" && l.etapa_grupo !== "perdido")
             c.naoVieram++;
     });
-    var linhas = Object.keys(porCloser).map(function (k) { return porCloser[k]; }).sort(function (a, b) { return (a.loja < b.loja ? -1 : a.loja > b.loja ? 1 : (b.agendados ? b.conv / b.agendados : 0) - (a.agendados ? a.conv / a.agendados : 0)); });
-    var tot = linhas.reduce(function (t, c) { return ({ recebidos: t.recebidos + c.recebidos, agendados: t.agendados + c.agendados, conv: t.conv + c.conv, perd: t.perd + c.perd, and: t.and + c.and, agPass: t.agPass + c.agPass, compPass: t.compPass + c.compPass, naoVieram: t.naoVieram + c.naoVieram }); }, { recebidos: 0, agendados: 0, conv: 0, perd: 0, and: 0, agPass: 0, compPass: 0, naoVieram: 0 });
+    var linhas = Object.keys(porCloser).map(function (k) { return porCloser[k]; }).sort(function (a, b) { return (a.loja < b.loja ? -1 : a.loja > b.loja ? 1 : (b.comp ? b.conv / b.comp : 0) - (a.comp ? a.conv / a.comp : 0)); });
+    var tot = linhas.reduce(function (t, c) { return ({ recebidos: t.recebidos + c.recebidos, agendados: t.agendados + c.agendados, comp: t.comp + c.comp, falt: t.falt + c.falt, agu: t.agu + c.agu, conv: t.conv + c.conv, fup: t.fup + c.fup, perd: t.perd + c.perd, naoVieram: t.naoVieram + c.naoVieram }); }, { recebidos: 0, agendados: 0, comp: 0, falt: 0, agu: 0, conv: 0, fup: 0, perd: 0, naoVieram: 0 });
     var lojas = [];
     linhas.forEach(function (c) { if (lojas.indexOf(c.loja) < 0)
         lojas.push(c.loja); });
     var daLoja = function (loja) { return s.funil.find(function (f) { return f.closer_codigo == null && f.unidade === loja; }); };
+    /* a barra é sobre quem VEIO: verde converteu, amarelo em follow-up, vermelho perdeu */
     var Barrinha = function (_a) {
         var c = _a.c;
-        var ag = c.agendados || 1;
+        var base = c.comp || 1;
         return (React.createElement("div", { style: { display: "flex", height: 8, borderRadius: 99, overflow: "hidden", background: T.canvas, minWidth: 120 } },
-            React.createElement("div", { style: { width: "".concat(c.conv / ag * 100, "%"), background: T.good } }),
-            React.createElement("div", { style: { width: "".concat(c.perd / ag * 100, "%"), background: T.bad } }),
-            React.createElement("div", { style: { width: "".concat(c.and / ag * 100, "%"), background: "#B5B5B5" } })));
+            React.createElement("div", { style: { width: "".concat(c.conv / base * 100, "%"), background: T.good } }),
+            React.createElement("div", { style: { width: "".concat(c.fup / base * 100, "%"), background: T.marca } }),
+            React.createElement("div", { style: { width: "".concat(c.perd / base * 100, "%"), background: T.bad } })));
     };
     var pct = function (a, b) { return (b ? nPct(a / b, 0) : "—"); };
-    return (React.createElement(Secao, { n: n, titulo: "O que o SDR entrega aos closers", nota: "".concat(nomeMes(h).charAt(0).toUpperCase() + nomeMes(h).slice(1), ": agendamentos que o SDR marcou no nome de cada closer e o que virou venda, o que se perdeu e o que ainda est\u00E1 em jogo. \u00C9 a mesma leitura que cada um v\u00EA no pr\u00F3prio piloto, lado a lado.") },
+    return (React.createElement(Secao, { n: n, titulo: "O que o SDR entrega aos closers", nota: "".concat(nomeMes(h).charAt(0).toUpperCase() + nomeMes(h).slice(1), ": agendamentos \u2192 compareceram \u2192 convertidos, em follow-up ou perdidos. Duas convers\u00F5es de prop\u00F3sito: sobre agendados mede SDR + closer; sobre quem veio mede s\u00F3 o closer.") },
         React.createElement("div", { className: "grid-kpi-4", style: { marginBottom: 12 } },
-            React.createElement(Kpi, { label: "Agendamentos do SDR", value: nInt(tot.agendados), sub: "".concat(nInt(tot.recebidos), " leads recebidos pelos closers no m\u00EAs") }),
-            React.createElement(Kpi, { label: "Converteram", value: "".concat(nInt(tot.conv), " \u00B7 ").concat(pct(tot.conv, tot.agendados)), sub: "".concat(nInt(tot.and), " ainda em andamento"), tone: "good" }),
-            React.createElement(Kpi, { label: "Perderam", value: "".concat(nInt(tot.perd), " \u00B7 ").concat(pct(tot.perd, tot.agendados)), sub: "dos agendamentos do m\u00EAs", tone: tot.agendados && tot.perd / tot.agendados > 0.2 ? "bad" : undefined }),
-            React.createElement(Kpi, { label: "Comparecimento", value: pct(tot.compPass, tot.agPass), sub: "".concat(nInt(tot.compPass), " de ").concat(nInt(tot.agPass), " vieram (at\u00E9 ontem) \u00B7 ").concat(nInt(tot.naoVieram), " faltaram sem retorno") })),
+            React.createElement(Kpi, { label: "Agendamentos do SDR", value: nInt(tot.agendados), sub: "".concat(nInt(tot.recebidos), " leads recebidos pelos closers \u00B7 ").concat(nInt(tot.agu), " visitas ainda por acontecer") }),
+            React.createElement(Kpi, { label: "Compareceram", value: "".concat(nInt(tot.comp), " \u00B7 ").concat(pct(tot.comp, tot.agendados)), sub: "".concat(nInt(tot.falt), " faltaram \u00B7 ").concat(nInt(tot.naoVieram), " sem reagendamento"), tone: tot.agendados && tot.comp / tot.agendados < 0.7 ? "bad" : undefined }),
+            React.createElement(Kpi, { label: "Convertidos", value: "".concat(nInt(tot.conv), " \u00B7 ").concat(pct(tot.conv, tot.comp)), sub: "de quem veio \u00B7 ".concat(pct(tot.conv, tot.agendados), " sobre agendados"), tone: "good" }),
+            React.createElement(Kpi, { label: "Em follow-up \u00B7 perdidos", value: "".concat(nInt(tot.fup), " \u00B7 ").concat(nInt(tot.perd)), sub: "de quem veio: ".concat(pct(tot.fup, tot.comp), " ainda negocia, ").concat(pct(tot.perd, tot.comp), " perdeu"), tone: tot.comp && tot.perd / tot.comp > 0.2 ? "bad" : undefined })),
         React.createElement(Card, { className: "p0 rolagem" },
             React.createElement("table", { style: { minWidth: 1100, width: "100%", borderCollapse: "collapse" } },
                 React.createElement("thead", null,
@@ -5568,12 +5572,13 @@ function SecaoSdrGeral(_a) {
                         React.createElement(Th, null, "Closer"),
                         React.createElement(Th, { right: true }, "Leads recebidos"),
                         React.createElement(Th, { right: true }, "Agendamentos"),
-                        React.createElement(Th, null, "Converteu \u00B7 perdeu \u00B7 em andamento"),
-                        React.createElement(Th, { right: true }, "Converteu"),
-                        React.createElement(Th, { right: true }, "Perdeu"),
-                        React.createElement(Th, { right: true }, "Em andamento"),
-                        React.createElement(Th, { right: true }, "Convers\u00E3o"),
-                        React.createElement(Th, { right: true }, "Comparecimento"),
+                        React.createElement(Th, { right: true }, "Compareceram"),
+                        React.createElement(Th, null, "De quem veio: converteu \u00B7 follow-up \u00B7 perdeu"),
+                        React.createElement(Th, { right: true }, "Convertidos"),
+                        React.createElement(Th, { right: true }, "Follow-up"),
+                        React.createElement(Th, { right: true }, "Perdidos"),
+                        React.createElement(Th, { right: true }, "Conv. s/ quem veio"),
+                        React.createElement(Th, { right: true }, "Conv. s/ agendados"),
                         React.createElement(Th, { right: true }, "N\u00E3o vieram s/ retorno"))),
                 React.createElement("tbody", null,
                     lojas.map(function (loja) {
@@ -5581,15 +5586,22 @@ function SecaoSdrGeral(_a) {
                         var fl = daLoja(loja);
                         return (React.createElement(React.Fragment, { key: loja },
                             React.createElement("tr", null,
-                                React.createElement(Td, { colSpan: 10, style: { background: "#F7F7F7", fontFamily: F_MARCA, fontWeight: 700, fontSize: 12, letterSpacing: ".06em", textTransform: "uppercase", color: T.ink2 } },
+                                React.createElement(Td, { colSpan: 11, style: { background: "#F7F7F7", fontFamily: F_MARCA, fontWeight: 700, fontSize: 12, letterSpacing: ".06em", textTransform: "uppercase", color: T.ink2 } },
                                     loja,
                                     fl ? React.createElement("span", { style: { fontWeight: 500, textTransform: "none", letterSpacing: 0, marginLeft: 10, color: T.muted } },
                                         "\u00B7 ",
                                         nInt(fl.agendados),
-                                        " agendamentos \u00B7 convers\u00E3o ",
-                                        pct(N(fl.ag_converteu), N(fl.agendados))) : null)),
+                                        " agendamentos \u2192 ",
+                                        nInt(fl.ag_compareceram),
+                                        " vieram (",
+                                        pct(N(fl.ag_compareceram), N(fl.agendados)),
+                                        ") \u2192 ",
+                                        nInt(fl.comp_converteu),
+                                        " converteram (",
+                                        pct(N(fl.comp_converteu), N(fl.ag_compareceram)),
+                                        " de quem veio)") : null)),
                             ls.map(function (c) {
-                                var cv = c.agendados ? c.conv / c.agendados : 0;
+                                var cv = c.comp ? c.conv / c.comp : 0, cp = c.agendados ? c.comp / c.agendados : 0;
                                 return (React.createElement("tr", { key: c.codigo },
                                     React.createElement(Td, { bold: true }, c.closer),
                                     React.createElement(Td, { right: true },
@@ -5599,14 +5611,29 @@ function SecaoSdrGeral(_a) {
                                             "\u00B7 ",
                                             nNum(c.recebidos / Math.max(1, c.diasComDado.size), 1),
                                             "/dia")),
-                                    React.createElement(Td, { right: true, bold: true }, nInt(c.agendados)),
+                                    React.createElement(Td, { right: true, bold: true },
+                                        nInt(c.agendados),
+                                        c.agu ? React.createElement("span", { style: { color: T.muted, fontSize: 11.5, fontWeight: 400 } },
+                                            " \u00B7 ",
+                                            nInt(c.agu),
+                                            " a vir") : null),
+                                    React.createElement(Td, { right: true, color: c.agendados >= 5 && cp < 0.7 ? T.bad : T.ink },
+                                        nInt(c.comp),
+                                        " ",
+                                        React.createElement("span", { style: { color: T.muted, fontSize: 11.5 } },
+                                            "\u00B7 ",
+                                            pct(c.comp, c.agendados)),
+                                        c.falt ? React.createElement("span", { style: { color: T.bad, fontSize: 11.5 } },
+                                            " \u00B7 ",
+                                            nInt(c.falt),
+                                            " falt.") : null),
                                     React.createElement(Td, null,
                                         React.createElement(Barrinha, { c: c })),
                                     React.createElement(Td, { right: true, color: T.good, bold: true }, nInt(c.conv)),
+                                    React.createElement(Td, { right: true, color: T.warn }, nInt(c.fup)),
                                     React.createElement(Td, { right: true, color: c.perd ? T.bad : T.ink }, nInt(c.perd)),
-                                    React.createElement(Td, { right: true }, nInt(c.and)),
-                                    React.createElement(Td, { right: true, bold: true, color: cv >= 0.5 ? T.good : cv < 0.3 && c.agendados >= 5 ? T.bad : T.ink }, pct(c.conv, c.agendados)),
-                                    React.createElement(Td, { right: true }, pct(c.compPass, c.agPass)),
+                                    React.createElement(Td, { right: true, bold: true, color: cv >= 0.7 ? T.good : cv < 0.5 && c.comp >= 5 ? T.bad : T.ink }, pct(c.conv, c.comp)),
+                                    React.createElement(Td, { right: true }, pct(c.conv, c.agendados)),
                                     React.createElement(Td, { right: true, color: c.naoVieram ? T.bad : T.ink, bold: !!c.naoVieram }, nInt(c.naoVieram))));
                             })));
                     }),
@@ -5614,21 +5641,29 @@ function SecaoSdrGeral(_a) {
                         React.createElement(Td, { bold: true }, "Todos"),
                         React.createElement(Td, { right: true, bold: true }, nInt(tot.recebidos)),
                         React.createElement(Td, { right: true, bold: true }, nInt(tot.agendados)),
+                        React.createElement(Td, { right: true, bold: true },
+                            nInt(tot.comp),
+                            " ",
+                            React.createElement("span", { style: { color: T.muted, fontSize: 11.5, fontWeight: 400 } },
+                                "\u00B7 ",
+                                pct(tot.comp, tot.agendados))),
                         React.createElement(Td, null,
                             React.createElement(Barrinha, { c: tot })),
                         React.createElement(Td, { right: true, bold: true, color: T.good }, nInt(tot.conv)),
+                        React.createElement(Td, { right: true, bold: true, color: T.warn }, nInt(tot.fup)),
                         React.createElement(Td, { right: true, bold: true, color: T.bad }, nInt(tot.perd)),
-                        React.createElement(Td, { right: true, bold: true }, nInt(tot.and)),
+                        React.createElement(Td, { right: true, bold: true }, pct(tot.conv, tot.comp)),
                         React.createElement(Td, { right: true, bold: true }, pct(tot.conv, tot.agendados)),
-                        React.createElement(Td, { right: true, bold: true }, pct(tot.compPass, tot.agPass)),
                         React.createElement(Td, { right: true, bold: true }, nInt(tot.naoVieram)))))),
         React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 8 } },
             React.createElement("span", { style: { color: T.good } }, "\u25A0"),
             " converteu \u00A0 ",
+            React.createElement("span", { style: { color: T.marca } }, "\u25A0"),
+            " em follow-up \u00A0 ",
             React.createElement("span", { style: { color: T.bad } }, "\u25A0"),
-            " perdeu \u00A0 ",
-            React.createElement("span", { style: { color: "#B5B5B5" } }, "\u25A0"),
-            " em andamento \u00A0\u00B7\u00A0 \"Perdeu\" e \"converteu\" seguem a etapa do lead no Kommo; \"n\u00E3o vieram sem retorno\" s\u00E3o faltas dos \u00FAltimos 30 dias sem reagendamento.")));
+            " perdeu \u2014 a barra e as tr\u00EAs colunas s\u00E3o sobre quem ",
+            React.createElement("b", null, "veio"),
+            ". \"Converteu\" e \"perdeu\" seguem a etapa do lead no Kommo; \"n\u00E3o vieram sem retorno\" s\u00E3o faltas dos \u00FAltimos 30 dias sem reagendamento.")));
 }
 /* ---------------------------- LOJAS ---------------------------- */
 function AbaLojas() {
@@ -6945,50 +6980,41 @@ function SecoesSdr(_a) {
                 React.createElement(Kpi, { label: "Comparecimento", value: agPassados ? nPct(compPassados / agPassados, 0) : "—", sub: agPassados ? "".concat(nInt(compPassados), " de ").concat(nInt(agPassados), " vieram (at\u00E9 ontem)") : "sem visitas passadas no mês", tone: agPassados && compPassados / agPassados >= 0.75 ? "good" : undefined }),
                 React.createElement(Kpi, { label: "N\u00E3o vieram, sem retorno", value: nInt(naoVieram.length), sub: naoVieram.length ? "faltaram e ninguém reagendou" : "todo mundo que faltou já foi reagendado", tone: naoVieram.length ? "bad" : "good" })),
             eu && Number(eu.agendados) > 0 && (function () {
-                var ag = Number(eu.agendados) || 0, conv = Number(eu.ag_converteu) || 0, perd = Number(eu.ag_perdeu) || 0, and = Number(eu.ag_andamento) || 0;
-                var lj = loja && Number(loja.agendados) ? Number(loja.ag_converteu) / Number(loja.agendados) : null;
-                var seg = function (v, cor) { return React.createElement("div", { style: { width: "".concat(v / ag * 100, "%"), background: cor, height: "100%" } }); };
+                var N = function (v) { return Number(v) || 0; };
+                var ag = N(eu.agendados), comp = N(eu.ag_compareceram), falt = N(eu.ag_faltaram), agu = N(eu.ag_aguardando);
+                var conv = N(eu.comp_converteu), fup = N(eu.comp_followup), perd = N(eu.comp_perdeu);
+                var lj = loja && N(loja.ag_compareceram) ? N(loja.comp_converteu) / N(loja.ag_compareceram) : null;
+                var Passo = function (_a) {
+                    var n = _a.n, l = _a.l, sub = _a.sub, cor = _a.cor, largura = _a.largura;
+                    return (React.createElement("div", { style: { flex: largura, minWidth: 0 } },
+                        React.createElement("div", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 26, lineHeight: 1, color: cor || T.ink } }, nInt(n)),
+                        React.createElement("div", { style: { fontSize: 12.5, fontWeight: 600, marginTop: 4 } }, l),
+                        sub && React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 2 } }, sub)));
+                };
+                var Seta = function () { return React.createElement("div", { style: { fontSize: 22, color: T.hair, padding: "0 6px", alignSelf: "center" } }, "\u2192"); };
                 return (React.createElement(Card, { className: "p16", style: { marginBottom: 12 } },
                     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 } },
-                        React.createElement("div", { style: { fontSize: 13.5 } },
-                            "O SDR marcou ",
-                            React.createElement("b", { style: { fontFamily: F_MARCA, fontSize: 18 } }, nInt(ag)),
-                            " agendamento",
-                            ag === 1 ? "" : "s",
-                            " pra voc\u00EA em ",
-                            nomeMes(h),
-                            " \u2014 voc\u00EA ",
-                            React.createElement("b", { style: { color: T.good } },
-                                "converteu ",
-                                nInt(conv)),
-                            " (",
-                            nPct(conv / ag, 0),
-                            "), ",
-                            React.createElement("b", { style: { color: T.bad } },
-                                "perdeu ",
-                                nInt(perd)),
-                            " (",
-                            nPct(perd / ag, 0),
-                            ") e tem ",
-                            React.createElement("b", null, nInt(and)),
-                            " em andamento."),
+                        React.createElement(Label, null,
+                            "Agendamentos do SDR \u00B7 ",
+                            nomeMes(h)),
                         lj != null && React.createElement("span", { style: { fontSize: 12, color: T.muted } },
-                            "convers\u00E3o da loja: ",
-                            nPct(lj, 0))),
-                    React.createElement("div", { style: { display: "flex", height: 10, borderRadius: 99, overflow: "hidden", background: T.canvas, marginTop: 10 } },
-                        seg(conv, T.good),
-                        seg(perd, T.bad),
-                        seg(and, "#B5B5B5")),
-                    React.createElement("div", { style: { display: "flex", gap: 14, fontSize: 11, color: T.muted, marginTop: 6 } },
-                        React.createElement("span", null,
-                            React.createElement("span", { style: { color: T.good } }, "\u25A0"),
-                            " converteu"),
-                        React.createElement("span", null,
-                            React.createElement("span", { style: { color: T.bad } }, "\u25A0"),
-                            " perdeu"),
-                        React.createElement("span", null,
-                            React.createElement("span", { style: { color: "#B5B5B5" } }, "\u25A0"),
-                            " em andamento"))));
+                            "a loja converte ",
+                            nPct(lj, 0),
+                            " de quem vem")),
+                    React.createElement("div", { style: { display: "flex", alignItems: "stretch", gap: 4, marginTop: 12, flexWrap: "wrap" } },
+                        React.createElement(Passo, { n: ag, l: "agendamentos", sub: agu ? "".concat(nInt(agu), " ainda por acontecer") : null, largura: 1 }),
+                        React.createElement(Seta, null),
+                        React.createElement(Passo, { n: comp, l: "compareceram \u00B7 ".concat(nPct(comp / ag, 0)), sub: falt ? "".concat(nInt(falt), " faltaram") : "ninguém faltou", largura: 1 }),
+                        React.createElement(Seta, null),
+                        React.createElement("div", { style: { flex: 2.2, minWidth: 260 } },
+                            React.createElement("div", { style: { display: "flex", gap: 18 } },
+                                React.createElement(Passo, { n: conv, l: "convertidos", sub: comp ? "".concat(nPct(conv / comp, 0), " de quem veio") : null, cor: T.good, largura: 1 }),
+                                React.createElement(Passo, { n: fup, l: "em follow-up", sub: "visitou e ainda negocia", cor: T.warn, largura: 1 }),
+                                React.createElement(Passo, { n: perd, l: "perdidos", sub: perd ? "visitou e não fechou" : "nenhum", cor: perd ? T.bad : T.muted, largura: 1 })),
+                            React.createElement("div", { style: { display: "flex", height: 8, borderRadius: 99, overflow: "hidden", background: T.canvas, marginTop: 10 } }, comp > 0 && React.createElement(React.Fragment, null,
+                                React.createElement("div", { style: { width: "".concat(conv / comp * 100, "%"), background: T.good } }),
+                                React.createElement("div", { style: { width: "".concat(fup / comp * 100, "%"), background: T.marca } }),
+                                React.createElement("div", { style: { width: "".concat(perd / comp * 100, "%"), background: T.bad } })))))));
             })(),
             React.createElement("div", { style: { display: "grid", gap: 12, gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr)" }, className: "tira3" },
                 React.createElement(Card, { className: "p16" },
