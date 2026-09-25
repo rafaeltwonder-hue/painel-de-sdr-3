@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v60 — CAR SERVICE</title>
-<meta name="painel-versao" content="v60">
+<title>Painel de SDR v61 — CAR SERVICE</title>
+<meta name="painel-versao" content="v61">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -220,7 +220,7 @@ window.FOTOS_ORC = {"hero_rear_logo": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ
 <script>
 function iniciarPainel() {
 "use strict";
-/* Painel de SDR — The Wonder / Car Service (v60: agenda e o que vem do SDR no piloto do closer)
+/* Painel de SDR — The Wonder / Car Service (v61: agendamentos do SDR convertidos/perdidos e prazo de entrega da O.S.)
    Lê as views do Supabase. Sem lançamento manual: o dado vem do Kommo. */
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function(t) {
@@ -6772,6 +6772,52 @@ function SecoesSdr(_a) {
                 React.createElement(Kpi, { label: "Agendamentos hoje", value: nInt(hojeD.agendamentos), sub: "m\u00E9dia do m\u00EAs: ".concat(nNum(agMes / diasComDado, 1), " por dia \u00B7 ").concat(nInt(agMes), " no m\u00EAs") }),
                 React.createElement(Kpi, { label: "Comparecimento", value: agPassados ? nPct(compPassados / agPassados, 0) : "—", sub: agPassados ? "".concat(nInt(compPassados), " de ").concat(nInt(agPassados), " vieram (at\u00E9 ontem)") : "sem visitas passadas no mês", tone: agPassados && compPassados / agPassados >= 0.75 ? "good" : undefined }),
                 React.createElement(Kpi, { label: "N\u00E3o vieram, sem retorno", value: nInt(naoVieram.length), sub: naoVieram.length ? "faltaram e ninguém reagendou" : "todo mundo que faltou já foi reagendado", tone: naoVieram.length ? "bad" : "good" })),
+            eu && Number(eu.agendados) > 0 && (function () {
+                var ag = Number(eu.agendados) || 0, conv = Number(eu.ag_converteu) || 0, perd = Number(eu.ag_perdeu) || 0, and = Number(eu.ag_andamento) || 0;
+                var lj = loja && Number(loja.agendados) ? Number(loja.ag_converteu) / Number(loja.agendados) : null;
+                var seg = function (v, cor) { return React.createElement("div", { style: { width: "".concat(v / ag * 100, "%"), background: cor, height: "100%" } }); };
+                return (React.createElement(Card, { className: "p16", style: { marginBottom: 12 } },
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8 } },
+                        React.createElement("div", { style: { fontSize: 13.5 } },
+                            "O SDR marcou ",
+                            React.createElement("b", { style: { fontFamily: F_MARCA, fontSize: 18 } }, nInt(ag)),
+                            " agendamento",
+                            ag === 1 ? "" : "s",
+                            " pra voc\u00EA em ",
+                            nomeMes(h),
+                            " \u2014 voc\u00EA ",
+                            React.createElement("b", { style: { color: T.good } },
+                                "converteu ",
+                                nInt(conv)),
+                            " (",
+                            nPct(conv / ag, 0),
+                            "), ",
+                            React.createElement("b", { style: { color: T.bad } },
+                                "perdeu ",
+                                nInt(perd)),
+                            " (",
+                            nPct(perd / ag, 0),
+                            ") e tem ",
+                            React.createElement("b", null, nInt(and)),
+                            " em andamento."),
+                        lj != null && React.createElement("span", { style: { fontSize: 12, color: T.muted } },
+                            "convers\u00E3o da loja: ",
+                            nPct(lj, 0))),
+                    React.createElement("div", { style: { display: "flex", height: 10, borderRadius: 99, overflow: "hidden", background: T.canvas, marginTop: 10 } },
+                        seg(conv, T.good),
+                        seg(perd, T.bad),
+                        seg(and, "#B5B5B5")),
+                    React.createElement("div", { style: { display: "flex", gap: 14, fontSize: 11, color: T.muted, marginTop: 6 } },
+                        React.createElement("span", null,
+                            React.createElement("span", { style: { color: T.good } }, "\u25A0"),
+                            " converteu"),
+                        React.createElement("span", null,
+                            React.createElement("span", { style: { color: T.bad } }, "\u25A0"),
+                            " perdeu"),
+                        React.createElement("span", null,
+                            React.createElement("span", { style: { color: "#B5B5B5" } }, "\u25A0"),
+                            " em andamento"))));
+            })(),
             React.createElement("div", { style: { display: "grid", gap: 12, gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr)" }, className: "tira3" },
                 React.createElement(Card, { className: "p16" },
                     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline" } },
@@ -6811,8 +6857,46 @@ function SecoesSdr(_a) {
                     naoVieram.length > 0 && React.createElement("div", { style: { padding: "10px 16px", fontSize: 11.5, color: T.muted } }, "Faltaram na visita e n\u00E3o t\u00EAm reagendamento. Quem reativa vende de novo o que o SDR j\u00E1 vendeu uma vez."))))));
 }
 /* ---------- MEU PAINEL ---------- */
+/* v61: o prazo de entrega é do closer — o Oficina não exporta previsão.
+   Um campo de data na linha; salva ao mudar; vencido fica vermelho. */
+function PrazoOs(_a) {
+    var _this = this;
+    var o = _a.o, aoSalvar = _a.aoSalvar;
+    var _b = __read(useState(o.prazo_entrega ? String(o.prazo_entrega).slice(0, 10) : ""), 2), v = _b[0], setV = _b[1];
+    var _c = __read(useState(null), 2), st = _c[0], setSt = _c[1];
+    useEffect(function () { setV(o.prazo_entrega ? String(o.prazo_entrega).slice(0, 10) : ""); }, [o.prazo_entrega]);
+    var salvar = function (novo) { return __awaiter(_this, void 0, void 0, function () {
+        var error;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    setV(novo);
+                    setSt("salvando");
+                    return [4 /*yield*/, db.from("os_prazo").upsert({ loja: o.loja, os_numero: String(o.os_numero), prazo_entrega: novo || null }, { onConflict: "loja,os_numero" })];
+                case 1:
+                    error = (_a.sent()).error;
+                    if (error) {
+                        setSt("erro");
+                        return [2 /*return*/];
+                    }
+                    setSt("ok");
+                    setTimeout(function () { return setSt(null); }, 1500);
+                    if (aoSalvar)
+                        aoSalvar();
+                    return [2 /*return*/];
+            }
+        });
+    }); };
+    var vencido = v && v < hoje();
+    return (React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 6 } },
+        React.createElement("input", { type: "date", value: v, onChange: function (e) { return salvar(e.target.value); }, className: "dt", style: { padding: "4px 6px", fontSize: 12.5, fontWeight: vencido ? 700 : 400, color: vencido ? T.bad : T.ink, borderColor: vencido ? "#F0C3C6" : T.hair, width: 138 } }),
+        vencido && React.createElement(Tag, { cor: T.bad }, "vencido"),
+        st === "salvando" && React.createElement("span", { style: { fontSize: 11, color: T.muted } }, "\u2026"),
+        st === "ok" && React.createElement("span", { style: { fontSize: 11, color: T.good } }, "\u2713"),
+        st === "erro" && React.createElement("span", { style: { fontSize: 11, color: T.bad } }, "n\u00E3o salvou")));
+}
 function MeuPainel(_a) {
-    var d = _a.d, closer = _a.closer, irParaOrcamentos = _a.irParaOrcamentos, novoDoLead = _a.novoDoLead, abrirOrcamento = _a.abrirOrcamento;
+    var d = _a.d, closer = _a.closer, irParaOrcamentos = _a.irParaOrcamentos, novoDoLead = _a.novoDoLead, abrirOrcamento = _a.abrirOrcamento, recarregar = _a.recarregar;
     var h = hoje(), m0 = primeiroDia(h);
     var mes = d.mes || {};
     var orcMes = d.orcamentos.filter(function (o) { return String(o.criado_em).slice(0, 7) === m0.slice(0, 7); });
@@ -6839,6 +6923,11 @@ function MeuPainel(_a) {
             sub: fechadoSemOs.slice(0, 2).map(function (o) { return "N\u00BA ".concat(o.numero, " \u00B7 ").concat(o.cliente_nome || "", " \u00B7 placa ").concat(o.placa || "?"); }).join(" — ") + " — nenhuma O.S. com a placa no Oficina", acao: "Conferir", ir: function () { return abrirOrcamento(fechadoSemOs[0].id); } },
         vencendo.length && { n: vencendo.length, cor: T.warn, titulo: "or\u00E7amento".concat(vencendo.length > 1 ? "s" : "", " em aberto com validade vencida"),
             sub: "Ou o cliente responde, ou vira perdido/vencido — não deixa pendurado", acao: "Ver", ir: function () { return abrirOrcamento(vencendo[0].id); } },
+        (function () {
+            var v = d.osAbertas.filter(function (o) { return o.prazo_vencido; });
+            return v.length && { n: v.length, cor: T.bad, titulo: "O.S. com prazo de entrega vencido",
+                sub: "".concat(nReal(v.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0)), " em carro").concat(v.length > 1 ? "s" : "", " que j\u00E1 devia").concat(v.length > 1 ? "m" : "", " ter sa\u00EDdo \u2014 ").concat(v.map(function (o) { return o.os_numero; }).slice(0, 4).join(", ")) };
+        })(),
         osVelhas.length && { n: osVelhas.length, cor: T.warn, titulo: "O.S. aberta".concat(osVelhas.length > 1 ? "s" : "", " h\u00E1 mais de 7 dias"),
             sub: "".concat(nReal(osVelhas.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0)), " em carros que ainda n\u00E3o sa\u00EDram \u2014 a mais antiga h\u00E1 ").concat(Math.max.apply(Math, __spreadArray([], __read(osVelhas.map(function (o) { return Number(o.dias_aberta) || 0; })), false)), " dias") },
         d.osSemOrc.length && { n: d.osSemOrc.length, cor: T.warn, titulo: "venda".concat(d.osSemOrc.length > 1 ? "s" : "", " que n\u00E3o passou pelo painel"),
@@ -6912,7 +7001,7 @@ function MeuPainel(_a) {
                                 React.createElement(Btn, { kind: "accent", onClick: function () { return novoDoLead(l); }, style: { padding: "6px 11px", fontSize: 12 } }, "Criar or\u00E7amento")))); }),
                         !d.posVisita.length && React.createElement("tr", null,
                             React.createElement(Td, { color: T.muted }, "Nenhum lead do CRM esperando or\u00E7amento.")))))),
-        React.createElement(Secao, { n: 7, titulo: "Minhas O.S. em aberto", nota: "Direto do Oficina. O.S. aberta h\u00E1 mais de 7 dias em vermelho \u2014 carro que ainda n\u00E3o saiu \u00E9 dinheiro que ainda n\u00E3o entrou." },
+        React.createElement(Secao, { n: 7, titulo: "Minhas O.S. em aberto", nota: "Direto do Oficina. O.S. aberta h\u00E1 mais de 7 dias em vermelho. O prazo de entrega \u00E9 voc\u00EA quem lan\u00E7a \u2014 o Oficina n\u00E3o exporta previs\u00E3o; vencido vira alerta l\u00E1 em cima." },
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
                     React.createElement("thead", null,
@@ -6924,7 +7013,8 @@ function MeuPainel(_a) {
                             React.createElement(Th, { right: true }, "Itens"),
                             React.createElement(Th, { right: true }, "Valor"),
                             React.createElement(Th, { right: true }, "Aberta em"),
-                            React.createElement(Th, { right: true }, "Aberta h\u00E1"))),
+                            React.createElement(Th, { right: true }, "Aberta h\u00E1"),
+                            React.createElement(Th, { right: true }, "Prazo de entrega"))),
                     React.createElement("tbody", null,
                         d.osAbertas.map(function (o) { return (React.createElement("tr", { key: o.os_numero },
                             React.createElement(Td, { bold: true }, o.os_numero),
@@ -6937,7 +7027,9 @@ function MeuPainel(_a) {
                             React.createElement(Td, { right: true, color: Number(o.dias_aberta) > 7 ? T.bad : T.ink, bold: Number(o.dias_aberta) > 7 },
                                 nInt(o.dias_aberta),
                                 " dia",
-                                Number(o.dias_aberta) === 1 ? "" : "s"))); }),
+                                Number(o.dias_aberta) === 1 ? "" : "s"),
+                            React.createElement(Td, { right: true },
+                                React.createElement(PrazoOs, { o: o, aoSalvar: recarregar })))); }),
                         !d.osAbertas.length && React.createElement("tr", null,
                             React.createElement(Td, { color: T.muted }, "Nenhuma O.S. em aberto no seu nome."))))))));
 }
@@ -7717,7 +7809,7 @@ function Piloto(_a) {
             d.erro),
         d.carregando && !d.em && React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando o seu m\u00EAs\u2026"),
         (d.em || !d.carregando) && !d.erro && (aba === "painel"
-            ? React.createElement(MeuPainel, { d: d, closer: closer, irParaOrcamentos: function () { return setAba("orcamentos"); }, novoDoLead: novoDoLead, abrirOrcamento: abrirOrcamento })
+            ? React.createElement(MeuPainel, { d: d, closer: closer, irParaOrcamentos: function () { return setAba("orcamentos"); }, novoDoLead: novoDoLead, abrirOrcamento: abrirOrcamento, recarregar: recarregar })
             : React.createElement(AbaOrcamentos, { d: d, closer: closer, recarregar: recarregar, prefill: prefill, limparPrefill: function () { return setPrefill(null); }, abertoId: abertoId, setAbertoId: setAbertoId }))));
 }
 /* A casca do closer: cabeçalho preto com o nome dele, sem as abas de SDR.
