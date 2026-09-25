@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v58 — CAR SERVICE</title>
-<meta name="painel-versao" content="v58">
+<title>Painel de SDR v60 — CAR SERVICE</title>
+<meta name="painel-versao" content="v60">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -220,7 +220,7 @@ window.FOTOS_ORC = {"hero_rear_logo": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ
 <script>
 function iniciarPainel() {
 "use strict";
-/* Painel de SDR — The Wonder / Car Service (v58: piloto do closer — formulário C e imagem para o cliente)
+/* Painel de SDR — The Wonder / Car Service (v60: agenda e o que vem do SDR no piloto do closer)
    Lê as views do Supabase. Sem lançamento manual: o dado vem do Kommo. */
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function(t) {
@@ -6461,9 +6461,9 @@ var exigir = function (q) { return __awaiter(void 0, void 0, void 0, function ()
 /* .single() devolve objeto; o Supabase de teste devolve lista. Aceita os dois. */
 var umSo = function (d) { return (Array.isArray(d) ? d[0] : d); };
 /* ---------- dados do piloto ---------- */
-function usePiloto(closerCodigo, versao) {
+function usePiloto(closerCodigo, versao, lojaDoCloser) {
     var _this = this;
-    var _a = __read(useState({ carregando: true, erro: null, mes: null, mesAnt: null, ranking: null, osAbertas: [], posVisita: [], orcamentos: [], osSemOrc: [], em: null }), 2), d = _a[0], setD = _a[1];
+    var _a = __read(useState({ carregando: true, erro: null, mes: null, mesAnt: null, ranking: null, osAbertas: [], posVisita: [], orcamentos: [], osSemOrc: [], agenda: [], sdrDia: [], funil: [], em: null }), 2), d = _a[0], setD = _a[1];
     useEffect(function () {
         if (!closerCodigo)
             return undefined;
@@ -6487,14 +6487,22 @@ function usePiloto(closerCodigo, versao) {
             pega(db.from("closer_pos_visita_v").select("*").eq("closer_codigo", closerCodigo)),
             pega(db.from("orcamento_v").select("*").eq("closer_codigo", closerCodigo).order("criado_em", { ascending: false }).limit(400)),
             pega(db.from("closer_os_sem_orcamento_v").select("*").eq("closer_codigo", closerCodigo)),
+            /* v60 — o que vem do SDR. O funil traz também a linha da loja (closer_codigo nulo). */
+            pega(db.from("closer_agenda_v").select("*").eq("closer_codigo", closerCodigo)),
+            pega(db.from("closer_sdr_dia_v").select("*").eq("closer_codigo", closerCodigo)),
+            pega(db.from("closer_funil_v").select("*").or("closer_codigo.eq.".concat(closerCodigo, ",closer_codigo.is.null"))),
         ]).then(function (_a) {
-            var _b = __read(_a, 6), meses = _b[0], rk = _b[1], os = _b[2], pv = _b[3], orc = _b[4], som = _b[5];
+            var _b = __read(_a, 9), meses = _b[0], rk = _b[1], os = _b[2], pv = _b[3], orc = _b[4], som = _b[5], ag = _b[6], sd = _b[7], fu = _b[8];
             if (!vivo)
                 return;
             setD({ carregando: false, erro: null,
                 mes: meses.find(function (x) { return String(x.mes).slice(0, 10) === m0; }) || null,
                 mesAnt: meses.find(function (x) { return String(x.mes).slice(0, 10) === mAnt; }) || null,
-                ranking: rk[0] || null, osAbertas: os, posVisita: pv, orcamentos: orc, osSemOrc: som, em: new Date() });
+                ranking: rk[0] || null, osAbertas: os, posVisita: pv, orcamentos: orc, osSemOrc: som,
+                agenda: ag, sdrDia: sd,
+                /* a linha da loja só vale se for a loja deste closer */
+                funil: fu.filter(function (f) { return f.closer_codigo != null || !lojaDoCloser || f.unidade === lojaDoCloser; }),
+                em: new Date() });
         }).catch(function (e) { if (vivo)
             setD(function (x) { return (__assign(__assign({}, x), { carregando: false, erro: e.message })); }); });
         return function () { vivo = false; };
@@ -6506,7 +6514,7 @@ function useClosers(sessao, todos) {
     var _a = __read(useState({ lista: null, erro: null }), 2), st = _a[0], setSt = _a[1];
     useEffect(function () {
         var vivo = true;
-        db.from("map_closer").select("erp_codigo, nome_oficial, unidade, meta_mensal, auth_user_id, email, ativo").eq("ativo", true).order("unidade").order("nome_oficial")
+        db.from("map_closer").select("*").eq("ativo", true).order("unidade").order("nome_oficial")
             .then(function (_a) {
             var data = _a.data, error = _a.error;
             if (!vivo)
@@ -6627,6 +6635,181 @@ var Faixas = function (_a) {
                 React.createElement(Barra, { pct: total ? l.v / total : 0, cor: l.cor || cor, alt: 7 })))); }),
         !linhas.length && React.createElement("div", { style: { fontSize: 12.5, color: T.muted } }, "Nada no m\u00EAs ainda.")));
 };
+/* ---------- v60: o que vem do SDR ----------
+   Agenda (hoje e amanhã), leads recebidos e agendamentos por dia, funil
+   do CRM com a média da loja, e quem faltou sem retorno. Tudo lido das
+   views closer_agenda_v, closer_sdr_dia_v e closer_funil_v. Comparecimento
+   continua sendo marcado pelo SDR no Kommo — aqui é leitura. */
+var DIAS_SEM = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+var rotDia = function (isoDia) { return "".concat(DIAS_SEM[parseISO(isoDia).getDay()], ", ").concat(br(isoDia)); };
+var capital = function (s) { var t = String(s || "").trim(); return t ? t.charAt(0).toUpperCase() + t.slice(1) : ""; };
+function LinhaAgenda(_a) {
+    var l = _a.l, agora = _a.agora, aoOrcar = _a.aoOrcar, abrirOrcamento = _a.abrirOrcamento;
+    var veio = l.desfecho === "compareceu";
+    var faltou = l.desfecho === "nao_compareceu" || l.desfecho === "cancelou";
+    var destaque = agora && l.hora && !veio && !faltou;
+    return (React.createElement("div", { style: { display: "grid", gridTemplateColumns: "70px 1fr auto", gap: 14, alignItems: "center", padding: "12px 16px",
+            borderBottom: "1px solid ".concat(T.hair), background: destaque ? "#FFFBEB" : "transparent" } },
+        React.createElement("div", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 15, lineHeight: 1.1 } },
+            l.hora || React.createElement("span", { style: { color: T.muted, fontWeight: 500, fontSize: 12 } }, "sem hora"),
+            React.createElement("div", { style: { fontWeight: 500, fontSize: 10.5, color: veio ? T.good : faltou ? T.bad : T.muted, letterSpacing: ".06em", marginTop: 2 } }, veio ? "VEIO ✓" : faltou ? "FALTOU" : destaque ? "AGORA" : "")),
+        React.createElement("div", { style: { minWidth: 0 } },
+            React.createElement("div", { style: { fontSize: 13.5, fontWeight: 700 } },
+                l.cliente || "sem nome",
+                " ",
+                Number(l.vez) > 1 && React.createElement(Tag, { cor: T.warn },
+                    "reagendou ",
+                    Number(l.vez) - 1,
+                    "\u00D7")),
+            React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, [l.veiculo, l.interesse, l.sdr ? "agendou ".concat(l.sdr) : null].filter(Boolean).join(" · ") || "—")),
+        React.createElement("div", null, l.tem_orcamento ? React.createElement(Btn, { onClick: function () { return abrirOrcamento(l.orcamento_id); }, style: { padding: "6px 11px", fontSize: 12 } }, "Ver or\u00E7amento")
+            : veio ? React.createElement(Btn, { kind: "accent", onClick: function () { return aoOrcar(l); }, style: { padding: "6px 11px", fontSize: 12 } }, "Or\u00E7ar")
+                : faltou ? React.createElement("span", { style: { fontSize: 12, color: T.muted } }, "reativar no Kommo")
+                    : React.createElement("span", { style: { fontSize: 12, color: T.muted } }, "agendado"))));
+}
+function CartaoDia(_a) {
+    var titulo = _a.titulo, lista = _a.lista, agora = _a.agora, aoOrcar = _a.aoOrcar, abrirOrcamento = _a.abrirOrcamento, rodape = _a.rodape;
+    var vieram = lista.filter(function (l) { return l.desfecho === "compareceu"; }).length;
+    var ordenada = lista.slice().sort(function (a, b) { return String(a.hora || "99").localeCompare(String(b.hora || "99")); });
+    return (React.createElement(Card, { className: "p0" },
+        React.createElement("div", { style: { padding: "12px 16px", borderBottom: "1px solid ".concat(T.hair), display: "flex", justifyContent: "space-between", alignItems: "center" } },
+            React.createElement(Label, { style: { color: T.ink } }, titulo),
+            React.createElement(Tag, null,
+                lista.length,
+                " visita",
+                lista.length === 1 ? "" : "s",
+                vieram ? " \u00B7 ".concat(vieram, " j\u00E1 ").concat(vieram === 1 ? "veio" : "vieram") : "")),
+        ordenada.map(function (l) { return React.createElement(LinhaAgenda, { key: l.kommo_id, l: l, agora: agora, aoOrcar: aoOrcar, abrirOrcamento: abrirOrcamento }); }),
+        !lista.length && React.createElement("div", { style: { padding: 16, fontSize: 13, color: T.muted } }, "Nenhuma visita marcada."),
+        rodape && React.createElement("div", { style: { padding: "10px 16px", fontSize: 12, color: T.muted, borderTop: "1px solid ".concat(T.hair) } }, rodape)));
+}
+/* barras por dia: leads recebidos (preto) e agendamentos (cinza), hoje em amarelo */
+function BarrasDia(_a) {
+    var dias = _a.dias, hojeISO = _a.hojeISO;
+    var m0 = primeiroDia(hojeISO);
+    var doMes = dias.filter(function (d) { return String(d.dia).slice(0, 10) >= m0; }).sort(function (a, b) { return String(a.dia).localeCompare(String(b.dia)); });
+    var max = Math.max.apply(Math, __spreadArray([1], __read(doMes.map(function (d) { return Math.max(Number(d.leads_recebidos) || 0, Number(d.agendamentos) || 0); })), false));
+    return (React.createElement("div", null,
+        React.createElement("div", { style: { display: "flex", alignItems: "flex-end", gap: 4, height: 64, marginTop: 12 } },
+            doMes.map(function (d) {
+                var hoje_ = String(d.dia).slice(0, 10) === hojeISO;
+                return (React.createElement("div", { key: d.dia, title: "".concat(br(String(d.dia).slice(0, 10)), ": ").concat(d.leads_recebidos, " lead(s), ").concat(d.agendamentos, " agendamento(s)"), style: { flex: 1, display: "flex", alignItems: "flex-end", gap: 2, height: "100%" } },
+                    React.createElement("div", { style: { flex: 1, height: "".concat((Number(d.leads_recebidos) || 0) / max * 100, "%"), background: hoje_ ? T.marca : T.ink, borderRadius: "3px 3px 0 0", minHeight: d.leads_recebidos ? 2 : 0 } }),
+                    React.createElement("div", { style: { flex: 1, height: "".concat((Number(d.agendamentos) || 0) / max * 100, "%"), background: hoje_ ? "#E0A800" : "#9A9A9A", borderRadius: "3px 3px 0 0", minHeight: d.agendamentos ? 2 : 0 } })));
+            }),
+            !doMes.length && React.createElement("div", { style: { fontSize: 12.5, color: T.muted } }, "Nada no m\u00EAs ainda.")),
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 10.5, color: T.muted, marginTop: 5 } },
+            React.createElement("span", null, doMes.length ? br(String(doMes[0].dia).slice(0, 10)) : ""),
+            React.createElement("span", null, "hoje"))));
+}
+function FunilCrm(_a) {
+    var eu = _a.eu, loja = _a.loja;
+    var linhas = [["Recebidos", "recebidos"], ["Visitaram", "visitaram"], ["Orçaram", "orcaram"], ["Fecharam", "fecharam"]];
+    var base = Number(eu && eu.recebidos) || 0, baseLoja = Number(loja && loja.recebidos) || 0;
+    var pct = function (v, b) { return (b ? nPct(v / b, 0) : "—"); };
+    return (React.createElement("div", { style: { display: "grid", gap: 9, marginTop: 10 } },
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "78px 1fr 84px 48px", gap: 10, fontSize: 10.5, letterSpacing: ".06em", textTransform: "uppercase", color: T.muted, fontWeight: 600 } },
+            React.createElement("span", null),
+            React.createElement("span", null),
+            React.createElement("span", { style: { textAlign: "right" } }, "voc\u00EA"),
+            React.createElement("span", { style: { textAlign: "right" } }, "loja")),
+        linhas.map(function (_a, i) {
+            var _b = __read(_a, 2), l = _b[0], k = _b[1];
+            var v = Number(eu && eu[k]) || 0, vl = Number(loja && loja[k]) || 0;
+            return (React.createElement("div", { key: k, style: { display: "grid", gridTemplateColumns: "78px 1fr 84px 48px", gap: 10, alignItems: "center", fontSize: 12.5 } },
+                React.createElement("span", null, l),
+                React.createElement(Barra, { pct: base ? v / base : 0, cor: k === "fecharam" ? T.good : T.ink }),
+                React.createElement("span", { style: { fontWeight: 700, textAlign: "right", fontVariantNumeric: "tabular-nums" } },
+                    nInt(v),
+                    i > 0 ? " \u00B7 ".concat(pct(v, base)) : ""),
+                React.createElement("span", { style: { color: T.muted, textAlign: "right", fontVariantNumeric: "tabular-nums" } }, i > 0 ? pct(vl, baseLoja) : "—")));
+        }),
+        (!eu || !base) && React.createElement("div", { style: { fontSize: 12.5, color: T.muted } }, "Nenhum lead recebido no m\u00EAs ainda.")));
+}
+function SecoesSdr(_a) {
+    var d = _a.d, closer = _a.closer, novoDoLead = _a.novoDoLead, abrirOrcamento = _a.abrirOrcamento, nInicio = _a.nInicio;
+    var h = hoje(), amanha = addDays(h, 1), m0 = primeiroDia(h);
+    var agenda = d.agenda || [], dias = d.sdrDia || [], funil = d.funil || [];
+    var deHoje = agenda.filter(function (l) { return String(l.dia).slice(0, 10) === h; });
+    var deAmanha = agenda.filter(function (l) { return String(l.dia).slice(0, 10) === amanha; });
+    /* interesse da semana: os próximos 7 dias */
+    var prox = agenda.filter(function (l) { var x = String(l.dia).slice(0, 10); return x >= h && x <= addDays(h, 7); });
+    var interesse = {};
+    prox.forEach(function (l) { var k = capital(l.interesse || "outros"); interesse[k] = (interesse[k] || 0) + 1; });
+    var topInteresse = Object.keys(interesse).sort(function (a, b) { return interesse[b] - interesse[a]; }).slice(0, 4);
+    /* não vieram e não têm nova visita marcada nem foram encerrados */
+    var futuras = new Set(agenda.filter(function (l) { return String(l.dia).slice(0, 10) >= h; }).map(function (l) { return l.kommo_id; }));
+    var naoVieram = agenda.filter(function (l) { return (l.desfecho === "nao_compareceu" || l.desfecho === "cancelou") && String(l.dia).slice(0, 10) < h
+        && !futuras.has(l.kommo_id) && l.etapa_grupo !== "ganho" && l.etapa_grupo !== "perdido"; })
+        .sort(function (a, b) { return String(b.dia).localeCompare(String(a.dia)); });
+    var doMes = dias.filter(function (x) { return String(x.dia).slice(0, 10) >= m0; });
+    var hojeD = doMes.find(function (x) { return String(x.dia).slice(0, 10) === h; }) || {};
+    var soma = function (k) { return doMes.reduce(function (s, x) { return s + (Number(x[k]) || 0); }, 0); };
+    var diasComDado = Math.max(1, new Set(doMes.filter(function (x) { return Number(x.leads_recebidos) || Number(x.agendamentos); }).map(function (x) { return x.dia; })).size);
+    var leadsMes = soma("leads_recebidos"), agMes = soma("agendamentos"), compMes = soma("compareceram"), faltMes = soma("faltaram");
+    var passados = doMes.filter(function (x) { return String(x.dia).slice(0, 10) < h; });
+    var agPassados = passados.reduce(function (s, x) { return s + (Number(x.agendamentos) || 0); }, 0);
+    var compPassados = passados.reduce(function (s, x) { return s + (Number(x.compareceram) || 0); }, 0);
+    var eu = funil.find(function (f) { return f.closer_codigo != null && String(f.mes).slice(0, 10) === m0; }) || null;
+    var loja = funil.find(function (f) { return f.closer_codigo == null && String(f.mes).slice(0, 10) === m0; }) || null;
+    var compLoja = loja && Number(loja.recebidos) ? null : null; // a loja entra no funil, não aqui
+    return (React.createElement(React.Fragment, null,
+        React.createElement(Secao, { n: nInicio, titulo: "Quem vem hoje e amanh\u00E3", nota: "Os agendamentos que o SDR marcou pra voc\u00EA, direto do Kommo. Quem j\u00E1 veio ganha o bot\u00E3o Or\u00E7ar, que abre o or\u00E7amento j\u00E1 preenchido. Comparecimento continua sendo marcado pelo SDR." },
+            React.createElement("div", { className: "col2" },
+                React.createElement(CartaoDia, { titulo: "Hoje \u00B7 ".concat(rotDia(h)), lista: deHoje, agora: true, aoOrcar: novoDoLead, abrirOrcamento: abrirOrcamento }),
+                React.createElement(CartaoDia, { titulo: "Amanh\u00E3 \u00B7 ".concat(rotDia(amanha)), lista: deAmanha, aoOrcar: novoDoLead, abrirOrcamento: abrirOrcamento, rodape: topInteresse.length ? React.createElement("span", null,
+                        "Interesse dos pr\u00F3ximos 7 dias: ",
+                        topInteresse.map(function (k, i) { return React.createElement("span", { key: k },
+                            i > 0 && " · ",
+                            i === 0 ? React.createElement("b", { style: { color: T.ink } },
+                                k,
+                                " (",
+                                interesse[k],
+                                ")") : "".concat(k, " (").concat(interesse[k], ")")); })) : null }))),
+        React.createElement(Secao, { n: nInicio + 1, titulo: "O que o SDR te entrega", nota: "Leads que passaram pra voc\u00EA e visitas marcadas no seu nome, por dia. A m\u00E9dia da loja \u00E9 s\u00F3 a m\u00E9dia \u2014 sem nome de colega." },
+            React.createElement("div", { className: "grid-kpi-4", style: { marginBottom: 12 } },
+                React.createElement(Kpi, { label: "Leads recebidos hoje", value: nInt(hojeD.leads_recebidos), sub: "m\u00E9dia do m\u00EAs: ".concat(nNum(leadsMes / diasComDado, 1), " por dia \u00B7 ").concat(nInt(leadsMes), " no m\u00EAs") }),
+                React.createElement(Kpi, { label: "Agendamentos hoje", value: nInt(hojeD.agendamentos), sub: "m\u00E9dia do m\u00EAs: ".concat(nNum(agMes / diasComDado, 1), " por dia \u00B7 ").concat(nInt(agMes), " no m\u00EAs") }),
+                React.createElement(Kpi, { label: "Comparecimento", value: agPassados ? nPct(compPassados / agPassados, 0) : "—", sub: agPassados ? "".concat(nInt(compPassados), " de ").concat(nInt(agPassados), " vieram (at\u00E9 ontem)") : "sem visitas passadas no mês", tone: agPassados && compPassados / agPassados >= 0.75 ? "good" : undefined }),
+                React.createElement(Kpi, { label: "N\u00E3o vieram, sem retorno", value: nInt(naoVieram.length), sub: naoVieram.length ? "faltaram e ninguém reagendou" : "todo mundo que faltou já foi reagendado", tone: naoVieram.length ? "bad" : "good" })),
+            React.createElement("div", { style: { display: "grid", gap: 12, gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1fr) minmax(0,1fr)" }, className: "tira3" },
+                React.createElement(Card, { className: "p16" },
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline" } },
+                        React.createElement(Label, null,
+                            "Por dia \u00B7 ",
+                            nomeMes(h)),
+                        React.createElement("span", { style: { fontSize: 11, color: T.muted } },
+                            React.createElement("span", { style: { color: T.ink } }, "\u25A0"),
+                            " leads recebidos \u00A0 ",
+                            React.createElement("span", { style: { color: "#9A9A9A" } }, "\u25A0"),
+                            " agendamentos \u00A0 ",
+                            React.createElement("span", { style: { color: T.marca } }, "\u25A0"),
+                            " hoje")),
+                    React.createElement(BarrasDia, { dias: dias, hojeISO: h })),
+                React.createElement(Card, { className: "p16" },
+                    React.createElement(Label, null,
+                        "Meu funil do CRM \u00B7 ",
+                        nomeMes(h)),
+                    React.createElement(FunilCrm, { eu: eu, loja: loja }),
+                    eu && loja && Number(eu.recebidos) > 0 && Number(loja.recebidos) > 0 && (React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 12 } },
+                        "% sobre o recebido. Fechamento: voc\u00EA ",
+                        nPct(eu.fecharam / eu.recebidos, 0),
+                        " \u00B7 loja ",
+                        nPct(loja.fecharam / loja.recebidos, 0),
+                        "."))),
+                React.createElement(Card, { className: "p0" },
+                    React.createElement("div", { style: { padding: "12px 16px", borderBottom: "1px solid ".concat(T.hair) } },
+                        React.createElement(Label, { style: { color: T.ink } }, "N\u00E3o vieram \u00B7 pra voc\u00EA reativar")),
+                    React.createElement("div", null,
+                        naoVieram.slice(0, 8).map(function (l) { return (React.createElement("div", { key: l.kommo_id, style: { display: "grid", gridTemplateColumns: "minmax(0,1fr) 46px auto", gap: 10, alignItems: "center", padding: "9px 16px", borderBottom: "1px solid ".concat(T.hair), fontSize: 13 } },
+                            React.createElement("div", { style: { minWidth: 0 } },
+                                React.createElement("div", { style: { fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, l.cliente || "sem nome"),
+                                React.createElement("div", { style: { fontSize: 12, color: T.muted, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, l.veiculo || l.interesse || "—")),
+                            React.createElement("div", { style: { fontSize: 12, color: T.muted, textAlign: "right" } }, brData(l.dia)),
+                            React.createElement("a", { href: "https://thewcars.kommo.com/leads/detail/".concat(l.kommo_id), target: "_blank", rel: "noopener", style: { fontSize: 12, fontWeight: 600, color: T.ink, textDecoration: "none", border: "1px solid ".concat(T.hair), borderRadius: 6, padding: "5px 9px", whiteSpace: "nowrap" } }, "Kommo \u2197"))); }),
+                        !naoVieram.length && React.createElement("div", { style: { padding: 16, fontSize: 13, color: T.muted } }, "Ningu\u00E9m pendente nos \u00FAltimos 30 dias.")),
+                    naoVieram.length > 0 && React.createElement("div", { style: { padding: "10px 16px", fontSize: 11.5, color: T.muted } }, "Faltaram na visita e n\u00E3o t\u00EAm reagendamento. Quem reativa vende de novo o que o SDR j\u00E1 vendeu uma vez."))))));
+}
 /* ---------- MEU PAINEL ---------- */
 function MeuPainel(_a) {
     var d = _a.d, closer = _a.closer, irParaOrcamentos = _a.irParaOrcamentos, novoDoLead = _a.novoDoLead, abrirOrcamento = _a.abrirOrcamento;
@@ -6690,7 +6873,8 @@ function MeuPainel(_a) {
             React.createElement(Card, { className: "p0" },
                 tarefas.map(function (t, i) { return React.createElement(Tarefa, { key: i, n: t.n, cor: t.cor, titulo: t.titulo, sub: t.sub, acao: t.acao, onClick: t.ir }); }),
                 !tarefas.length && React.createElement("div", { style: { padding: 16, fontSize: 13, color: T.good, fontWeight: 600 } }, "Nada pendente. Vai vender."))),
-        React.createElement(Secao, { n: 3, titulo: "Minha carteira de or\u00E7amentos", nota: "Tudo que voc\u00EA or\u00E7ou no m\u00EAs, venha de onde vier. Fechar lead de SDR e fechar cliente de passagem s\u00E3o habilidades diferentes \u2014 a convers\u00E3o por origem mostra onde voc\u00EA \u00E9 forte." },
+        React.createElement(SecoesSdr, { d: d, closer: closer, novoDoLead: novoDoLead, abrirOrcamento: abrirOrcamento, nInicio: 3 }),
+        React.createElement(Secao, { n: 5, titulo: "Minha carteira de or\u00E7amentos", nota: "Tudo que voc\u00EA or\u00E7ou no m\u00EAs, venha de onde vier. Fechar lead de SDR e fechar cliente de passagem s\u00E3o habilidades diferentes \u2014 a convers\u00E3o por origem mostra onde voc\u00EA \u00E9 forte." },
             React.createElement("div", { className: "col2" },
                 React.createElement(Card, { className: "p16" },
                     React.createElement(Label, null,
@@ -6701,7 +6885,7 @@ function MeuPainel(_a) {
                 React.createElement(Card, { className: "p16" },
                     React.createElement(Label, null, "Convers\u00E3o por origem"),
                     React.createElement(Faixas, { linhas: porOrigem, total: 1, cor: T.good })))),
-        React.createElement(Secao, { n: 4, titulo: "P\u00F3s-visita sem or\u00E7amento", nota: "Lead novo do CRM que visitou a loja e ainda n\u00E3o tem or\u00E7amento registrado aqui. Criar o or\u00E7amento j\u00E1 puxa cliente, ve\u00EDculo e o SDR que agendou." },
+        React.createElement(Secao, { n: 6, titulo: "P\u00F3s-visita sem or\u00E7amento", nota: "Lead novo do CRM que visitou a loja e ainda n\u00E3o tem or\u00E7amento registrado aqui. Criar o or\u00E7amento j\u00E1 puxa cliente, ve\u00EDculo e o SDR que agendou." },
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
                     React.createElement("thead", null,
@@ -6728,7 +6912,7 @@ function MeuPainel(_a) {
                                 React.createElement(Btn, { kind: "accent", onClick: function () { return novoDoLead(l); }, style: { padding: "6px 11px", fontSize: 12 } }, "Criar or\u00E7amento")))); }),
                         !d.posVisita.length && React.createElement("tr", null,
                             React.createElement(Td, { color: T.muted }, "Nenhum lead do CRM esperando or\u00E7amento.")))))),
-        React.createElement(Secao, { n: 5, titulo: "Minhas O.S. em aberto", nota: "Direto do Oficina. O.S. aberta h\u00E1 mais de 7 dias em vermelho \u2014 carro que ainda n\u00E3o saiu \u00E9 dinheiro que ainda n\u00E3o entrou." },
+        React.createElement(Secao, { n: 7, titulo: "Minhas O.S. em aberto", nota: "Direto do Oficina. O.S. aberta h\u00E1 mais de 7 dias em vermelho \u2014 carro que ainda n\u00E3o saiu \u00E9 dinheiro que ainda n\u00E3o entrou." },
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
                     React.createElement("thead", null,
@@ -6758,7 +6942,7 @@ function MeuPainel(_a) {
                             React.createElement(Td, { color: T.muted }, "Nenhuma O.S. em aberto no seu nome."))))))));
 }
 /* ---------- ORÇAMENTOS ---------- */
-var ITEM_VAZIO = function () { return ({ nome: "", aplicacao: "", garantia: "", preco: "", opcao: "", destaque: false }); };
+var ITEM_VAZIO = function () { return ({ nome: "", aplicacao: "", garantia: "", preco: "", opcao: "", destaque: false, descricao: "" }); };
 var FORM_VAZIO = function () { return ({
     origem: "crm", indicado_por: "", lead_kommo_id: null,
     cliente_nome: "", cliente_whatsapp: "", placa: "", veiculo: "", cor: "",
@@ -6837,6 +7021,7 @@ function NovoOrcamento(_a) {
                         throw new Error("o banco não devolveu o número do orçamento");
                     return [4 /*yield*/, exigir(db.from("orcamento_item").insert(itensValidos.map(function (it, i) { return ({
                             orcamento_id: id_1, ordem: i + 1, nome: it.nome.trim(), aplicacao: it.aplicacao || null, garantia: it.garantia || null,
+                            descricao: (it.descricao || "").trim() || null,
                             preco: paraNumero(it.preco), opcao: f.formato === "opcoes" ? it.opcao || null : null, destaque: !!it.destaque,
                         }); })))];
                 case 3:
@@ -6917,7 +7102,13 @@ function NovoOrcamento(_a) {
                         React.createElement(Inp, { value: it.garantia, onChange: function (e) { return setItem(i, "garantia", e.target.value); }, placeholder: "ex.: 10 anos" })),
                     React.createElement(Campo, { l: "Pre\u00E7o (R$)" },
                         React.createElement(Inp, { value: it.preco, onChange: function (e) { return setItem(i, "preco", e.target.value); }, placeholder: "0,00", inputMode: "decimal", style: { textAlign: "right", fontWeight: 700 } })),
-                    React.createElement("button", { type: "button", onClick: function () { return rmItem(i); }, title: "tirar item", style: { border: 0, background: "transparent", color: T.muted, cursor: "pointer", fontSize: 15, paddingBottom: 9 } }, "\u2715"))); })),
+                    React.createElement("button", { type: "button", onClick: function () { return rmItem(i); }, title: "tirar item", style: { border: 0, background: "transparent", color: T.muted, cursor: "pointer", fontSize: 15, paddingBottom: 9 } }, "\u2715"),
+                    React.createElement("div", { style: { gridColumn: "2 / -1" } },
+                        React.createElement(Inp, { value: it.descricao, onChange: function (e) { return setItem(i, "descricao", e.target.value); }, placeholder: "Descri\u00E7\u00E3o para o cliente (opcional) \u2014 ex.: bloqueia 99% dos raios UV, aplica\u00E7\u00E3o sem emendas", style: { fontSize: 12.5 } })),
+                    it.nome.trim() && (!it.aplicacao.trim() || !it.garantia.trim()) && (React.createElement("div", { style: { gridColumn: "2 / -1", fontSize: 11.5, color: T.warn } },
+                        "Sem ",
+                        !it.aplicacao.trim() && !it.garantia.trim() ? "aplicação e garantia" : !it.aplicacao.trim() ? "aplicação" : "garantia",
+                        " \u2014 a imagem para o cliente sai mais pobre.")))); })),
                 React.createElement("div", { style: { marginTop: 12, display: "flex", gap: 10, alignItems: "center" } },
                     React.createElement(Btn, { onClick: addItem }, "+ Adicionar item"),
                     React.createElement(Inp, { value: f.cortesia, onChange: function (e) { return set("cortesia", e.target.value); }, placeholder: "Cortesia (ex.: higieniza\u00E7\u00E3o interna)", style: { flex: 1 } })),
@@ -6965,72 +7156,102 @@ function NovoOrcamento(_a) {
                     : "Depois de salvo, o orçamento recebe número e vai para \"Orçamentos gerados\" — a imagem para o cliente sai de lá.")))));
 }
 /* ---------- a imagem que o cliente recebe (formato Q2 "Galeria", votado
-   pelo time em 25/09) ----------
+   pelo time em 25/09; capa C1 escolhida pelo Rafael em 25/09) ----------
    1080×1080, desenhada em HTML aqui mesmo e fotografada com html2canvas.
-   Não depende de IA para o layout: o formato é fixo, o que muda é o
-   conteúdo do orçamento. Os textos personalizados por IA entram por cima
-   disto quando a função de borda existir. */
+   A capa é sempre o carro da casa, assumido como "Studio The Wonder"; o
+   que muda é o conteúdo. Regra de ouro: campo vazio nunca vira texto na
+   arte — a peça se reorganiza em volta do que existe. */
 var FOTO = function (n) { return ((window.FOTOS_ORC || {})[n]) || ""; };
-var fotoDoItem = function (nome, i) {
-    var s = String(nome || "").toLowerCase();
-    if (/multim|central|carplay|android/.test(s))
-        return "mm_carplay";
-    if (/c[aâ]mera|sensor/.test(s))
-        return "mm_camera";
-    if (/som|[áa]udio|alto|falante|subwoofer|amplific|tweeter/.test(s))
-        return "proc_tweeter";
-    if (/farol|lanterna|smoke|fum[eê]/.test(s))
-        return "det_farol";
-    if (/roda|pin[çc]a|calota|pneu/.test(s))
-        return "det_roda";
-    if (/grade|emblema|logo|cromad|black.?piano/.test(s))
-        return "det_grade";
-    if (/ppf|full|body|frontal|cap[oô]|para.?choque/.test(s))
-        return "band_front";
-    if (/pel[ií]cula|vidro|para.?brisa|insulfilm|antivandal/.test(s))
-        return "det_aerofolio";
-    if (/higien|cristaliz|vitrific|polim|revitaliz|lavagem/.test(s))
-        return "det_pinca";
-    return ["band_front", "det_aerofolio", "det_grade", "det_roda", "det_farol", "det_pinca"][i % 6];
+/* Família do serviço: decide a palavra grande, a frase de apoio e a
+   miniatura. Só bate quando tem certeza; na dúvida, sem foto. */
+var FAM_ORC = [
+    { k: "farol", re: /farol|far[óo]is|lanterna|smoke/, palavra: "FARÓIS", frase: "visual e proteção para a iluminação", foto: "det_farol" },
+    { k: "roda", re: /\broda|pin[çc]a|calota|pneu/, palavra: "RODAS", frase: "detalhe que muda o carro", foto: "det_roda" },
+    { k: "multimidia", re: /multim[ií]dia|central|carplay|android|tela|c[aâ]mera|sensor/, palavra: "MULTIMÍDIA", frase: "tecnologia e conforto no seu carro", foto: "mm_carplay" },
+    { k: "som", re: /\bsom\b|[áa]udio|alto.?falante|subwoofer|amplific|tweeter|kit de som/, palavra: "SOM", frase: "a experiência de ouvir no carro", foto: "proc_tweeter" },
+    { k: "estetica", re: /vitrific|cristaliz|cer[aâ]mic|polimento|revitaliz|higieniz|lavagem|detalh|envelop/, palavra: "ESTÉTICA", frase: "acabamento de showroom", foto: "det_pinca" },
+    { k: "pelicula", re: /pel[ií]cula|insulfilm|antivandal|color stable|crystalline|fumê|fume\b/, palavra: "PELÍCULA", frase: "conforto térmico e privacidade", foto: "det_aerofolio" },
+    { k: "ppf", re: /\bppf\b|paint protection|pro series|vorza|xpel|stek|full body|frontal/, palavra: "PPF", frase: "proteção invisível para a pintura", foto: "band_front" },
+];
+var familiaDe = function (texto) { return FAM_ORC.find(function (f) { return f.re.test(String(texto || "").toLowerCase()); }) || null; };
+/* O que o closer digita vai direto para o cliente: aqui entram acento,
+   maiúscula e as siglas da casa. Não grava nada — só arruma na hora. */
+var ARRUMA = [[/\bpelicula/gi, "película"], [/\bprotecao/gi, "proteção"], [/\bmultimidia/gi, "multimídia"], [/\bhigienizacao/gi, "higienização"],
+    [/\bvitrificacao/gi, "vitrificação"], [/\bcristalizacao/gi, "cristalização"], [/\bceramica/gi, "cerâmica"], [/\bfarois/gi, "faróis"],
+    [/\bparabrisa|\bpara brisa/gi, "para-brisa"], [/\bvidros? eletricos?/gi, "vidro elétrico"], [/\b3m\b/gi, "3M"], [/\bppf\b/gi, "PPF"], [/\bled\b/gi, "LED"], [/\busb\b/gi, "USB"]];
+var arruma = function (s) {
+    var t = String(s || "").trim().replace(/\s+/g, " ");
+    if (!t)
+        return "";
+    ARRUMA.forEach(function (_a) {
+        var _b = __read(_a, 2), re = _b[0], sub = _b[1];
+        t = t.replace(re, sub);
+    });
+    if (t === t.toLowerCase() || t === t.toUpperCase())
+        t = t.toLowerCase();
+    t = t.charAt(0).toUpperCase() + t.slice(1);
+    ARRUMA.slice(-4).forEach(function (_a) {
+        var _b = __read(_a, 2), re = _b[0], sub = _b[1];
+        t = t.replace(re, sub);
+    });
+    return t;
 };
-var temaDoOrcamento = function (o, itens) {
-    var s = ((o.titulo || "") + " " + itens.map(function (i) { return i.nome; }).join(" ")).toLowerCase();
-    if (/multim|som|[áa]udio|central|carplay|falante|subwoofer|c[aâ]mera/.test(s))
-        return { palavra: "EXPERIÊNCIA", hero: "mm_hero", pos: "50% 50%" };
-    if (/ppf|pel[ií]cula|vitrific|cristaliz|prote|antivandal|insulfilm/.test(s))
-        return { palavra: "PROTEÇÃO", hero: "hero_rear_logo", pos: "45% 28%" };
-    return { palavra: "PROJETO", hero: "hero_rear_logo", pos: "45% 28%" };
+var nomeCliente = function (s) {
+    /* "Johnny - Haval H6 - PPF" (lead antigo) → "Johnny"; "maria clara souza" → "Maria Clara Souza" */
+    var p = String(s || "").split(/\s+[-–|·]\s+/)[0].trim();
+    return p.split(" ").filter(Boolean).slice(0, 3).map(function (w) { return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase(); }).join(" ");
 };
-var brPonto = function (s) { return (s ? String(s).slice(0, 10).split("-").reverse().join(".") : ""); };
+var brPonto = function (s) { return (s ? String(s).slice(0, 10).split("-").reverse().join("/") : ""); };
 var precoImg = function (v) { var n = Number(v) || 0; return Math.abs(n - Math.round(n)) < 0.005 ? nReal(n) : nReal2(n); };
 var parcelas = function (cond) { var m = /(\d+)\s*[x×]/i.exec(String(cond || "")); var n = m ? parseInt(m[1], 10) : 0; return n > 1 ? n : 0; };
 function ImagemOrcamento(_a) {
     var o = _a.o, itens = _a.itens, closer = _a.closer;
-    var tema = temaDoOrcamento(o, itens);
-    var lista = itens.slice(0, 6);
-    var compacto = lista.length > 5;
-    var alt = compacto ? 54 : lista.length > 4 ? 62 : lista.length > 3 ? 72 : lista.length > 2 ? 84 : 96;
-    var total = Number(o.total) || itens.reduce(function (s, i) { return s + (Number(i.preco) || 0); }, 0);
-    var n = parcelas(o.condicao_pagamento);
-    var opcoes = o.formato === "opcoes";
-    var precos = itens.map(function (i) { return Number(i.preco) || 0; });
-    var _b = __read(nReal2(total).split(","), 2), intPart = _b[0], decPart = _b[1];
-    var sub = o.titulo || lista.slice(0, 3).map(function (i) { return i.nome; }).join(" · ");
-    /* "PROTEÇÃO" em cima e "Proteção full body" embaixo repete a palavra;
-       quando o título começa com ela, fica só o complemento */
-    if (sub.toLowerCase().indexOf(tema.palavra.toLowerCase()) === 0 && sub.length > tema.palavra.length + 2) {
-        sub = sub.slice(tema.palavra.length).replace(/^[\s:–\-·]+/, "");
-        sub = sub.charAt(0).toUpperCase() + sub.slice(1);
-    }
     var P = '"PoppinsMarca", sans-serif';
     var Y = T.marca, K = "#050505";
-    /* amarelo sólido, não degradê recortado no texto: o html2canvas não
-       entende background-clip:text e devolveria um retângulo em vez da palavra */
-    var gold = { color: Y };
     var tn = { fontVariantNumeric: "tabular-nums" };
+    var corta = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+    /* "Opções" com menos de duas opções é cardápio, independente do que foi marcado */
+    var comOpcao = itens.filter(function (i) { return i.opcao; });
+    var opcoes = o.formato === "opcoes" && comOpcao.length >= 2;
+    var lista = itens.slice(0, 6).map(function (it, i) { return (__assign(__assign({}, it), { nome: arruma(it.nome), aplicacao: arruma(it.aplicacao), garantia: arruma(it.garantia), descricao: arruma(it.descricao), fam: familiaDe(it.nome + " " + (it.aplicacao || "")) })); });
+    var n = lista.length;
+    var total = Number(o.total) || itens.reduce(function (s, i) { return s + (Number(i.preco) || 0); }, 0);
+    var precos = itens.map(function (i) { return Number(i.preco) || 0; });
+    var parc = parcelas(o.condicao_pagamento);
+    var _b = __read(nReal2(total).split(","), 2), intPart = _b[0], decPart = _b[1];
+    /* palavra grande = família dominante; frase = título do closer ou a frase da família */
+    var famTitulo = familiaDe(o.titulo) || lista.map(function (i) { return i.fam; }).filter(Boolean)[0] || null;
+    var palavra = opcoes ? "OPÇÕES" : famTitulo ? famTitulo.palavra : "PROJETO";
+    var frase = arruma(o.titulo);
+    if (!frase || frase.toUpperCase() === palavra || (famTitulo && frase.toLowerCase().replace(/\s+3m$/, "") === famTitulo.palavra.toLowerCase()))
+        frase = famTitulo ? famTitulo.frase : lista.map(function (i) { return i.nome; }).slice(0, 2).join(" · ");
+    var cliente = nomeCliente(o.cliente_nome);
+    var veiculo = arruma(o.veiculo);
+    var loja = (closer.unidade || o.loja || "").toUpperCase();
+    /* a tira: só o que existe, 3 casas no máximo, nesta ordem */
+    var garantias = lista.map(function (i) { return i.garantia; }).filter(Boolean);
+    var garantiaUnica = garantias.length && garantias.every(function (g) { return g === garantias[0]; }) ? garantias[0] : null;
+    var casas = [
+        { l: "Aplicação", v: o.prazo || rotPrazo(o.prazo_execucao) },
+        garantiaUnica && { l: "Garantia", v: garantiaUnica },
+        o.cortesia && { l: "Cortesia", v: arruma(o.cortesia) },
+        o.validade && { l: "Validade", v: "até " + brPonto(o.validade) },
+    ].filter(Boolean).slice(0, 3);
+    /* geometria: 1–2 itens → faixas altas com descrição + tira; 3 → faixas médias + tira; 4+ → lista, sem tira */
+    var topo = 520;
+    var altFaixa = n <= 1 ? 176 : n === 2 ? 118 : n === 3 ? 84 : n === 4 ? 72 : n === 5 ? 62 : 54;
+    var comDescricao = n <= 2;
+    var comTira = n <= 3 && casas.length >= 2;
+    var comFoto = n >= 3;
+    var fimFaixas = topo + n * (altFaixa + 8);
+    var nomeFs = n <= 1 ? 34 : n === 2 ? 26 : n === 3 ? 22 : n >= 5 ? 18 : 20;
+    var precoFs = n <= 1 ? 40 : n === 2 ? 32 : n >= 5 ? 24 : 28;
     return (React.createElement("div", { style: { width: 1080, height: 1080, position: "relative", overflow: "hidden", background: K, color: "#fff", fontFamily: P, WebkitFontSmoothing: "antialiased" } },
-        React.createElement("div", { style: { position: "absolute", left: 0, right: 0, top: 0, height: 490, backgroundImage: "url(".concat(FOTO(tema.hero), ")"), backgroundSize: "cover", backgroundPosition: tema.pos, backgroundRepeat: "no-repeat" } }),
-        React.createElement("div", { style: { position: "absolute", left: 0, right: 0, top: 0, height: 490, background: "linear-gradient(180deg, rgba(5,5,5,.5) 0%, rgba(5,5,5,0) 30%, rgba(5,5,5,.2) 62%, ".concat(K, " 100%)") } }),
+        React.createElement("div", { style: { position: "absolute", left: 0, right: 0, top: 0, height: 490, backgroundImage: "url(".concat(FOTO("hero_rear_logo"), ")"), backgroundSize: "cover", backgroundPosition: "45% 28%", backgroundRepeat: "no-repeat" } }),
+        React.createElement("div", { style: { position: "absolute", left: 0, right: 0, top: 0, height: 490, background: "linear-gradient(180deg, rgba(5,5,5,.5) 0%, rgba(5,5,5,0) 30%, rgba(5,5,5,.25) 60%, ".concat(K, " 100%)") } }),
+        React.createElement("div", { style: { position: "absolute", left: 56, top: 232, fontWeight: 500, fontSize: 11.5, letterSpacing: ".3em", color: "rgba(255,255,255,.6)" } },
+            "STUDIO THE WONDER",
+            loja ? " \u00B7 ".concat(loja) : ""),
         React.createElement("div", { style: { position: "absolute", left: 56, right: 56, top: 44, display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
             React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 16 } },
                 React.createElement("div", { style: { width: 52, height: 52, background: Y, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 7 } },
@@ -7038,36 +7259,43 @@ function ImagemOrcamento(_a) {
                 React.createElement("div", { style: { fontWeight: 700, fontSize: 17, lineHeight: 1.1, letterSpacing: ".24em" } },
                     "THE WONDER",
                     React.createElement("div", { style: { fontWeight: 500, fontSize: 12, letterSpacing: ".34em", color: Y, marginTop: 5 } }, "CAR SERVICE"))),
-            React.createElement("div", { style: { textAlign: "right", border: "1px solid rgba(255,191,0,.45)", background: "rgba(5,5,5,.55)", padding: "12px 18px", borderRadius: 4, fontSize: 12.5, lineHeight: 1.7, letterSpacing: ".2em", color: "rgba(255,255,255,.7)" } },
+            React.createElement("div", { style: { textAlign: "right", border: "1px solid rgba(255,191,0,.45)", background: "rgba(5,5,5,.55)", padding: "12px 18px", borderRadius: 4, fontSize: 13.5, lineHeight: 1.7, letterSpacing: ".2em", color: "rgba(255,255,255,.75)", maxWidth: 440 } },
                 opcoes ? "OPÇÕES" : "PROJETO",
                 " N\u00BA ",
                 o.numero,
-                React.createElement("div", { style: { fontWeight: 500, fontSize: 15, color: "#fff", letterSpacing: ".16em" } }, (o.cliente_nome || "CLIENTE").toUpperCase()),
+                cliente && React.createElement("div", { style: __assign({ fontWeight: 500, fontSize: 16, color: "#fff", letterSpacing: ".14em" }, corta) }, cliente.toUpperCase()),
                 o.validade && React.createElement("span", null,
                     "v\u00E1lido at\u00E9 ",
                     brPonto(o.validade)))),
-        React.createElement("div", { style: { position: "absolute", left: 56, right: 56, top: 286 } },
-            React.createElement("div", { style: { fontWeight: 500, fontSize: 14, letterSpacing: ".36em", color: Y } },
+        React.createElement("div", { style: { position: "absolute", left: 56, right: 300, top: 286 } },
+            React.createElement("div", { style: __assign({ fontWeight: 500, fontSize: 14, letterSpacing: ".36em", color: Y }, corta) },
                 opcoes ? "ESCOLHA SUA OPÇÃO" : "PROJETO EXCLUSIVO",
-                o.veiculo ? " \u00B7 ".concat(String(o.veiculo).toUpperCase()) : ""),
-            React.createElement("div", { style: { marginTop: 10, lineHeight: .95 } },
-                React.createElement("div", { style: __assign({ fontWeight: 700, fontSize: 76, lineHeight: .95, letterSpacing: "-.03em" }, gold) }, tema.palavra),
-                React.createElement("div", { style: { fontWeight: 300, fontSize: sub.length > 34 ? 30 : 40, lineHeight: 1.1, letterSpacing: "-.01em", marginTop: 6, maxWidth: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, sub))),
-        React.createElement("div", { style: { position: "absolute", right: 56, top: 392, textAlign: "right", fontSize: 12.5, lineHeight: 1.5, letterSpacing: ".3em", color: Y } },
+                veiculo ? " \u00B7 ".concat(veiculo.toUpperCase()) : ""),
+            React.createElement("div", { style: { marginTop: 10 } },
+                React.createElement("div", { style: { fontWeight: 700, fontSize: palavra.length > 9 ? 62 : 76, lineHeight: .95, letterSpacing: "-.03em", color: Y } }, palavra),
+                React.createElement("div", { style: __assign({ fontWeight: 300, fontSize: frase.length > 34 ? 30 : 40, lineHeight: 1.1, letterSpacing: "-.01em", marginTop: 6 }, corta) }, frase))),
+        React.createElement("div", { style: { position: "absolute", right: 56, top: 392, textAlign: "right", fontSize: 13, lineHeight: 1.5, letterSpacing: ".3em", color: Y } },
             "EXECU\u00C7\u00C3O",
             React.createElement("br", null),
             React.createElement("span", { style: { color: "#fff", fontWeight: 500, fontSize: 22, letterSpacing: ".02em" } }, o.prazo || rotPrazo(o.prazo_execucao))),
-        React.createElement("div", { style: { position: "absolute", left: 56, right: 56, top: 498, display: "grid", gap: 6 } }, lista.map(function (it, i) { return (React.createElement("div", { key: it.id || i, style: { position: "relative", height: alt, border: "1px solid rgba(255,191,0,".concat(it.destaque || i === 0 ? ".85" : ".28", ")"), background: "#0c0c0c",
-                display: "grid", gridTemplateColumns: "96px 1fr auto", alignItems: "center" } },
-            React.createElement("div", { style: { height: "100%", backgroundImage: "url(".concat(FOTO(fotoDoItem(it.nome, i)), ")"), backgroundSize: "cover", backgroundPosition: "center", borderRight: "1px solid rgba(255,191,0,.2)" } }),
-            React.createElement("div", { style: { padding: "0 20px", minWidth: 0 } },
-                React.createElement("div", { style: { fontWeight: 500, fontSize: compacto ? 18 : 22, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } },
+        React.createElement("div", { style: { position: "absolute", left: 56, right: 56, top: topo, display: "grid", gap: 8 } }, lista.map(function (it, i) { return (React.createElement("div", { key: it.id || i, style: { position: "relative", height: altFaixa, border: "1px solid rgba(255,191,0,".concat(it.destaque || (i === 0 && !opcoes) ? ".85" : ".3", ")"), background: "#0c0c0c",
+                display: "grid", gridTemplateColumns: comFoto && it.fam ? "96px 1fr auto" : "1fr auto", alignItems: "center" } },
+            comFoto && it.fam && React.createElement("div", { style: { height: "100%", backgroundImage: "url(".concat(FOTO(it.fam.foto), ")"), backgroundSize: "cover", backgroundPosition: "center", borderRight: "1px solid rgba(255,191,0,.2)" } }),
+            React.createElement("div", { style: { padding: comDescricao ? "0 34px" : "0 20px", minWidth: 0 } },
+                React.createElement("div", { style: __assign({ fontWeight: 500, fontSize: nomeFs, lineHeight: 1.1 }, corta) },
                     opcoes && it.opcao ? "Op\u00E7\u00E3o ".concat(it.opcao, " \u00B7 ") : "",
                     it.nome),
-                (it.aplicacao || it.garantia) && React.createElement("div", { style: { fontWeight: 500, fontSize: compacto ? 10.5 : 12, letterSpacing: ".2em", color: Y, marginTop: 3, textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } }, it.aplicacao || "")),
-            React.createElement("div", { style: __assign({ padding: "0 20px", textAlign: "right", fontWeight: 300, fontSize: compacto ? 24 : 28, lineHeight: 1 }, tn) },
+                it.aplicacao && React.createElement("div", { style: __assign({ fontWeight: 500, fontSize: n >= 5 ? 11.5 : 13, letterSpacing: ".2em", color: Y, marginTop: comDescricao ? 8 : 4, textTransform: "uppercase" }, corta) }, it.aplicacao),
+                comDescricao && it.descricao && React.createElement("div", { style: { fontWeight: 300, fontSize: n === 1 ? 16 : 14, lineHeight: 1.4, color: "#cfcfcf", marginTop: 10, maxWidth: 640, overflow: "hidden", maxHeight: n === 1 ? 68 : 40 } }, it.descricao)),
+            React.createElement("div", { style: __assign({ padding: comDescricao ? "0 34px" : "0 20px", textAlign: "right", fontWeight: 300, fontSize: precoFs, lineHeight: 1 }, tn) },
                 precoImg(it.preco),
-                it.garantia && React.createElement("div", { style: { fontWeight: 500, fontSize: 11, letterSpacing: ".18em", color: "#9a9a9a", marginTop: 5, textTransform: "uppercase" } }, it.garantia)))); })),
+                it.garantia && !(comTira && garantiaUnica) && React.createElement("div", { style: { fontWeight: 500, fontSize: 12.5, letterSpacing: ".18em", color: "#9a9a9a", marginTop: 6, textTransform: "uppercase" } }, it.garantia),
+                it.garantia && comTira && garantiaUnica && n <= 2 && React.createElement("div", { style: { fontWeight: 500, fontSize: 12.5, letterSpacing: ".18em", color: "#9a9a9a", marginTop: 6, textTransform: "uppercase" } },
+                    it.garantia,
+                    " de garantia")))); })),
+        comTira && (React.createElement("div", { style: { position: "absolute", left: 56, right: 56, top: fimFaixas + 24, display: "grid", gridTemplateColumns: "repeat(".concat(casas.length, ", 1fr)"), gap: 8 } }, casas.map(function (c) { return (React.createElement("div", { key: c.l, style: { border: "1px solid rgba(255,191,0,.25)", padding: "16px 20px", fontWeight: 500, fontSize: 12, letterSpacing: ".2em", color: "#9a9a9a", textTransform: "uppercase" } },
+            c.l,
+            React.createElement("div", { style: __assign({ fontWeight: 500, fontSize: 20, color: "#fff", letterSpacing: 0, textTransform: "none", marginTop: 4 }, corta) }, c.v))); }))),
         React.createElement("div", { style: { position: "absolute", left: 56, right: 56, bottom: 56, height: 122, background: Y, color: "#000", padding: "18px 34px", display: "flex", justifyContent: "space-between", alignItems: "center" } },
             React.createElement("div", { style: { position: "absolute", left: 8, right: 8, top: 8, bottom: 8, border: "1px solid rgba(0,0,0,.28)" } }),
             React.createElement("div", { style: { fontWeight: 600, fontSize: 13, letterSpacing: ".3em" } },
@@ -7078,18 +7306,19 @@ function ImagemOrcamento(_a) {
                         ",",
                         decPart)))),
             React.createElement("div", { style: { textAlign: "right", fontWeight: 500, fontSize: 15, lineHeight: 1.5 } },
-                o.condicao_pagamento || "",
-                n > 0 && !opcoes && React.createElement("div", { style: __assign({ fontWeight: 700, fontSize: 26 }, tn) },
-                    n,
+                o.condicao_pagamento && React.createElement("div", null, arruma(o.condicao_pagamento)),
+                parc > 0 && !opcoes && React.createElement("div", { style: __assign({ fontWeight: 700, fontSize: 26 }, tn) },
+                    parc,
                     "\u00D7 ",
-                    nReal2(total / n)),
-                o.cortesia && React.createElement("div", null,
+                    nReal2(total / parc)),
+                o.cortesia && !(comTira && casas.some(function (c) { return c.l === "Cortesia"; })) && React.createElement("div", null,
                     "cortesia: ",
-                    o.cortesia))),
-        React.createElement("div", { style: { position: "absolute", left: 56, right: 56, bottom: 22, display: "flex", justifyContent: "space-between", fontSize: 13, letterSpacing: ".06em", color: "#8a8a8a" } },
+                    arruma(o.cortesia)))),
+        React.createElement("div", { style: { position: "absolute", left: 56, right: 56, bottom: 22, display: "flex", justifyContent: "space-between", fontSize: 14, letterSpacing: ".06em", color: "#8a8a8a" } },
             React.createElement("span", null,
                 React.createElement("b", { style: { color: "#fff", fontWeight: 500 } }, closer.nome_oficial),
-                " \u00B7 Consultor The Wonder"),
+                " \u00B7 Consultor The Wonder",
+                closer.whatsapp ? " \u00B7 ".concat(closer.whatsapp) : ""),
             React.createElement("span", null,
                 "Unidade ",
                 closer.unidade || o.loja))));
@@ -7434,13 +7663,15 @@ function Piloto(_a) {
     var _f = __read(useState(0), 2), versao = _f[0], setVersao = _f[1];
     var _g = __read(useState(null), 2), prefill = _g[0], setPrefill = _g[1];
     var _h = __read(useState(null), 2), abertoId = _h[0], setAbertoId = _h[1];
-    var d = usePiloto(closer && closer.erp_codigo, versao);
+    var d = usePiloto(closer && closer.erp_codigo, versao, closer && closer.unidade);
     var recarregar = function () { return setVersao(function (v) { return v + 1; }); };
     /* O título do lead no Kommo vem como "Johnny - Haval H6 - PPF + película":
        nome, carro e interesse na mesma linha. Aqui cada pedaço vai para o
        seu campo; se o lead já tem veículo em campo próprio, ele vence. */
     var novoDoLead = function (l) {
         var partes = String(l.cliente || "").split(/\s+[-–|·]\s+/).map(function (x) { return x.trim(); }).filter(Boolean);
+        if (!partes.length)
+            partes.push("");
         var nome = partes[0] || "";
         var veic = l.veiculo || (partes.length > 2 ? partes[1] : "");
         var interesse = l.interesse || (partes.length > 2 ? partes.slice(2).join(" · ") : partes.length === 2 ? partes[1] : "");
