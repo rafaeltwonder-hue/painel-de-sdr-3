@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v63 — CAR SERVICE</title>
-<meta name="painel-versao" content="v63">
+<title>Painel de SDR v65 — CAR SERVICE</title>
+<meta name="painel-versao" content="v65">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -220,7 +220,7 @@ window.FOTOS_ORC = {"hero_rear_logo": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ
 <script>
 function iniciarPainel() {
 "use strict";
-/* Painel de SDR — The Wonder / Car Service (v63: cadeia agendamentos → compareceram → convertidos/follow-up/perdidos)
+/* Painel de SDR — The Wonder / Car Service (v65: grupos sem setor aparecem como tal, com aviso)
    Lê as views do Supabase. Sem lançamento manual: o dado vem do Kommo. */
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function(t) {
@@ -4919,7 +4919,7 @@ function useOficina() {
                             pega(db.from("resumo_dia_fat_v").select("*").eq("mes", inicioMes).order("dia")),
                             pegaPaginado(function () { return db.from("resumo_os_fat_v").select("loja,os_numero,dt_os,dt_faturamento,situacao,closer,erp_nome,pesquisa,placa,veiculo,total,custo").eq("mes", inicioMes); }),
                             pega(db.from("resumo_origem_v").select("*").eq("mes", inicioMes)),
-                            pegaPaginado(function () { return db.from("oi_item_v").select("loja,closer,setor,total,custo_total,executor").eq("mes_fat", inicioMes); }),
+                            pegaPaginado(function () { return db.from("oi_item_v").select("loja,closer,setor,grupo,total,custo_total,executor").eq("mes_fat", inicioMes); }),
                             pega(db.from("funil_closer_v").select("*")),
                             pega(db.from("map_loja").select("*")),
                             pega(db.from("oi_arquivos").select("id,loja,periodo_ini,processado_em,status,tipo").eq("tipo", "listagem_itens").eq("status", "ok")
@@ -5236,6 +5236,15 @@ function AbaClosers() {
     var setorPorCloser = {};
     r.itens.forEach(function (i) { if (!i.closer)
         return; var s = setorPorCloser[i.closer] || (setorPorCloser[i.closer] = {}); s[i.setor] = (s[i.setor] || 0) + Number(i.total); });
+    /* 26/09: grupo do Oficina sem setor no mapa deixou de cair em Acessórios
+       (R$ 290 mil de PPF Vorza passaram um mês escondidos lá). Agora vira
+       "Sem setor", ganha coluna própria só quando existe, e o aviso abaixo
+       diz qual grupo é, para o Rafael mandar mapear. */
+    var semSetor = {};
+    r.itens.forEach(function (i) { if (i.setor === "Sem setor")
+        semSetor[i.grupo || "(sem grupo)"] = (semSetor[i.grupo || "(sem grupo)"] || 0) + Number(i.total); });
+    var gruposSemSetor = Object.keys(semSetor).sort(function (a, b) { return semSetor[b] - semSetor[a]; });
+    var SETORES_TAB = gruposSemSetor.length ? OF_SETORES.concat(["Sem setor"]) : OF_SETORES;
     // meta por setor por closer = meta da loja x peso do setor / nº de closers da loja
     var metaDaLoja = {};
     (r.mapLoja || []).forEach(function (m) { metaDaLoja[m.loja] = Number(m.meta_mensal) || 0; });
@@ -5379,7 +5388,7 @@ function AbaClosers() {
                     React.createElement("thead", null,
                         React.createElement("tr", null,
                             React.createElement(Th, null, "Closer"),
-                            OF_SETORES.map(function (s) { return React.createElement(Th, { key: s, right: true }, s); }),
+                            SETORES_TAB.map(function (s) { return React.createElement(Th, { key: s, right: true }, s); }),
                             React.createElement(Th, { right: true }, "Total"))),
                     React.createElement("tbody", null,
                         closers.map(function (c) {
@@ -5390,13 +5399,21 @@ function AbaClosers() {
                                 React.createElement(Td, { bold: true },
                                     c.closer,
                                     React.createElement("div", { style: { fontSize: 11, color: T.muted, fontWeight: 400 } }, c.loja)),
-                                OF_SETORES.map(function (k) { return React.createElement(CelulaSetor, { key: k, valor: s[k] || 0, meta: metaSetorCloser(c.loja, k), frac: frac }); }),
+                                SETORES_TAB.map(function (k) { return React.createElement(CelulaSetor, { key: k, valor: s[k] || 0, meta: metaSetorCloser(c.loja, k), frac: frac }); }),
                                 React.createElement(CelulaSetor, { valor: tot, meta: mTot, frac: frac, forte: true })));
                         }),
                         React.createElement("tr", null,
                             React.createElement(Td, { bold: true }, "Grupo"),
-                            OF_SETORES.map(function (k) { return (React.createElement(CelulaSetor, { key: k, forte: true, frac: frac, valor: closers.reduce(function (a, c) { return a + ((setorPorCloser[c.closer] || {})[k] || 0); }, 0), meta: closers.reduce(function (a, c) { return a + metaSetorCloser(c.loja, k); }, 0) })); }),
+                            SETORES_TAB.map(function (k) { return (React.createElement(CelulaSetor, { key: k, forte: true, frac: frac, valor: closers.reduce(function (a, c) { return a + ((setorPorCloser[c.closer] || {})[k] || 0); }, 0), meta: closers.reduce(function (a, c) { return a + metaSetorCloser(c.loja, k); }, 0) })); }),
                             React.createElement(CelulaSetor, { forte: true, frac: frac, valor: totFat, meta: closers.reduce(function (a, c) { return a + metaSetorTotal(c.loja); }, 0) }))))),
+            gruposSemSetor.length > 0 && (React.createElement(Card, { className: "p12", style: { marginTop: 10, borderColor: "#F1DDA0", background: "#FFFBEB", fontSize: 12.5 } },
+                React.createElement("b", null,
+                    "Grupo",
+                    gruposSemSetor.length > 1 ? "s" : "",
+                    " do Oficina sem setor no mapa:"),
+                " ",
+                gruposSemSetor.map(function (g) { return "".concat(g, " (").concat(nReal(semSetor[g]), ")"); }).join(" · "),
+                ". Esse dinheiro est\u00E1 na coluna \"Sem setor\" at\u00E9 algu\u00E9m dizer a que setor pertence \u2014 me manda o de-para e eu cadastro.")),
             React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 10, lineHeight: 1.5 } },
                 React.createElement("b", null, "Como a meta do setor \u00E9 calculada:"),
                 " meta da loja (",
@@ -5464,7 +5481,7 @@ function AbaClosers() {
    gestão. Lê as mesmas views (o admin enxerga todos). */
 function useSdrGeral() {
     var _this = this;
-    var _a = __read(useState({ carregando: true, erro: null, funil: [], dias: [], agenda: [], closers: [] }), 2), st = _a[0], setSt = _a[1];
+    var _a = __read(useState({ carregando: true, erro: null, funil: [], dias: [], agenda: [], closers: [], semCloser: [] }), 2), st = _a[0], setSt = _a[1];
     useEffect(function () {
         var vivo = true;
         var pega = function (q) { return __awaiter(_this, void 0, void 0, function () { var _a, data, error; return __generator(this, function (_b) {
@@ -5483,10 +5500,12 @@ function useSdrGeral() {
             pega(db.from("closer_sdr_dia_v").select("*").gte("dia", m0)),
             pega(db.from("closer_agenda_v").select("closer_codigo, kommo_id, dia, desfecho, etapa_grupo")),
             pega(db.from("map_closer").select("*").eq("ativo", true)),
+            /* v64: visitas do mês que ficaram no nome do SDR — a outra metade da conta */
+            pega(db.from("loja_visitas_sem_closer_v").select("*").eq("mes", m0)),
         ]).then(function (_a) {
-            var _b = __read(_a, 4), f = _b[0], d = _b[1], a = _b[2], c = _b[3];
+            var _b = __read(_a, 5), f = _b[0], d = _b[1], a = _b[2], c = _b[3], sc = _b[4];
             if (vivo)
-                setSt({ carregando: false, erro: null, funil: f, dias: d, agenda: a, closers: c });
+                setSt({ carregando: false, erro: null, funil: f, dias: d, agenda: a, closers: c, semCloser: sc });
         })
             .catch(function (e) { if (vivo)
             setSt(function (x) { return (__assign(__assign({}, x), { carregando: false, erro: e.message })); }); });
@@ -5559,10 +5578,10 @@ function SecaoSdrGeral(_a) {
             React.createElement("div", { style: { width: "".concat(c.perd / base * 100, "%"), background: T.bad } })));
     };
     var pct = function (a, b) { return (b ? nPct(a / b, 0) : "—"); };
-    return (React.createElement(Secao, { n: n, titulo: "O que o SDR entrega aos closers", nota: "".concat(nomeMes(h).charAt(0).toUpperCase() + nomeMes(h).slice(1), ": agendamentos \u2192 compareceram \u2192 convertidos, em follow-up ou perdidos. Duas convers\u00F5es de prop\u00F3sito: sobre agendados mede SDR + closer; sobre quem veio mede s\u00F3 o closer.") },
+    return (React.createElement(Secao, { n: n, titulo: "O que o SDR entrega aos closers", nota: "".concat(nomeMes(h).charAt(0).toUpperCase() + nomeMes(h).slice(1), ": visitas marcadas no nome de cada closer \u2192 compareceram \u2192 convertidos, em follow-up ou perdidos. Duas convers\u00F5es de prop\u00F3sito: sobre agendados mede SDR + closer; sobre quem veio mede s\u00F3 o closer.") },
         React.createElement("div", { className: "grid-kpi-4", style: { marginBottom: 12 } },
             React.createElement(Kpi, { label: "Agendamentos do SDR", value: nInt(tot.agendados), sub: "".concat(nInt(tot.recebidos), " leads recebidos pelos closers \u00B7 ").concat(nInt(tot.agu), " visitas ainda por acontecer") }),
-            React.createElement(Kpi, { label: "Compareceram", value: "".concat(nInt(tot.comp), " \u00B7 ").concat(pct(tot.comp, tot.agendados)), sub: "".concat(nInt(tot.falt), " faltaram \u00B7 ").concat(nInt(tot.naoVieram), " sem reagendamento"), tone: tot.agendados && tot.comp / tot.agendados < 0.7 ? "bad" : undefined }),
+            React.createElement(Kpi, { label: "Compareceram", value: "".concat(nInt(tot.comp), " \u00B7 ").concat(pct(tot.comp, tot.agendados)), sub: "das visitas que chegaram ao closer \u00B7 ".concat(nInt(tot.falt), " faltaram \u00B7 ").concat(nInt(tot.naoVieram), " sem reagendamento"), tone: tot.agendados && tot.comp / tot.agendados < 0.7 ? "bad" : undefined }),
             React.createElement(Kpi, { label: "Convertidos", value: "".concat(nInt(tot.conv), " \u00B7 ").concat(pct(tot.conv, tot.comp)), sub: "de quem veio \u00B7 ".concat(pct(tot.conv, tot.agendados), " sobre agendados"), tone: "good" }),
             React.createElement(Kpi, { label: "Em follow-up \u00B7 perdidos", value: "".concat(nInt(tot.fup), " \u00B7 ").concat(nInt(tot.perd)), sub: "de quem veio: ".concat(pct(tot.fup, tot.comp), " ainda negocia, ").concat(pct(tot.perd, tot.comp), " perdeu"), tone: tot.comp && tot.perd / tot.comp > 0.2 ? "bad" : undefined })),
         React.createElement(Card, { className: "p0 rolagem" },
@@ -5655,6 +5674,36 @@ function SecaoSdrGeral(_a) {
                         React.createElement(Td, { right: true, bold: true }, pct(tot.conv, tot.comp)),
                         React.createElement(Td, { right: true, bold: true }, pct(tot.conv, tot.agendados)),
                         React.createElement(Td, { right: true, bold: true }, nInt(tot.naoVieram)))))),
+        (function () {
+            var sc = s.semCloser || [];
+            var t = sc.reduce(function (a, x) { return ({ v: a.v + N(x.visitas), c: a.c + N(x.compareceram), f: a.f + N(x.faltaram), g: a.g + N(x.ganhos) }); }, { v: 0, c: 0, f: 0, g: 0 });
+            if (!t.v)
+                return null;
+            var showLoja = (tot.comp + t.c) / (tot.agendados + t.v);
+            return (React.createElement(Card, { className: "p16", style: { marginTop: 12, borderColor: "#F1DDA0", background: "#FFFBEB" } },
+                React.createElement("div", { style: { fontSize: 13 } },
+                    React.createElement("b", null,
+                        nInt(t.v),
+                        " visitas do m\u00EAs ficaram no nome do SDR"),
+                    " e n\u00E3o entram na tabela acima \u2014 ",
+                    nInt(t.c),
+                    " compareceram, ",
+                    nInt(t.f),
+                    " faltaram ou cancelaram, ",
+                    nInt(t.g),
+                    " viraram venda ainda no SDR. Faltas e cancelamentos raramente chegam ao closer; por isso o comparecimento dos closers (",
+                    pct(tot.comp, tot.agendados),
+                    ") \u00E9 maior que o da loja. Somando as duas partes, o show real do m\u00EAs \u00E9 ",
+                    React.createElement("b", null, nPct(showLoja, 0)),
+                    " \u2014 o n\u00FAmero que a aba SDR mostra."),
+                React.createElement("div", { style: { display: "flex", gap: 14, flexWrap: "wrap", marginTop: 8, fontSize: 12, color: T.ink2 } }, sc.slice().sort(function (a, b) { return N(b.visitas) - N(a.visitas); }).map(function (x) { return React.createElement("span", { key: x.unidade },
+                    React.createElement("b", null, x.unidade),
+                    " ",
+                    nInt(x.visitas),
+                    " \u00B7 ",
+                    nInt(x.compareceram),
+                    " vieram"); }))));
+        })(),
         React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 8 } },
             React.createElement("span", { style: { color: T.good } }, "\u25A0"),
             " converteu \u00A0 ",
@@ -5663,7 +5712,7 @@ function SecaoSdrGeral(_a) {
             React.createElement("span", { style: { color: T.bad } }, "\u25A0"),
             " perdeu \u2014 a barra e as tr\u00EAs colunas s\u00E3o sobre quem ",
             React.createElement("b", null, "veio"),
-            ". \"Converteu\" e \"perdeu\" seguem a etapa do lead no Kommo; \"n\u00E3o vieram sem retorno\" s\u00E3o faltas dos \u00FAltimos 30 dias sem reagendamento.")));
+            ". Agendamentos contados pelo dia da visita, como na aba SDR. \"Converteu\" e \"perdeu\" seguem a etapa do lead no Kommo; \"n\u00E3o vieram sem retorno\" s\u00E3o faltas dos \u00FAltimos 30 dias sem reagendamento.")));
 }
 /* ---------------------------- LOJAS ---------------------------- */
 function AbaLojas() {
@@ -5706,6 +5755,8 @@ function AbaLojas() {
     }, { n: 0, v: 0, velhas: 0, vVelhas: 0 });
     var tot = { fat: somaCampo(lojas, "faturamento"), meta: escG.atual, custo: somaCampo(lojas, "custo"), os: somaCampo(lojas, "os_qtd"), abertas: totAberto.n, vAberto: totAberto.v };
     var setorLoja = function (l, s) { return somaCampo(r.setores.filter(function (x) { return x.loja === l && x.setor === s; }), "faturamento"); };
+    /* v65: grupo do Oficina sem mapa aparece como "Sem setor" — coluna só quando há valor */
+    var SETORES_LOJA = (r.setores || []).some(function (x) { return x.setor === "Sem setor" && Number(x.faturamento) > 0; }) ? OF_SETORES.concat(["Sem setor"]) : OF_SETORES;
     var setorTot = function (s) { return somaCampo(r.setores.filter(function (x) { return x.setor === s; }), "faturamento"); };
     // 46 O.S. internas de R$ 0 (garantia, retrabalho, cortesia) inflavam a
     // contagem e derrubavam o ticket médio. Elas continuam no total de O.S.,
@@ -5937,16 +5988,16 @@ function AbaLojas() {
                     React.createElement("thead", null,
                         React.createElement("tr", null,
                             React.createElement(Th, null, "Unidade"),
-                            OF_SETORES.map(function (s) { return React.createElement(Th, { key: s, right: true }, s); }),
+                            SETORES_LOJA.map(function (s) { return React.createElement(Th, { key: s, right: true }, s); }),
                             React.createElement(Th, { right: true }, "Total"))),
                     React.createElement("tbody", null,
                         lojas.map(function (l) { return (React.createElement("tr", { key: l.loja },
                             React.createElement(Td, { bold: true }, l.loja),
-                            OF_SETORES.map(function (s) { var v = setorLoja(l.loja, s); return React.createElement(Td, { key: s, right: true, color: v ? T.ink : T.muted }, v ? "".concat(nReal(v), " \u00B7 ").concat(nPct(div(v, Number(l.faturamento)), 0)) : "—"); }),
+                            SETORES_LOJA.map(function (s) { var v = setorLoja(l.loja, s); return React.createElement(Td, { key: s, right: true, color: v ? T.ink : T.muted }, v ? "".concat(nReal(v), " \u00B7 ").concat(nPct(div(v, Number(l.faturamento)), 0)) : "—"); }),
                             React.createElement(Td, { right: true, bold: true }, nReal(l.faturamento)))); }),
                         React.createElement("tr", null,
                             React.createElement(Td, { bold: true }, "Grupo"),
-                            OF_SETORES.map(function (s) { var v = setorTot(s); return React.createElement(Td, { key: s, right: true, bold: true },
+                            SETORES_LOJA.map(function (s) { var v = setorTot(s); return React.createElement(Td, { key: s, right: true, bold: true },
                                 nReal(v),
                                 " \u00B7 ",
                                 nPct(div(v, tot.fat), 0)); }),
@@ -7004,7 +7055,7 @@ function SecoesSdr(_a) {
                     React.createElement("div", { style: { display: "flex", alignItems: "stretch", gap: 4, marginTop: 12, flexWrap: "wrap" } },
                         React.createElement(Passo, { n: ag, l: "agendamentos", sub: agu ? "".concat(nInt(agu), " ainda por acontecer") : null, largura: 1 }),
                         React.createElement(Seta, null),
-                        React.createElement(Passo, { n: comp, l: "compareceram \u00B7 ".concat(nPct(comp / ag, 0)), sub: falt ? "".concat(nInt(falt), " faltaram") : "ninguém faltou", largura: 1 }),
+                        React.createElement(Passo, { n: comp, l: "compareceram \u00B7 ".concat(nPct(comp / ag, 0)), sub: falt ? "".concat(nInt(falt), " faltaram") : "das visitas que chegaram a você", largura: 1 }),
                         React.createElement(Seta, null),
                         React.createElement("div", { style: { flex: 2.2, minWidth: 260 } },
                             React.createElement("div", { style: { display: "flex", gap: 18 } },
