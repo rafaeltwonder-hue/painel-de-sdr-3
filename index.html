@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v65 — CAR SERVICE</title>
-<meta name="painel-versao" content="v65">
+<title>Painel de SDR v66 — CAR SERVICE</title>
+<meta name="painel-versao" content="v66">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -220,7 +220,7 @@ window.FOTOS_ORC = {"hero_rear_logo": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ
 <script>
 function iniciarPainel() {
 "use strict";
-/* Painel de SDR — The Wonder / Car Service (v65: grupos sem setor aparecem como tal, com aviso)
+/* Painel de SDR — The Wonder / Car Service (v66: faturado no Oficina por SDR na aba SDR)
    Lê as views do Supabase. Sem lançamento manual: o dado vem do Kommo. */
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function(t) {
@@ -1869,32 +1869,35 @@ function usarDados(de, ate, prevDe, negocio) {
     /* A lista nominal de quem ficou sem discagem (Rafael, 18/09). O número
        sozinho não se cobra na reunião da manhã — nome, hora e etapa sim. */
     var _f = __read(useState([]), 2), semLigacao = _f[0], setSemLigacao = _f[1];
-    var _g = __read(useState([]), 2), agEvento = _g[0], setAgEvento = _g[1];
-    var _h = __read(useState([]), 2), agCoorte = _h[0], setAgCoorte = _h[1];
-    var _j = __read(useState([]), 2), esforco = _j[0], setEsforco = _j[1];
-    var _k = __read(useState(false), 2), tempoAntigo = _k[0], setTempoAntigo = _k[1];
-    var _l = __read(useState([]), 2), pendentes = _l[0], setPendentes = _l[1];
-    var _m = __read(useState([]), 2), carteiraEsf = _m[0], setCarteiraEsf = _m[1];
-    var _o = __read(useState([]), 2), robo = _o[0], setRobo = _o[1];
-    var _p = __read(useState([]), 2), preench = _p[0], setPreench = _p[1];
-    var _q = __read(useState(null), 2), qualidade = _q[0], setQualidade = _q[1];
-    var _r = __read(useState([]), 2), funilAgora = _r[0], setFunilAgora = _r[1];
-    var _s = __read(useState({ sdr: [], taxa: null }), 2), metas = _s[0], setMetas = _s[1];
+    /* 26/09: faturado no Oficina por SDR (campo Pesquisa da O.S.) — o valor
+       final com upsell do closer, que é o que conta para o SDR. */
+    var _g = __read(useState([]), 2), oficina = _g[0], setOficina = _g[1];
+    var _h = __read(useState([]), 2), agEvento = _h[0], setAgEvento = _h[1];
+    var _j = __read(useState([]), 2), agCoorte = _j[0], setAgCoorte = _j[1];
+    var _k = __read(useState([]), 2), esforco = _k[0], setEsforco = _k[1];
+    var _l = __read(useState(false), 2), tempoAntigo = _l[0], setTempoAntigo = _l[1];
+    var _m = __read(useState([]), 2), pendentes = _m[0], setPendentes = _m[1];
+    var _o = __read(useState([]), 2), carteiraEsf = _o[0], setCarteiraEsf = _o[1];
+    var _p = __read(useState([]), 2), robo = _p[0], setRobo = _p[1];
+    var _q = __read(useState([]), 2), preench = _q[0], setPreench = _q[1];
+    var _r = __read(useState(null), 2), qualidade = _r[0], setQualidade = _r[1];
+    var _s = __read(useState([]), 2), funilAgora = _s[0], setFunilAgora = _s[1];
+    var _t = __read(useState({ sdr: [], taxa: null }), 2), metas = _t[0], setMetas = _t[1];
     /* Duas listas novas, as duas nascidas do dia 08/09, quando o painel
        mostrou zero ligações com cara de "hoje ninguém trabalhou" enquanto
        a verdade era que a carga automática estava tomando 401 havia dias.
          falhas -> consulta que quebrou de verdade (antes virava zero mudo)
          saude  -> há quanto tempo cada FONTE não recebe dado novo */
-    var _t = __read(useState([]), 2), falhas = _t[0], setFalhas = _t[1];
-    var _u = __read(useState([]), 2), saude = _u[0], setSaude = _u[1];
+    var _u = __read(useState([]), 2), falhas = _u[0], setFalhas = _u[1];
+    var _v = __read(useState([]), 2), saude = _v[0], setSaude = _v[1];
     /* Tarefas: o único dado do painel que fala do FUTURO. Tudo o mais aqui
        mede o que já aconteceu. */
-    var _v = __read(useState([]), 2), tarefas = _v[0], setTarefas = _v[1];
-    var _w = __read(useState([]), 2), semTarefa = _w[0], setSemTarefa = _w[1];
+    var _w = __read(useState([]), 2), tarefas = _w[0], setTarefas = _w[1];
+    var _x = __read(useState([]), 2), semTarefa = _x[0], setSemTarefa = _x[1];
     /* Tudo que a aba do coordenador e a TV usam. Fica separado do resto
        porque tem uma janela própria — mês corrente e hoje — que não muda
        quando alguém mexe no filtro da aba principal. */
-    var _x = __read(useState(null), 2), rotina = _x[0], setRotina = _x[1];
+    var _y = __read(useState(null), 2), rotina = _y[0], setRotina = _y[1];
     /* O Supabase corta em 1.000 linhas por consulta. A fato_dia tem uma linha
        por dia × SDR × unidade × serviço, então um mês passa desse teto e os
        totais sairiam menores sem ninguém perceber. Buscamos em páginas até
@@ -1928,19 +1931,19 @@ function usarDados(de, ate, prevDe, negocio) {
         });
     }); };
     var buscar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var doNegocio_1, timeTudo, doOutroTime_1, semOutroTime, _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, sl, ag, co, es, vp, ce, rb, pr, opcional, opcionalPaginado, inicioDoMes_1, oDiaDeHoje_1, _b, q, fa, ms, mt, sd, tf, lst, mm, eq, fm, eh, th, vh, ch, mi, e_1;
+        var doNegocio_1, timeTudo, doOutroTime_1, semOutroTime, _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, sl, of, _b, ag, co, es, vp, ce, rb, pr, opcional, opcionalPaginado, inicioDoMes_1, oDiaDeHoje_1, _c, q, fa, ms, mt, sd, tf, lst, mm, eq, fm, eh, th, vh, ch, mi, e_1;
         var _this = this;
-        return __generator(this, function (_c) {
-            switch (_c.label) {
+        return __generator(this, function (_d) {
+            switch (_d.label) {
                 case 0:
                     setEstado({ carregando: true, erro: null });
-                    _c.label = 1;
+                    _d.label = 1;
                 case 1:
-                    _c.trys.push([1, 16, , 17]);
+                    _d.trys.push([1, 19, , 20]);
                     doNegocio_1 = function (q) { return q.eq("negocio", negocio); };
                     return [4 /*yield*/, db.from("equipe_sdr").select("sdr,ativo,negocio")];
                 case 2:
-                    timeTudo = (_c.sent()).data;
+                    timeTudo = (_d.sent()).data;
                     doOutroTime_1 = new Set((timeTudo || []).filter(function (x) { return x.negocio && x.negocio !== negocio; }).map(function (x) { return x.sdr; }));
                     semOutroTime = function (linhas) { return (linhas || []).filter(function (r) { return !doOutroTime_1.has(r.sdr); }); };
                     return [4 /*yield*/, Promise.all([
@@ -1948,7 +1951,7 @@ function usarDados(de, ate, prevDe, negocio) {
                             buscarTudo(function () { return doNegocio_1(db.from("motivos_dia").select("*").gte("data", de).lte("data", ate).order("data")); }),
                         ])];
                 case 3:
-                    _a = __read.apply(void 0, [_c.sent(), 2]), f = _a[0], m = _a[1];
+                    _a = __read.apply(void 0, [_d.sent(), 2]), f = _a[0], m = _a[1];
                     setFato(f);
                     setMotivos(m);
                     falhou_1 = [];
@@ -1976,62 +1979,73 @@ function usarDados(de, ate, prevDe, negocio) {
                     return [4 /*yield*/, buscarSePuder("Tempo de resposta", function () { return doNegocio_1(db.from("tempo_resposta_dia")
                             .select("*").gte("data", de).lte("data", ate).order("data")); })];
                 case 4:
-                    s = _c.sent();
+                    s = _d.sent();
                     antiga = false;
                     if (!(s === null)) return [3 /*break*/, 6];
                     antiga = true;
                     return [4 /*yield*/, buscarSePuder("Tempo de resposta (medida antiga)", function () { return db.from("sla_dia")
                             .select("*").gte("data", de).lte("data", ate).order("data"); })];
                 case 5:
-                    v = (_c.sent()) || [];
+                    v = (_d.sent()) || [];
                     s = semOutroTime(v).map(function (r) { return (__assign(__assign({}, r), { ate_5min: r.sla_5, ate_15min: r.sla_15, ate_60min: r.sla_60, acima_de_1h: r.sla_acima, nunca_ligaram: 0 })); });
-                    _c.label = 6;
+                    _d.label = 6;
                 case 6:
                     setSla(s);
                     setTempoAntigo(antiga);
                     return [4 /*yield*/, buscarSePuder("Sem ligação (nominal)", function () { return doNegocio_1(db.from("sem_ligacao_v")
                             .select("*").gte("data", de).lte("data", ate).order("criado_em")); })];
                 case 7:
-                    sl = _c.sent();
+                    sl = _d.sent();
                     setSemLigacao(sl || []);
+                    if (!(negocio === "car_store")) return [3 /*break*/, 8];
+                    _b = [];
+                    return [3 /*break*/, 10];
+                case 8: return [4 /*yield*/, buscarSePuder("Faturado no Oficina", function () { return db.from("sdr_oficina_dia_v")
+                        .select("*").gte("dia", de).lte("dia", ate).order("dia"); })];
+                case 9:
+                    _b = _d.sent();
+                    _d.label = 10;
+                case 10:
+                    of = _b;
+                    setOficina(of || []);
                     return [4 /*yield*/, buscarSePuder("Agendamentos (evento)", function () { return doNegocio_1(db.from("agendamento_evento_v")
                             .select("dia,dia_criado,sdr,unidade,servico,vez,reagendamento,mesmo_dia,compareceu")
                             .gte("dia", de).lte("dia", ate).order("dia")); })];
-                case 8:
-                    ag = _c.sent();
+                case 11:
+                    ag = _d.sent();
                     setAgEvento(ag || []);
                     return [4 /*yield*/, buscarSePuder("Agendamentos (coorte)", function () { return doNegocio_1(db.from("coorte_agendamento_v")
                             .select("*").gte("dia", de).lte("dia", ate).order("dia")); })];
-                case 9:
-                    co = _c.sent();
+                case 12:
+                    co = _d.sent();
                     setAgCoorte(co || []);
                     return [4 /*yield*/, buscarSePuder("Esforço", function () { return db.from("esforco_dia")
                             .select("*").gte("data", de).lte("data", ate).order("data"); })];
-                case 10:
-                    es = _c.sent();
+                case 13:
+                    es = _d.sent();
                     setEsforco(semOutroTime(es));
                     return [4 /*yield*/, buscarSePuder("Visitas sem desfecho", function () { return doNegocio_1(db.from("visitas_pendentes_dia")
                             .select("*").gte("data", de).lte("data", ate).order("data")); })];
-                case 11:
-                    vp = _c.sent();
+                case 14:
+                    vp = _d.sent();
                     setPendentes(vp || []);
                     return [4 /*yield*/, buscarSePuder("Esforço na carteira", function () { return db.from("carteira_esforco_dia")
                             .select("*").gte("data", de).lte("data", ate).order("data"); })];
-                case 12:
-                    ce = _c.sent();
+                case 15:
+                    ce = _d.sent();
                     setCarteiraEsf(semOutroTime(ce));
                     return [4 /*yield*/, buscarSePuder("Robô de triagem", function () { return db.from("robo_dia")
                             .select("*").gte("data", de).lte("data", ate).order("data"); })];
-                case 13:
-                    rb = _c.sent();
+                case 16:
+                    rb = _d.sent();
                     setRobo(semOutroTime(rb));
                     return [4 /*yield*/, buscarSePuder("Nota de preenchimento", function () {
                             return negocio === "car_store"
                                 ? db.from("preenchimento_cars").select("*").gte("data", de).lte("data", ate).order("data")
                                 : doNegocio_1(db.from("preenchimento_sdr").select("*").gte("data", de).lte("data", ate).order("data"));
                         })];
-                case 14:
-                    pr = _c.sent();
+                case 17:
+                    pr = _d.sent();
                     setPreench(pr || []);
                     opcional = function (fn, padrao) { return __awaiter(_this, void 0, void 0, function () {
                         var _a, data, error, e_3;
@@ -2094,8 +2108,8 @@ function usarDados(de, ate, prevDe, negocio) {
                                três metas separadas, por intenção. Vazio no Car Service. */
                             opcional(function () { return doNegocio_1(db.from("metas_intencao").select("*")).order("ordem"); }, []),
                         ])];
-                case 15:
-                    _b = __read.apply(void 0, [_c.sent(), 15]), q = _b[0], fa = _b[1], ms = _b[2], mt = _b[3], sd = _b[4], tf = _b[5], lst = _b[6], mm = _b[7], eq = _b[8], fm = _b[9], eh = _b[10], th = _b[11], vh = _b[12], ch = _b[13], mi = _b[14];
+                case 18:
+                    _c = __read.apply(void 0, [_d.sent(), 15]), q = _c[0], fa = _c[1], ms = _c[2], mt = _c[3], sd = _c[4], tf = _c[5], lst = _c[6], mm = _c[7], eq = _c[8], fm = _c[9], eh = _c[10], th = _c[11], vh = _c[12], ch = _c[13], mi = _c[14];
                     setQualidade(q[0] || null);
                     setFunilAgora(fa);
                     setMetas({ sdr: ms, taxa: mt[0] || null });
@@ -2113,12 +2127,12 @@ function usarDados(de, ate, prevDe, negocio) {
                     });
                     setFalhas(falhou_1);
                     setEstado({ carregando: false, erro: null, em: new Date() });
-                    return [3 /*break*/, 17];
-                case 16:
-                    e_1 = _c.sent();
+                    return [3 /*break*/, 20];
+                case 19:
+                    e_1 = _d.sent();
                     setEstado({ carregando: false, erro: e_1.message || String(e_1) });
-                    return [3 /*break*/, 17];
-                case 17: return [2 /*return*/];
+                    return [3 /*break*/, 20];
+                case 20: return [2 /*return*/];
             }
         });
     }); }, [de, ate, prevDe, negocio]);
@@ -2131,7 +2145,7 @@ function usarDados(de, ate, prevDe, negocio) {
         var t = setInterval(function () { buscar(); }, 5 * 60 * 1000);
         return function () { return clearInterval(t); };
     }, [buscar]);
-    return { estado: estado, fato: fato, motivos: motivos, sla: sla, semLigacao: semLigacao, agEvento: agEvento, agCoorte: agCoorte, esforco: esforco, tempoAntigo: tempoAntigo, pendentes: pendentes, carteiraEsf: carteiraEsf, robo: robo, preench: preench, qualidade: qualidade, funilAgora: funilAgora, metas: metas, falhas: falhas, saude: saude, tarefas: tarefas, semTarefa: semTarefa, rotina: rotina, recarregar: buscar };
+    return { estado: estado, fato: fato, motivos: motivos, sla: sla, semLigacao: semLigacao, oficina: oficina, agEvento: agEvento, agCoorte: agCoorte, esforco: esforco, tempoAntigo: tempoAntigo, pendentes: pendentes, carteiraEsf: carteiraEsf, robo: robo, preench: preench, qualidade: qualidade, funilAgora: funilAgora, metas: metas, falhas: falhas, saude: saude, tarefas: tarefas, semTarefa: semTarefa, rotina: rotina, recarregar: buscar };
 }
 /* ===================== app ===================== */
 function Painel(_a) {
@@ -2258,6 +2272,20 @@ function Painel(_a) {
        fora do placar e aparece embaixo, como pendência. Misturado na tabela,
        ele entrava no ranking como se fosse alguém com desempenho ruim. */
     var porSdrTudo = useMemo(function () { return porChave("sdr"); }, [noPeriodo]);
+    /* Faturado no Oficina por SDR — respeita o filtro de unidade; o de serviço
+       não se aplica (a O.S. inteira conta, é esse o ponto do upsell). */
+    var oficinaPorSdr = useMemo(function () {
+        var m = new Map();
+        (d.oficina || []).filter(function (x) { return f.unidade === "__all" || x.unidade === f.unidade; }).forEach(function (x) {
+            var o = m.get(x.sdr) || { faturado: 0, os: 0, aberto: 0 };
+            o.faturado += Number(x.faturado) || 0;
+            o.os += Number(x.os_qtd) || 0;
+            o.aberto += Number(x.em_aberto) || 0;
+            m.set(x.sdr, o);
+        });
+        return m;
+    }, [d.oficina, f.unidade]);
+    var oficinaTotal = useMemo(function () { var t = 0, os = 0; oficinaPorSdr.forEach(function (o) { t += o.faturado; os += o.os; }); return { faturado: t, os: os }; }, [oficinaPorSdr]);
     var porSdr = useMemo(function () { return porSdrTudo.filter(function (x) { return x.nome !== "Sem SDR"; }); }, [porSdrTudo]);
     var semSdr = useMemo(function () { return porSdrTudo.find(function (x) { return x.nome === "Sem SDR"; }) || null; }, [porSdrTudo]);
     var porUnidade = useMemo(function () { return porChave("unidade"); }, [noPeriodo]);
@@ -2629,7 +2657,9 @@ function Painel(_a) {
                     : "nenhuma venda no período",
                 tone: !a.vendas || !metaMix ? undefined
                     : (div(vendasDaIntencao("Intermediação"), a.vendas) >= metaMix ? "good" : "bad") }
-            : { l: "Receita", v: nReal(a.receita), s: "Ticket m\u00E9dio ".concat(nReal(a.ticket)) },
+            : { l: "Receita (CRM)", v: nReal(a.receita), s: oficinaTotal.faturado
+                    ? "Faturado no Oficina: ".concat(nReal(oficinaTotal.faturado), " \u00B7 ").concat(nInt(oficinaTotal.os), " O.S.")
+                    : "Ticket m\u00E9dio ".concat(nReal(a.ticket)) },
         ehStore
             ? { l: "Trocas", v: nInt(vendasDaIntencao("Troca")), s: "Entra um carro e sai outro · conta 1" }
             : null,
@@ -2857,7 +2887,8 @@ function Painel(_a) {
                                     React.createElement(Th, { right: true }, "Compar."),
                                     React.createElement(Th, { right: true }, "% Show"),
                                     React.createElement(Th, { right: true }, "Vendas"),
-                                    !ehStore && React.createElement(Th, { right: true }, "Receita"),
+                                    !ehStore && React.createElement(Th, { right: true }, "Receita (CRM)"),
+                                    !ehStore && React.createElement(Th, { right: true }, "Faturado Oficina"),
                                     React.createElement(Th, { right: true }, "Conv."),
                                     React.createElement(Th, { right: true }, "Lig. na carteira"),
                                     React.createElement(Th, { right: true }, ehStore ? "Lig. por venda" : "R$ por lig."))),
@@ -2875,6 +2906,19 @@ function Painel(_a) {
                                         React.createElement(Td, { right: true, color: s.taxa_show >= metaTaxa.taxa_show / 100 ? T.good : T.bad }, nPct(s.taxa_show)),
                                         React.createElement(Td, { right: true, bold: true }, nInt(s.vendas)),
                                         !ehStore && React.createElement(Td, { right: true }, nReal(s.receita)),
+                                        !ehStore && (function () {
+                                            var o = oficinaPorSdr.get(s.nome);
+                                            return (React.createElement(Td, { right: true, bold: true, color: o ? T.ink : T.muted },
+                                                o ? nReal(o.faturado) : "—",
+                                                o && React.createElement("span", { style: { color: T.muted, fontSize: 11, fontWeight: 400 } },
+                                                    " \u00B7 ",
+                                                    nInt(o.os),
+                                                    " O.S."),
+                                                o && s.receita > 0 && React.createElement("span", { style: { color: o.faturado >= s.receita ? T.good : T.bad, fontSize: 11, fontWeight: 600 } },
+                                                    " ",
+                                                    o.faturado >= s.receita ? "▲" : "▼",
+                                                    nPct(Math.abs(o.faturado - s.receita) / s.receita, 0))));
+                                        })(),
                                         React.createElement(Td, { right: true, color: s.conversao_final >= a.conversao_final ? T.good : T.bad }, nPct(s.conversao_final)),
                                         React.createElement(Td, { right: true },
                                             ce.ligacoes ? nInt(ce.ligacoes) : "—",
@@ -2897,11 +2941,15 @@ function Painel(_a) {
                                     React.createElement(Td, { right: true, bold: true }, nPct(a.taxa_show)),
                                     React.createElement(Td, { right: true, bold: true }, nInt(a.vendas)),
                                     !ehStore && React.createElement(Td, { right: true, bold: true }, nReal(a.receita)),
+                                    !ehStore && React.createElement(Td, { right: true, bold: true }, oficinaTotal.faturado ? nReal(oficinaTotal.faturado) : "—"),
                                     React.createElement(Td, { right: true, bold: true }, nPct(a.conversao_final)),
                                     React.createElement(Td, { right: true, bold: true }, ligacoesNaCarteiraTot ? nInt(ligacoesNaCarteiraTot) : "—"),
                                     React.createElement(Td, { right: true, bold: true }, !ligacoesNaCarteiraTot ? "—"
                                         : ehStore ? (a.vendas ? nNum(div(ligacoesNaCarteiraTot, a.vendas), 0) : "—")
                                             : nReal(div(a.receita, ligacoesNaCarteiraTot))))))),
+                    !ehStore && (React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 8, lineHeight: 1.5 } },
+                        React.createElement("b", null, "Faturado Oficina"),
+                        " = O.S. faturadas no per\u00EDodo com o nome do SDR no campo Pesquisa (\"PAULO AGENDAMENTO\"), j\u00E1 com o que o closer vendeu a mais durante a estadia. \u00C9 o valor que conta para o SDR. A seta compara com a receita do CRM. O.S. sem Pesquisa preenchida n\u00E3o entra \u2014 vale cobrar esse campo na recep\u00E7\u00E3o.")),
                     semSdr && (semSdr.leads_recebidos > 0 || semSdr.visitas_do_dia > 0 || semSdr.vendas > 0 || semSdr.receita > 0) && (React.createElement(Card, { className: "p16", style: { marginTop: 12, borderColor: "#F3D9DB" } },
                         React.createElement("div", { style: { fontSize: 13, color: T.ink2, lineHeight: 1.6 } },
                             React.createElement("b", { style: { color: T.bad } }, "\u26A0 Sem SDR no per\u00EDodo:"),
