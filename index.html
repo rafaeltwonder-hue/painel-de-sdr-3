@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v66 — CAR SERVICE</title>
-<meta name="painel-versao" content="v66">
+<title>Painel de SDR v67 — CAR SERVICE</title>
+<meta name="painel-versao" content="v67">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -220,7 +220,7 @@ window.FOTOS_ORC = {"hero_rear_logo": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ
 <script>
 function iniciarPainel() {
 "use strict";
-/* Painel de SDR — The Wonder / Car Service (v66: faturado no Oficina por SDR na aba SDR)
+/* Painel de SDR — The Wonder / Car Service (v67: botão "Ver os leads" no cartão de Vendas)
    Lê as views do Supabase. Sem lançamento manual: o dado vem do Kommo. */
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function(t) {
@@ -2147,6 +2147,179 @@ function usarDados(de, ate, prevDe, negocio) {
     }, [buscar]);
     return { estado: estado, fato: fato, motivos: motivos, sla: sla, semLigacao: semLigacao, oficina: oficina, agEvento: agEvento, agCoorte: agCoorte, esforco: esforco, tempoAntigo: tempoAntigo, pendentes: pendentes, carteiraEsf: carteiraEsf, robo: robo, preench: preench, qualidade: qualidade, funilAgora: funilAgora, metas: metas, falhas: falhas, saude: saude, tarefas: tarefas, semTarefa: semTarefa, rotina: rotina, recarregar: buscar };
 }
+/* ---------- v67: "Ver os leads" das vendas ----------
+   Mostra, lead a lead, o que o cartão "Vendas" está contando — com os
+   mesmos filtros da tela (período, unidade, serviço, SDR, negócio). Nasceu
+   de uma conferência de 44 x 43 em Tatuapé: com a lista na mão, qualquer
+   um acha a diferença sozinho. A view vendas_lista_v usa a mesma regra do
+   fato_dia, então a lista bate com o cartão. */
+var KOMMO_LEAD = function (id) { return "https://thewcars.kommo.com/leads/detail/".concat(id); };
+function BotaoVerLeads(_a) {
+    var delta = _a.delta, pode = _a.pode, abrir = _a.abrir;
+    return (React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap" } },
+        React.createElement("span", null, delta),
+        pode && React.createElement("button", { onClick: abrir, style: { fontFamily: F_UI, fontSize: 11.5, fontWeight: 600, color: T.ink, background: T.marca, border: "none", borderRadius: 5, padding: "4px 9px", cursor: "pointer", whiteSpace: "nowrap" } }, "Ver os leads \u2197")));
+}
+function JanelaVendas(_a) {
+    var _this = this;
+    var de = _a.de, ate = _a.ate, negocio = _a.negocio, filtro = _a.filtro, esperado = _a.esperado, fechar = _a.fechar;
+    var _b = __read(useState({ carregando: true, erro: null, linhas: [] }), 2), st = _b[0], setSt = _b[1];
+    var _c = __read(useState(false), 2), copiado = _c[0], setCopiado = _c[1];
+    useEffect(function () {
+        var vivo = true;
+        var q = db.from("vendas_lista_v").select("*").eq("negocio", negocio).gte("data", de).lte("data", ate);
+        if (filtro.unidade !== "__all")
+            q = q.eq("unidade", filtro.unidade);
+        if (filtro.servico !== "__all")
+            q = q.eq("servico", filtro.servico);
+        if (filtro.sdr !== "__all")
+            q = q.eq("sdr", filtro.sdr);
+        q.order("data", { ascending: true }).order("kommo_id", { ascending: true }).limit(2000).then(function (_a) {
+            var data = _a.data, error = _a.error;
+            if (!vivo)
+                return;
+            if (error)
+                setSt({ carregando: false, erro: error.message, linhas: [] });
+            else
+                setSt({ carregando: false, erro: null, linhas: data || [] });
+        });
+        return function () { vivo = false; };
+    }, [de, ate, negocio, filtro.unidade, filtro.servico, filtro.sdr]);
+    useEffect(function () {
+        var esc = function (e) { if (e.key === "Escape")
+            fechar(); };
+        window.addEventListener("keydown", esc);
+        return function () { return window.removeEventListener("keydown", esc); };
+    }, []);
+    /* Os dois motivos que já explicaram diferença com o filtro do Kommo:
+       card fechado em outro mês (o Kommo filtra por fechamento, o painel pela
+       Data da Venda) e o mesmo cliente com o mesmo valor em dois cards. */
+    var linhas = useMemo(function () { return st.linhas.slice().sort(function (x, y) { return (String(x.data) < String(y.data) ? -1 : String(x.data) > String(y.data) ? 1 : x.kommo_id - y.kommo_id); }); }, [st.linhas]);
+    var nomeDe = function (t) { return String(t || "").split(/\s*[-–|·]\s*/)[0].trim().toLowerCase(); };
+    var obs = linhas.map(function (l, i) {
+        var o = [];
+        if (l.fechado_dia && String(l.fechado_dia).slice(0, 7) !== String(l.data).slice(0, 7))
+            o.push("Fechado no Kommo em ".concat(brFull(String(l.fechado_dia).slice(0, 10))));
+        var n = nomeDe(l.titulo), v = Number(l.valor) || 0;
+        var j = n && v ? linhas.findIndex(function (x, k) { return k !== i && x.unidade === l.unidade && nomeDe(x.titulo) === n && (Number(x.valor) || 0) === v
+            && Math.abs(parseISO(String(x.data).slice(0, 10)) - parseISO(String(l.data).slice(0, 10))) <= 7 * 86400000; }) : -1;
+        if (j >= 0)
+            o.push("Poss\u00EDvel duplicado do #".concat(j + 1));
+        if (l.valor_suspeito)
+            o.push("Valor suspeito — fora da receita");
+        if (l.etapa_grupo !== "ganho")
+            o.push("Hoje est\u00E1 em \"".concat(l.etapa, "\""));
+        return o.join(" · ");
+    });
+    var total = linhas.reduce(function (t, l) { return t + (Number(l.valor) || 0); }, 0);
+    var recorte = [filtro.unidade, filtro.servico, filtro.sdr].filter(function (x) { return x !== "__all"; }).join(" · ");
+    var rotulo = "".concat(brFull(de), " a ").concat(brFull(ate)).concat(recorte ? " · " + recorte : "");
+    var baixar = function () {
+        var num = function (v) { return String((Number(v) || 0).toFixed(2)).replace(".", ","); };
+        var cab = ["#", "Data da venda", "ID Kommo", "Link", "Título do lead", "SDR", "Unidade", "Serviço", "Fechado no Kommo em", "Valor", "Atenção"];
+        var corpo = linhas.map(function (l, i) { return [String(i + 1), brFull(String(l.data).slice(0, 10)), String(l.kommo_id), KOMMO_LEAD(l.kommo_id),
+            l.titulo || "", l.sdr || "", l.unidade || "", l.servico || "", l.fechado_dia ? brFull(String(l.fechado_dia).slice(0, 10)) : "", num(l.valor), obs[i]]; });
+        var texto = [cab].concat(corpo).map(function (r) { return r.map(function (c) { return (/[;"\n]/.test(c) ? '"' + String(c).replace(/"/g, '""') + '"' : c); }).join(";"); }).join("\n");
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob(["﻿" + texto], { type: "text/csv;charset=utf-8" }));
+        a.download = "vendas-".concat(negocio === "car_store" ? "car-store" : "car-service", "-").concat((filtro.unidade !== "__all" ? filtro.unidade : "todas").toLowerCase().replace(/\s+/g, "-"), "-").concat(de, "-a-").concat(ate, ".csv");
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { return URL.revokeObjectURL(a.href); }, 4000);
+    };
+    /* Para colar no WhatsApp: número, título e link, um por linha */
+    var copiar = function () { return __awaiter(_this, void 0, void 0, function () {
+        var texto, e_5;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    texto = "Vendas \u2014 ".concat(rotulo, " (").concat(linhas.length, ")\n") + linhas.map(function (l, i) { return "".concat(i + 1, ". ").concat(l.titulo || l.kommo_id, " \u2014 ").concat(KOMMO_LEAD(l.kommo_id)); }).join("\n");
+                    _a.label = 1;
+                case 1:
+                    _a.trys.push([1, 3, , 4]);
+                    return [4 /*yield*/, navigator.clipboard.writeText(texto)];
+                case 2:
+                    _a.sent();
+                    setCopiado(true);
+                    setTimeout(function () { return setCopiado(false); }, 2500);
+                    return [3 /*break*/, 4];
+                case 3:
+                    e_5 = _a.sent();
+                    window.prompt("Copie a lista:", texto);
+                    return [3 /*break*/, 4];
+                case 4: return [2 /*return*/];
+            }
+        });
+    }); };
+    return (React.createElement("div", { onClick: fechar, style: { position: "fixed", inset: 0, background: "rgba(0,0,0,.6)", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "40px 16px", overflowY: "auto" } },
+        React.createElement("div", { onClick: function (e) { return e.stopPropagation(); }, style: { background: T.surface, borderRadius: 12, maxWidth: 1180, width: "100%", boxShadow: "0 30px 80px rgba(0,0,0,.45)", overflow: "hidden" } },
+            React.createElement("div", { style: { background: T.preto, color: "#fff", padding: "14px 18px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" } },
+                React.createElement("div", { style: { flex: 1, minWidth: 220 } },
+                    React.createElement("div", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 15 } },
+                        "Vendas contadas no painel ",
+                        React.createElement("span", { style: { color: T.marca } },
+                            "\u00B7 ",
+                            st.carregando ? "…" : nInt(linhas.length))),
+                    React.createElement("div", { style: { fontSize: 12, color: "rgba(255,255,255,.62)" } }, rotulo)),
+                React.createElement(Btn, { kind: "accent", onClick: baixar, style: { padding: "7px 12px", fontSize: 12.5 } }, "Baixar planilha"),
+                React.createElement(Btn, { onClick: copiar, style: { padding: "7px 12px", fontSize: 12.5 } }, copiado ? "Copiado ✓" : "Copiar para WhatsApp"),
+                React.createElement(Btn, { onClick: fechar, style: { padding: "7px 12px", fontSize: 12.5 } }, "Fechar")),
+            st.erro ? React.createElement("div", { style: { padding: 18, fontSize: 13, color: T.bad } },
+                "N\u00E3o consegui ler a lista: ",
+                st.erro)
+                : st.carregando ? React.createElement("div", { style: { padding: 18, fontSize: 13, color: T.muted } }, "Carregando\u2026")
+                    : !linhas.length ? React.createElement("div", { style: { padding: 18, fontSize: 13, color: T.muted } }, "Nenhuma venda com esses filtros.")
+                        : (React.createElement(React.Fragment, null,
+                            esperado != null && esperado !== linhas.length && (React.createElement("div", { style: { padding: "10px 18px", fontSize: 12.5, background: "#FFF4C2", color: T.ink } },
+                                "A lista tem ",
+                                nInt(linhas.length),
+                                " e o cart\u00E3o mostra ",
+                                nInt(esperado),
+                                ". Clique em \"Atualizar\" no topo do painel: o cart\u00E3o pode estar com a leitura de alguns minutos atr\u00E1s.")),
+                            React.createElement("div", { className: "rolagem", style: { maxHeight: "68vh", overflow: "auto" } },
+                                React.createElement("table", { style: { width: "100%", minWidth: 980, borderCollapse: "collapse" } },
+                                    React.createElement("thead", null,
+                                        React.createElement("tr", null,
+                                            React.createElement(Th, { w: 34 }, "#"),
+                                            React.createElement(Th, null, "Data da venda"),
+                                            React.createElement(Th, null, "Lead"),
+                                            React.createElement(Th, null, "SDR"),
+                                            React.createElement(Th, null, "Unidade"),
+                                            React.createElement(Th, null, "Servi\u00E7o"),
+                                            React.createElement(Th, { right: true }, "Valor"),
+                                            React.createElement(Th, null, "Aten\u00E7\u00E3o"))),
+                                    React.createElement("tbody", null,
+                                        linhas.map(function (l, i) { return (React.createElement("tr", { key: l.kommo_id, style: obs[i] ? { background: obs[i].indexOf("duplicado") >= 0 ? "#FDE9DC" : "#FFF9DE" } : null },
+                                            React.createElement(Td, { color: T.muted }, i + 1),
+                                            React.createElement(Td, null, brFull(String(l.data).slice(0, 10))),
+                                            React.createElement(Td, { style: { whiteSpace: "normal", minWidth: 260 } },
+                                                React.createElement("a", { href: KOMMO_LEAD(l.kommo_id), target: "_blank", rel: "noopener", style: { color: T.ink, fontWeight: 600, textDecoration: "none", borderBottom: "1px solid ".concat(T.marca) } }, l.titulo || "Lead ".concat(l.kommo_id)),
+                                                React.createElement("span", { style: { color: T.muted, fontSize: 11.5, marginLeft: 6 } },
+                                                    "#",
+                                                    l.kommo_id,
+                                                    " \u2197")),
+                                            React.createElement(Td, null, l.sdr),
+                                            React.createElement(Td, null, l.unidade),
+                                            React.createElement(Td, null, l.servico),
+                                            React.createElement(Td, { right: true, bold: true }, nReal(l.valor)),
+                                            React.createElement(Td, { style: { whiteSpace: "normal", fontSize: 12, color: T.ink2, minWidth: 180 } }, obs[i]))); }),
+                                        React.createElement("tr", { style: { background: "#FAFAFA" } },
+                                            React.createElement(Td, null),
+                                            React.createElement(Td, { bold: true }, "Total"),
+                                            React.createElement(Td, { bold: true },
+                                                nInt(linhas.length),
+                                                " vendas"),
+                                            React.createElement(Td, null),
+                                            React.createElement(Td, null),
+                                            React.createElement(Td, null),
+                                            React.createElement(Td, { right: true, bold: true }, nReal(total)),
+                                            React.createElement(Td, null))))),
+                            React.createElement("div", { style: { padding: "10px 18px", fontSize: 11.5, color: T.muted, borderTop: "1px solid ".concat(T.hair) } },
+                                "O painel conta a venda no dia do campo ",
+                                React.createElement("b", null, "Data da Venda"),
+                                " do Kommo. Se no Kommo o filtro for por data de fechamento, os cards em amarelo (fechados em outro m\u00EAs) ficam de fora. Em laranja: mesmo cliente com o mesmo valor em dois cards."))))));
+}
 /* ===================== app ===================== */
 function Painel(_a) {
     var sessao = _a.sessao;
@@ -2201,6 +2374,9 @@ function Painel(_a) {
     var ehAdmin = perfil === "admin";
     var ehImportador = perfil === "importador";
     var ehAgencia = perfil === "agencia";
+    /* v67: lista de vendas lead a lead — admin, SDR e gerente */
+    var podeListarVendas = ["admin", "sdr", "gerente"].indexOf(perfil) >= 0;
+    var _f = __read(useState(false), 2), verVendas = _f[0], setVerVendas = _f[1];
     var ABAS = [["painel", "SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["marketing", "Marketing"], ["closers", "Closers"], ["piloto", "Piloto"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]];
     var ABAS_SDR = ["painel", "coordenador", "tv"];
     // 16/09: o importador também monta e envia os resumos do dia, então vê
@@ -2224,7 +2400,7 @@ function Painel(_a) {
         });
         return conhecida && podeVer(h) ? h : abaInicial;
     };
-    var _f = __read(useState(abaDaURL), 2), aba = _f[0], setAbaBruto = _f[1];
+    var _g = __read(useState(abaDaURL), 2), aba = _g[0], setAbaBruto = _g[1];
     var setAba = function (v) {
         setAbaBruto(v);
         try {
@@ -2381,7 +2557,7 @@ function Painel(_a) {
         });
         return c;
     }, [semLigacaoTudo]);
-    var _g = __read(useState("explicar"), 2), baldeAberto = _g[0], setBaldeAberto = _g[1];
+    var _h = __read(useState("explicar"), 2), baldeAberto = _h[0], setBaldeAberto = _h[1];
     var semLigacaoLista = useMemo(function () { return semLigacaoTudo.filter(function (r) { return r.balde === baldeAberto; }); }, [semLigacaoTudo, baldeAberto]);
     /* Esforço: agregado e por pessoa. Vem da esforco_dia, que só existe
        depois da carga de atividades — por isso o bloco some sozinho quando
@@ -2648,8 +2824,8 @@ function Painel(_a) {
            difícil ou só o mais fácil. */
         ehStore
             ? { l: "Vendas ganhas", v: nInt(a.vendas), s: "1 carro = 1 resultado",
-                d: React.createElement(Delta, { atual: a.vendas, anterior: aPrev.vendas }) }
-            : { l: "Vendas", v: nInt(a.vendas), d: React.createElement(Delta, { atual: a.vendas, anterior: aPrev.vendas }) },
+                d: React.createElement(BotaoVerLeads, { delta: React.createElement(Delta, { atual: a.vendas, anterior: aPrev.vendas }), pode: podeListarVendas, abrir: function () { return setVerVendas(true); } }) }
+            : { l: "Vendas", v: nInt(a.vendas), d: React.createElement(BotaoVerLeads, { delta: React.createElement(Delta, { atual: a.vendas, anterior: aPrev.vendas }), pode: podeListarVendas, abrir: function () { return setVerVendas(true); } }) },
         ehStore
             ? { l: "Mix intermediação", v: a.vendas ? nPct(div(vendasDaIntencao("Intermediação"), a.vendas)) : "—",
                 s: a.vendas
@@ -2796,6 +2972,7 @@ function Painel(_a) {
                             dias === 1 ? "dia" : "dias"))),
                 React.createElement(Secao, { n: 1, titulo: "Resultado \u2014 ".concat(rotulo) },
                     React.createElement("div", { className: "grid-kpi" }, KPIS.map(function (k) { return React.createElement(Kpi, { key: k.l, label: k.l, value: k.v, sub: k.s, foot: k.d, tone: k.tone }); }))),
+                verVendas && React.createElement(JanelaVendas, { de: de, ate: ate, negocio: negocio, esperado: a.vendas, filtro: { unidade: f.unidade, servico: f.servico, sdr: f.sdr }, fechar: function () { return setVerVendas(false); } }),
                 React.createElement(Secao, { n: 2, titulo: "Agendamentos", nota: "Em cima, quantos dos leads que entraram no per\u00EDodo viraram agendamento \u2014 cada lead uma vez s\u00F3, \u00E9 este que tem meta. Embaixo, de onde veio o trabalho: lead do dia, follow-up de lead antigo e reagendamento." },
                     React.createElement(Card, { className: "p20" },
                         React.createElement(Label, null, "Convers\u00E3o \u2014 dos leads que entraram no per\u00EDodo"),
@@ -3448,7 +3625,7 @@ function CartaoIntegracao() {
     var _h = __read(useState(false), 2), indoOs = _h[0], setIndoOs = _h[1];
     var brDia = function (iso) { return "".concat(iso.slice(8, 10), "/").concat(iso.slice(5, 7), "/").concat(iso.slice(0, 4)); };
     var buscar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var _a, data, error, e_5;
+        var _a, data, error, e_6;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -3468,8 +3645,8 @@ function CartaoIntegracao() {
                     setOs(data);
                     return [3 /*break*/, 4];
                 case 3:
-                    e_5 = _b.sent();
-                    setErro(e_5.message || String(e_5));
+                    e_6 = _b.sent();
+                    setErro(e_6.message || String(e_6));
                     return [3 /*break*/, 4];
                 case 4:
                     setIndoOs(false);
@@ -3478,7 +3655,7 @@ function CartaoIntegracao() {
         });
     }); };
     var conferir = function () { return __awaiter(_this, void 0, void 0, function () {
-        var _a, data, error, e_6;
+        var _a, data, error, e_7;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -3498,8 +3675,8 @@ function CartaoIntegracao() {
                     setR(data);
                     return [3 /*break*/, 4];
                 case 3:
-                    e_6 = _b.sent();
-                    setErro(e_6.message || String(e_6));
+                    e_7 = _b.sent();
+                    setErro(e_7.message || String(e_7));
                     return [3 /*break*/, 4];
                 case 4:
                     setIndo(false);
@@ -3612,7 +3789,7 @@ function AbaImportar(_a) {
     }); };
     useEffect(function () { carregar(); }, []);
     var chamar = function (arquivo_id, amostra) { return __awaiter(_this, void 0, void 0, function () {
-        var _a, data, error, corpo, e_7;
+        var _a, data, error, corpo, e_8;
         var _b, _c;
         return __generator(this, function (_d) {
             switch (_d.label) {
@@ -3629,7 +3806,7 @@ function AbaImportar(_a) {
                     corpo = _d.sent();
                     return [3 /*break*/, 5];
                 case 4:
-                    e_7 = _d.sent();
+                    e_8 = _d.sent();
                     return [3 /*break*/, 5];
                 case 5: throw new Error((corpo === null || corpo === void 0 ? void 0 : corpo.erro) || error.message || "falha ao chamar a função");
                 case 6:
@@ -3640,8 +3817,8 @@ function AbaImportar(_a) {
         });
     }); };
     var enviar = function (arquivos) { return __awaiter(_this, void 0, void 0, function () {
-        var lote, hojeStr, _loop_1, lote_1, lote_1_1, a, e_8_1;
-        var e_8, _a;
+        var lote, hojeStr, _loop_1, lote_1, lote_1_1, a, e_9_1;
+        var e_9, _a;
         var _b;
         return __generator(this, function (_c) {
             switch (_c.label) {
@@ -3654,7 +3831,7 @@ function AbaImportar(_a) {
                     }
                     hojeStr = hoje();
                     _loop_1 = function (a) {
-                        var item, atualiza, caminho, up, reg, r, e_9;
+                        var item, atualiza, caminho, up, reg, r, e_10;
                         return __generator(this, function (_d) {
                             switch (_d.label) {
                                 case 0:
@@ -3684,8 +3861,8 @@ function AbaImportar(_a) {
                                     atualiza({ etapa: "ok", resultado: r });
                                     return [3 /*break*/, 6];
                                 case 5:
-                                    e_9 = _d.sent();
-                                    atualiza({ etapa: "erro", erro: e_9.message || String(e_9) });
+                                    e_10 = _d.sent();
+                                    atualiza({ etapa: "erro", erro: e_10.message || String(e_10) });
                                     return [3 /*break*/, 6];
                                 case 6: return [4 /*yield*/, carregar()];
                                 case 7:
@@ -3711,21 +3888,21 @@ function AbaImportar(_a) {
                     return [3 /*break*/, 2];
                 case 5: return [3 /*break*/, 8];
                 case 6:
-                    e_8_1 = _c.sent();
-                    e_8 = { error: e_8_1 };
+                    e_9_1 = _c.sent();
+                    e_9 = { error: e_9_1 };
                     return [3 /*break*/, 8];
                 case 7:
                     try {
                         if (lote_1_1 && !lote_1_1.done && (_a = lote_1.return)) _a.call(lote_1);
                     }
-                    finally { if (e_8) throw e_8.error; }
+                    finally { if (e_9) throw e_9.error; }
                     return [7 /*endfinally*/];
                 case 8: return [2 /*return*/];
             }
         });
     }); };
     var reprocessar = function (arq, amostra) { return __awaiter(_this, void 0, void 0, function () {
-        var r, e_10;
+        var r, e_11;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -3745,8 +3922,8 @@ function AbaImportar(_a) {
                         setPrevia({ arq: arq, r: r });
                     return [3 /*break*/, 4];
                 case 3:
-                    e_10 = _a.sent();
-                    setErroGeral("".concat(arq.nome_original, ": ").concat(e_10.message));
+                    e_11 = _a.sent();
+                    setErroGeral("".concat(arq.nome_original, ": ").concat(e_11.message));
                     return [3 /*break*/, 4];
                 case 4:
                     setOcupado(null);
@@ -4120,7 +4297,7 @@ function useHoje() {
     var _a = __read(useState(null), 2), linhas = _a[0], setLinhas = _a[1];
     var _b = __read(useState(null), 2), erro = _b[0], setErro = _b[1];
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var _e_1, _a, data, error, e_11;
+        var _e_1, _a, data, error, e_12;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -4144,8 +4321,8 @@ function useHoje() {
                     setErro(null);
                     return [3 /*break*/, 7];
                 case 6:
-                    e_11 = _b.sent();
-                    setErro(e_11.message || String(e_11));
+                    e_12 = _b.sent();
+                    setErro(e_12.message || String(e_12));
                     return [3 /*break*/, 7];
                 case 7: return [2 /*return*/];
             }
@@ -4734,7 +4911,7 @@ function AbaResumo(_a) {
     var du = diasUteisDoMes(hojeISO);
     var frac = du.diaDoMes / du.diasNoMes;
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, extra, _a, fatoMes, eq, mm, lojas, closers, setores, dias, arquivos, vendasResp, empresaAnt, mapCloser, metaGrupo, abertas, ex, aberto_1, abertoCloser_1, e_12;
+        var pega, extra, _a, fatoMes, eq, mm, lojas, closers, setores, dias, arquivos, vendasResp, empresaAnt, mapCloser, metaGrupo, abertas, ex, aberto_1, abertoCloser_1, e_13;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -4790,8 +4967,8 @@ function AbaResumo(_a) {
                     setR({ fatoMes: fatoMes, equipe: eq.map(function (x) { return x.sdr; }), meta: mm[0] || null, lojas: lojas, closers: closers, setores: setores, dias: dias, arquivos: arquivos, aberto: aberto_1, abertoCloser: abertoCloser_1, ex: ex });
                     return [3 /*break*/, 4];
                 case 3:
-                    e_12 = _b.sent();
-                    setErro(e_12.message || String(e_12));
+                    e_13 = _b.sent();
+                    setErro(e_13.message || String(e_13));
                     return [3 /*break*/, 4];
                 case 4: return [2 /*return*/];
             }
@@ -4801,7 +4978,7 @@ function AbaResumo(_a) {
     var CARTOES = [["geral", "Geral"]].concat(RESUMO_LOJAS.map(function (l) { return [RESUMO_CHAVE_LOJA[l], l]; })).concat([["sdr", "SDR"]]);
     var refs = useRef({});
     var baixar = function (k) { return __awaiter(_this, void 0, void 0, function () {
-        var el, cv, a, e_13;
+        var el, cv, a, e_14;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -4825,8 +5002,8 @@ function AbaResumo(_a) {
                     a.click();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_13 = _a.sent();
-                    setAviso("Não consegui gerar a imagem: " + (e_13.message || e_13));
+                    e_14 = _a.sent();
+                    setAviso("Não consegui gerar a imagem: " + (e_14.message || e_14));
                     return [3 /*break*/, 4];
                 case 4:
                     setBaixando("");
@@ -4940,7 +5117,7 @@ function useOficina() {
     var hojeISO = hoje();
     var inicioMes = hojeISO.slice(0, 8) + "01";
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, empresaMes, mapCloser, arquivosExtra_1, metaGrupo, abertas, vendidoLoja, ultimoDia, ex, ultimoDe, e_14;
+        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, empresaMes, mapCloser, arquivosExtra_1, metaGrupo, abertas, vendidoLoja, ultimoDia, ex, ultimoDe, e_15;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -4993,8 +5170,8 @@ function useOficina() {
                     setR({ lojas: lojas, closers: closers, setores: setores, dias: dias, os: os, origem: origem, itens: itens, funil: funil, mapLoja: mapLoja, mapCloser: mapCloser, arquivos: arquivos, abertas: abertas, vendidoLoja: vendidoLoja, ultimoDia: ultimoDia, hojeISO: hojeISO, inicioMes: inicioMes, ex: ex });
                     return [3 /*break*/, 4];
                 case 3:
-                    e_14 = _b.sent();
-                    setErro(e_14.message || String(e_14));
+                    e_15 = _b.sent();
+                    setErro(e_15.message || String(e_15));
                     return [3 /*break*/, 4];
                 case 4: return [2 /*return*/];
             }
@@ -5846,7 +6023,7 @@ function AbaLojas() {
         setTimeout(function () { return URL.revokeObjectURL(a.href); }, 4000);
     };
     var copiarTabela = function () { return __awaiter(_this, void 0, void 0, function () {
-        var texto, ta, e_15;
+        var texto, ta, e_16;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -5874,7 +6051,7 @@ function AbaLojas() {
                     setTimeout(function () { return setCopiado(false); }, 2500);
                     return [3 /*break*/, 6];
                 case 5:
-                    e_15 = _a.sent();
+                    e_16 = _a.sent();
                     setCopiado(false);
                     return [3 /*break*/, 6];
                 case 6: return [2 /*return*/];
@@ -7380,7 +7557,7 @@ function NovoOrcamento(_a) {
     var itensValidos = f.itens.filter(function (it) { return it.nome.trim(); });
     var pronto = f.prazo_execucao && itensValidos.length > 0 && (f.cliente_nome.trim() || f.placa.trim());
     var salvar = function (statusInicial) { return __awaiter(_this, void 0, void 0, function () {
-        var cab, novo, _a, id_1, e_16;
+        var cab, novo, _a, id_1, e_17;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -7420,8 +7597,8 @@ function NovoOrcamento(_a) {
                     aoSalvar(id_1, novo);
                     return [3 /*break*/, 5];
                 case 4:
-                    e_16 = _b.sent();
-                    setErro(e_16.message);
+                    e_17 = _b.sent();
+                    setErro(e_17.message);
                     return [3 /*break*/, 5];
                 case 5:
                     setSalvando(false);
@@ -7722,7 +7899,7 @@ function JanelaImagem(_a) {
     useEffect(function () {
         var vivo = true;
         var gerar = function () { return __awaiter(_this, void 0, void 0, function () {
-            var e_17, cv, e_18;
+            var e_18, cv, e_19;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
@@ -7742,7 +7919,7 @@ function JanelaImagem(_a) {
                         _a.sent();
                         return [3 /*break*/, 5];
                     case 4:
-                        e_17 = _a.sent();
+                        e_18 = _a.sent();
                         return [3 /*break*/, 5];
                     case 5: return [4 /*yield*/, new Promise(function (r) { return setTimeout(r, 350); })];
                     case 6:
@@ -7756,9 +7933,9 @@ function JanelaImagem(_a) {
                         db.from("orcamento_evento").insert({ orcamento_id: o.id, tipo: "imagem_ia", nota: "imagem para o cliente gerada (formato Q2)" }).then(function () { }, function () { });
                         return [3 /*break*/, 9];
                     case 8:
-                        e_18 = _a.sent();
+                        e_19 = _a.sent();
                         if (vivo)
-                            setErro(e_18.message || String(e_18));
+                            setErro(e_19.message || String(e_19));
                         return [3 /*break*/, 9];
                     case 9: return [2 /*return*/];
                 }
@@ -7771,7 +7948,7 @@ function JanelaImagem(_a) {
     var baixar = function () { var a = document.createElement("a"); a.href = png; a.download = nomeArq; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
     var podeCompartilhar = !!(navigator.share && navigator.canShare && window.File);
     var compartilhar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var blob, file, e_19;
+        var blob, file, e_20;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -7791,7 +7968,7 @@ function JanelaImagem(_a) {
                     _a.label = 5;
                 case 5: return [3 /*break*/, 7];
                 case 6:
-                    e_19 = _a.sent();
+                    e_20 = _a.sent();
                     return [3 /*break*/, 7];
                 case 7: return [2 /*return*/];
             }
@@ -7843,7 +8020,7 @@ function DetalheOrcamento(_a) {
     var mudou = status !== o.status || motivo !== (o.motivo_perda || "") || retorno !== (o.retorno_em ? String(o.retorno_em).slice(0, 10) : "") || os !== (o.os_numero || "");
     var precisaMotivo = status === "perdido" && !motivo.trim();
     var salvar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var e_20;
+        var e_21;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -7861,8 +8038,8 @@ function DetalheOrcamento(_a) {
                     aoMudar();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_20 = _a.sent();
-                    setErro(e_20.message);
+                    e_21 = _a.sent();
+                    setErro(e_21.message);
                     return [3 /*break*/, 4];
                 case 4:
                     setSalvando(false);
