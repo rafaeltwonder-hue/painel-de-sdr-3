@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v67 — CAR SERVICE</title>
-<meta name="painel-versao" content="v67">
+<title>Painel de SDR v69 — CAR SERVICE</title>
+<meta name="painel-versao" content="v69">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -220,7 +220,7 @@ window.FOTOS_ORC = {"hero_rear_logo": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ
 <script>
 function iniciarPainel() {
 "use strict";
-/* Painel de SDR — The Wonder / Car Service (v67: botão "Ver os leads" no cartão de Vendas)
+/* Painel de SDR — The Wonder / Car Service (v69: avaliações Google, pedir avaliação, recompra e comissão no piloto)
    Lê as views do Supabase. Sem lançamento manual: o dado vem do Kommo. */
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function(t) {
@@ -5117,7 +5117,7 @@ function useOficina() {
     var hojeISO = hoje();
     var inicioMes = hojeISO.slice(0, 8) + "01";
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, empresaMes, mapCloser, arquivosExtra_1, metaGrupo, abertas, vendidoLoja, ultimoDia, ex, ultimoDe, e_15;
+        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, empresaMes, mapCloser, arquivosExtra_1, metaGrupo, abertasCru, vendidoLoja, entregas, entregueDe_1, abertas, ultimoDia, ex, ultimoDe, e_15;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -5155,9 +5155,18 @@ function useOficina() {
                             extra.metaGrupo,
                             pegaPaginado(function () { return db.from("resumo_aberto_v").select("loja,os_numero,mes,dt_os,closer,erp_nome,placa,veiculo,pesquisa,total,custo,itens,dias_aberta"); }),
                             pega(db.from("resumo_loja_v").select("loja,faturamento,os_qtd").eq("mes", inicioMes)),
+                            /* v68: "Carro entregue" marcado pelo closer — opcional, nunca derruba a tela */
+                            Promise.resolve(db.from("os_prazo").select("loja,os_numero,entregue_em").gte("entregue_em", "2000-01-01"))
+                                .then(function (_a) {
+                                var data = _a.data, error = _a.error;
+                                return (error ? [] : data || []);
+                            }).catch(function () { return []; }),
                         ])];
                 case 2:
-                    _a = __read.apply(void 0, [_b.sent(), 19]), lojas = _a[0], closers = _a[1], setores = _a[2], dias = _a[3], os = _a[4], origem = _a[5], itens = _a[6], funil = _a[7], mapLoja = _a[8], arquivos = _a[9], vendasResp = _a[10], pagamentos = _a[11], empresaAnt = _a[12], empresaMes = _a[13], mapCloser = _a[14], arquivosExtra_1 = _a[15], metaGrupo = _a[16], abertas = _a[17], vendidoLoja = _a[18];
+                    _a = __read.apply(void 0, [_b.sent(), 20]), lojas = _a[0], closers = _a[1], setores = _a[2], dias = _a[3], os = _a[4], origem = _a[5], itens = _a[6], funil = _a[7], mapLoja = _a[8], arquivos = _a[9], vendasResp = _a[10], pagamentos = _a[11], empresaAnt = _a[12], empresaMes = _a[13], mapCloser = _a[14], arquivosExtra_1 = _a[15], metaGrupo = _a[16], abertasCru = _a[17], vendidoLoja = _a[18], entregas = _a[19];
+                    entregueDe_1 = {};
+                    entregas.forEach(function (e) { entregueDe_1[e.loja + "|" + e.os_numero] = e.entregue_em; });
+                    abertas = abertasCru.map(function (o) { return (entregueDe_1[o.loja + "|" + o.os_numero] ? __assign(__assign({}, o), { entregue_em: entregueDe_1[o.loja + "|" + o.os_numero] }) : o); });
                     ultimoDia = dias.reduce(function (m, d) { return (d.dia > m && d.dia <= hojeISO ? d.dia : m); }, "");
                     ex = agregarOficinaExtra({ vendasResp: vendasResp, pagamentos: pagamentos, empresaAnt: empresaAnt, empresaMes: empresaMes, mapCloser: mapCloser, mesAnt: extra.mesAnt, inicioMes: inicioMes });
                     ultimoDe = function (tipo, periodo) { return (arquivosExtra_1.filter(function (a) { return a.tipo === tipo && (!periodo || a.periodo_ini === periodo); })[0] || {}).processado_em || null; };
@@ -5694,6 +5703,7 @@ function AbaClosers() {
                         faz >= precisa ? "✓" : "· abaixo do necessário")));
             }))),
         React.createElement(SecaoSdrGeral, { n: 6 }),
+        React.createElement(SecaoAvaliacoesGeral, { n: 7 }),
         React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 22, paddingTop: 12, borderTop: "1px solid ".concat(T.hair), lineHeight: 1.5 } },
             "Sem fonte autom\u00E1tica (de prop\u00F3sito, para ningu\u00E9m achar que o painel esqueceu): ",
             React.createElement("b", null, "avalia\u00E7\u00F5es Google"),
@@ -6001,13 +6011,14 @@ function AbaLojas() {
        que é o caminho de quem já está com o Sheets na tela. Exporta o que
        está FILTRADO — se a pessoa escolheu Bandeirantes, é Bandeirantes que sai. */
     var linhasExport = function () {
-        var cab = ["Loja", "O.S.", "Data", "Dias aberta", "Placa", "Veículo", "Closer", "Origem", "Valor da O.S.", "Adiantamento", "A pagar"];
+        var cab = ["Loja", "O.S.", "Data", "Dias aberta", "Placa", "Veículo", "Closer", "Origem", "Valor da O.S.", "Adiantamento", "A pagar", "Carro entregue em"];
         var num = function (v) { return String(Number(v || 0).toFixed(2)).replace(".", ","); };
         var linhas = abertasFiltradas.map(function (o) {
             var c = contaDaOs(o);
             return [o.loja, o.os_numero, br(o.dt_os), String(Number(o.dias_aberta) || 0),
                 o.placa || "", o.veiculo || "", o.closer || o.erp_nome || "", o.pesquisa || "",
-                num(c.valor), c.temFonte ? num(c.adiantado) : "", c.temFonte ? num(c.aPagar) : num(c.valor)];
+                num(c.valor), c.temFonte ? num(c.adiantado) : "", c.temFonte ? num(c.aPagar) : num(c.valor),
+                o.entregue_em ? brFull(iso(new Date(o.entregue_em))) : ""];
         });
         return [cab].concat(linhas);
     };
@@ -6247,6 +6258,16 @@ function AbaLojas() {
                     " O.S. \u00B7 ",
                     nReal(somaAberto.valor),
                     (function () {
+                        var v = abertasFiltradas.filter(function (o) { return o.entregue_em; });
+                        return v.length
+                            ? React.createElement("span", { style: { color: T.good, fontWeight: 600 } },
+                                " \u00B7 ",
+                                v.length,
+                                " com carro j\u00E1 entregue, falta s\u00F3 a baixa (",
+                                nReal(v.reduce(function (a, o) { return a + Number(o.total); }, 0)),
+                                ")") : null;
+                    })(),
+                    (function () {
                         var v = abertasFiltradas.filter(function (o) { return Number(o.dias_aberta) > 30; });
                         return v.length
                             ? React.createElement("span", { style: { color: T.bad, fontWeight: 600 } },
@@ -6286,9 +6307,15 @@ function AbaLojas() {
                         abertasFiltradas.slice(0, 80).map(function (o) {
                             var dias = Number(o.dias_aberta) || 0;
                             var c = contaDaOs(o);
-                            return (React.createElement("tr", { key: o.loja + o.os_numero },
+                            return (React.createElement("tr", { key: o.loja + o.os_numero, style: o.entregue_em ? { background: "#F3F8F5" } : null },
                                 React.createElement(Td, null, o.loja),
-                                React.createElement(Td, { bold: true }, o.os_numero),
+                                React.createElement(Td, { bold: true },
+                                    o.os_numero,
+                                    o.entregue_em ? React.createElement("span", { style: { marginLeft: 6 } },
+                                        React.createElement(Tag, { cor: T.good },
+                                            "carro entregue ",
+                                            br(iso(new Date(o.entregue_em))),
+                                            " \u00B7 falta a baixa")) : null),
                                 React.createElement(Td, null, br(o.dt_os)),
                                 React.createElement(Td, { color: dias > 7 ? T.bad : dias > 3 ? T.warn : T.ink }, dias),
                                 React.createElement(Td, null, o.placa || "—"),
@@ -6946,7 +6973,7 @@ var umSo = function (d) { return (Array.isArray(d) ? d[0] : d); };
 /* ---------- dados do piloto ---------- */
 function usePiloto(closerCodigo, versao, lojaDoCloser) {
     var _this = this;
-    var _a = __read(useState({ carregando: true, erro: null, mes: null, mesAnt: null, ranking: null, osAbertas: [], posVisita: [], orcamentos: [], osSemOrc: [], agenda: [], sdrDia: [], funil: [], em: null }), 2), d = _a[0], setD = _a[1];
+    var _a = __read(useState({ carregando: true, erro: null, mes: null, mesAnt: null, ranking: null, osAbertas: [], posVisita: [], orcamentos: [], osSemOrc: [], agenda: [], sdrDia: [], funil: [], avaliacoes: [], entregas: [], recompra: [], faixas: [], em: null }), 2), d = _a[0], setD = _a[1];
     useEffect(function () {
         if (!closerCodigo)
             return undefined;
@@ -6963,6 +6990,20 @@ function usePiloto(closerCodigo, versao, lojaDoCloser) {
                     return [2 /*return*/, data || []];
             }
         }); }); };
+        var opc = function (q) { return __awaiter(_this, void 0, void 0, function () { var _a, data, error, e_17; return __generator(this, function (_b) {
+            switch (_b.label) {
+                case 0:
+                    _b.trys.push([0, 2, , 3]);
+                    return [4 /*yield*/, q];
+                case 1:
+                    _a = _b.sent(), data = _a.data, error = _a.error;
+                    return [2 /*return*/, error ? [] : data || []];
+                case 2:
+                    e_17 = _b.sent();
+                    return [2 /*return*/, []];
+                case 3: return [2 /*return*/];
+            }
+        }); }); };
         Promise.all([
             pega(db.from("closer_mes_v").select("*").eq("closer_codigo", closerCodigo).in("mes", [m0, mAnt])),
             pega(db.from("closer_ranking_v").select("*").eq("closer_codigo", closerCodigo).eq("mes", m0)),
@@ -6974,8 +7015,13 @@ function usePiloto(closerCodigo, versao, lojaDoCloser) {
             pega(db.from("closer_agenda_v").select("*").eq("closer_codigo", closerCodigo)),
             pega(db.from("closer_sdr_dia_v").select("*").eq("closer_codigo", closerCodigo)),
             pega(db.from("closer_funil_v").select("*").or("closer_codigo.eq.".concat(closerCodigo, ",closer_codigo.is.null"))),
+            /* v69 — opcionais: se a view não responder, o resto do piloto abre igual */
+            opc(db.from("closer_avaliacao_v").select("*").eq("closer_codigo", closerCodigo).order("avaliado_em", { ascending: false }).limit(120)),
+            opc(db.from("closer_entregas_v").select("*").eq("closer_codigo", closerCodigo)),
+            opc(db.from("closer_recompra_v").select("*").eq("closer_codigo", closerCodigo).order("gasto", { ascending: false }).limit(300)),
+            opc(db.from("closer_comissao_faixa").select("*")),
         ]).then(function (_a) {
-            var _b = __read(_a, 9), meses = _b[0], rk = _b[1], os = _b[2], pv = _b[3], orc = _b[4], som = _b[5], ag = _b[6], sd = _b[7], fu = _b[8];
+            var _b = __read(_a, 13), meses = _b[0], rk = _b[1], os = _b[2], pv = _b[3], orc = _b[4], som = _b[5], ag = _b[6], sd = _b[7], fu = _b[8], av = _b[9], en = _b[10], rc = _b[11], fx = _b[12];
             if (!vivo)
                 return;
             setD({ carregando: false, erro: null,
@@ -6985,6 +7031,7 @@ function usePiloto(closerCodigo, versao, lojaDoCloser) {
                 agenda: ag, sdrDia: sd,
                 /* a linha da loja só vale se for a loja deste closer */
                 funil: fu.filter(function (f) { return f.closer_codigo != null || !lojaDoCloser || f.unidade === lojaDoCloser; }),
+                avaliacoes: av, entregas: en, recompra: rc, faixas: fx,
                 em: new Date() });
         }).catch(function (e) { if (vivo)
             setD(function (x) { return (__assign(__assign({}, x), { carregando: false, erro: e.message })); }); });
@@ -7362,16 +7409,681 @@ function PrazoOs(_a) {
         });
     }); };
     var vencido = v && v < hoje();
-    return (React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 6 } },
+    if (o.carro_entregue)
+        return React.createElement(EntregaOs, { o: o, aoSalvar: aoSalvar });
+    return (React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" } },
         React.createElement("input", { type: "date", value: v, onChange: function (e) { return salvar(e.target.value); }, className: "dt", style: { padding: "4px 6px", fontSize: 12.5, fontWeight: vencido ? 700 : 400, color: vencido ? T.bad : T.ink, borderColor: vencido ? "#F0C3C6" : T.hair, width: 138 } }),
         vencido && React.createElement(Tag, { cor: T.bad }, "vencido"),
         st === "salvando" && React.createElement("span", { style: { fontSize: 11, color: T.muted } }, "\u2026"),
         st === "ok" && React.createElement("span", { style: { fontSize: 11, color: T.good } }, "\u2713"),
+        st === "erro" && React.createElement("span", { style: { fontSize: 11, color: T.bad } }, "n\u00E3o salvou"),
+        React.createElement(EntregaOs, { o: o, aoSalvar: aoSalvar })));
+}
+/* v68: "Carro entregue". O carro saiu, mas a O.S. continua aberta no
+   Oficina até o financeiro dar a baixa. Com a marca, o alerta de prazo e
+   de O.S. velha deixa de ser do closer: o que falta é só a baixa. */
+function EntregaOs(_a) {
+    var _this = this;
+    var o = _a.o, aoSalvar = _a.aoSalvar, grande = _a.grande;
+    var _b = __read(useState(null), 2), st = _b[0], setSt = _b[1];
+    var marcar = function (sim) { return __awaiter(_this, void 0, void 0, function () {
+        var uid, data, e_18, error;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    setSt("salvando");
+                    uid = null;
+                    _a.label = 1;
+                case 1:
+                    _a.trys.push([1, 3, , 4]);
+                    return [4 /*yield*/, db.auth.getSession()];
+                case 2:
+                    data = (_a.sent()).data;
+                    uid = data && data.session && data.session.user ? data.session.user.id : null;
+                    return [3 /*break*/, 4];
+                case 3:
+                    e_18 = _a.sent();
+                    return [3 /*break*/, 4];
+                case 4: return [4 /*yield*/, db.from("os_prazo").upsert({ loja: o.loja, os_numero: String(o.os_numero),
+                        entregue_em: sim ? new Date().toISOString() : null, entregue_por: sim ? uid : null }, { onConflict: "loja,os_numero" })];
+                case 5:
+                    error = (_a.sent()).error;
+                    if (error) {
+                        setSt("erro");
+                        return [2 /*return*/];
+                    }
+                    setSt(null);
+                    if (aoSalvar)
+                        aoSalvar();
+                    return [2 /*return*/];
+            }
+        });
+    }); };
+    if (o.carro_entregue) {
+        return (React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" } },
+            React.createElement(Tag, { cor: T.good },
+                "\u2713 Entregue ",
+                o.entregue_em ? br(iso(new Date(o.entregue_em))) : ""),
+            React.createElement("span", { style: { fontSize: 11.5, color: T.muted } }, "falta a baixa do financeiro"),
+            React.createElement("button", { onClick: function () { return marcar(false); }, disabled: st === "salvando", style: { fontFamily: F_UI, fontSize: 11, color: T.muted, background: "none", border: "none", textDecoration: "underline", cursor: "pointer", padding: 0 } }, "desfazer"),
+            st === "erro" && React.createElement("span", { style: { fontSize: 11, color: T.bad } }, "n\u00E3o salvou")));
+    }
+    return (React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 6 } },
+        React.createElement("button", { onClick: function () { return marcar(true); }, disabled: st === "salvando", style: { fontFamily: F_UI, fontSize: grande ? 12.5 : 11.5, fontWeight: 700, whiteSpace: "nowrap",
+                color: T.preto, background: grande ? T.marca : T.surface, border: grande ? "none" : "1px solid ".concat(T.hair), borderRadius: 6, padding: grande ? "7px 12px" : "5px 9px", cursor: "pointer", opacity: st === "salvando" ? 0.6 : 1 } }, st === "salvando" ? "Salvando…" : "Carro entregue"),
         st === "erro" && React.createElement("span", { style: { fontSize: 11, color: T.bad } }, "n\u00E3o salvou")));
 }
-function MeuPainel(_a) {
-    var d = _a.d, closer = _a.closer, irParaOrcamentos = _a.irParaOrcamentos, novoDoLead = _a.novoDoLead, abrirOrcamento = _a.abrirOrcamento, recarregar = _a.recarregar;
+/* ---------- v69: dia a dia do closer ----------
+   Avaliação do Google por print, pedido de avaliação depois da entrega,
+   clientes da casa para chamar de volta e comissão estimada. */
+/* print de celular chega com 3–5 MB; aqui vira um JPG de ~200 KB antes de
+   subir — cabe no plano e abre rápido na conferência */
+function comprimirImagem(file, lado, q) {
+    if (lado === void 0) { lado = 1400; }
+    if (q === void 0) { q = 0.82; }
+    return new Promise(function (res, rej) {
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function () {
+            var k = Math.min(1, lado / Math.max(img.width, img.height));
+            var cv = document.createElement("canvas");
+            cv.width = Math.round(img.width * k);
+            cv.height = Math.round(img.height * k);
+            cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+            URL.revokeObjectURL(url);
+            cv.toBlob(function (b) { return (b ? res(b) : rej(new Error("não consegui ler a imagem"))); }, "image/jpeg", q);
+        };
+        img.onerror = function () { URL.revokeObjectURL(url); rej(new Error("arquivo não é uma imagem")); };
+        img.src = url;
+    });
+}
+var soDigitos = function (s) { return String(s || "").replace(/\D/g, ""); };
+var waLink = function (numero, texto) {
+    var n = soDigitos(numero);
+    if (!n)
+        return null;
+    if (n.length <= 11)
+        n = "55" + n;
+    return "https://wa.me/".concat(n, "?text=").concat(encodeURIComponent(texto));
+};
+var primeiroNomeDe = function (s) { return String(s || "").trim().split(/\s+/)[0] || ""; };
+function msgAvaliacao(o, closer) {
+    var nome = primeiroNomeDe(o.cliente_nome);
+    var eu = primeiroNomeDe(closer && closer.nome_oficial);
+    return "Oi".concat(nome ? " " + nome : "", "! Aqui \u00E9 ").concat(eu ? "o " + eu : "a equipe", " da The Wonder ").concat(o.loja || "", ". ")
+        + "Obrigado por confiar o seu ".concat(o.veiculo ? String(o.veiculo).toLowerCase().replace(/(^|\s)\S/g, function (x) { return x.toUpperCase(); }) : "carro", " com a gente! ")
+        + "Se puder, deixa sua avalia\u00E7\u00E3o no Google \u2014 leva um minuto e ajuda muito o nosso trabalho"
+        + (o.link_avaliacao ? ": ".concat(o.link_avaliacao) : ".") + " 🙏";
+}
+function msgRecompra(r, closer, loja) {
+    var nome = primeiroNomeDe(r.cliente_nome);
+    var eu = primeiroNomeDe(closer && closer.nome_oficial);
+    var assunto = {
+        "Manutenção semestral do PPF": "já está na época da manutenção do PPF — é rápida e mantém a proteção e a garantia em dia",
+        "Manutenção da estética": "já está na época de renovar a estética do carro para manter o brilho e a proteção",
+        "Proteger a pintura nova: PPF ou vitrificação": "a pintura nova merece proteção — tenho uma condição boa de PPF e vitrificação para quem já é cliente",
+        "Oferecer PPF": "chegou coisa nova de PPF e tenho uma condição especial para quem já é cliente da casa",
+        "Oferecer película": "tenho uma condição especial de película para quem já é cliente da casa",
+        "Oferecer estética": "tenho uma condição especial de estética para quem já é cliente da casa",
+    }[r.sugestao] || "queria saber como está o carro e se posso ajudar em algo";
+    return "Oi".concat(nome ? " " + nome : "", "! Aqui \u00E9 ").concat(eu ? "o " + eu : "a equipe", " da The Wonder ").concat(loja || r.loja || "", ". Como est\u00E1 o seu ").concat(r.veiculo || "carro", "? Passando porque ").concat(assunto, ". Posso te mandar os detalhes?");
+}
+/* faixas: a de percentual mais alto cujo "a partir de" foi atingido vale
+   sobre o faturamento todo (é assim que a planilha de comissão descreve).
+   Faixa do próprio closer vence a faixa geral. */
+function comissaoDe(faixas, closerCodigo, fat) {
+    var h = hoje();
+    var vig = (faixas || []).filter(function (f) { return String(f.vigente_desde || "2000-01-01").slice(0, 10) <= h; });
+    var minhas = vig.filter(function (f) { return String(f.closer_codigo) === String(closerCodigo); });
+    var lista = (minhas.length ? minhas : vig.filter(function (f) { return f.closer_codigo == null; })).slice()
+        .sort(function (a, b) { return Number(a.a_partir_de) - Number(b.a_partir_de); });
+    if (!lista.length)
+        return null;
+    var base = lista[0].base || "individual";
+    var atual = null, proxima = null;
+    lista.forEach(function (f) { if (fat >= Number(f.a_partir_de))
+        atual = f;
+    else if (!proxima)
+        proxima = f; });
+    return { base: base, atual: atual, proxima: proxima, valor: atual ? fat * Number(atual.percentual) / 100 : 0,
+        falta: proxima ? Number(proxima.a_partir_de) - fat : 0 };
+}
+function SecaoPedirAvaliacao(_a) {
+    var _this = this;
+    var n = _a.n, d = _a.d, closer = _a.closer, recarregar = _a.recarregar, registrar = _a.registrar;
+    var _b = __read(useState(null), 2), copiado = _b[0], setCopiado = _b[1];
+    var _c = __read(useState(null), 2), salvando = _c[0], setSalvando = _c[1];
+    var lista = (d.entregas || []).filter(function (o) { return !o.tem_avaliacao; })
+        .sort(function (a, b) { return (a.avaliacao_pedida_em ? 1 : 0) - (b.avaliacao_pedida_em ? 1 : 0) || (String(b.entregue_em) > String(a.entregue_em) ? 1 : -1); });
+    var semLink = lista.some(function (o) { return !o.link_avaliacao; });
+    var copiar = function (o) { return __awaiter(_this, void 0, void 0, function () {
+        var t, e_19;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    t = msgAvaliacao(o, closer);
+                    _a.label = 1;
+                case 1:
+                    _a.trys.push([1, 3, , 4]);
+                    return [4 /*yield*/, navigator.clipboard.writeText(t)];
+                case 2:
+                    _a.sent();
+                    return [3 /*break*/, 4];
+                case 3:
+                    e_19 = _a.sent();
+                    window.prompt("Copie a mensagem:", t);
+                    return [3 /*break*/, 4];
+                case 4:
+                    setCopiado(o.os_numero);
+                    setTimeout(function () { return setCopiado(null); }, 2500);
+                    return [2 /*return*/];
+            }
+        });
+    }); };
+    var jaPedi = function (o) { return __awaiter(_this, void 0, void 0, function () {
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    setSalvando(o.os_numero);
+                    return [4 /*yield*/, db.from("os_prazo").upsert({ loja: o.loja, os_numero: String(o.os_numero), avaliacao_pedida_em: new Date().toISOString() }, { onConflict: "loja,os_numero" })];
+                case 1:
+                    _a.sent();
+                    setSalvando(null);
+                    recarregar();
+                    return [2 /*return*/];
+            }
+        });
+    }); };
+    return (React.createElement(Secao, { n: n, titulo: "Pedir avalia\u00E7\u00E3o no Google", nota: "Carros que voc\u00EA entregou nos \u00FAltimos 15 dias e ainda n\u00E3o t\u00EAm avalia\u00E7\u00E3o registrada. O melhor momento de pedir \u00E9 logo depois da entrega.".concat(semLink ? " O link de avaliação da loja ainda não está cadastrado — a mensagem sai sem o link até o Rafael cadastrar." : "") },
+        React.createElement(Card, { className: "p0 rolagem" },
+            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+                React.createElement("thead", null,
+                    React.createElement("tr", null,
+                        React.createElement(Th, null, "O.S."),
+                        React.createElement(Th, null, "Placa"),
+                        React.createElement(Th, null, "Ve\u00EDculo"),
+                        React.createElement(Th, null, "Cliente"),
+                        React.createElement(Th, { right: true }, "Entregue"),
+                        React.createElement(Th, null, "Pedido"),
+                        React.createElement(Th, { right: true }))),
+                React.createElement("tbody", null,
+                    lista.map(function (o) {
+                        var wa = waLink(o.cliente_whatsapp, msgAvaliacao(o, closer));
+                        return (React.createElement("tr", { key: o.loja + o.os_numero },
+                            React.createElement(Td, { bold: true }, o.os_numero),
+                            React.createElement(Td, null, o.placa || "—"),
+                            React.createElement(Td, null, o.veiculo || "—"),
+                            React.createElement(Td, null, o.cliente_nome || React.createElement("span", { style: { color: T.muted } }, "\u2014")),
+                            React.createElement(Td, { right: true }, o.entregue_em ? br(iso(new Date(o.entregue_em))) : "—"),
+                            React.createElement(Td, null, o.avaliacao_pedida_em ? React.createElement(Tag, { cor: T.good },
+                                "pedido ",
+                                br(iso(new Date(o.avaliacao_pedida_em))),
+                                " \u00B7 aguardando") : React.createElement(Tag, { cor: T.warn }, "ainda n\u00E3o pedido")),
+                            React.createElement(Td, { style: { textAlign: "right" } },
+                                React.createElement("span", { style: { display: "inline-flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" } },
+                                    wa ? React.createElement("a", { href: wa, target: "_blank", rel: "noopener", onClick: function () { if (!o.avaliacao_pedida_em)
+                                            jaPedi(o); }, style: { fontSize: 12, fontWeight: 700, color: T.preto, background: T.marca, borderRadius: 6, padding: "6px 10px", textDecoration: "none", whiteSpace: "nowrap" } }, "WhatsApp \u2197")
+                                        : React.createElement(Btn, { onClick: function () { return copiar(o); }, style: { padding: "5px 10px", fontSize: 12 } }, copiado === o.os_numero ? "Copiado ✓" : "Copiar mensagem"),
+                                    !o.avaliacao_pedida_em && !wa && React.createElement(Btn, { onClick: function () { return jaPedi(o); }, style: { padding: "5px 10px", fontSize: 12 } }, salvando === o.os_numero ? "…" : "Já pedi"),
+                                    React.createElement(Btn, { kind: "solid", onClick: function () { return registrar(o); }, style: { padding: "5px 10px", fontSize: 12 } }, "Registrar avalia\u00E7\u00E3o")))));
+                    }),
+                    !lista.length && React.createElement("tr", null,
+                        React.createElement(Td, { color: T.muted, style: { whiteSpace: "normal" } }, (d.entregas || []).length ? "Todas as entregas recentes já têm avaliação registrada. 👏" : 'Nenhum carro marcado como entregue nos últimos 15 dias. Quando você marcar "Carro entregue" na seção 07, ele aparece aqui para pedir a avaliação.')))))));
+}
+function SecaoAvaliacoes(_a) {
+    var _this = this;
+    var n = _a.n, d = _a.d, closer = _a.closer, recarregar = _a.recarregar, podeValidar = _a.podeValidar, pre = _a.pre, limparPre = _a.limparPre, refForm = _a.refForm;
     var h = hoje(), m0 = primeiroDia(h);
+    var _b = __read(useState(null), 2), arq = _b[0], setArq = _b[1];
+    var _c = __read(useState(null), 2), previa = _c[0], setPrevia = _c[1];
+    var _d = __read(useState("5"), 2), nota = _d[0], setNota = _d[1];
+    var _f = __read(useState(""), 2), os = _f[0], setOs = _f[1];
+    var _g = __read(useState(h), 2), dia = _g[0], setDia = _g[1];
+    var _h = __read(useState(null), 2), st = _h[0], setSt = _h[1];
+    var _j = __read(useState({}), 2), urls = _j[0], setUrls = _j[1];
+    var _k = __read(useState(null), 2), zoom = _k[0], setZoom = _k[1];
+    var inputRef = useRef(null);
+    useEffect(function () { if (pre) {
+        setOs(pre.loja + "|" + pre.os_numero);
+    } }, [pre]);
+    var todas = d.avaliacoes || [];
+    var doMes = todas.filter(function (a) { return String(a.mes).slice(0, 10) === m0 && a.status !== "recusada"; });
+    var media = doMes.filter(function (a) { return a.nota; }).length ? doMes.reduce(function (s, a) { return s + (Number(a.nota) || 0); }, 0) / doMes.filter(function (a) { return a.nota; }).length : 0;
+    var validadas = doMes.filter(function (a) { return a.status === "validada"; }).length;
+    var opcoesOs = [{ v: "", l: "Sem O.S. (não sei qual foi)" }].concat((d.entregas || []).map(function (o) { return ({ v: o.loja + "|" + o.os_numero, l: "O.S. ".concat(o.os_numero, " \u00B7 ").concat(o.veiculo || "", " ").concat(o.placa || "", " (entregue)") }); }), (d.osAbertas || []).map(function (o) { return ({ v: o.loja + "|" + o.os_numero, l: "O.S. ".concat(o.os_numero, " \u00B7 ").concat(o.veiculo || "", " ").concat(o.placa || "") }); }));
+    /* miniaturas: link assinado de 1 hora, pedido de uma vez só */
+    var chave = todas.map(function (a) { return a.print_path; }).filter(Boolean).join(",");
+    useEffect(function () {
+        var paths = todas.map(function (a) { return a.print_path; }).filter(Boolean).slice(0, 60);
+        if (!paths.length || !db.storage || !db.storage.from("avaliacoes").createSignedUrls)
+            return;
+        db.storage.from("avaliacoes").createSignedUrls(paths, 3600).then(function (_a) {
+            var data = _a.data;
+            var m = {};
+            (data || []).forEach(function (x) { if (x && x.signedUrl)
+                m[x.path] = x.signedUrl; });
+            setUrls(m);
+        }).catch(function () { });
+    }, [chave]);
+    var escolher = function (f) {
+        setArq(f || null);
+        if (previa)
+            URL.revokeObjectURL(previa);
+        setPrevia(f ? URL.createObjectURL(f) : null);
+    };
+    var enviar = function () { return __awaiter(_this, void 0, void 0, function () {
+        var blob, caminho, up, _a, loja, osNum, error, e_20;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
+                case 0:
+                    if (!arq) {
+                        setSt({ erro: "Escolha o print da avaliação." });
+                        return [2 /*return*/];
+                    }
+                    setSt({ msg: "Enviando…" });
+                    _b.label = 1;
+                case 1:
+                    _b.trys.push([1, 5, , 6]);
+                    return [4 /*yield*/, comprimirImagem(arq)];
+                case 2:
+                    blob = _b.sent();
+                    caminho = "".concat(closer.erp_codigo, "/").concat(Date.now(), ".jpg");
+                    return [4 /*yield*/, db.storage.from("avaliacoes").upload(caminho, blob, { contentType: "image/jpeg", upsert: false })];
+                case 3:
+                    up = _b.sent();
+                    if (up.error)
+                        throw new Error(up.error.message);
+                    _a = __read(os ? os.split("|") : [closer.unidade, null], 2), loja = _a[0], osNum = _a[1];
+                    return [4 /*yield*/, db.from("closer_avaliacao").insert({ closer_codigo: closer.erp_codigo, loja: loja || closer.unidade, os_numero: osNum || null,
+                            nota: Number(nota) || null, avaliado_em: dia || h, print_path: caminho })];
+                case 4:
+                    error = (_b.sent()).error;
+                    if (error)
+                        throw new Error(error.message);
+                    setSt({ ok: "Avaliação registrada. Entra na conta do mês agora; a gestão confere o print." });
+                    escolher(null);
+                    setOs("");
+                    setNota("5");
+                    setDia(h);
+                    if (inputRef.current)
+                        inputRef.current.value = "";
+                    if (limparPre)
+                        limparPre();
+                    recarregar();
+                    setTimeout(function () { return setSt(null); }, 6000);
+                    return [3 /*break*/, 6];
+                case 5:
+                    e_20 = _b.sent();
+                    setSt({ erro: "Não salvou: " + (e_20.message || e_20) });
+                    return [3 /*break*/, 6];
+                case 6: return [2 /*return*/];
+            }
+        });
+    }); };
+    var mudarStatus = function (a, status) { return __awaiter(_this, void 0, void 0, function () {
+        var uid, data, e_21;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    uid = null;
+                    _a.label = 1;
+                case 1:
+                    _a.trys.push([1, 3, , 4]);
+                    return [4 /*yield*/, db.auth.getSession()];
+                case 2:
+                    data = (_a.sent()).data;
+                    uid = data && data.session && data.session.user ? data.session.user.id : null;
+                    return [3 /*break*/, 4];
+                case 3:
+                    e_21 = _a.sent();
+                    return [3 /*break*/, 4];
+                case 4: return [4 /*yield*/, db.from("closer_avaliacao").update({ status: status, validado_por: uid, validado_em: new Date().toISOString() }).eq("id", a.id)];
+                case 5:
+                    _a.sent();
+                    recarregar();
+                    return [2 /*return*/];
+            }
+        });
+    }); };
+    var apagar = function (a) { return __awaiter(_this, void 0, void 0, function () {
+        var e_22;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    if (!window.confirm("Apagar esta avaliação?"))
+                        return [2 /*return*/];
+                    if (!a.print_path) return [3 /*break*/, 4];
+                    _a.label = 1;
+                case 1:
+                    _a.trys.push([1, 3, , 4]);
+                    return [4 /*yield*/, db.storage.from("avaliacoes").remove([a.print_path])];
+                case 2:
+                    _a.sent();
+                    return [3 /*break*/, 4];
+                case 3:
+                    e_22 = _a.sent();
+                    return [3 /*break*/, 4];
+                case 4: return [4 /*yield*/, db.from("closer_avaliacao").delete().eq("id", a.id)];
+                case 5:
+                    _a.sent();
+                    recarregar();
+                    return [2 /*return*/];
+            }
+        });
+    }); };
+    var estrelas = function (k) { return "★★★★★".slice(0, k) + "☆☆☆☆☆".slice(0, 5 - k); };
+    return (React.createElement(Secao, { n: n, titulo: "Minhas avalia\u00E7\u00F5es no Google", nota: "Recebeu avalia\u00E7\u00E3o? Tira o print e sobe aqui \u2014 conta no seu m\u00EAs na hora. O Google n\u00E3o diz quem atendeu, por isso o print \u00E9 a prova; a gest\u00E3o confere e valida." },
+        React.createElement("div", { className: "grid-kpi-4", style: { marginBottom: 12 } },
+            React.createElement(Kpi, { label: "Avalia\u00E7\u00F5es no m\u00EAs", value: nInt(doMes.length), sub: "".concat(nInt(validadas), " j\u00E1 validada").concat(validadas === 1 ? "" : "s", " pela gest\u00E3o"), tone: doMes.length ? "good" : undefined }),
+            React.createElement(Kpi, { label: "Nota m\u00E9dia", value: media ? nNum(media, 1) + " ★" : "—", sub: "das avalia\u00E7\u00F5es do m\u00EAs" }),
+            React.createElement(Kpi, { label: "Pedidos em aberto", value: nInt((d.entregas || []).filter(function (o) { return o.avaliacao_pedida_em && !o.tem_avaliacao; }).length), sub: "pediu e o cliente ainda n\u00E3o avaliou" }),
+            React.createElement(Kpi, { label: "Entregas sem pedido", value: nInt((d.entregas || []).filter(function (o) { return !o.avaliacao_pedida_em && !o.tem_avaliacao; }).length), sub: "\u00FAltimos 15 dias", tone: (d.entregas || []).some(function (o) { return !o.avaliacao_pedida_em && !o.tem_avaliacao; }) ? "bad" : undefined })),
+        React.createElement("div", { className: "col2" },
+            React.createElement("div", { ref: refForm },
+                React.createElement(Card, { className: "p16" },
+                    React.createElement(Label, null, "Registrar avalia\u00E7\u00E3o"),
+                    pre && React.createElement("div", { style: { margin: "8px 0" } },
+                        React.createElement(Tag, { cor: T.good },
+                            "O.S. ",
+                            pre.os_numero,
+                            " \u00B7 ",
+                            pre.veiculo || "",
+                            " ",
+                            pre.placa || "")),
+                    React.createElement("div", { style: { display: "grid", gap: 10, marginTop: 10 } },
+                        React.createElement("label", { style: { display: "block", border: "1.5px dashed ".concat(arq ? T.good : T.hair), borderRadius: 8, padding: 14, textAlign: "center", cursor: "pointer", background: arq ? "#F3F8F5" : T.surface } },
+                            React.createElement("input", { ref: inputRef, type: "file", accept: "image/*", style: { display: "none" }, onChange: function (e) { return escolher(e.target.files && e.target.files[0]); } }),
+                            previa ? React.createElement("img", { src: previa, alt: "", style: { maxHeight: 180, maxWidth: "100%", borderRadius: 6 } })
+                                : React.createElement("span", { style: { fontSize: 13, fontWeight: 600, color: T.ink2 } }, "\uD83D\uDCF7 Escolher o print da avalia\u00E7\u00E3o")),
+                        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
+                            React.createElement("div", null,
+                                React.createElement("div", { style: { fontSize: 11, color: T.muted, marginBottom: 4 } }, "NOTA"),
+                                React.createElement(Select, { value: nota, onChange: setNota, style: { width: "100%" }, options: [5, 4, 3, 2, 1].map(function (k) { return ({ v: String(k), l: "".concat(estrelas(k), "  ").concat(k) }); }) })),
+                            React.createElement("div", null,
+                                React.createElement("div", { style: { fontSize: 11, color: T.muted, marginBottom: 4 } }, "DATA DA AVALIA\u00C7\u00C3O"),
+                                React.createElement("input", { type: "date", value: dia, max: h, onChange: function (e) { return setDia(e.target.value); }, className: "dt", style: { width: "100%", padding: "7px 9px" } }))),
+                        React.createElement("div", null,
+                            React.createElement("div", { style: { fontSize: 11, color: T.muted, marginBottom: 4 } }, "DE QUAL CARRO (OPCIONAL)"),
+                            React.createElement(Select, { value: os, onChange: setOs, style: { width: "100%" }, options: opcoesOs })),
+                        React.createElement(Btn, { kind: "accent", onClick: enviar, style: { padding: 10 } }, "Registrar avalia\u00E7\u00E3o"),
+                        st && React.createElement("div", { style: { fontSize: 12.5, fontWeight: 600, color: st.erro ? T.bad : st.ok ? T.good : T.muted } }, st.erro || st.ok || st.msg)))),
+            React.createElement(Card, { className: "p0 rolagem", style: { maxHeight: 460, overflow: "auto" } },
+                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "Print"),
+                            React.createElement(Th, null, "Data"),
+                            React.createElement(Th, null, "Nota"),
+                            React.createElement(Th, null, "O.S."),
+                            React.createElement(Th, null, "Situa\u00E7\u00E3o"),
+                            React.createElement(Th, { right: true }))),
+                    React.createElement("tbody", null,
+                        todas.slice(0, 40).map(function (a) { return (React.createElement("tr", { key: a.id },
+                            React.createElement(Td, null, urls[a.print_path] ? React.createElement("img", { src: urls[a.print_path], alt: "", onClick: function () { return setZoom(urls[a.print_path]); }, style: { width: 44, height: 44, objectFit: "cover", borderRadius: 5, cursor: "zoom-in", border: "1px solid ".concat(T.hair) } }) : React.createElement("span", { style: { color: T.muted, fontSize: 12 } }, a.print_path ? "…" : "—")),
+                            React.createElement(Td, null, brData(a.avaliado_em)),
+                            React.createElement(Td, { style: { color: "#C99700", letterSpacing: 1 } }, a.nota ? estrelas(Number(a.nota)) : "—"),
+                            React.createElement(Td, null, a.os_numero || "—"),
+                            React.createElement(Td, null, a.status === "validada" ? React.createElement(Tag, { cor: T.good }, "validada") : a.status === "recusada" ? React.createElement(Tag, { cor: T.bad }, "recusada") : React.createElement(Tag, { cor: T.warn }, "em confer\u00EAncia")),
+                            React.createElement(Td, { style: { textAlign: "right" } },
+                                React.createElement("span", { style: { display: "inline-flex", gap: 6 } },
+                                    podeValidar && a.status !== "validada" && React.createElement(Btn, { onClick: function () { return mudarStatus(a, "validada"); }, style: { padding: "4px 8px", fontSize: 11.5 } }, "Validar"),
+                                    podeValidar && a.status !== "recusada" && React.createElement(Btn, { onClick: function () { return mudarStatus(a, "recusada"); }, style: { padding: "4px 8px", fontSize: 11.5 } }, "Recusar"),
+                                    (a.status === "enviada" || podeValidar) && React.createElement("button", { onClick: function () { return apagar(a); }, style: { fontFamily: F_UI, fontSize: 11, color: T.muted, background: "none", border: "none", textDecoration: "underline", cursor: "pointer" } }, "apagar"))))); }),
+                        !todas.length && React.createElement("tr", null,
+                            React.createElement(Td, { color: T.muted }, "Nenhuma avalia\u00E7\u00E3o registrada ainda.")))))),
+        zoom && React.createElement("div", { onClick: function () { return setZoom(null); }, style: { position: "fixed", inset: 0, background: "rgba(0,0,0,.8)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, cursor: "zoom-out" } },
+            React.createElement("img", { src: zoom, alt: "", style: { maxWidth: "100%", maxHeight: "100%", borderRadius: 8 } }))));
+}
+var SUGESTOES_ORDEM = ["Manutenção semestral do PPF", "Manutenção da estética", "Proteger a pintura nova: PPF ou vitrificação", "Oferecer PPF", "Oferecer película", "Oferecer estética"];
+function SecaoRecompra(_a) {
+    var _this = this;
+    var n = _a.n, d = _a.d, closer = _a.closer, recarregar = _a.recarregar;
+    var _b = __read(useState("todas"), 2), filtro = _b[0], setFiltro = _b[1];
+    var _c = __read(useState({}), 2), feito = _c[0], setFeito = _c[1];
+    var _d = __read(useState(null), 2), copiado = _d[0], setCopiado = _d[1];
+    var todas = (d.recompra || []).filter(function (r) { return !feito[r.placa]; });
+    var cont = {};
+    todas.forEach(function (r) { cont[r.sugestao] = (cont[r.sugestao] || 0) + 1; });
+    var lista = todas.filter(function (r) { return filtro === "todas" || r.sugestao === filtro; })
+        .sort(function (a, b) { return (Number(b.gasto) || 0) - (Number(a.gasto) || 0); }).slice(0, 25);
+    var marcar = function (r, resultado) { return __awaiter(_this, void 0, void 0, function () {
+        var error;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    setFeito(function (x) {
+                        var _a;
+                        return (__assign(__assign({}, x), (_a = {}, _a[r.placa] = resultado, _a)));
+                    });
+                    return [4 /*yield*/, db.from("closer_recontato").insert({ closer_codigo: closer.erp_codigo, placa: r.placa, resultado: resultado })];
+                case 1:
+                    error = (_a.sent()).error;
+                    if (error) {
+                        setFeito(function (x) { var y = __assign({}, x); delete y[r.placa]; return y; });
+                        window.alert("Não salvou: " + error.message);
+                    }
+                    return [2 /*return*/];
+            }
+        });
+    }); };
+    var copiar = function (r) { return __awaiter(_this, void 0, void 0, function () {
+        var t, e_23;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    t = msgRecompra(r, closer, closer.unidade);
+                    _a.label = 1;
+                case 1:
+                    _a.trys.push([1, 3, , 4]);
+                    return [4 /*yield*/, navigator.clipboard.writeText(t)];
+                case 2:
+                    _a.sent();
+                    return [3 /*break*/, 4];
+                case 3:
+                    e_23 = _a.sent();
+                    window.prompt("Copie a mensagem:", t);
+                    return [3 /*break*/, 4];
+                case 4:
+                    setCopiado(r.placa);
+                    setTimeout(function () { return setCopiado(null); }, 2500);
+                    return [2 /*return*/];
+            }
+        });
+    }); };
+    var opcoes = [["todas", "Todas (".concat(todas.length, ")")]].concat(SUGESTOES_ORDEM.filter(function (s) { return cont[s]; }).map(function (s) { return [s, "".concat(s, " (").concat(cont[s], ")")]; }));
+    var feitosHoje = Object.keys(feito).length;
+    return (React.createElement(Secao, { n: n, titulo: "Clientes da casa para chamar de volta", nota: "Quem j\u00E1 comprou com voc\u00EA e est\u00E1 no ponto de uma manuten\u00E7\u00E3o ou de um servi\u00E7o que ainda n\u00E3o fez. Os que mais gastaram aparecem primeiro. O telefone est\u00E1 no Oficina, pela placa; se o cliente j\u00E1 teve or\u00E7amento aqui, o WhatsApp abre direto. Marcou o resultado, some por 60 dias.".concat(feitosHoje ? " Hoje: ".concat(feitosHoje, " contato").concat(feitosHoje > 1 ? "s" : "", " registrado").concat(feitosHoje > 1 ? "s" : "", ".") : "") },
+        React.createElement("div", { style: { marginBottom: 10, overflowX: "auto" } },
+            React.createElement(Chips, { value: filtro, onChange: setFiltro, options: opcoes })),
+        React.createElement(Card, { className: "p0 rolagem" },
+            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 980 } },
+                React.createElement("thead", null,
+                    React.createElement("tr", null,
+                        React.createElement(Th, null, "Placa"),
+                        React.createElement(Th, null, "Ve\u00EDculo"),
+                        React.createElement(Th, null, "Cliente"),
+                        React.createElement(Th, { right: true }, "\u00DAltima O.S."),
+                        React.createElement(Th, { right: true }, "Gastou"),
+                        React.createElement(Th, null, "Sugest\u00E3o"),
+                        React.createElement(Th, { right: true }, "Resultado do contato"))),
+                React.createElement("tbody", null,
+                    lista.map(function (r) {
+                        var wa = waLink(r.cliente_whatsapp, msgRecompra(r, closer, closer.unidade));
+                        return (React.createElement("tr", { key: r.placa },
+                            React.createElement(Td, { bold: true }, r.placa),
+                            React.createElement(Td, null, r.veiculo || "—"),
+                            React.createElement(Td, null, r.cliente_nome || React.createElement("span", { style: { color: T.muted } }, "ver no Oficina")),
+                            React.createElement(Td, { right: true },
+                                brData(r.ultima_os),
+                                " ",
+                                React.createElement("span", { style: { color: T.muted, fontSize: 11.5 } },
+                                    "\u00B7 ",
+                                    nInt(r.dias),
+                                    " dias")),
+                            React.createElement(Td, { right: true, bold: true },
+                                nReal(r.gasto),
+                                Number(r.os_qtd) > 1 ? React.createElement("span", { style: { color: T.muted, fontSize: 11.5, fontWeight: 400 } },
+                                    " \u00B7 ",
+                                    r.os_qtd,
+                                    " O.S.") : null),
+                            React.createElement(Td, { style: { whiteSpace: "normal", minWidth: 180 } },
+                                React.createElement(Tag, { cor: /Manutenção/.test(r.sugestao) ? T.good : T.ink }, r.sugestao)),
+                            React.createElement(Td, { style: { textAlign: "right" } },
+                                React.createElement("span", { style: { display: "inline-flex", gap: 5, flexWrap: "wrap", justifyContent: "flex-end" } },
+                                    wa ? React.createElement("a", { href: wa, target: "_blank", rel: "noopener", style: { fontSize: 11.5, fontWeight: 700, color: T.preto, background: T.marca, borderRadius: 5, padding: "5px 8px", textDecoration: "none" } }, "WhatsApp \u2197")
+                                        : React.createElement(Btn, { onClick: function () { return copiar(r); }, style: { padding: "4px 8px", fontSize: 11.5 } }, copiado === r.placa ? "Copiado ✓" : "Copiar mensagem"),
+                                    React.createElement(Btn, { onClick: function () { return marcar(r, "agendou"); }, style: { padding: "4px 8px", fontSize: 11.5, color: T.good } }, "Agendou"),
+                                    React.createElement(Btn, { onClick: function () { return marcar(r, "chamei"); }, style: { padding: "4px 8px", fontSize: 11.5 } }, "Chamei"),
+                                    React.createElement(Btn, { onClick: function () { return marcar(r, "nao_atendeu"); }, style: { padding: "4px 8px", fontSize: 11.5 } }, "N\u00E3o atendeu"),
+                                    React.createElement(Btn, { onClick: function () { return marcar(r, "sem_interesse"); }, style: { padding: "4px 8px", fontSize: 11.5, color: T.muted } }, "Sem interesse")))));
+                    }),
+                    !lista.length && React.createElement("tr", null,
+                        React.createElement(Td, { color: T.muted },
+                            "Ningu\u00E9m para chamar agora",
+                            filtro !== "todas" ? " nesse filtro" : "",
+                            "."))))),
+        todas.length > 25 && React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 6 } },
+            "Mostrando os 25 que mais gastaram de ",
+            todas.length,
+            ". Registrou um contato, o pr\u00F3ximo sobe.")));
+}
+/* v69 — visão geral das avaliações, na aba Closers (admin/gerente) */
+function SecaoAvaliacoesGeral(_a) {
+    var _this = this;
+    var n = _a.n;
+    var _b = __read(useState({ carregando: true, erro: null, lista: [], closers: [] }), 2), st = _b[0], setSt = _b[1];
+    var _c = __read(useState({}), 2), urls = _c[0], setUrls = _c[1];
+    var _d = __read(useState(0), 2), versao = _d[0], setVersao = _d[1];
+    var _f = __read(useState(null), 2), zoom = _f[0], setZoom = _f[1];
+    var m0 = primeiroDia(hoje());
+    useEffect(function () {
+        var vivo = true;
+        Promise.all([
+            db.from("closer_avaliacao_v").select("*").gte("avaliado_em", addDays(m0, -62)).order("criado_em", { ascending: false }).limit(500),
+            db.from("map_closer").select("erp_codigo,nome_oficial,unidade").eq("ativo", true),
+        ]).then(function (_a) {
+            var _b = __read(_a, 2), a = _b[0], c = _b[1];
+            if (!vivo)
+                return;
+            if (a.error)
+                setSt({ carregando: false, erro: a.error.message, lista: [], closers: [] });
+            else
+                setSt({ carregando: false, erro: null, lista: a.data || [], closers: c.data || [] });
+        });
+        return function () { vivo = false; };
+    }, [versao]);
+    var pend = st.lista.filter(function (a) { return a.status === "enviada"; });
+    var chave = pend.map(function (a) { return a.print_path; }).join(",");
+    useEffect(function () {
+        var paths = pend.map(function (a) { return a.print_path; }).filter(Boolean).slice(0, 60);
+        if (!paths.length || !db.storage.from("avaliacoes").createSignedUrls)
+            return;
+        db.storage.from("avaliacoes").createSignedUrls(paths, 3600).then(function (_a) {
+            var data = _a.data;
+            var m = {};
+            (data || []).forEach(function (x) { if (x && x.signedUrl)
+                m[x.path] = x.signedUrl; });
+            setUrls(m);
+        }).catch(function () { });
+    }, [chave]);
+    if (st.erro)
+        return React.createElement(Secao, { n: n, titulo: "Avalia\u00E7\u00F5es no Google" },
+            React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.bad } },
+                "N\u00E3o consegui ler: ",
+                st.erro));
+    if (st.carregando)
+        return React.createElement(Secao, { n: n, titulo: "Avalia\u00E7\u00F5es no Google" },
+            React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando\u2026"));
+    var doMes = st.lista.filter(function (a) { return String(a.mes).slice(0, 10) === m0 && a.status !== "recusada"; });
+    var linhas = st.closers.map(function (c) {
+        var ls = doMes.filter(function (a) { return String(a.closer_codigo) === String(c.erp_codigo); });
+        var comNota = ls.filter(function (a) { return a.nota; });
+        return __assign(__assign({}, c), { n: ls.length, validadas: ls.filter(function (a) { return a.status === "validada"; }).length, pend: ls.filter(function (a) { return a.status === "enviada"; }).length, media: comNota.length ? comNota.reduce(function (s, a) { return s + Number(a.nota); }, 0) / comNota.length : 0 });
+    }).sort(function (a, b) { return b.n - a.n || (a.unidade < b.unidade ? -1 : 1); });
+    var mudar = function (a, status) { return __awaiter(_this, void 0, void 0, function () {
+        var uid, data, e_24;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    uid = null;
+                    _a.label = 1;
+                case 1:
+                    _a.trys.push([1, 3, , 4]);
+                    return [4 /*yield*/, db.auth.getSession()];
+                case 2:
+                    data = (_a.sent()).data;
+                    uid = data && data.session && data.session.user ? data.session.user.id : null;
+                    return [3 /*break*/, 4];
+                case 3:
+                    e_24 = _a.sent();
+                    return [3 /*break*/, 4];
+                case 4: return [4 /*yield*/, db.from("closer_avaliacao").update({ status: status, validado_por: uid, validado_em: new Date().toISOString() }).eq("id", a.id)];
+                case 5:
+                    _a.sent();
+                    setVersao(function (v) { return v + 1; });
+                    return [2 /*return*/];
+            }
+        });
+    }); };
+    var estrelas = function (k) { return "★★★★★".slice(0, k) + "☆☆☆☆☆".slice(0, 5 - k); };
+    return (React.createElement(Secao, { n: n, titulo: "Avalia\u00E7\u00F5es no Google", nota: "O closer sobe o print da avalia\u00E7\u00E3o que recebeu no pr\u00F3prio piloto. Conta no m\u00EAs na hora; aqui voc\u00EA confere o print e valida (ou recusa o que n\u00E3o for dele)." },
+        React.createElement("div", { className: "col2" },
+            React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "Closer"),
+                            React.createElement(Th, null, "Loja"),
+                            React.createElement(Th, { right: true }, "No m\u00EAs"),
+                            React.createElement(Th, { right: true }, "Validadas"),
+                            React.createElement(Th, { right: true }, "Nota m\u00E9dia"),
+                            React.createElement(Th, { right: true }, "Para conferir"))),
+                    React.createElement("tbody", null,
+                        linhas.map(function (c) { return (React.createElement("tr", { key: c.erp_codigo },
+                            React.createElement(Td, { bold: true }, c.nome_oficial),
+                            React.createElement(Td, null, c.unidade),
+                            React.createElement(Td, { right: true, bold: true }, nInt(c.n)),
+                            React.createElement(Td, { right: true }, nInt(c.validadas)),
+                            React.createElement(Td, { right: true }, c.media ? nNum(c.media, 1) + " ★" : "—"),
+                            React.createElement(Td, { right: true, color: c.pend ? T.warn : T.muted, bold: !!c.pend }, nInt(c.pend)))); }),
+                        React.createElement("tr", { style: { background: "#FAFAFA" } },
+                            React.createElement(Td, { bold: true }, "Todos"),
+                            React.createElement(Td, null),
+                            React.createElement(Td, { right: true, bold: true }, nInt(doMes.length)),
+                            React.createElement(Td, { right: true, bold: true }, nInt(doMes.filter(function (a) { return a.status === "validada"; }).length)),
+                            React.createElement(Td, null),
+                            React.createElement(Td, { right: true, bold: true }, nInt(pend.length)))))),
+            React.createElement(Card, { className: "p0 rolagem", style: { maxHeight: 420, overflow: "auto" } },
+                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "Print"),
+                            React.createElement(Th, null, "Closer"),
+                            React.createElement(Th, null, "Data"),
+                            React.createElement(Th, null, "Nota"),
+                            React.createElement(Th, { right: true }))),
+                    React.createElement("tbody", null,
+                        pend.map(function (a) { return (React.createElement("tr", { key: a.id },
+                            React.createElement(Td, null, urls[a.print_path] ? React.createElement("img", { src: urls[a.print_path], alt: "", onClick: function () { return setZoom(urls[a.print_path]); }, style: { width: 44, height: 44, objectFit: "cover", borderRadius: 5, cursor: "zoom-in", border: "1px solid ".concat(T.hair) } }) : "…"),
+                            React.createElement(Td, { bold: true }, a.closer),
+                            React.createElement(Td, null, brData(a.avaliado_em)),
+                            React.createElement(Td, { style: { color: "#C99700" } }, a.nota ? estrelas(Number(a.nota)) : "—"),
+                            React.createElement(Td, { style: { textAlign: "right" } },
+                                React.createElement("span", { style: { display: "inline-flex", gap: 6 } },
+                                    React.createElement(Btn, { kind: "accent", onClick: function () { return mudar(a, "validada"); }, style: { padding: "4px 9px", fontSize: 11.5 } }, "Validar"),
+                                    React.createElement(Btn, { onClick: function () { return mudar(a, "recusada"); }, style: { padding: "4px 9px", fontSize: 11.5 } }, "Recusar"))))); }),
+                        !pend.length && React.createElement("tr", null,
+                            React.createElement(Td, { color: T.muted }, "Nada para conferir.")))))),
+        zoom && React.createElement("div", { onClick: function () { return setZoom(null); }, style: { position: "fixed", inset: 0, background: "rgba(0,0,0,.8)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, cursor: "zoom-out" } },
+            React.createElement("img", { src: zoom, alt: "", style: { maxWidth: "100%", maxHeight: "100%", borderRadius: 8 } }))));
+}
+function MeuPainel(_a) {
+    var d = _a.d, closer = _a.closer, irParaOrcamentos = _a.irParaOrcamentos, novoDoLead = _a.novoDoLead, abrirOrcamento = _a.abrirOrcamento, recarregar = _a.recarregar, podeValidar = _a.podeValidar;
+    var h = hoje(), m0 = primeiroDia(h);
+    var _b = __read(useState(null), 2), preAval = _b[0], setPreAval = _b[1];
+    var refAval = useRef(null);
+    var registrarAval = function (o) { setPreAval(o); setTimeout(function () { if (refAval.current)
+        refAval.current.scrollIntoView({ behavior: "smooth", block: "center" }); }, 50); };
     var mes = d.mes || {};
     var orcMes = d.orcamentos.filter(function (o) { return String(o.criado_em).slice(0, 7) === m0.slice(0, 7); });
     var emAberto = d.orcamentos.filter(function (o) { return EM_ABERTO.indexOf(o.status) >= 0; });
@@ -7385,7 +8097,16 @@ function MeuPainel(_a) {
     var retornoVencido = emAberto.filter(function (o) { return o.retorno_vencido; });
     var fechadoSemOs = d.orcamentos.filter(function (o) { return o.fechado_sem_os; });
     var vencendo = emAberto.filter(function (o) { return o.validade && String(o.validade).slice(0, 10) < h; });
-    var osVelhas = d.osAbertas.filter(function (o) { return Number(o.dias_aberta) > 7; });
+    var osVelhas = d.osAbertas.filter(function (o) { return Number(o.dias_aberta) > 7 && !o.carro_entregue; });
+    /* v68: entregas — o que tem prazo hoje (ou já passou) e o carro ainda não saiu */
+    var naoEntregues = d.osAbertas.filter(function (o) { return !o.carro_entregue; });
+    var entregaHoje = naoEntregues.filter(function (o) { return o.prazo_entrega && String(o.prazo_entrega).slice(0, 10) === h; });
+    var entregaAtrasada = naoEntregues.filter(function (o) { return o.prazo_entrega && String(o.prazo_entrega).slice(0, 10) < h; })
+        .sort(function (a, b) { return (String(a.prazo_entrega) < String(b.prazo_entrega) ? -1 : 1); });
+    var entregaAmanha = naoEntregues.filter(function (o) { return o.prazo_entrega && String(o.prazo_entrega).slice(0, 10) === addDays(h, 1); });
+    var semPrazo = naoEntregues.filter(function (o) { return !o.prazo_entrega; });
+    var entregues = d.osAbertas.filter(function (o) { return o.carro_entregue; });
+    var osOrdenadas = naoEntregues.concat(entregues);
     var tarefas = [
         retornoHoje.length && { n: retornoHoje.length, titulo: "or\u00E7amento".concat(retornoHoje.length > 1 ? "s" : "", " com retorno marcado para hoje"),
             sub: retornoHoje.slice(0, 2).map(function (o) { return "".concat(o.cliente_nome || "sem nome", " \u00B7 ").concat(o.veiculo || o.placa || "", " \u00B7 ").concat(nReal(o.total)); }).join(" — "), acao: "Ver", ir: function () { return abrirOrcamento(retornoHoje[0].id); } },
@@ -7402,6 +8123,14 @@ function MeuPainel(_a) {
             return v.length && { n: v.length, cor: T.bad, titulo: "O.S. com prazo de entrega vencido",
                 sub: "".concat(nReal(v.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0)), " em carro").concat(v.length > 1 ? "s" : "", " que j\u00E1 devia").concat(v.length > 1 ? "m" : "", " ter sa\u00EDdo \u2014 ").concat(v.map(function (o) { return o.os_numero; }).slice(0, 4).join(", ")) };
         })(),
+        (function () {
+            var v = (d.entregas || []).filter(function (o) { return !o.avaliacao_pedida_em && !o.tem_avaliacao; });
+            return v.length && { n: v.length, titulo: "cliente".concat(v.length > 1 ? "s" : "", " entregue").concat(v.length > 1 ? "s" : "", " para pedir avalia\u00E7\u00E3o no Google"),
+                sub: "O melhor momento de pedir é logo depois da entrega — a mensagem já está pronta", acao: "Ver", ir: function () { var el = document.getElementById("sec-pedir-aval"); if (el)
+                    el.scrollIntoView({ behavior: "smooth" }); } };
+        })(),
+        entregaHoje.length && { n: entregaHoje.length, titulo: "carro".concat(entregaHoje.length > 1 ? "s" : "", " para entregar hoje"),
+            sub: entregaHoje.slice(0, 3).map(function (o) { return "O.S. ".concat(o.os_numero, " \u00B7 ").concat(o.veiculo || "", " ").concat(o.placa || "").trim(); }).join(" — ") + " — marca \"Carro entregue\" quando sair" },
         osVelhas.length && { n: osVelhas.length, cor: T.warn, titulo: "O.S. aberta".concat(osVelhas.length > 1 ? "s" : "", " h\u00E1 mais de 7 dias"),
             sub: "".concat(nReal(osVelhas.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0)), " em carros que ainda n\u00E3o sa\u00EDram \u2014 a mais antiga h\u00E1 ").concat(Math.max.apply(Math, __spreadArray([], __read(osVelhas.map(function (o) { return Number(o.dias_aberta) || 0; })), false)), " dias") },
         d.osSemOrc.length && { n: d.osSemOrc.length, cor: T.warn, titulo: "venda".concat(d.osSemOrc.length > 1 ? "s" : "", " que n\u00E3o passou pelo painel"),
@@ -7431,6 +8160,15 @@ function MeuPainel(_a) {
                 React.createElement(Kpi, { label: "Em aberto", value: nInt(emAberto.length), sub: "".concat(nReal(valorAberto), " esperando resposta") }),
                 React.createElement(Kpi, { label: "Convers\u00E3o de or\u00E7amento", value: orcMes.length ? nPct(fechadosMes / orcMes.length, 0) : "—", sub: "".concat(fechadosMes, " de ").concat(orcMes.length, " fecharam"), tone: orcMes.length >= 5 && fechadosMes / orcMes.length < 0.25 ? "bad" : undefined }),
                 React.createElement(Kpi, { label: "Cliente da casa", value: orcMes.length ? nPct(daCasa / orcMes.length, 0) : "—", sub: "dos or\u00E7amentos \u00E9 recompra" }),
+                (function () {
+                    var c = comissaoDe(d.faixas, closer && closer.erp_codigo, fat);
+                    if (!c)
+                        return React.createElement(Kpi, { label: "Comiss\u00E3o estimada", value: "\u2014", sub: "faixas de comiss\u00E3o ainda n\u00E3o cadastradas" });
+                    if (c.base === "loja")
+                        return React.createElement(Kpi, { label: "Comiss\u00E3o estimada", value: "\u2014", sub: "sua comiss\u00E3o \u00E9 sobre o faturamento da loja \u2014 em breve aqui" });
+                    return React.createElement(Kpi, { label: "Comiss\u00E3o estimada", value: nReal(c.valor), tone: c.atual ? "good" : undefined, sub: c.atual ? "".concat(nNum(Number(c.atual.percentual), 1), "% sobre ").concat(nReal(fat)).concat(c.proxima ? " \u00B7 faltam ".concat(nReal(c.falta), " para ").concat(nNum(Number(c.proxima.percentual), 1), "%") : " · faixa máxima")
+                            : c.proxima ? "faltam ".concat(nReal(c.falta), " para a primeira faixa (").concat(nNum(Number(c.proxima.percentual), 1), "%)") : "—" });
+                })(),
                 React.createElement(Kpi, { label: "Retorno atrasado", value: nInt(retornoVencido.length), sub: retornoVencido.length ? "cliente esperando você voltar" : "nenhum cliente esperando", tone: retornoVencido.length ? "bad" : "good" }))),
         React.createElement(Secao, { n: 2, titulo: "Hoje voc\u00EA precisa", nota: "O que o painel encontrou sozinho cruzando Kommo, or\u00E7amentos e Oficina. Some da lista quando resolve." },
             React.createElement(Card, { className: "p0" },
@@ -7475,7 +8213,7 @@ function MeuPainel(_a) {
                                 React.createElement(Btn, { kind: "accent", onClick: function () { return novoDoLead(l); }, style: { padding: "6px 11px", fontSize: 12 } }, "Criar or\u00E7amento")))); }),
                         !d.posVisita.length && React.createElement("tr", null,
                             React.createElement(Td, { color: T.muted }, "Nenhum lead do CRM esperando or\u00E7amento.")))))),
-        React.createElement(Secao, { n: 7, titulo: "Minhas O.S. em aberto", nota: "Direto do Oficina. O.S. aberta h\u00E1 mais de 7 dias em vermelho. O prazo de entrega \u00E9 voc\u00EA quem lan\u00E7a \u2014 o Oficina n\u00E3o exporta previs\u00E3o; vencido vira alerta l\u00E1 em cima." },
+        React.createElement(Secao, { n: 7, titulo: "Minhas O.S. em aberto", nota: "Direto do Oficina. O.S. aberta h\u00E1 mais de 7 dias em vermelho. O prazo de entrega \u00E9 voc\u00EA quem lan\u00E7a \u2014 o Oficina n\u00E3o exporta previs\u00E3o; vencido vira alerta l\u00E1 em cima. Quando o carro sair, marque \"Carro entregue\": a O.S. fica no fim da lista at\u00E9 o financeiro dar a baixa.".concat(entregues.length ? " Hoje: ".concat(entregues.length, " entregue").concat(entregues.length > 1 ? "s" : "", " esperando a baixa (").concat(nReal(entregues.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0)), ").") : "") },
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
                     React.createElement("thead", null,
@@ -7488,9 +8226,9 @@ function MeuPainel(_a) {
                             React.createElement(Th, { right: true }, "Valor"),
                             React.createElement(Th, { right: true }, "Aberta em"),
                             React.createElement(Th, { right: true }, "Aberta h\u00E1"),
-                            React.createElement(Th, { right: true }, "Prazo de entrega"))),
+                            React.createElement(Th, { right: true }, "Prazo de entrega \u00B7 carro entregue"))),
                     React.createElement("tbody", null,
-                        d.osAbertas.map(function (o) { return (React.createElement("tr", { key: o.os_numero },
+                        osOrdenadas.map(function (o) { return (React.createElement("tr", { key: o.os_numero, style: o.carro_entregue ? { background: "#F3F8F5" } : null },
                             React.createElement(Td, { bold: true }, o.os_numero),
                             React.createElement(Td, null, o.placa || "—"),
                             React.createElement(Td, null, o.veiculo || "—"),
@@ -7498,14 +8236,46 @@ function MeuPainel(_a) {
                             React.createElement(Td, { right: true }, nInt(o.itens)),
                             React.createElement(Td, { right: true, bold: true }, nReal(o.total)),
                             React.createElement(Td, { right: true }, brData(o.dt_os)),
-                            React.createElement(Td, { right: true, color: Number(o.dias_aberta) > 7 ? T.bad : T.ink, bold: Number(o.dias_aberta) > 7 },
+                            React.createElement(Td, { right: true, color: Number(o.dias_aberta) > 7 && !o.carro_entregue ? T.bad : T.ink, bold: Number(o.dias_aberta) > 7 && !o.carro_entregue },
                                 nInt(o.dias_aberta),
                                 " dia",
                                 Number(o.dias_aberta) === 1 ? "" : "s"),
                             React.createElement(Td, { right: true },
                                 React.createElement(PrazoOs, { o: o, aoSalvar: recarregar })))); }),
                         !d.osAbertas.length && React.createElement("tr", null,
-                            React.createElement(Td, { color: T.muted }, "Nenhuma O.S. em aberto no seu nome."))))))));
+                            React.createElement(Td, { color: T.muted }, "Nenhuma O.S. em aberto no seu nome.")))))),
+        React.createElement(Secao, { n: 8, titulo: "Carros que vou entregar hoje", nota: "Sai do prazo de entrega que voc\u00EA lan\u00E7a na se\u00E7\u00E3o 07. Atrasado aparece primeiro, em vermelho. Marcou \"Carro entregue\", sai daqui.".concat(entregaAmanha.length ? " Amanh\u00E3: ".concat(entregaAmanha.length, " carro").concat(entregaAmanha.length > 1 ? "s" : "", ".") : "").concat(semPrazo.length ? " ".concat(semPrazo.length, " O.S. ainda sem prazo lan\u00E7ado.") : "") },
+            React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "O.S."),
+                            React.createElement(Th, null, "Placa"),
+                            React.createElement(Th, null, "Ve\u00EDculo"),
+                            React.createElement(Th, null, "Origem (Oficina)"),
+                            React.createElement(Th, { right: true }, "Valor"),
+                            React.createElement(Th, { right: true }, "Prazo"),
+                            React.createElement(Th, { right: true }))),
+                    React.createElement("tbody", null,
+                        entregaAtrasada.concat(entregaHoje).map(function (o) {
+                            var atraso = String(o.prazo_entrega).slice(0, 10) < h;
+                            var dias = atraso ? diasEntre(String(o.prazo_entrega).slice(0, 10), h) - 1 : 0;
+                            return (React.createElement("tr", { key: o.os_numero, style: atraso ? { background: "#FDF1F2" } : null },
+                                React.createElement(Td, { bold: true }, o.os_numero),
+                                React.createElement(Td, null, o.placa || "—"),
+                                React.createElement(Td, null, o.veiculo || "—"),
+                                React.createElement(Td, null, o.pesquisa || "—"),
+                                React.createElement(Td, { right: true, bold: true }, nReal(o.total)),
+                                React.createElement(Td, { right: true, color: atraso ? T.bad : T.ink, bold: true }, atraso ? "atrasado ".concat(dias, " dia").concat(dias === 1 ? "" : "s", " \u00B7 era ").concat(brData(o.prazo_entrega)) : "hoje"),
+                                React.createElement(Td, { style: { textAlign: "right" } },
+                                    React.createElement(EntregaOs, { o: o, aoSalvar: recarregar, grande: true }))));
+                        }),
+                        !entregaAtrasada.length && !entregaHoje.length && React.createElement("tr", null,
+                            React.createElement(Td, { color: T.muted, style: { whiteSpace: "normal" } }, naoEntregues.some(function (o) { return o.prazo_entrega; }) ? "Nenhum carro com entrega para hoje." : "Nenhum prazo lançado ainda — preencha a data de entrega nas O.S. da seção 07 e os carros do dia aparecem aqui.")))))),
+        React.createElement("div", { id: "sec-pedir-aval" }),
+        React.createElement(SecaoPedirAvaliacao, { n: 9, d: d, closer: closer, recarregar: recarregar, registrar: registrarAval }),
+        React.createElement(SecaoAvaliacoes, { n: 10, d: d, closer: closer, recarregar: recarregar, podeValidar: podeValidar, pre: preAval, limparPre: function () { return setPreAval(null); }, refForm: refAval }),
+        React.createElement(SecaoRecompra, { n: 11, d: d, closer: closer, recarregar: recarregar })));
 }
 /* ---------- ORÇAMENTOS ---------- */
 var ITEM_VAZIO = function () { return ({ nome: "", aplicacao: "", garantia: "", preco: "", opcao: "", destaque: false, descricao: "" }); };
@@ -7557,7 +8327,7 @@ function NovoOrcamento(_a) {
     var itensValidos = f.itens.filter(function (it) { return it.nome.trim(); });
     var pronto = f.prazo_execucao && itensValidos.length > 0 && (f.cliente_nome.trim() || f.placa.trim());
     var salvar = function (statusInicial) { return __awaiter(_this, void 0, void 0, function () {
-        var cab, novo, _a, id_1, e_17;
+        var cab, novo, _a, id_1, e_25;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -7597,8 +8367,8 @@ function NovoOrcamento(_a) {
                     aoSalvar(id_1, novo);
                     return [3 /*break*/, 5];
                 case 4:
-                    e_17 = _b.sent();
-                    setErro(e_17.message);
+                    e_25 = _b.sent();
+                    setErro(e_25.message);
                     return [3 /*break*/, 5];
                 case 5:
                     setSalvando(false);
@@ -7899,7 +8669,7 @@ function JanelaImagem(_a) {
     useEffect(function () {
         var vivo = true;
         var gerar = function () { return __awaiter(_this, void 0, void 0, function () {
-            var e_18, cv, e_19;
+            var e_26, cv, e_27;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
@@ -7919,7 +8689,7 @@ function JanelaImagem(_a) {
                         _a.sent();
                         return [3 /*break*/, 5];
                     case 4:
-                        e_18 = _a.sent();
+                        e_26 = _a.sent();
                         return [3 /*break*/, 5];
                     case 5: return [4 /*yield*/, new Promise(function (r) { return setTimeout(r, 350); })];
                     case 6:
@@ -7933,9 +8703,9 @@ function JanelaImagem(_a) {
                         db.from("orcamento_evento").insert({ orcamento_id: o.id, tipo: "imagem_ia", nota: "imagem para o cliente gerada (formato Q2)" }).then(function () { }, function () { });
                         return [3 /*break*/, 9];
                     case 8:
-                        e_19 = _a.sent();
+                        e_27 = _a.sent();
                         if (vivo)
-                            setErro(e_19.message || String(e_19));
+                            setErro(e_27.message || String(e_27));
                         return [3 /*break*/, 9];
                     case 9: return [2 /*return*/];
                 }
@@ -7948,7 +8718,7 @@ function JanelaImagem(_a) {
     var baixar = function () { var a = document.createElement("a"); a.href = png; a.download = nomeArq; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
     var podeCompartilhar = !!(navigator.share && navigator.canShare && window.File);
     var compartilhar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var blob, file, e_20;
+        var blob, file, e_28;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -7968,7 +8738,7 @@ function JanelaImagem(_a) {
                     _a.label = 5;
                 case 5: return [3 /*break*/, 7];
                 case 6:
-                    e_20 = _a.sent();
+                    e_28 = _a.sent();
                     return [3 /*break*/, 7];
                 case 7: return [2 /*return*/];
             }
@@ -8020,7 +8790,7 @@ function DetalheOrcamento(_a) {
     var mudou = status !== o.status || motivo !== (o.motivo_perda || "") || retorno !== (o.retorno_em ? String(o.retorno_em).slice(0, 10) : "") || os !== (o.os_numero || "");
     var precisaMotivo = status === "perdido" && !motivo.trim();
     var salvar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var e_21;
+        var e_29;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -8038,8 +8808,8 @@ function DetalheOrcamento(_a) {
                     aoMudar();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_21 = _a.sent();
-                    setErro(e_21.message);
+                    e_29 = _a.sent();
+                    setErro(e_29.message);
                     return [3 /*break*/, 4];
                 case 4:
                     setSalvando(false);
@@ -8048,7 +8818,7 @@ function DetalheOrcamento(_a) {
         });
     }); };
     return (React.createElement("tr", null,
-        React.createElement("td", { colSpan: 10, style: { padding: 0, borderBottom: "1px solid #D6D6D6", background: "#FAFAFA" } },
+        React.createElement("td", { colSpan: 11, style: { padding: 0, borderBottom: "1px solid #D6D6D6", background: "#FAFAFA" } },
             React.createElement("div", { style: { padding: 16, display: "grid", gridTemplateColumns: "minmax(0,1.4fr) minmax(0,1fr)", gap: 16 } },
                 React.createElement("div", null,
                     React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 } },
@@ -8130,7 +8900,9 @@ function AbaOrcamentos(_a) {
     var d = _a.d, closer = _a.closer, recarregar = _a.recarregar, prefill = _a.prefill, limparPrefill = _a.limparPrefill, abertoId = _a.abertoId, setAbertoId = _a.setAbertoId;
     var h = hoje(), m0 = primeiroDia(h);
     var _b = __read(useState("abertos"), 2), filtro = _b[0], setFiltro = _b[1];
-    var _c = __read(useState(null), 2), aviso = _c[0], setAviso = _c[1];
+    /* v68: maior valor em cima por padrão; dá para ver o que está parado há mais tempo */
+    var _c = __read(useState("valor"), 2), ordem = _c[0], setOrdem = _c[1];
+    var _d = __read(useState(null), 2), aviso = _d[0], setAviso = _d[1];
     var orcMes = d.orcamentos.filter(function (o) { return String(o.criado_em).slice(0, 7) === m0.slice(0, 7); });
     var emAberto = d.orcamentos.filter(function (o) { return EM_ABERTO.indexOf(o.status) >= 0; });
     var fechadosMes = orcMes.filter(function (o) { return o.status === "fechado"; }).length;
@@ -8138,7 +8910,11 @@ function AbaOrcamentos(_a) {
     var lista = d.orcamentos.filter(function (o) { return filtro === "todos" ? true
         : filtro === "abertos" ? EM_ABERTO.indexOf(o.status) >= 0 || o.status === "rascunho"
             : filtro === "fechados" ? o.status === "fechado"
-                : o.status === "perdido" || o.status === "vencido"; });
+                : o.status === "perdido" || o.status === "vencido"; })
+        .slice().sort(function (a, b) { return ordem === "antigos" ? (String(a.criado_em) < String(b.criado_em) ? -1 : 1)
+        : ordem === "recentes" ? (String(a.criado_em) > String(b.criado_em) ? -1 : 1)
+            : (Number(b.total) || 0) - (Number(a.total) || 0); });
+    var diasDesde = function (d0) { return (d0 ? Math.max(0, diasEntre(String(d0).slice(0, 10), h) - 1) : 0); };
     var aoSalvar = function (id, novo) {
         setAviso("Or\u00E7amento ".concat(novo && novo.ano ? "".concat(novo.ano, "-").concat(String(novo.seq).padStart(4, "0")) : "", " salvo."));
         limparPrefill();
@@ -8164,8 +8940,11 @@ function AbaOrcamentos(_a) {
                 React.createElement(Kpi, { label: "Retorno atrasado", value: nInt(retornoVencido), sub: retornoVencido ? "cliente sem resposta sua" : "nenhum", tone: retornoVencido ? "bad" : undefined }),
                 React.createElement(Kpi, { label: "Convers\u00E3o do m\u00EAs", value: orcMes.length ? nPct(fechadosMes / orcMes.length, 0) : "—", sub: "".concat(fechadosMes, " de ").concat(orcMes.length), tone: orcMes.length && fechadosMes / orcMes.length >= 0.4 ? "good" : undefined }),
                 React.createElement(Kpi, { label: "O.S. sem or\u00E7amento", value: nInt(d.osSemOrc.length), sub: "venda que n\u00E3o passou por aqui", tone: d.osSemOrc.length ? "bad" : undefined })),
-            React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 10 } },
-                React.createElement(Chips, { value: filtro, onChange: setFiltro, options: [["abertos", "Em aberto (".concat(emAberto.length + d.orcamentos.filter(function (o) { return o.status === "rascunho"; }).length, ")")], ["fechados", "Fechados"], ["perdidos", "Perdidos e vencidos"], ["todos", "Todos (".concat(d.orcamentos.length, ")")]] })),
+            React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap", alignItems: "center" } },
+                React.createElement(Chips, { value: filtro, onChange: setFiltro, options: [["abertos", "Em aberto (".concat(emAberto.length + d.orcamentos.filter(function (o) { return o.status === "rascunho"; }).length, ")")], ["fechados", "Fechados"], ["perdidos", "Perdidos e vencidos"], ["todos", "Todos (".concat(d.orcamentos.length, ")")]] }),
+                React.createElement("span", { style: { marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: T.muted } },
+                    "Ordenar",
+                    React.createElement(Select, { value: ordem, onChange: setOrdem, style: { padding: "5px 8px", fontSize: 12.5 }, options: [{ v: "valor", l: "Maior valor primeiro" }, { v: "antigos", l: "Aberto há mais tempo" }, { v: "recentes", l: "Mais recentes" }] }))),
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
                     React.createElement("thead", null,
@@ -8178,6 +8957,7 @@ function AbaOrcamentos(_a) {
                             React.createElement(Th, null, "Formato"),
                             React.createElement(Th, { right: true }, "Valor"),
                             React.createElement(Th, null, "Status"),
+                            React.createElement(Th, { right: true }, "H\u00E1"),
                             React.createElement(Th, { right: true }, "Retorno"),
                             React.createElement(Th, null))),
                     React.createElement("tbody", null,
@@ -8204,6 +8984,11 @@ function AbaOrcamentos(_a) {
                                                 "Perdido",
                                                 o.motivo_perda ? " \u00B7 ".concat(String(o.motivo_perda).slice(0, 28)) : "")
                                                 : React.createElement(Tag, { cor: st.cor }, st.l)),
+                                    (function () {
+                                        var ab = EM_ABERTO.indexOf(o.status) >= 0 || o.status === "rascunho";
+                                        var dd = diasDesde(o.criado_em);
+                                        return React.createElement(Td, { right: true, color: ab && dd > 7 ? T.bad : ab ? T.ink : T.muted, bold: ab && dd > 7 }, ab ? "".concat(dd, " dia").concat(dd === 1 ? "" : "s") : "—");
+                                    })(),
                                     React.createElement(Td, { right: true, color: o.retorno_vencido ? T.bad : T.ink, bold: !!o.retorno_vencido }, EM_ABERTO.indexOf(o.status) >= 0 ? brData(o.retorno_em) : "—"),
                                     React.createElement(Td, { style: { textAlign: "right" } },
                                         React.createElement("span", { style: { fontSize: 12, color: T.muted } }, aberto ? "▲" : "▼"))),
@@ -8283,7 +9068,7 @@ function Piloto(_a) {
             d.erro),
         d.carregando && !d.em && React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando o seu m\u00EAs\u2026"),
         (d.em || !d.carregando) && !d.erro && (aba === "painel"
-            ? React.createElement(MeuPainel, { d: d, closer: closer, irParaOrcamentos: function () { return setAba("orcamentos"); }, novoDoLead: novoDoLead, abrirOrcamento: abrirOrcamento, recarregar: recarregar })
+            ? React.createElement(MeuPainel, { d: d, closer: closer, irParaOrcamentos: function () { return setAba("orcamentos"); }, novoDoLead: novoDoLead, abrirOrcamento: abrirOrcamento, recarregar: recarregar, podeValidar: !!todos })
             : React.createElement(AbaOrcamentos, { d: d, closer: closer, recarregar: recarregar, prefill: prefill, limparPrefill: function () { return setPrefill(null); }, abertoId: abertoId, setAbertoId: setAbertoId }))));
 }
 /* A casca do closer: cabeçalho preto com o nome dele, sem as abas de SDR.
