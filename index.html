@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v70 — CAR SERVICE</title>
-<meta name="painel-versao" content="v70">
+<title>Painel de SDR v71 — CAR SERVICE</title>
+<meta name="painel-versao" content="v71">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -220,7 +220,7 @@ window.FOTOS_ORC = {"hero_rear_logo": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ
 <script>
 function iniciarPainel() {
 "use strict";
-/* Painel de SDR — The Wonder / Car Service (v70: nome do cliente, último serviço e aba Manutenção PPF na recompra)
+/* Painel de SDR — The Wonder / Car Service (v71: dias úteis restantes do closer contam hoje)
    Lê as views do Supabase. Sem lançamento manual: o dado vem do Kommo. */
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function(t) {
@@ -7090,13 +7090,18 @@ function CartaoMeta(_a) {
     var meta = Number((mes && mes.meta) || (closer && closer.meta_mensal)) || 0;
     var fat = Number(mes && mes.faturado) || 0;
     var p = meta ? fat / meta : 0;
-    var du = diasUteisDoMes(hojeISO);
+    var du0 = diasUteisDoMes(hojeISO);
+    /* v71: o closer abre o piloto de manhã e o faturamento é o de até ontem —
+       então HOJE ainda é dia para vender e entra nos dias que faltam
+       (dia 28 de setembro: 28, 29 e 30 = 3 dias). Domingo não conta. */
+    var hojeUtil = parseISO(hojeISO).getDay() !== 0;
+    var du = __assign(__assign({}, du0), { restantes: Math.max(1, du0.restantes + (hojeUtil ? 1 : 0)) });
     var falta = Math.max(0, meta - fat);
     var porDia = falta / du.restantes;
     /* ritmo só até ontem: às 9h da manhã o dia sempre parece um desastre */
-    var passadosAteOntem = Math.max(1, du.passados - 1);
+    var passadosAteOntem = Math.max(1, du0.passados - (hojeUtil ? 1 : 0));
     var projecao = fat / passadosAteOntem * (passadosAteOntem + du.restantes);
-    var est = meta ? estadoMeta(p, du.passados / (du.passados + du.restantes)) : null;
+    var est = meta ? estadoMeta(p, passadosAteOntem / (passadosAteOntem + du.restantes)) : null;
     return (React.createElement(Card, { className: "p16", style: { display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" } },
         React.createElement("div", { style: { flex: 1, minWidth: 280 } },
             React.createElement(Label, null,
