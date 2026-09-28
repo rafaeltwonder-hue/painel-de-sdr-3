@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Painel de SDR v71 — CAR SERVICE</title>
-<meta name="painel-versao" content="v71">
+<title>Painel de SDR v73 — CAR SERVICE</title>
+<meta name="painel-versao" content="v73">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -220,7 +220,7 @@ window.FOTOS_ORC = {"hero_rear_logo": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ
 <script>
 function iniciarPainel() {
 "use strict";
-/* Painel de SDR — The Wonder / Car Service (v71: dias úteis restantes do closer contam hoje)
+/* Painel de SDR — The Wonder / Car Service (v73: gerador e banco de orçamentos em abas separadas)
    Lê as views do Supabase. Sem lançamento manual: o dado vem do Kommo. */
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function(t) {
@@ -7655,10 +7655,94 @@ function SecaoAvaliacoes(_a) {
     var _h = __read(useState(null), 2), st = _h[0], setSt = _h[1];
     var _j = __read(useState({}), 2), urls = _j[0], setUrls = _j[1];
     var _k = __read(useState(null), 2), zoom = _k[0], setZoom = _k[1];
+    var _l = __read(useState(false), 2), arrastando = _l[0], setArrastando = _l[1];
+    var _m = __read(useState(null), 2), avisoCola = _m[0], setAvisoCola = _m[1];
     var inputRef = useRef(null);
     useEffect(function () { if (pre) {
         setOs(pre.loja + "|" + pre.os_numero);
     } }, [pre]);
+    /* v72: Ctrl+V em qualquer lugar da tela cola o print — menos quando a
+       pessoa está escrevendo num campo de texto (aí o colar é dela) */
+    var imagemDoEvento = function (e) {
+        var itens = (e.clipboardData && e.clipboardData.items) || [];
+        for (var i = 0; i < itens.length; i++) {
+            if (itens[i].kind === "file" && /^image\//.test(itens[i].type))
+                return itens[i].getAsFile();
+        }
+        return null;
+    };
+    useEffect(function () {
+        var ouvir = function (e) {
+            var alvo = e.target;
+            var tag = alvo && alvo.tagName ? alvo.tagName.toLowerCase() : "";
+            if ((tag === "input" && alvo.type !== "file") || tag === "textarea" || (alvo && alvo.isContentEditable))
+                return;
+            var f = imagemDoEvento(e);
+            if (f) {
+                e.preventDefault();
+                escolher(f);
+                setAvisoCola(null);
+                if (refForm && refForm.current)
+                    refForm.current.scrollIntoView({ behavior: "smooth", block: "center" });
+            }
+        };
+        window.addEventListener("paste", ouvir);
+        return function () { return window.removeEventListener("paste", ouvir); };
+    }, [previa]);
+    var podeLerClipboard = !!(navigator.clipboard && navigator.clipboard.read);
+    var colarDoBotao = function () { return __awaiter(_this, void 0, void 0, function () {
+        var itens, itens_1, itens_1_1, it, tipo, b, e_20_1, e_21;
+        var e_20, _a;
+        return __generator(this, function (_b) {
+            switch (_b.label) {
+                case 0:
+                    setAvisoCola(null);
+                    _b.label = 1;
+                case 1:
+                    _b.trys.push([1, 11, , 12]);
+                    return [4 /*yield*/, navigator.clipboard.read()];
+                case 2:
+                    itens = _b.sent();
+                    _b.label = 3;
+                case 3:
+                    _b.trys.push([3, 8, 9, 10]);
+                    itens_1 = __values(itens), itens_1_1 = itens_1.next();
+                    _b.label = 4;
+                case 4:
+                    if (!!itens_1_1.done) return [3 /*break*/, 7];
+                    it = itens_1_1.value;
+                    tipo = it.types.find(function (t) { return /^image\//.test(t); });
+                    if (!tipo) return [3 /*break*/, 6];
+                    return [4 /*yield*/, it.getType(tipo)];
+                case 5:
+                    b = _b.sent();
+                    escolher(new File([b], "print." + tipo.split("/")[1], { type: tipo }));
+                    return [2 /*return*/];
+                case 6:
+                    itens_1_1 = itens_1.next();
+                    return [3 /*break*/, 4];
+                case 7: return [3 /*break*/, 10];
+                case 8:
+                    e_20_1 = _b.sent();
+                    e_20 = { error: e_20_1 };
+                    return [3 /*break*/, 10];
+                case 9:
+                    try {
+                        if (itens_1_1 && !itens_1_1.done && (_a = itens_1.return)) _a.call(itens_1);
+                    }
+                    finally { if (e_20) throw e_20.error; }
+                    return [7 /*endfinally*/];
+                case 10:
+                    setAvisoCola("Não achei imagem copiada. Tire o print de novo (Win + Shift + S) e tente.");
+                    return [3 /*break*/, 12];
+                case 11:
+                    e_21 = _b.sent();
+                    setAvisoCola("O navegador não deixou ler a área de transferência — use Ctrl + V.");
+                    return [3 /*break*/, 12];
+                case 12: return [2 /*return*/];
+            }
+        });
+    }); };
     var todas = d.avaliacoes || [];
     var doMes = todas.filter(function (a) { return String(a.mes).slice(0, 10) === m0 && a.status !== "recusada"; });
     var media = doMes.filter(function (a) { return a.nota; }).length ? doMes.reduce(function (s, a) { return s + (Number(a.nota) || 0); }, 0) / doMes.filter(function (a) { return a.nota; }).length : 0;
@@ -7685,7 +7769,7 @@ function SecaoAvaliacoes(_a) {
         setPrevia(f ? URL.createObjectURL(f) : null);
     };
     var enviar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var blob, caminho, up, _a, loja, osNum, error, e_20;
+        var blob, caminho, up, _a, loja, osNum, error, e_22;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -7726,15 +7810,15 @@ function SecaoAvaliacoes(_a) {
                     setTimeout(function () { return setSt(null); }, 6000);
                     return [3 /*break*/, 6];
                 case 5:
-                    e_20 = _b.sent();
-                    setSt({ erro: "Não salvou: " + (e_20.message || e_20) });
+                    e_22 = _b.sent();
+                    setSt({ erro: "Não salvou: " + (e_22.message || e_22) });
                     return [3 /*break*/, 6];
                 case 6: return [2 /*return*/];
             }
         });
     }); };
     var mudarStatus = function (a, status) { return __awaiter(_this, void 0, void 0, function () {
-        var uid, data, e_21;
+        var uid, data, e_23;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -7748,7 +7832,7 @@ function SecaoAvaliacoes(_a) {
                     uid = data && data.session && data.session.user ? data.session.user.id : null;
                     return [3 /*break*/, 4];
                 case 3:
-                    e_21 = _a.sent();
+                    e_23 = _a.sent();
                     return [3 /*break*/, 4];
                 case 4: return [4 /*yield*/, db.from("closer_avaliacao").update({ status: status, validado_por: uid, validado_em: new Date().toISOString() }).eq("id", a.id)];
                 case 5:
@@ -7759,7 +7843,7 @@ function SecaoAvaliacoes(_a) {
         });
     }); };
     var apagar = function (a) { return __awaiter(_this, void 0, void 0, function () {
-        var e_22;
+        var e_24;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -7774,7 +7858,7 @@ function SecaoAvaliacoes(_a) {
                     _a.sent();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_22 = _a.sent();
+                    e_24 = _a.sent();
                     return [3 /*break*/, 4];
                 case 4: return [4 /*yield*/, db.from("closer_avaliacao").delete().eq("id", a.id)];
                 case 5:
@@ -7804,10 +7888,32 @@ function SecaoAvaliacoes(_a) {
                             " ",
                             pre.placa || "")),
                     React.createElement("div", { style: { display: "grid", gap: 10, marginTop: 10 } },
-                        React.createElement("label", { style: { display: "block", border: "1.5px dashed ".concat(arq ? T.good : T.hair), borderRadius: 8, padding: 14, textAlign: "center", cursor: "pointer", background: arq ? "#F3F8F5" : T.surface } },
-                            React.createElement("input", { ref: inputRef, type: "file", accept: "image/*", style: { display: "none" }, onChange: function (e) { return escolher(e.target.files && e.target.files[0]); } }),
-                            previa ? React.createElement("img", { src: previa, alt: "", style: { maxHeight: 180, maxWidth: "100%", borderRadius: 6 } })
-                                : React.createElement("span", { style: { fontSize: 13, fontWeight: 600, color: T.ink2 } }, "\uD83D\uDCF7 Escolher o print da avalia\u00E7\u00E3o")),
+                        React.createElement("input", { ref: inputRef, type: "file", accept: "image/*", style: { display: "none" }, onChange: function (e) { return escolher(e.target.files && e.target.files[0]); } }),
+                        React.createElement("div", { tabIndex: 0, onPaste: function (e) { var f = imagemDoEvento(e); if (f) {
+                                e.preventDefault();
+                                escolher(f);
+                            } }, onDragOver: function (e) { e.preventDefault(); setArrastando(true); }, onDragLeave: function () { return setArrastando(false); }, onDrop: function (e) { e.preventDefault(); setArrastando(false); var f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f && /^image\//.test(f.type))
+                                escolher(f); }, style: { border: "2px dashed ".concat(arq ? T.good : arrastando ? T.marca : "#C9C9C9"), borderRadius: 10, padding: previa ? 10 : "22px 14px", textAlign: "center",
+                                background: arq ? "#F3F8F5" : arrastando ? "#FFFBEA" : "#FAFAFA", outline: "none", minHeight: 150, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10 } },
+                            previa ? (React.createElement(React.Fragment, null,
+                                React.createElement("img", { src: previa, alt: "", style: { maxHeight: 220, maxWidth: "100%", borderRadius: 6, boxShadow: "0 2px 10px rgba(0,0,0,.12)" } }),
+                                React.createElement("span", { style: { fontSize: 12, color: T.muted } },
+                                    "Print pronto. Colou o errado? Cole outro por cima ou ",
+                                    React.createElement("button", { onClick: function () { return escolher(null); }, style: { fontFamily: F_UI, fontSize: 12, color: T.ink2, background: "none", border: "none", textDecoration: "underline", cursor: "pointer", padding: 0 } }, "tire este"),
+                                    "."))) : (React.createElement(React.Fragment, null,
+                                React.createElement("div", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 15, color: T.ink } }, "Cole o print aqui"),
+                                React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, lineHeight: 1.5 } },
+                                    "Tirou o print? \u00C9 s\u00F3 apertar ",
+                                    React.createElement("b", { style: { background: "#fff", border: "1px solid ".concat(T.hair), borderRadius: 4, padding: "1px 6px" } }, "Ctrl"),
+                                    " + ",
+                                    React.createElement("b", { style: { background: "#fff", border: "1px solid ".concat(T.hair), borderRadius: 4, padding: "1px 6px" } }, "V"),
+                                    " em qualquer lugar da tela.",
+                                    React.createElement("br", null),
+                                    "Tamb\u00E9m d\u00E1 para arrastar a imagem para c\u00E1."),
+                                React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" } },
+                                    podeLerClipboard && React.createElement(Btn, { kind: "accent", onClick: colarDoBotao, style: { padding: "7px 12px", fontSize: 12.5 } }, "\uD83D\uDCCB Colar print"),
+                                    React.createElement(Btn, { onClick: function () { return inputRef.current && inputRef.current.click(); }, style: { padding: "7px 12px", fontSize: 12.5 } }, "\uD83D\uDCF7 Escolher arquivo")))),
+                            avisoCola && React.createElement("div", { style: { fontSize: 12, color: T.bad, fontWeight: 600 } }, avisoCola)),
                         React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
                             React.createElement("div", null,
                                 React.createElement("div", { style: { fontSize: 11, color: T.muted, marginBottom: 4 } }, "NOTA"),
@@ -7882,7 +7988,7 @@ function SecaoRecompra(_a) {
         });
     }); };
     var copiar = function (r) { return __awaiter(_this, void 0, void 0, function () {
-        var t, e_23;
+        var t, e_25;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -7895,7 +8001,7 @@ function SecaoRecompra(_a) {
                     _a.sent();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_23 = _a.sent();
+                    e_25 = _a.sent();
                     window.prompt("Copie a mensagem:", t);
                     return [3 /*break*/, 4];
                 case 4:
@@ -7929,7 +8035,7 @@ function SecaoRecompra(_a) {
         });
     }); };
     var copiarPpf = function (r) { return __awaiter(_this, void 0, void 0, function () {
-        var t, e_24;
+        var t, e_26;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -7942,7 +8048,7 @@ function SecaoRecompra(_a) {
                     _a.sent();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_24 = _a.sent();
+                    e_26 = _a.sent();
                     window.prompt("Copie a mensagem:", t);
                     return [3 /*break*/, 4];
                 case 4:
@@ -8116,7 +8222,7 @@ function SecaoAvaliacoesGeral(_a) {
         return __assign(__assign({}, c), { n: ls.length, validadas: ls.filter(function (a) { return a.status === "validada"; }).length, pend: ls.filter(function (a) { return a.status === "enviada"; }).length, media: comNota.length ? comNota.reduce(function (s, a) { return s + Number(a.nota); }, 0) / comNota.length : 0 });
     }).sort(function (a, b) { return b.n - a.n || (a.unidade < b.unidade ? -1 : 1); });
     var mudar = function (a, status) { return __awaiter(_this, void 0, void 0, function () {
-        var uid, data, e_25;
+        var uid, data, e_27;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -8130,7 +8236,7 @@ function SecaoAvaliacoesGeral(_a) {
                     uid = data && data.session && data.session.user ? data.session.user.id : null;
                     return [3 /*break*/, 4];
                 case 3:
-                    e_25 = _a.sent();
+                    e_27 = _a.sent();
                     return [3 /*break*/, 4];
                 case 4: return [4 /*yield*/, db.from("closer_avaliacao").update({ status: status, validado_por: uid, validado_em: new Date().toISOString() }).eq("id", a.id)];
                 case 5:
@@ -8442,7 +8548,7 @@ function NovoOrcamento(_a) {
     var itensValidos = f.itens.filter(function (it) { return it.nome.trim(); });
     var pronto = f.prazo_execucao && itensValidos.length > 0 && (f.cliente_nome.trim() || f.placa.trim());
     var salvar = function (statusInicial) { return __awaiter(_this, void 0, void 0, function () {
-        var cab, novo, _a, id_1, e_26;
+        var cab, novo, _a, id_1, e_28;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -8482,8 +8588,8 @@ function NovoOrcamento(_a) {
                     aoSalvar(id_1, novo);
                     return [3 /*break*/, 5];
                 case 4:
-                    e_26 = _b.sent();
-                    setErro(e_26.message);
+                    e_28 = _b.sent();
+                    setErro(e_28.message);
                     return [3 /*break*/, 5];
                 case 5:
                     setSalvando(false);
@@ -8784,7 +8890,7 @@ function JanelaImagem(_a) {
     useEffect(function () {
         var vivo = true;
         var gerar = function () { return __awaiter(_this, void 0, void 0, function () {
-            var e_27, cv, e_28;
+            var e_29, cv, e_30;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
@@ -8804,7 +8910,7 @@ function JanelaImagem(_a) {
                         _a.sent();
                         return [3 /*break*/, 5];
                     case 4:
-                        e_27 = _a.sent();
+                        e_29 = _a.sent();
                         return [3 /*break*/, 5];
                     case 5: return [4 /*yield*/, new Promise(function (r) { return setTimeout(r, 350); })];
                     case 6:
@@ -8818,9 +8924,9 @@ function JanelaImagem(_a) {
                         db.from("orcamento_evento").insert({ orcamento_id: o.id, tipo: "imagem_ia", nota: "imagem para o cliente gerada (formato Q2)" }).then(function () { }, function () { });
                         return [3 /*break*/, 9];
                     case 8:
-                        e_28 = _a.sent();
+                        e_30 = _a.sent();
                         if (vivo)
-                            setErro(e_28.message || String(e_28));
+                            setErro(e_30.message || String(e_30));
                         return [3 /*break*/, 9];
                     case 9: return [2 /*return*/];
                 }
@@ -8833,7 +8939,7 @@ function JanelaImagem(_a) {
     var baixar = function () { var a = document.createElement("a"); a.href = png; a.download = nomeArq; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
     var podeCompartilhar = !!(navigator.share && navigator.canShare && window.File);
     var compartilhar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var blob, file, e_29;
+        var blob, file, e_31;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -8853,7 +8959,7 @@ function JanelaImagem(_a) {
                     _a.label = 5;
                 case 5: return [3 /*break*/, 7];
                 case 6:
-                    e_29 = _a.sent();
+                    e_31 = _a.sent();
                     return [3 /*break*/, 7];
                 case 7: return [2 /*return*/];
             }
@@ -8905,7 +9011,7 @@ function DetalheOrcamento(_a) {
     var mudou = status !== o.status || motivo !== (o.motivo_perda || "") || retorno !== (o.retorno_em ? String(o.retorno_em).slice(0, 10) : "") || os !== (o.os_numero || "");
     var precisaMotivo = status === "perdido" && !motivo.trim();
     var salvar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var e_30;
+        var e_32;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -8923,8 +9029,8 @@ function DetalheOrcamento(_a) {
                     aoMudar();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_30 = _a.sent();
-                    setErro(e_30.message);
+                    e_32 = _a.sent();
+                    setErro(e_32.message);
                     return [3 /*break*/, 4];
                 case 4:
                     setSalvando(false);
@@ -9011,57 +9117,157 @@ function DetalheOrcamento(_a) {
                     React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 8 } }, "A imagem sai no formato aprovado pelo time (quadrada, 1080). Toda mudan\u00E7a de status fica no hist\u00F3rico."),
                     imagem && itens && React.createElement(JanelaImagem, { o: o, itens: itens, closer: closer, fechar: function () { return setImagem(false); } }))))));
 }
-function AbaOrcamentos(_a) {
-    var d = _a.d, closer = _a.closer, recarregar = _a.recarregar, prefill = _a.prefill, limparPrefill = _a.limparPrefill, abertoId = _a.abertoId, setAbertoId = _a.setAbertoId;
-    var h = hoje(), m0 = primeiroDia(h);
+/* v73: o gerador e o banco viraram abas separadas. O gerador só monta e
+   salva; o banco é onde o closer trabalha a carteira — busca, filtros,
+   o que precisa de ação, WhatsApp direto e exportação. */
+function AbaNovoOrcamento(_a) {
+    var closer = _a.closer, prefill = _a.prefill, limparPrefill = _a.limparPrefill, aoSalvar = _a.aoSalvar;
+    return (React.createElement(Secao, { n: 1, titulo: "Novo or\u00E7amento", nota: "Monta aqui e salva: ele ganha n\u00FAmero pr\u00F3prio e vai direto para o Banco de or\u00E7amentos. Origem e prazo de execu\u00E7\u00E3o s\u00E3o obrigat\u00F3rios em todo or\u00E7amento; item e pre\u00E7o s\u00E3o livres nesta fase." },
+        prefill && React.createElement("div", { style: { marginBottom: 10 } },
+            React.createElement(Tag, { cor: T.good },
+                "Puxado do CRM: ",
+                prefill.cliente_nome || "lead",
+                prefill.veiculo ? " \u00B7 ".concat(prefill.veiculo) : ""),
+            " ",
+            React.createElement(Btn, { onClick: limparPrefill, style: { padding: "3px 9px", fontSize: 11.5, marginLeft: 6 } }, "limpar")),
+        React.createElement(NovoOrcamento, { closer: closer, inicial: prefill, aoSalvar: aoSalvar })));
+}
+var semAcento = function (s) { return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); };
+function msgFollowUp(o, closer) {
+    var nome = primeiroNomeDe(o.cliente_nome);
+    var eu = primeiroNomeDe(closer && closer.nome_oficial);
+    return "Oi".concat(nome ? " " + nome : "", "! Aqui \u00E9 ").concat(eu ? "o " + eu : "a equipe", " da The Wonder ").concat(o.loja || "", ". Passando sobre o or\u00E7amento N\u00BA ").concat(o.numero).concat(o.veiculo ? " do seu ".concat(o.veiculo) : "", ". Ficou alguma d\u00FAvida? Se quiser, consigo reservar a agenda para voc\u00EA esta semana.");
+}
+function AbaBancoOrcamentos(_a) {
+    var d = _a.d, closer = _a.closer, recarregar = _a.recarregar, abertoId = _a.abertoId, setAbertoId = _a.setAbertoId, aviso = _a.aviso, irParaNovo = _a.irParaNovo;
+    var h = hoje(), m0 = primeiroDia(h), mAnt = mesAnteriorDe(h);
     var _b = __read(useState("abertos"), 2), filtro = _b[0], setFiltro = _b[1];
-    /* v68: maior valor em cima por padrão; dá para ver o que está parado há mais tempo */
     var _c = __read(useState("valor"), 2), ordem = _c[0], setOrdem = _c[1];
-    var _d = __read(useState(null), 2), aviso = _d[0], setAviso = _d[1];
-    var orcMes = d.orcamentos.filter(function (o) { return String(o.criado_em).slice(0, 7) === m0.slice(0, 7); });
-    var emAberto = d.orcamentos.filter(function (o) { return EM_ABERTO.indexOf(o.status) >= 0; });
-    var fechadosMes = orcMes.filter(function (o) { return o.status === "fechado"; }).length;
-    var retornoVencido = emAberto.filter(function (o) { return o.retorno_vencido; }).length;
-    var lista = d.orcamentos.filter(function (o) { return filtro === "todos" ? true
-        : filtro === "abertos" ? EM_ABERTO.indexOf(o.status) >= 0 || o.status === "rascunho"
-            : filtro === "fechados" ? o.status === "fechado"
-                : o.status === "perdido" || o.status === "vencido"; })
-        .slice().sort(function (a, b) { return ordem === "antigos" ? (String(a.criado_em) < String(b.criado_em) ? -1 : 1)
-        : ordem === "recentes" ? (String(a.criado_em) > String(b.criado_em) ? -1 : 1)
-            : (Number(b.total) || 0) - (Number(a.total) || 0); });
+    var _d = __read(useState(""), 2), busca = _d[0], setBusca = _d[1];
+    var _f = __read(useState("__all"), 2), origem = _f[0], setOrigem = _f[1];
+    var _g = __read(useState("tudo"), 2), periodo = _g[0], setPeriodo = _g[1];
+    var todos = d.orcamentos || [];
     var diasDesde = function (d0) { return (d0 ? Math.max(0, diasEntre(String(d0).slice(0, 10), h) - 1) : 0); };
-    var aoSalvar = function (id, novo) {
-        setAviso("Or\u00E7amento ".concat(novo && novo.ano ? "".concat(novo.ano, "-").concat(String(novo.seq).padStart(4, "0")) : "", " salvo."));
-        limparPrefill();
-        recarregar();
-        setAbertoId(id);
-        setFiltro("abertos");
-        setTimeout(function () { return setAviso(null); }, 6000);
+    var ehAberto = function (o) { return EM_ABERTO.indexOf(o.status) >= 0; };
+    var validadeDias = function (o) { return (o.validade ? diasEntre(h, String(o.validade).slice(0, 10)) - 1 : null); }; // negativo = vencida
+    var retornoHoje = function (o) { return ehAberto(o) && o.retorno_em && String(o.retorno_em).slice(0, 10) === h; };
+    var precisaAcao = function (o) { return (ehAberto(o) && (o.retorno_vencido || retornoHoje(o) || (validadeDias(o) != null && validadeDias(o) < 0)))
+        || (o.status === "fechado" && o.fechado_sem_os) || (o.status === "rascunho" && diasDesde(o.criado_em) >= 2); };
+    /* números do topo: sempre da carteira inteira, não do filtro */
+    var doMes = todos.filter(function (o) { return String(o.criado_em).slice(0, 7) === m0.slice(0, 7); });
+    var abertos = todos.filter(ehAberto);
+    var vAbertos = abertos.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0);
+    var fechMes = doMes.filter(function (o) { return o.status === "fechado"; });
+    var vFechMes = fechMes.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0);
+    var decididosMes = doMes.filter(function (o) { return ["fechado", "perdido", "vencido"].indexOf(o.status) >= 0; }).length;
+    var ticketOrc = doMes.length ? doMes.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0) / doMes.length : 0;
+    var ticketFech = fechMes.length ? vFechMes / fechMes.length : 0;
+    var nAcao = todos.filter(precisaAcao).length;
+    /* esteira: onde está o dinheiro em aberto */
+    var esteira = ["enviado", "negociando", "aguardando"].map(function (k) {
+        var ls = abertos.filter(function (o) { return o.status === k; });
+        return { k: k, l: STATUS_ORC[k].l, n: ls.length, v: ls.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0) };
+    });
+    var maxEst = Math.max.apply(Math, __spreadArray([1], __read(esteira.map(function (e) { return e.v; })), false));
+    var q = semAcento(busca.trim());
+    var lista = todos.filter(function (o) {
+        if (filtro === "abertos" && !ehAberto(o))
+            return false;
+        if (filtro === "acao" && !precisaAcao(o))
+            return false;
+        if (filtro === "fechados" && o.status !== "fechado")
+            return false;
+        if (filtro === "perdidos" && o.status !== "perdido" && o.status !== "vencido")
+            return false;
+        if (filtro === "rascunhos" && o.status !== "rascunho")
+            return false;
+        if (["enviado", "negociando", "aguardando"].indexOf(filtro) >= 0 && o.status !== filtro)
+            return false;
+        if (origem !== "__all" && o.origem !== origem)
+            return false;
+        var dia = String(o.criado_em).slice(0, 10);
+        if (periodo === "mes" && dia.slice(0, 7) !== m0.slice(0, 7))
+            return false;
+        if (periodo === "mesPassado" && dia.slice(0, 7) !== mAnt.slice(0, 7))
+            return false;
+        if (periodo === "90" && dia < addDays(h, -90))
+            return false;
+        if (q) {
+            var alvo = semAcento([o.numero, o.cliente_nome, o.placa, o.veiculo, o.titulo, o.indicado_por].filter(Boolean).join(" "));
+            var dig = soDigitos(busca);
+            var porTel = dig.length >= 4 && soDigitos(o.cliente_whatsapp).indexOf(dig) >= 0;
+            if (alvo.indexOf(q) < 0 && !porTel)
+                return false;
+        }
+        return true;
+    }).slice().sort(function (a, b) { return ordem === "antigos" ? (String(a.criado_em) < String(b.criado_em) ? -1 : 1)
+        : ordem === "recentes" ? (String(a.criado_em) > String(b.criado_em) ? -1 : 1)
+            : ordem === "retorno" ? (String(a.retorno_em || "9999") < String(b.retorno_em || "9999") ? -1 : 1)
+                : (Number(b.total) || 0) - (Number(a.total) || 0); });
+    var totLista = lista.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0);
+    var baixar = function () {
+        var num = function (v) { return String((Number(v) || 0).toFixed(2)).replace(".", ","); };
+        var cab = ["Nº", "Criado em", "Cliente", "WhatsApp", "Veículo", "Placa", "Origem", "Formato", "Valor", "Status", "Retorno", "Validade", "O.S.", "Motivo da perda"];
+        var corpo = lista.map(function (o) { return [o.numero, brFull(String(o.criado_em).slice(0, 10)), o.cliente_nome || "", o.cliente_whatsapp || "", o.veiculo || "", o.placa || "",
+            rotOrigem(o.origem), rotFormato(o.formato), num(o.total), (STATUS_ORC[o.status] || { l: o.status }).l,
+            o.retorno_em ? brFull(String(o.retorno_em).slice(0, 10)) : "", o.validade ? brFull(String(o.validade).slice(0, 10)) : "", o.os_numero || o.os_encontrada || "", o.motivo_perda || ""]; });
+        var texto = [cab].concat(corpo).map(function (r) { return r.map(function (c) { return (/[;"\n]/.test(String(c)) ? '"' + String(c).replace(/"/g, '""') + '"' : c); }).join(";"); }).join("\n");
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob(["﻿" + texto], { type: "text/csv;charset=utf-8" }));
+        a.download = "orcamentos-".concat(primeiroNomeDe(closer.nome_oficial).toLowerCase(), "-").concat(h, ".csv");
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { return URL.revokeObjectURL(a.href); }, 4000);
     };
+    var chips = [["abertos", "Em aberto (".concat(abertos.length, ")")], ["acao", "Precisa de a\u00E7\u00E3o (".concat(nAcao, ")")], ["fechados", "Fechados (".concat(todos.filter(function (o) { return o.status === "fechado"; }).length, ")")],
+        ["perdidos", "Perdidos e vencidos (".concat(todos.filter(function (o) { return o.status === "perdido" || o.status === "vencido"; }).length, ")")],
+        ["rascunhos", "Rascunhos (".concat(todos.filter(function (o) { return o.status === "rascunho"; }).length, ")")], ["todos", "Todos (".concat(todos.length, ")")]];
     return (React.createElement(React.Fragment, null,
-        React.createElement(Secao, { n: 1, titulo: "Novo or\u00E7amento", nota: "Monta aqui, fica salvo embaixo com n\u00FAmero pr\u00F3prio. Origem e prazo de execu\u00E7\u00E3o s\u00E3o obrigat\u00F3rios em todo or\u00E7amento; item e pre\u00E7o s\u00E3o livres nesta fase." },
-            prefill && React.createElement("div", { style: { marginBottom: 10 } },
-                React.createElement(Tag, { cor: T.good },
-                    "Puxado do CRM: ",
-                    prefill.cliente_nome || "lead",
-                    prefill.veiculo ? " \u00B7 ".concat(prefill.veiculo) : ""),
-                " ",
-                React.createElement(Btn, { onClick: limparPrefill, style: { padding: "3px 9px", fontSize: 11.5, marginLeft: 6 } }, "limpar")),
-            React.createElement(NovoOrcamento, { closer: closer, inicial: prefill, aoSalvar: aoSalvar })),
-        React.createElement(Secao, { n: 2, titulo: "Or\u00E7amentos gerados", nota: 'Todos os seus or\u00E7amentos num lugar s\u00F3. "Fechado" \u00E9 conferido no Oficina pela placa \u2014 or\u00E7amento marcado como fechado sem O.S. fica em alerta at\u00E9 aparecer.' },
+        React.createElement(Secao, { n: 1, titulo: "Banco de or\u00E7amentos", nota: 'Toda a sua carteira num lugar s\u00F3. "Fechado" \u00E9 conferido no Oficina pela placa; or\u00E7amento fechado sem O.S. fica em alerta at\u00E9 aparecer. Clique na linha para ver os itens, mudar o status ou gerar a imagem para o cliente.' },
             aviso && React.createElement(Card, { className: "p12", style: { marginBottom: 12, borderColor: "#B7DFD0", background: "#E6F4EF", fontSize: 13, color: T.good, fontWeight: 600 } }, aviso),
             React.createElement("div", { className: "grid-kpi-4", style: { marginBottom: 12 } },
-                React.createElement(Kpi, { label: "Em aberto", value: nInt(emAberto.length), sub: nReal(emAberto.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0)) }),
-                React.createElement(Kpi, { label: "Retorno atrasado", value: nInt(retornoVencido), sub: retornoVencido ? "cliente sem resposta sua" : "nenhum", tone: retornoVencido ? "bad" : undefined }),
-                React.createElement(Kpi, { label: "Convers\u00E3o do m\u00EAs", value: orcMes.length ? nPct(fechadosMes / orcMes.length, 0) : "—", sub: "".concat(fechadosMes, " de ").concat(orcMes.length), tone: orcMes.length && fechadosMes / orcMes.length >= 0.4 ? "good" : undefined }),
-                React.createElement(Kpi, { label: "O.S. sem or\u00E7amento", value: nInt(d.osSemOrc.length), sub: "venda que n\u00E3o passou por aqui", tone: d.osSemOrc.length ? "bad" : undefined })),
-            React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap", alignItems: "center" } },
-                React.createElement(Chips, { value: filtro, onChange: setFiltro, options: [["abertos", "Em aberto (".concat(emAberto.length + d.orcamentos.filter(function (o) { return o.status === "rascunho"; }).length, ")")], ["fechados", "Fechados"], ["perdidos", "Perdidos e vencidos"], ["todos", "Todos (".concat(d.orcamentos.length, ")")]] }),
-                React.createElement("span", { style: { marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: T.muted } },
-                    "Ordenar",
-                    React.createElement(Select, { value: ordem, onChange: setOrdem, style: { padding: "5px 8px", fontSize: 12.5 }, options: [{ v: "valor", l: "Maior valor primeiro" }, { v: "antigos", l: "Aberto há mais tempo" }, { v: "recentes", l: "Mais recentes" }] }))),
+                React.createElement(Kpi, { label: "Em aberto", value: nReal(vAbertos), sub: "".concat(nInt(abertos.length), " or\u00E7amento").concat(abertos.length === 1 ? "" : "s", " esperando resposta") }),
+                React.createElement(Kpi, { label: "Fechado no m\u00EAs", value: nReal(vFechMes), sub: "".concat(nInt(fechMes.length), " de ").concat(nInt(doMes.length), " or\u00E7ados no m\u00EAs"), tone: fechMes.length ? "good" : undefined }),
+                React.createElement(Kpi, { label: "Convers\u00E3o do m\u00EAs", value: doMes.length ? nPct(fechMes.length / doMes.length, 0) : "—", sub: decididosMes ? "".concat(nPct(fechMes.length / decididosMes, 0), " entre os j\u00E1 decididos") : "nenhum decidido ainda", tone: doMes.length >= 5 && fechMes.length / doMes.length < 0.25 ? "bad" : undefined }),
+                React.createElement(Kpi, { label: "Ticket", value: ticketFech ? nReal(ticketFech) : "—", sub: "fechado \u00B7 or\u00E7ado em m\u00E9dia ".concat(ticketOrc ? nReal(ticketOrc) : "—") })),
+            React.createElement(Card, { className: "p16", style: { marginBottom: 12 } },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 10 } },
+                    React.createElement(Label, null, "Onde est\u00E1 o dinheiro em aberto"),
+                    nAcao > 0 && React.createElement("button", { onClick: function () { return setFiltro("acao"); }, style: { fontFamily: F_UI, fontSize: 12, fontWeight: 700, color: T.bad, background: "#FDF1F2", border: "1px solid #F0C3C6", borderRadius: 6, padding: "4px 10px", cursor: "pointer" } },
+                        "\u26A0 ",
+                        nAcao,
+                        " precisa",
+                        nAcao > 1 ? "m" : "",
+                        " de a\u00E7\u00E3o agora \u2192")),
+                React.createElement("div", { style: { display: "grid", gap: 8 } }, esteira.map(function (e) { return (React.createElement("button", { key: e.k, onClick: function () { return setFiltro(filtro === e.k ? "abertos" : e.k); }, style: { display: "grid", gridTemplateColumns: "110px 1fr 150px", alignItems: "center", gap: 12, background: filtro === e.k ? "#FFFBEA" : "transparent", border: 0, borderRadius: 6, padding: "4px 6px", cursor: "pointer", textAlign: "left", fontFamily: F_UI } },
+                    React.createElement("span", { style: { fontSize: 12.5, fontWeight: 700, color: T.ink } }, e.l),
+                    React.createElement("div", { style: { background: T.canvas, borderRadius: 99, height: 10, overflow: "hidden" } },
+                        React.createElement("div", { style: { width: "".concat(e.v / maxEst * 100, "%"), height: "100%", background: e.k === "negociando" ? T.marca : e.k === "aguardando" ? "#E0A800" : T.ink, borderRadius: 99 } })),
+                    React.createElement("span", { style: { fontSize: 12.5, textAlign: "right", fontVariantNumeric: "tabular-nums" } },
+                        React.createElement("b", null, nReal(e.v)),
+                        " ",
+                        React.createElement("span", { style: { color: T.muted } },
+                            "\u00B7 ",
+                            e.n)))); }))),
+            React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap", alignItems: "center" } },
+                React.createElement("div", { style: { position: "relative", flex: "1 1 260px", maxWidth: 380 } },
+                    React.createElement("input", { value: busca, onChange: function (e) { return setBusca(e.target.value); }, placeholder: "Buscar cliente, placa, carro ou n\u00BA\u2026", style: { width: "100%", fontFamily: F_UI, fontSize: 13, padding: "8px 30px 8px 32px", border: "1px solid ".concat(T.hair), borderRadius: 7, outline: "none", background: T.surface, boxSizing: "border-box" } }),
+                    React.createElement("span", { style: { position: "absolute", left: 10, top: 8, fontSize: 13, color: T.muted } }, "\uD83D\uDD0D"),
+                    busca && React.createElement("button", { onClick: function () { return setBusca(""); }, style: { position: "absolute", right: 6, top: 5, border: 0, background: "none", cursor: "pointer", color: T.muted, fontSize: 14 } }, "\u00D7")),
+                React.createElement(Select, { value: origem, onChange: setOrigem, options: [{ v: "__all", l: "Todas as origens" }].concat(ORIGENS.map(function (_a) {
+                        var _b = __read(_a, 2), v = _b[0], l = _b[1];
+                        return ({ v: v, l: l });
+                    })) }),
+                React.createElement(Select, { value: periodo, onChange: setPeriodo, options: [{ v: "tudo", l: "Qualquer data" }, { v: "mes", l: "Criados este mês" }, { v: "mesPassado", l: "Criados no mês passado" }, { v: "90", l: "Últimos 90 dias" }] }),
+                React.createElement(Select, { value: ordem, onChange: setOrdem, options: [{ v: "valor", l: "Maior valor primeiro" }, { v: "antigos", l: "Aberto há mais tempo" }, { v: "retorno", l: "Retorno mais próximo" }, { v: "recentes", l: "Mais recentes" }] }),
+                React.createElement("span", { style: { flex: 1 } }),
+                React.createElement(Btn, { onClick: baixar, style: { padding: "7px 12px", fontSize: 12.5 } }, "\u2913 Baixar planilha"),
+                React.createElement(Btn, { kind: "accent", onClick: irParaNovo, style: { padding: "7px 12px", fontSize: 12.5 } }, "+ Novo or\u00E7amento")),
+            React.createElement("div", { style: { marginBottom: 10, overflowX: "auto" } },
+                React.createElement(Chips, { value: filtro, onChange: setFiltro, options: chips })),
             React.createElement(Card, { className: "p0 rolagem" },
-                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 1180 } },
                     React.createElement("thead", null,
                         React.createElement("tr", null,
                             React.createElement(Th, null, "N\u00BA"),
@@ -9069,48 +9275,71 @@ function AbaOrcamentos(_a) {
                             React.createElement(Th, null, "Cliente"),
                             React.createElement(Th, null, "Ve\u00EDculo \u00B7 placa"),
                             React.createElement(Th, null, "Origem"),
-                            React.createElement(Th, null, "Formato"),
                             React.createElement(Th, { right: true }, "Valor"),
                             React.createElement(Th, null, "Status"),
                             React.createElement(Th, { right: true }, "H\u00E1"),
+                            React.createElement(Th, { right: true }, "Validade"),
                             React.createElement(Th, { right: true }, "Retorno"),
                             React.createElement(Th, null))),
                     React.createElement("tbody", null,
                         lista.map(function (o) {
                             var st = STATUS_ORC[o.status] || { l: o.status, cor: T.ink };
                             var aberto = abertoId === o.id;
+                            var ab = ehAberto(o) || o.status === "rascunho";
+                            var dd = diasDesde(o.criado_em);
+                            var vd = validadeDias(o);
+                            var wa = ehAberto(o) ? waLink(o.cliente_whatsapp, msgFollowUp(o, closer)) : null;
                             return (React.createElement(React.Fragment, { key: o.id },
-                                React.createElement("tr", { onClick: function () { return setAbertoId(aberto ? null : o.id); }, style: { cursor: "pointer", background: aberto ? "#FAFAFA" : "transparent" } },
+                                React.createElement("tr", { onClick: function () { return setAbertoId(aberto ? null : o.id); }, style: { cursor: "pointer", background: aberto ? "#FAFAFA" : precisaAcao(o) ? "#FFFBF0" : "transparent" } },
                                     React.createElement(Td, { bold: true }, o.numero),
                                     React.createElement(Td, null, brData(o.criado_em)),
-                                    React.createElement(Td, { bold: true },
+                                    React.createElement(Td, { bold: true, style: { whiteSpace: "normal", minWidth: 150 } },
                                         o.cliente_nome || "—",
                                         " ",
                                         o.cliente_da_casa && React.createElement(Tag, { cor: T.good }, "da casa")),
                                     React.createElement(Td, null, [o.veiculo, o.placa].filter(Boolean).join(" · ") || "—"),
-                                    React.createElement(Td, null, rotOrigem(o.origem)),
-                                    React.createElement(Td, null, rotFormato(o.formato)),
+                                    React.createElement(Td, null,
+                                        rotOrigem(o.origem),
+                                        o.indicado_por ? React.createElement("span", { style: { color: T.muted, fontSize: 11.5 } },
+                                            " \u00B7 ",
+                                            o.indicado_por) : null),
                                     React.createElement(Td, { right: true, bold: true }, nReal(o.total)),
                                     React.createElement(Td, null, o.status === "fechado" && o.fechado_sem_os ? React.createElement(Tag, { cor: T.bad }, "Fechado \u00B7 sem O.S. no Oficina")
                                         : o.status === "fechado" ? React.createElement(Tag, { cor: T.good },
                                             "Fechado",
                                             o.os_numero || o.os_encontrada ? " \u00B7 O.S. ".concat(o.os_numero || o.os_encontrada, " \u2713") : "")
-                                            : o.status === "perdido" ? React.createElement(Tag, { cor: T.muted },
-                                                "Perdido",
-                                                o.motivo_perda ? " \u00B7 ".concat(String(o.motivo_perda).slice(0, 28)) : "")
+                                            : o.status === "perdido" ? React.createElement("span", { title: o.motivo_perda || "" },
+                                                React.createElement(Tag, { cor: T.muted },
+                                                    "Perdido",
+                                                    o.motivo_perda ? " \u00B7 ".concat(String(o.motivo_perda).slice(0, 28)) : ""))
                                                 : React.createElement(Tag, { cor: st.cor }, st.l)),
-                                    (function () {
-                                        var ab = EM_ABERTO.indexOf(o.status) >= 0 || o.status === "rascunho";
-                                        var dd = diasDesde(o.criado_em);
-                                        return React.createElement(Td, { right: true, color: ab && dd > 7 ? T.bad : ab ? T.ink : T.muted, bold: ab && dd > 7 }, ab ? "".concat(dd, " dia").concat(dd === 1 ? "" : "s") : "—");
-                                    })(),
-                                    React.createElement(Td, { right: true, color: o.retorno_vencido ? T.bad : T.ink, bold: !!o.retorno_vencido }, EM_ABERTO.indexOf(o.status) >= 0 ? brData(o.retorno_em) : "—"),
+                                    React.createElement(Td, { right: true, color: ab && dd > 7 ? T.bad : ab ? T.ink : T.muted, bold: ab && dd > 7 }, ab ? "".concat(dd, " dia").concat(dd === 1 ? "" : "s") : "—"),
+                                    React.createElement(Td, { right: true, color: ehAberto(o) && vd != null && vd < 0 ? T.bad : ehAberto(o) && vd != null && vd <= 1 ? T.warn : T.ink, bold: ehAberto(o) && vd != null && vd <= 1 }, !ehAberto(o) || vd == null ? "—" : vd < 0 ? "vencida h\u00E1 ".concat(-vd, "d") : vd === 0 ? "vence hoje" : "".concat(vd, " dia").concat(vd === 1 ? "" : "s")),
+                                    React.createElement(Td, { right: true, color: o.retorno_vencido ? T.bad : retornoHoje(o) ? T.warn : T.ink, bold: !!o.retorno_vencido || retornoHoje(o) }, ehAberto(o) ? (retornoHoje(o) ? "hoje" : brData(o.retorno_em)) : "—"),
                                     React.createElement(Td, { style: { textAlign: "right" } },
-                                        React.createElement("span", { style: { fontSize: 12, color: T.muted } }, aberto ? "▲" : "▼"))),
+                                        React.createElement("span", { style: { display: "inline-flex", gap: 6, alignItems: "center" } },
+                                            wa && React.createElement("a", { href: wa, target: "_blank", rel: "noopener", onClick: function (e) { return e.stopPropagation(); }, title: "Mensagem de follow-up pronta", style: { fontSize: 11.5, fontWeight: 700, color: T.preto, background: T.marca, borderRadius: 5, padding: "4px 8px", textDecoration: "none" } }, "WhatsApp \u2197"),
+                                            React.createElement("span", { style: { fontSize: 12, color: T.muted } }, aberto ? "▲" : "▼")))),
                                 aberto && React.createElement(DetalheOrcamento, { o: o, closer: closer, aoMudar: function () { recarregar(); }, fechar: function () { return setAbertoId(null); } })));
                         }),
                         !lista.length && React.createElement("tr", null,
-                            React.createElement(Td, { color: T.muted }, d.orcamentos.length ? "Nada nesse filtro." : "Nenhum orçamento ainda. O primeiro sai ali em cima."))))))));
+                            React.createElement(Td, { color: T.muted, style: { whiteSpace: "normal" } }, todos.length ? (busca ? "Nada encontrado para \"".concat(busca, "\" neste filtro.") : "Nada nesse filtro.") : "Nenhum orçamento ainda. Clique em \"+ Novo orçamento\" para montar o primeiro.")),
+                        !!lista.length && (React.createElement("tr", { style: { background: "#FAFAFA" } },
+                            React.createElement(Td, { bold: true }, nInt(lista.length)),
+                            React.createElement(Td, null),
+                            React.createElement(Td, { bold: true },
+                                "or\u00E7amento",
+                                lista.length === 1 ? "" : "s",
+                                " na lista"),
+                            React.createElement(Td, null),
+                            React.createElement(Td, null),
+                            React.createElement(Td, { right: true, bold: true }, nReal(totLista)),
+                            React.createElement(Td, null),
+                            React.createElement(Td, null),
+                            React.createElement(Td, null),
+                            React.createElement(Td, null),
+                            React.createElement(Td, null)))))),
+            React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 6 } }, "Linha amarelada = precisa de a\u00E7\u00E3o: retorno de hoje ou atrasado, validade vencida, fechado sem O.S. ou rascunho parado h\u00E1 2 dias ou mais."))));
 }
 /* ---------- a tela inteira ---------- */
 function Piloto(_a) {
@@ -9129,6 +9358,7 @@ function Piloto(_a) {
     var _f = __read(useState(0), 2), versao = _f[0], setVersao = _f[1];
     var _g = __read(useState(null), 2), prefill = _g[0], setPrefill = _g[1];
     var _h = __read(useState(null), 2), abertoId = _h[0], setAbertoId = _h[1];
+    var _j = __read(useState(null), 2), avisoOrc = _j[0], setAvisoOrc = _j[1];
     var d = usePiloto(closer && closer.erp_codigo, versao, closer && closer.unidade);
     var recarregar = function () { return setVersao(function (v) { return v + 1; }); };
     /* O título do lead no Kommo vem como "Johnny - Haval H6 - PPF + película":
@@ -9142,13 +9372,26 @@ function Piloto(_a) {
         var veic = l.veiculo || (partes.length > 2 ? partes[1] : "");
         var interesse = l.interesse || (partes.length > 2 ? partes.slice(2).join(" · ") : partes.length === 2 ? partes[1] : "");
         setPrefill({ origem: "crm", lead_kommo_id: l.kommo_id, cliente_nome: nome, veiculo: veic, titulo: interesse });
-        setAba("orcamentos");
+        setAba("novo");
         try {
             window.scrollTo(0, 0);
         }
         catch (e) { /* segue */ }
     };
-    var abrirOrcamento = function (id) { setAbertoId(id); setAba("orcamentos"); };
+    var abrirOrcamento = function (id) { setAbertoId(id); setAba("banco"); };
+    var aoSalvarOrc = function (id, novo) {
+        setAvisoOrc("Or\u00E7amento ".concat(novo && novo.ano ? "".concat(novo.ano, "-").concat(String(novo.seq).padStart(4, "0")) : "", " salvo \u2014 est\u00E1 aqui no banco, aberto."));
+        setPrefill(null);
+        recarregar();
+        setAbertoId(id);
+        setAba("banco");
+        try {
+            window.scrollTo(0, 0);
+        }
+        catch (e) { /* segue */ }
+        setTimeout(function () { return setAvisoOrc(null); }, 6000);
+    };
+    var nAbertos = (d.orcamentos || []).filter(function (o) { return EM_ABERTO.indexOf(o.status) >= 0; }).length;
     if (erroLista)
         return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.bad } },
             "N\u00E3o consegui ler o cadastro de closers: ",
@@ -9165,7 +9408,7 @@ function Piloto(_a) {
     }
     return (React.createElement(React.Fragment, null,
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 } },
-            React.createElement("div", { style: { display: "flex", gap: 4, background: T.surface, border: "1px solid ".concat(T.hair), borderRadius: 8, padding: 4 } }, [["painel", "Meu painel"], ["orcamentos", "Orçamentos"]].map(function (_a) {
+            React.createElement("div", { style: { display: "flex", gap: 4, background: T.surface, border: "1px solid ".concat(T.hair), borderRadius: 8, padding: 4 } }, [["painel", "Meu painel"], ["novo", "+ Novo orçamento"], ["banco", "Banco de or\u00E7amentos".concat(nAbertos ? " \u00B7 ".concat(nAbertos) : "")]].map(function (_a) {
                 var _b = __read(_a, 2), v = _b[0], l = _b[1];
                 return (React.createElement("button", { key: v, onClick: function () { return setAba(v); }, style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700, padding: "8px 16px",
                         border: 0, borderRadius: 5, cursor: "pointer", background: aba === v ? T.ink : "transparent", color: aba === v ? "#fff" : T.ink2 } }, l));
@@ -9183,8 +9426,10 @@ function Piloto(_a) {
             d.erro),
         d.carregando && !d.em && React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando o seu m\u00EAs\u2026"),
         (d.em || !d.carregando) && !d.erro && (aba === "painel"
-            ? React.createElement(MeuPainel, { d: d, closer: closer, irParaOrcamentos: function () { return setAba("orcamentos"); }, novoDoLead: novoDoLead, abrirOrcamento: abrirOrcamento, recarregar: recarregar, podeValidar: !!todos })
-            : React.createElement(AbaOrcamentos, { d: d, closer: closer, recarregar: recarregar, prefill: prefill, limparPrefill: function () { return setPrefill(null); }, abertoId: abertoId, setAbertoId: setAbertoId }))));
+            ? React.createElement(MeuPainel, { d: d, closer: closer, irParaOrcamentos: function () { return setAba("banco"); }, novoDoLead: novoDoLead, abrirOrcamento: abrirOrcamento, recarregar: recarregar, podeValidar: !!todos })
+            : aba === "novo"
+                ? React.createElement(AbaNovoOrcamento, { closer: closer, prefill: prefill, limparPrefill: function () { return setPrefill(null); }, aoSalvar: aoSalvarOrc })
+                : React.createElement(AbaBancoOrcamentos, { d: d, closer: closer, recarregar: recarregar, abertoId: abertoId, setAbertoId: setAbertoId, aviso: avisoOrc, irParaNovo: function () { return setAba("novo"); } }))));
 }
 /* A casca do closer: cabeçalho preto com o nome dele, sem as abas de SDR.
    O closer não precisa do funil do time para trabalhar o dia dele. */
