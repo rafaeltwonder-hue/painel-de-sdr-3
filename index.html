@@ -9872,5 +9872,115 @@ ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(
   }
 })();
 </script>
+<!-- ===== CELULAR (28/09/2026) =====================================
+     Bloco independente do código do painel: só entra em tela de até 760px.
+     A maior parte do layout do painel é estilo inline (React), que media
+     query não alcança. Este bloco mede o que ficou apertado depois de cada
+     desenho e ajusta só no celular: grade que não cabe vira coluna única,
+     fileira de botões vira faixa com rolagem lateral, tabela larga rola
+     dentro do próprio cartão e a linha de "nada aqui" ocupa a tabela toda.
+     No computador e na TV nada muda. Se o painel for gerado de novo a
+     partir do código-fonte, copie este bloco inteiro de volta. -->
+<style id="celular">
+@media (max-width: 760px) {
+  html, body { overflow-x: hidden; }
+  img, svg, canvas, video { max-width: 100%; }
+  .wrap { padding-left: 12px !important; padding-right: 12px !important; }
+  .card { min-width: 0; max-width: 100%; }
+  .p20, .p24, .p28 { padding: 16px !important; }
+  table { font-size: 12.5px; }
+  th, td { padding-left: 8px !important; padding-right: 8px !important; }
+  .cel-rola { overflow-x: auto !important; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+              flex-wrap: nowrap !important; max-width: 100%; }
+  .cel-rola::-webkit-scrollbar { display: none; }
+  .cel-rola > * { flex: 0 0 auto !important; }
+  .cel-rola { display: flex !important; min-width: 0 !important; width: 100%; }
+  .cel-quebra { flex-wrap: wrap !important; row-gap: 8px; }
+  .cel-quebra > * { min-width: 0; max-width: 100%; }
+  .cel-uma { grid-template-columns: minmax(0, 1fr) !important; }
+  .cel-duas { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .cel-uma > *, .cel-duas > * { min-width: 0 !important; max-width: 100%; border-left: 0 !important; }
+  .cel-tabela { overflow-x: auto !important; max-width: 100%; -webkit-overflow-scrolling: touch; }
+  .cel-texto { white-space: normal !important; overflow-wrap: anywhere; }
+  .cel-vazio { text-align: left; white-space: normal !important; }
+  td.cel-vazio { position: sticky; left: 0; display: block; width: calc(100vw - 58px); box-sizing: border-box; }
+  #root [style*="display: grid"] > *, #root .card > * { min-width: 0; }
+}
+</style>
+<script id="celular-js">
+(function () {
+  var LIM = 760;
+  function px(v) { return parseFloat(v) || 0; }
+  function trilhas(el, cs) {
+    var t = cs.gridTemplateColumns;
+    if (!t || t === "none") return [];
+    return t.split(" ").filter(function (x) { return /px$/.test(x); }).map(px);
+  }
+  function soBotoes(el) {
+    var k = el.children; if (k.length < 3) return false;
+    for (var i = 0; i < k.length; i++) { var tg = k[i].tagName; if (tg !== "BUTTON" && tg !== "A" && !(k[i].getAttribute("role") === "tab")) return false; }
+    return true;
+  }
+  function ajustar() {
+    if (window.innerWidth > LIM) return;
+    var raiz = document.getElementById("root") || document.body;
+    var W = document.documentElement.clientWidth;
+    var todos = raiz.querySelectorAll("*");
+    for (var i = 0; i < todos.length; i++) {
+      var el = todos[i];
+      if (el.closest && el.closest(".telatv, svg")) continue;
+      /* o cartão do Resumo vira imagem para o WhatsApp: fica exatamente como está */
+      if (el.closest && el.closest('[style*="border-radius: 18px"][style*="box-shadow"]')) continue;
+      var cs = getComputedStyle(el);
+      if (soBotoes(el) && !el.classList.contains("cel-rola")) {
+        var rb = el.getBoundingClientRect();
+        if (el.scrollWidth > el.clientWidth + 2 || rb.right > W + 1) { el.classList.add("cel-rola"); continue; }
+      }
+      if (cs.display === "grid" || cs.display === "inline-grid") {
+        if (el.classList.contains("cel-uma") || el.classList.contains("cel-duas")) continue;
+        var tr = trilhas(el, cs);
+        if (tr.length > 1) {
+          var menor = Math.min.apply(null, tr), larg = el.clientWidth;
+          var estoura = el.scrollWidth > el.clientWidth + 2;
+          var apertado = (tr.length >= 3 && menor < 120) || (tr.length === 2 && menor < 160) || estoura;
+          if (apertado) {
+            if (tr.length >= 4 && larg >= 320 && (larg - 12) / 2 >= 140 && !estoura) el.classList.add("cel-duas");
+            else el.classList.add("cel-uma");
+          }
+        }
+      } else if (cs.display === "flex" || cs.display === "inline-flex") {
+        if (cs.flexDirection.indexOf("row") === 0 && el.scrollWidth > el.clientWidth + 2 && !/(auto|scroll)/.test(cs.overflowX)) {
+          el.classList.add(soBotoes(el) ? "cel-rola" : "cel-quebra");
+        }
+      }
+      if (el.tagName === "TABLE") {
+        var pai = el.parentElement;
+        if (pai && el.offsetWidth > pai.clientWidth + 2 && !/(auto|scroll)/.test(getComputedStyle(pai).overflowX)) pai.classList.add("cel-tabela");
+        var ths = el.querySelectorAll("thead th").length || 1;
+        var linhas = el.querySelectorAll("tbody tr");
+        for (var j = 0; j < linhas.length; j++) {
+          var tds = linhas[j].children;
+          if (tds.length === 1 && ths > 1 && tds[0].colSpan < ths) { tds[0].colSpan = ths; tds[0].classList.add("cel-vazio"); }
+        }
+      }
+      if ((el.tagName === "SPAN" || el.tagName === "DIV" || el.tagName === "P") && cs.whiteSpace === "nowrap" && el.children.length === 0) {
+        var r = el.getBoundingClientRect();
+        if (r.right > W + 1 && r.width > 0) el.classList.add("cel-texto");
+      }
+    }
+  }
+  var fila = null;
+  function agendar() { if (fila) return; fila = setTimeout(function () { fila = null; try { ajustar(); } catch (e) {} }, 120); }
+  function iniciar() {
+    var alvo = document.getElementById("root") || document.body;
+    new MutationObserver(agendar).observe(alvo, { childList: true, subtree: true });
+    window.addEventListener("resize", agendar);
+    agendar();
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", iniciar); else iniciar();
+})();
+</script>
+<!-- ===== fim do bloco CELULAR ===== -->
+
 </body>
 </html>
