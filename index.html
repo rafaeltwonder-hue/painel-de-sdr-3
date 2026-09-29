@@ -7092,6 +7092,26 @@ var Tag = function (_a) {
     return (React.createElement("span", { style: { fontSize: 11, fontWeight: 600, color: cor, background: cor + "14", border: "1px solid ".concat(cor, "33"),
             borderRadius: 5, padding: "2px 7px", whiteSpace: "nowrap", display: "inline-block" } }, children));
 };
+/* v81: cor da barra lateral da O.S. — cada estado do carro tem a sua, para bater o olho */
+var COR_BARRA = { semSituacao: "#FFBF00", aindaVaiEntrar: "#8E959C", naLoja: "#0B7A5A", pronto: "#1652C4", entregue: "#9CCBB9", atrasado: "#C1121F" };
+function corBarraOs(o, h) {
+    if (o.carro_entregue)
+        return COR_BARRA.entregue;
+    var dia = function (v) { return String(v || "").slice(0, 10); };
+    if (o.pronto_em)
+        return o.retirada_prevista && dia(o.retirada_prevista) < h ? COR_BARRA.atrasado : COR_BARRA.pronto;
+    if (!o.situacao)
+        return COR_BARRA.semSituacao;
+    if (o.situacao === "aguardando")
+        return o.entrada_prevista && dia(o.entrada_prevista) <= h ? COR_BARRA.atrasado : COR_BARRA.aindaVaiEntrar;
+    return o.prazo_vencido ? COR_BARRA.atrasado : COR_BARRA.naLoja;
+}
+var LegendaBarraOs = function () { return (React.createElement("div", { style: { display: "flex", gap: 14, flexWrap: "wrap", fontSize: 11.5, color: T.ink2, marginBottom: 8 } }, [["semSituacao", "falta dizer se o carro está na loja"], ["aindaVaiEntrar", "ainda vai entrar"], ["naLoja", "na loja, em serviço"], ["pronto", "pronto, esperando o cliente"], ["atrasado", "chegou o dia ou já passou"], ["entregue", "entregue"]].map(function (_a) {
+    var _b = __read(_a, 2), k = _b[0], l = _b[1];
+    return (React.createElement("span", { key: k, style: { display: "inline-flex", alignItems: "center", gap: 6 } },
+        React.createElement("span", { style: { width: 5, height: 14, borderRadius: 2, background: COR_BARRA[k], display: "inline-block" } }),
+        l));
+}))); };
 var TagSolida = function (_a) {
     var children = _a.children, cor = _a.cor;
     return (React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: "#FFFFFF", background: cor, borderRadius: 5, padding: "3px 8px", whiteSpace: "nowrap", display: "inline-block" } }, children));
@@ -8951,6 +8971,7 @@ function MeuPainel(_a) {
                             React.createElement(Td, { color: T.muted }, "Nenhum lead do CRM esperando or\u00E7amento.")))))),
         React.createElement("div", { id: "sec-os-abertas" }),
         React.createElement(Secao, { n: 7, titulo: "Minhas O.S. em aberto", nota: "Direto do Oficina. O.S. aberta h\u00E1 mais de 7 dias em vermelho. Primeiro diga se o carro est\u00E1 na loja. Na loja: lance o prazo de entrega e, quando sair, marque \"Carro entregue\" (a O.S. vai para o fim da lista at\u00E9 o financeiro dar a baixa). Carro terminado e o cliente ainda n\u00E3o veio: \"Carro pronto\" e a data em que ele retira; no dia, \"Cliente retirou\" ou reagende.".concat(prontos.length ? " ".concat(prontos.length, " pronto").concat(prontos.length > 1 ? "s" : "", " esperando o cliente.") : "", " Ainda vai entrar: lance a data de entrada; no dia, confirme que chegou ou reagende.").concat(aguardando.length ? " ".concat(aguardando.length, " carro").concat(aguardando.length > 1 ? "s" : "", " ainda por entrar").concat(entradaAmanha.length ? " (".concat(entradaAmanha.length, " amanh\u00E3)") : "", ".") : "").concat(entregues.length ? " Hoje: ".concat(entregues.length, " entregue").concat(entregues.length > 1 ? "s" : "", " esperando a baixa (").concat(nReal(entregues.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0)), ").") : "") },
+            React.createElement(LegendaBarraOs, null),
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
                     React.createElement("thead", null,
@@ -8966,7 +8987,7 @@ function MeuPainel(_a) {
                             React.createElement(Th, { right: true }, "Carro na loja? \u00B7 prazo de entrega \u00B7 pronto \u00B7 entregue"))),
                     React.createElement("tbody", null,
                         osOrdenadas.map(function (o) { return (React.createElement("tr", { key: o.os_numero, style: o.carro_entregue ? { background: "#F3F8F5" } : o.pronto_em && !(o.retirada_prevista && String(o.retirada_prevista).slice(0, 10) < h) ? { background: T.prontoFundo } : !o.situacao ? { background: "#FFFBEA" } : (o.entrada_a_confirmar || (o.pronto_em && o.retirada_prevista && String(o.retirada_prevista).slice(0, 10) < h)) ? { background: "#FDF1F2" } : null },
-                            React.createElement(Td, { bold: true, style: o.pronto_em && !o.carro_entregue ? { boxShadow: "inset 5px 0 0 ".concat(o.retirada_prevista && String(o.retirada_prevista).slice(0, 10) < h ? T.bad : T.pronto) } : undefined }, o.os_numero),
+                            React.createElement(Td, { bold: true, style: { boxShadow: "inset 5px 0 0 ".concat(corBarraOs(o, h)) } }, o.os_numero),
                             React.createElement(Td, null, o.placa || "—"),
                             React.createElement(Td, null, o.veiculo || "—"),
                             React.createElement(Td, null, o.pesquisa || "—"),
