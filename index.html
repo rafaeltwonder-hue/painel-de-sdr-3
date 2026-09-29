@@ -93,6 +93,8 @@
      MAIS faixa zebrada, que é o que segura a leitura na horizontal.
      O cabeçalho é sticky e tem fundo próprio, por isso fica de fora. */
   tbody tr:nth-child(even) > td { background: #FAFAFA; }
+  /* v81: linha com cor própria (pronto, atrasado, sem situação) não pode ser coberta pelo zebrado das células */
+  tbody tr[style*="background"] > td { background: transparent !important; }
   tbody tr:hover > td { background: #F4F7F6; }
   /* Grade vertical entre as colunas (Rafael, 15/09). Um tom mais claro que a
      divisória horizontal de propósito: a linha que separa pessoas tem que
@@ -340,6 +342,8 @@ var T = {
     canvas: "#EEEEEE", surface: "#FFFFFF",
     marca: "#FFBF00", preto: "#000000",
     good: "#0B7A5A", bad: "#C1121F", warn: "#8A5A00",
+    /* v81: azul só para "carro pronto, esperando o cliente" — nenhum outro estado usa azul */
+    pronto: "#1652C4", prontoFundo: "#E4EEFF",
 };
 /* Duas famílias com papéis distintos: a de marca aparece em título,
    número grande e rótulo; a do sistema carrega tabela e texto corrido,
@@ -7088,6 +7092,10 @@ var Tag = function (_a) {
     return (React.createElement("span", { style: { fontSize: 11, fontWeight: 600, color: cor, background: cor + "14", border: "1px solid ".concat(cor, "33"),
             borderRadius: 5, padding: "2px 7px", whiteSpace: "nowrap", display: "inline-block" } }, children));
 };
+var TagSolida = function (_a) {
+    var children = _a.children, cor = _a.cor;
+    return (React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: "#FFFFFF", background: cor, borderRadius: 5, padding: "3px 8px", whiteSpace: "nowrap", display: "inline-block" } }, children));
+};
 var Campo = function (_a) {
     var l = _a.l, children = _a.children, _b = _a.style, style = _b === void 0 ? {} : _b;
     return (React.createElement("div", { style: style },
@@ -7541,9 +7549,9 @@ function PrazoOs(_a) {
         var ehHoje = !!dia && dia === h;
         var atraso = venc ? diasEntre(dia, h) - 1 : 0;
         return (React.createElement("span", { style: wrap },
-            venc ? React.createElement(Tag, { cor: T.bad }, "devia ter retirado ".concat(br(dia), " \u00B7 ").concat(atraso, "d"))
-                : ehHoje ? React.createElement(Tag, { cor: T.warn }, "retira hoje")
-                    : React.createElement(Tag, { cor: T.good }, dia ? "pronto \u00B7 retira ".concat(br(dia)) : "pronto · sem data"),
+            venc ? React.createElement(TagSolida, { cor: T.bad }, "PRONTO \u00B7 devia ter retirado ".concat(br(dia), " \u00B7 ").concat(atraso, "d"))
+                : ehHoje ? React.createElement(TagSolida, { cor: T.warn }, "PRONTO \u00B7 retira hoje")
+                    : React.createElement(TagSolida, { cor: T.pronto }, dia ? "PRONTO \u00B7 retira ".concat(br(dia)) : "PRONTO · sem data"),
             (venc || ehHoje) && React.createElement("span", { style: { fontSize: 11.5, color: T.muted } }, "O cliente veio?"),
             React.createElement(EntregaOs, { o: o, aoSalvar: aoSalvar, rotulo: "Cliente retirou", solido: true }),
             React.createElement(BtnMini, { onClick: function () { return setModo("retirada"); } }, venc ? "Não veio, reagendar" : "Mudar data"),
@@ -8957,8 +8965,8 @@ function MeuPainel(_a) {
                             React.createElement(Th, { right: true }, "Aberta h\u00E1"),
                             React.createElement(Th, { right: true }, "Carro na loja? \u00B7 prazo de entrega \u00B7 pronto \u00B7 entregue"))),
                     React.createElement("tbody", null,
-                        osOrdenadas.map(function (o) { return (React.createElement("tr", { key: o.os_numero, style: o.carro_entregue ? { background: "#F3F8F5" } : !o.situacao ? { background: "#FFFBEA" } : (o.entrada_a_confirmar || (o.pronto_em && o.retirada_prevista && String(o.retirada_prevista).slice(0, 10) < h)) ? { background: "#FDF1F2" } : null },
-                            React.createElement(Td, { bold: true }, o.os_numero),
+                        osOrdenadas.map(function (o) { return (React.createElement("tr", { key: o.os_numero, style: o.carro_entregue ? { background: "#F3F8F5" } : o.pronto_em && !(o.retirada_prevista && String(o.retirada_prevista).slice(0, 10) < h) ? { background: T.prontoFundo } : !o.situacao ? { background: "#FFFBEA" } : (o.entrada_a_confirmar || (o.pronto_em && o.retirada_prevista && String(o.retirada_prevista).slice(0, 10) < h)) ? { background: "#FDF1F2" } : null },
+                            React.createElement(Td, { bold: true, style: o.pronto_em && !o.carro_entregue ? { boxShadow: "inset 5px 0 0 ".concat(o.retirada_prevista && String(o.retirada_prevista).slice(0, 10) < h ? T.bad : T.pronto) } : undefined }, o.os_numero),
                             React.createElement(Td, null, o.placa || "—"),
                             React.createElement(Td, null, o.veiculo || "—"),
                             React.createElement(Td, null, o.pesquisa || "—"),
@@ -9014,8 +9022,8 @@ function MeuPainel(_a) {
                     React.createElement("tbody", null, retiradaAtrasada.concat(retiradaHoje).map(function (o) {
                         var dia = String(o.retirada_prevista).slice(0, 10);
                         var atraso = dia < h ? diasEntre(dia, h) - 1 : 0;
-                        return (React.createElement("tr", { key: "r" + o.os_numero, style: atraso ? { background: "#FDF1F2" } : null },
-                            React.createElement(Td, { bold: true }, o.os_numero),
+                        return (React.createElement("tr", { key: "r" + o.os_numero, style: atraso ? { background: "#FDF1F2" } : { background: T.prontoFundo } },
+                            React.createElement(Td, { bold: true, style: { boxShadow: "inset 5px 0 0 ".concat(atraso ? T.bad : T.pronto) } }, o.os_numero),
                             React.createElement(Td, null, o.placa || "—"),
                             React.createElement(Td, null, o.veiculo || "—"),
                             React.createElement(Td, null, o.pesquisa || "—"),
