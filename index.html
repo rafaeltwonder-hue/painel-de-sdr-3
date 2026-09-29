@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v78 — CAR SERVICE</title>
-<meta name="painel-versao" content="v78">
+<title>Painel de SDR v80 — CAR SERVICE</title>
+<meta name="painel-versao" content="v80">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -232,7 +232,7 @@ window.FOTOS_ORC = {"hero_rear_logo": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ
 <script>
 function iniciarPainel() {
 "use strict";
-/* Painel de SDR — The Wonder / Car Service (v78: fluxo do carro na O.S. — na loja → prazo → entregue / entra em X → chegou)
+/* Painel de SDR — The Wonder / Car Service (v80: pesos oficiais de setor)
    Lê as views do Supabase. Sem lançamento manual: o dado vem do Kommo. */
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function(t) {
@@ -5101,17 +5101,18 @@ function AbaResumo(_a) {
    parcelas (1x..12x) por closer e por loja, como no desenho aprovado. */
 var OF_SETORES = ["PPF", "Películas", "Estética", "Funilaria", "Acessórios"];
 var OF_LOJAS = ["Itaim", "Ipiranga", "Bandeirantes", "Tatuapé"];
-/* Meta por setor (v31, 15/09) — regra do Rafael: pega a meta da LOJA, reparte
-   entre os setores e divide pelo número de closers ativos daquela loja.
-   O banco não guarda meta por setor em lugar nenhum, então o peso de cada
-   setor está AQUI e é PROVISÓRIO: saiu do mix realizado de setembro/2026
-   (01 a 15). Quando o Rafael passar o percentual oficial, troque só estes
-   números — o resto da conta se ajusta sozinho. Cada loja tem que somar 1. */
+/* Meta por setor — regra do Rafael: pega a meta da LOJA, reparte entre os
+   setores e divide pelo número de closers ativos daquela loja.
+   v80 (29/09/2026): percentuais OFICIAIS da planilha de metas por setor
+   enviada pelo Rafael. Valem para todos os cenários da escada (700/800/900/
+   1.000 mil em Itaim e Ipiranga; 250/300/350/400 mil em Bandeirantes e
+   Tatuapé). Bandeirantes e Tatuapé não têm meta de Funilaria. Cada loja
+   soma 1. */
 var OF_PESO_SETOR = {
-    "Itaim": { "PPF": 0.40, "Películas": 0.25, "Estética": 0.04, "Funilaria": 0.20, "Acessórios": 0.11 },
-    "Ipiranga": { "PPF": 0.23, "Películas": 0.28, "Estética": 0.09, "Funilaria": 0.17, "Acessórios": 0.23 },
-    "Bandeirantes": { "PPF": 0.40, "Películas": 0.46, "Estética": 0.06, "Funilaria": 0.07, "Acessórios": 0.01 },
-    "Tatuapé": { "PPF": 0.26, "Películas": 0.47, "Estética": 0.07, "Funilaria": 0.03, "Acessórios": 0.17 },
+    "Itaim": { "PPF": 0.30, "Películas": 0.25, "Estética": 0.10, "Funilaria": 0.15, "Acessórios": 0.20 },
+    "Ipiranga": { "PPF": 0.25, "Películas": 0.30, "Estética": 0.10, "Funilaria": 0.15, "Acessórios": 0.20 },
+    "Bandeirantes": { "PPF": 0.30, "Películas": 0.35, "Estética": 0.10, "Funilaria": 0.00, "Acessórios": 0.25 },
+    "Tatuapé": { "PPF": 0.40, "Películas": 0.25, "Estética": 0.10, "Funilaria": 0.00, "Acessórios": 0.25 },
 };
 /* R$ curto, só para caber embaixo do valor na tabela de setores */
 var nCurto = function (v) {
@@ -5671,9 +5672,7 @@ function AbaClosers() {
                 React.createElement("b", null, "Como a meta do setor \u00E9 calculada:"),
                 " meta da loja (",
                 OF_LOJAS.map(function (l) { return "".concat(l, " ").concat(nCurto(metaDaLoja[l] || 0)); }).join(" · "),
-                ") repartida pelo peso de cada setor e dividida pelo n\u00FAmero de closers da loja. ",
-                React.createElement("b", null, "O peso de cada setor ainda \u00E9 provis\u00F3rio"),
-                " \u2014 saiu do que cada loja vendeu neste m\u00EAs, porque o sistema n\u00E3o guarda meta por setor. Passe o percentual oficial que eu troco.")),
+                ") repartida pelo peso oficial de cada setor (planilha de metas por setor, set/2026: Itaim PPF 30 \u00B7 Pel\u00EDculas 25 \u00B7 Est\u00E9tica 10 \u00B7 Funilaria 15 \u00B7 Acess\u00F3rios 20%; Ipiranga 25 \u00B7 30 \u00B7 10 \u00B7 15 \u00B7 20%; Bandeirantes 30 \u00B7 35 \u00B7 10 \u00B7 0 \u00B7 25%; Tatuap\u00E9 40 \u00B7 25 \u00B7 10 \u00B7 0 \u00B7 25%) e dividida pelo n\u00FAmero de closers da loja. Bandeirantes e Tatuap\u00E9 n\u00E3o t\u00EAm meta de Funilaria.")),
         React.createElement(Secao, { n: 4, titulo: "Leads na m\u00E3o de cada closer", nota: "Direto do Kommo, lente 'dono atual': leads em aberto cujo respons\u00E1vel \u00E9 o closer. Parado = sem nenhuma atualiza\u00E7\u00E3o h\u00E1 mais de 14 dias. P\u00F3s-visita = cliente j\u00E1 veio \u00E0 loja e ainda est\u00E1 em negocia\u00E7\u00E3o." },
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { minWidth: 900 } },
@@ -8316,15 +8315,17 @@ function useControlePiloto() {
             opc(db.from("closer_entregas_v").select("*")),
             opc(db.from("closer_avaliacao_v").select("id,closer_codigo,nota,avaliado_em,status,criado_em").gte("avaliado_em", m0)),
             opc(db.from("closer_recontato").select("closer_codigo,placa,resultado,criado_em").gte("criado_em", m0)),
+            /* v79: fotos diárias das pendências (cron às 23:40) para a tendência */
+            opc(db.from("controle_piloto_dia").select("dia,closer_codigo,pendencias,gerados,avaliacoes,recontatos").gte("dia", addDays(hoje(), -28)).order("dia")),
         ]).then(function (_a) {
-            var _b = __read(_a, 8), mc = _b[0], orc = _b[1], osA = _b[2], semOrc = _b[3], pv = _b[4], ent = _b[5], av = _b[6], rc = _b[7];
+            var _b = __read(_a, 9), mc = _b[0], orc = _b[1], osA = _b[2], semOrc = _b[3], pv = _b[4], ent = _b[5], av = _b[6], rc = _b[7], hist = _b[8];
             if (!vivo)
                 return;
             if (mc.error) {
                 setSt({ carregando: false, erro: mc.error.message });
                 return;
             }
-            setSt({ carregando: false, erro: null, closers: mc.data || [], orc: orc, osA: osA, semOrc: semOrc, pv: pv, ent: ent, av: av, rc: rc, em: new Date() });
+            setSt({ carregando: false, erro: null, closers: mc.data || [], orc: orc, osA: osA, semOrc: semOrc, pv: pv, ent: ent, av: av, rc: rc, hist: hist, em: new Date() });
         });
         return function () { vivo = false; };
     }, [versao]);
@@ -8381,6 +8382,50 @@ function SecaoControlePiloto(_a) {
         return datas.length ? datas[datas.length - 1] : null;
     };
     var pendencias = function (c) { return CTRL_KPIS.filter(function (k) { return !k.bom; }).reduce(function (t, k) { return t + doCloser(k.k, c).length; }, 0); };
+    /* v79: tendência — série dos últimos 14 dias (foto da noite) + o valor de agora */
+    var hist = s.hist || [];
+    var serieDe = function (cod, campo) {
+        var m = {};
+        hist.filter(function (x) { return String(x.closer_codigo) === String(cod); }).forEach(function (x) { m[String(x.dia).slice(0, 10)] = Number(x[campo]) || 0; });
+        var dias = [];
+        for (var i = 13; i >= 1; i--)
+            dias.push(addDays(h, -i));
+        return dias.map(function (d) { return (d in m ? m[d] : null); });
+    };
+    var ha7 = function (cod, campo) { var x = hist.find(function (y) { return String(y.closer_codigo) === String(cod) && String(y.dia).slice(0, 10) === addDays(h, -7); }); return x ? Number(x[campo]) || 0 : null; };
+    var Faisca = function (_a) {
+        var serie = _a.serie, hojeV = _a.hojeV, cor = _a.cor;
+        var pts = serie.concat([hojeV]);
+        var vals = pts.filter(function (v) { return v != null; });
+        if (vals.length < 2)
+            return React.createElement("span", { style: { fontSize: 11, color: T.muted } }, "ainda sem hist\u00F3rico");
+        var max = Math.max.apply(Math, __spreadArray([1], __read(vals), false));
+        var W = 96, H = 22;
+        var xy = pts.map(function (v, i) { return (v == null ? null : [Math.round(i / (pts.length - 1) * (W - 4)) + 2, Math.round(H - 2 - v / max * (H - 6))]); });
+        var d = "";
+        xy.forEach(function (p) { if (!p)
+            return; d += (d ? " L" : "M") + p[0] + " " + p[1]; });
+        var ult = xy[xy.length - 1];
+        return (React.createElement("svg", { width: W, height: H, style: { display: "block" } },
+            React.createElement("path", { d: d, fill: "none", stroke: cor, strokeWidth: "1.6", strokeLinejoin: "round", strokeLinecap: "round" }),
+            ult && React.createElement("circle", { cx: ult[0], cy: ult[1], r: "2.6", fill: cor })));
+    };
+    var Tend = function (_a) {
+        var cod = _a.cod, hojeV = _a.hojeV, campo = _a.campo, bom = _a.bom;
+        var antes = ha7(cod, campo || "pendencias");
+        var serie = serieDe(cod, campo || "pendencias");
+        var dif = antes == null ? null : hojeV - antes;
+        var melhor = dif == null ? null : bom ? dif > 0 : dif < 0;
+        var cor = dif == null || dif === 0 ? T.muted : melhor ? T.good : T.bad;
+        return (React.createElement("span", { style: { display: "inline-flex", alignItems: "center", gap: 8 } },
+            React.createElement(Faisca, { serie: serie, hojeV: hojeV, cor: dif == null ? "#B5B5B5" : cor }),
+            dif != null && React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: cor, whiteSpace: "nowrap" } },
+                dif > 0 ? "▲" : dif < 0 ? "▼" : "•",
+                " ",
+                Math.abs(dif),
+                " ",
+                React.createElement("span", { style: { fontWeight: 400, color: T.muted } }, "vs 7d"))));
+    };
     var linhas = closers.map(function (c) { return ({ c: c, pend: pendencias(c), ult: ultimo(c) }); }).sort(function (a, b) { return b.pend - a.pend; });
     var Celula = function (_a) {
         var k = _a.k, c = _a.c, valor = _a.valor, bom = _a.bom;
@@ -8511,7 +8556,13 @@ function SecaoControlePiloto(_a) {
             React.createElement("span", { style: { fontSize: 11.5, color: T.muted } }, s.em ? "lido ".concat(s.em.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })) : ""),
             React.createElement(Btn, { onClick: function () { setSel(null); s.recarregar(); }, style: { padding: "5px 10px", fontSize: 12 } }, "Atualizar")),
         React.createElement("div", { className: "grid-kpi-4", style: { marginBottom: 12 } },
-            React.createElement(Kpi, { label: "Pend\u00EAncias no time", value: nInt(totPend), sub: "somando todos os itens em vermelho", tone: totPend ? "bad" : "good" }),
+            (function () {
+                var d7 = addDays(h, -7);
+                var antes = hist.filter(function (x) { return String(x.dia).slice(0, 10) === d7 && closers.some(function (c) { return String(c.erp_codigo) === String(x.closer_codigo); }); }).reduce(function (t, x) { return t + (Number(x.pendencias) || 0); }, 0);
+                var tem = hist.some(function (x) { return String(x.dia).slice(0, 10) === d7; });
+                var dif = totPend - antes;
+                return React.createElement(Kpi, { label: "Pend\u00EAncias no time", value: nInt(totPend), sub: tem ? "".concat(dif > 0 ? "▲" : dif < 0 ? "▼" : "•", " ").concat(Math.abs(dif), " vs h\u00E1 7 dias (").concat(nInt(antes), ")") : "somando todos os itens em vermelho · tendência a partir de amanhã", tone: totPend ? (tem && dif < 0 ? "good" : "bad") : "good" });
+            })(),
             React.createElement(Kpi, { label: "Or\u00E7amentos gerados no m\u00EAs", value: nInt(tot("gerados")), sub: "".concat(nInt(tot("naoEnviados")), " ainda n\u00E3o enviados ao cliente") }),
             React.createElement(Kpi, { label: "Dinheiro esperando o closer", value: nReal(vEsperando), sub: "or\u00E7amento com retorno atrasado ou validade vencida", tone: vEsperando ? "bad" : undefined }),
             React.createElement(Kpi, { label: "O.S. sem situa\u00E7\u00E3o do carro", value: nInt(tot("semSituacao")), sub: "".concat(nInt(tot("semPrazo")), " na loja sem prazo \u00B7 ").concat(nInt(tot("prazoVencido")), " entrega atrasada \u00B7 ").concat(nInt(tot("entradaAtrasada")), " entrada n\u00E3o confirmada"), tone: tot("semSituacao") ? "bad" : undefined })),
@@ -8523,6 +8574,7 @@ function SecaoControlePiloto(_a) {
                         React.createElement(Th, { right: true }, "Pend\u00EAncias"),
                         CTRL_KPIS.map(function (k) { return React.createElement(Th, { key: k.k, right: true },
                             React.createElement("span", { title: k.sub, style: { whiteSpace: "normal", display: "inline-block", maxWidth: 96, lineHeight: 1.25 } }, k.l)); }),
+                        React.createElement(Th, { right: true }, "Tend\u00EAncia \u00B7 14 dias"),
                         React.createElement(Th, { right: true }, "\u00DAltima atividade"))),
                 React.createElement("tbody", null,
                     linhas.map(function (_a) {
@@ -8538,6 +8590,8 @@ function SecaoControlePiloto(_a) {
                                 React.createElement("span", { style: { fontWeight: 800, color: pend ? T.bad : T.good } }, nInt(pend))),
                             CTRL_KPIS.map(function (k) { return React.createElement(Td, { key: k.k, right: true },
                                 React.createElement(Celula, { k: k.k, c: c, valor: doCloser(k.k, c).length, bom: k.bom })); }),
+                            React.createElement(Td, { right: true },
+                                React.createElement(Tend, { cod: c.erp_codigo, hojeV: pend })),
                             React.createElement(Td, { right: true, color: dUlt == null || dUlt >= 3 ? T.bad : T.ink, bold: dUlt == null || dUlt >= 3 }, dUlt == null ? "nunca usou" : dUlt === 0 ? "hoje" : "h\u00E1 ".concat(dUlt, " dia").concat(dUlt === 1 ? "" : "s"))));
                     }),
                     React.createElement("tr", { style: { background: "#FAFAFA" } },
@@ -8545,9 +8599,10 @@ function SecaoControlePiloto(_a) {
                         React.createElement(Td, { right: true, bold: true }, nInt(totPend)),
                         CTRL_KPIS.map(function (k) { return React.createElement(Td, { key: k.k, right: true },
                             React.createElement(Celula, { k: k.k, c: null, valor: tot(k.k), bom: k.bom })); }),
+                        React.createElement(Td, null),
                         React.createElement(Td, null))))),
         detalhe,
-        React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 8 } }, "\"\u00DAltima atividade\" \u00E9 o \u00FAltimo or\u00E7amento, avalia\u00E7\u00E3o, contato com cliente da casa ou carro entregue marcado no piloto. Tr\u00EAs dias ou mais sem nada, fica em vermelho.")));
+        React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 8 } }, "\"Tend\u00EAncia\" \u00E9 a linha das pend\u00EAncias nos \u00FAltimos 14 dias (foto tirada toda noite \u00E0s 23:40) \u2014 descendo \u00E9 bom; a seta compara com 7 dias atr\u00E1s. \"\u00DAltima atividade\" \u00E9 o \u00FAltimo or\u00E7amento, avalia\u00E7\u00E3o, contato com cliente da casa ou carro entregue marcado no piloto. Tr\u00EAs dias ou mais sem nada, fica em vermelho.")));
 }
 /* v69 — visão geral das avaliações, na aba Closers (admin/gerente) */
 function SecaoAvaliacoesGeral(_a) {
