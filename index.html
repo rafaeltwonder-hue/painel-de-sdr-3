@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v81 — CAR SERVICE</title>
-<meta name="painel-versao" content="v81">
+<title>Painel de SDR v84 — CAR SERVICE</title>
+<meta name="painel-versao" content="v84">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -234,7 +234,7 @@ window.FOTOS_ORC = {"hero_rear_logo": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ
 <script>
 function iniciarPainel() {
 "use strict";
-/* Painel de SDR — The Wonder / Car Service (v81: carro pronto, aguardando retirada)
+/* Painel de SDR — The Wonder / Car Service (v84: botão Editar no orçamento salvo · v83: controle do piloto em blocos, um embaixo do outro)
    Lê as views do Supabase. Sem lançamento manual: o dado vem do Kommo. */
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function(t) {
@@ -282,6 +282,17 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
         } catch (e) { op = [6, e]; y = 0; } finally { f = t = 0; }
         if (op[0] & 5) throw op[1]; return { value: op[0] ? op[1] : void 0, done: true };
     }
+};
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
 };
 var __read = (this && this.__read) || function (o, n) {
     var m = typeof Symbol === "function" && o[Symbol.iterator];
@@ -1897,23 +1908,23 @@ function usarDados(de, ate, prevDe, negocio) {
     var _p = __read(useState([]), 2), robo = _p[0], setRobo = _p[1];
     var _q = __read(useState([]), 2), preench = _q[0], setPreench = _q[1];
     var _r = __read(useState(null), 2), qualidade = _r[0], setQualidade = _r[1];
-    var _s = __read(useState([]), 2), funilAgora = _s[0], setFunilAgora = _s[1];
-    var _t = __read(useState({ sdr: [], taxa: null }), 2), metas = _t[0], setMetas = _t[1];
+    var _t = __read(useState([]), 2), funilAgora = _t[0], setFunilAgora = _t[1];
+    var _u = __read(useState({ sdr: [], taxa: null }), 2), metas = _u[0], setMetas = _u[1];
     /* Duas listas novas, as duas nascidas do dia 08/09, quando o painel
        mostrou zero ligações com cara de "hoje ninguém trabalhou" enquanto
        a verdade era que a carga automática estava tomando 401 havia dias.
          falhas -> consulta que quebrou de verdade (antes virava zero mudo)
          saude  -> há quanto tempo cada FONTE não recebe dado novo */
-    var _u = __read(useState([]), 2), falhas = _u[0], setFalhas = _u[1];
-    var _v = __read(useState([]), 2), saude = _v[0], setSaude = _v[1];
+    var _v = __read(useState([]), 2), falhas = _v[0], setFalhas = _v[1];
+    var _w = __read(useState([]), 2), saude = _w[0], setSaude = _w[1];
     /* Tarefas: o único dado do painel que fala do FUTURO. Tudo o mais aqui
        mede o que já aconteceu. */
-    var _w = __read(useState([]), 2), tarefas = _w[0], setTarefas = _w[1];
-    var _x = __read(useState([]), 2), semTarefa = _x[0], setSemTarefa = _x[1];
+    var _x = __read(useState([]), 2), tarefas = _x[0], setTarefas = _x[1];
+    var _y = __read(useState([]), 2), semTarefa = _y[0], setSemTarefa = _y[1];
     /* Tudo que a aba do coordenador e a TV usam. Fica separado do resto
        porque tem uma janela própria — mês corrente e hoje — que não muda
        quando alguém mexe no filtro da aba principal. */
-    var _y = __read(useState(null), 2), rotina = _y[0], setRotina = _y[1];
+    var _z = __read(useState(null), 2), rotina = _z[0], setRotina = _z[1];
     /* O Supabase corta em 1.000 linhas por consulta. A fato_dia tem uma linha
        por dia × SDR × unidade × serviço, então um mês passa desse teto e os
        totais sairiam menores sem ninguém perceber. Buscamos em páginas até
@@ -8339,23 +8350,36 @@ function SecaoRecompra(_a) {
    lista do que está pendente. Aparece na aba Closers (admin) e numa aba
    própria do piloto para quem vê todos (gerente). */
 var CTRL_KPIS = [
-    { k: "gerados", l: "Orçamentos gerados", sub: "no mês", bom: true },
-    { k: "naoEnviados", l: "Não enviados", sub: "rascunho parado" },
-    { k: "retorno", l: "Retorno atrasado", sub: "cliente esperando" },
-    { k: "vencidos", l: "Validade vencida", sub: "em aberto, sem decisão" },
-    { k: "semOs", l: "Fechado sem O.S.", sub: "não apareceu no Oficina" },
-    { k: "vendaSemOrc", l: "Venda sem orçamento", sub: "O.S. que não passou pelo piloto" },
-    { k: "posVisita", l: "Pós-visita sem orçamento", sub: "lead do CRM que visitou" },
-    { k: "semSituacao", l: "Sem dizer se o carro está na loja", sub: "primeira pergunta da O.S." },
-    { k: "entradaAtrasada", l: "Entrada não confirmada", sub: "data de entrada passou" },
-    { k: "semPrazo", l: "Na loja sem prazo de entrega", sub: "carro na loja sem data" },
-    { k: "prazoVencido", l: "Entrega atrasada", sub: "prazo passou, carro não saiu" },
-    { k: "retiradaVencida", l: "Retirada não confirmada", sub: "carro pronto, data de retirada passou" },
-    { k: "prontos", l: "Prontos esperando retirada", sub: "carro pronto, cliente ainda não veio", info: true },
-    { k: "semPedidoAval", l: "Entregue sem pedir avaliação", sub: "últimos 15 dias" },
-    { k: "avaliacoes", l: "Avaliações no Google", sub: "no mês", bom: true },
-    { k: "recontatos", l: "Clientes da casa chamados", sub: "no mês", bom: true },
+    { k: "gerados", g: "orc", l: "Orçamentos gerados", sub: "no mês", bom: true },
+    { k: "naoEnviados", g: "orc", l: "Não enviados", sub: "rascunho parado" },
+    { k: "retorno", g: "orc", l: "Retorno atrasado", sub: "cliente esperando" },
+    { k: "vencidos", g: "orc", l: "Validade vencida", sub: "em aberto, sem decisão" },
+    { k: "semOs", g: "orc", l: "Fechado sem O.S.", sub: "não apareceu no Oficina" },
+    { k: "vendaSemOrc", g: "orc", l: "Venda sem orçamento", sub: "O.S. que não passou pelo piloto" },
+    { k: "posVisita", g: "orc", l: "Pós-visita sem orçamento", sub: "lead do CRM que visitou" },
+    { k: "semSituacao", g: "carro", l: "Sem dizer se o carro está na loja", sub: "primeira pergunta da O.S." },
+    { k: "entradaAtrasada", g: "carro", l: "Entrada não confirmada", sub: "data de entrada passou" },
+    { k: "semPrazo", g: "carro", l: "Na loja sem prazo de entrega", sub: "carro na loja sem data" },
+    { k: "prazoVencido", g: "carro", l: "Entrega atrasada", sub: "prazo passou, carro não saiu" },
+    { k: "retiradaVencida", g: "carro", l: "Retirada não confirmada", sub: "carro pronto, data de retirada passou" },
+    { k: "prontos", g: "carro", l: "Prontos esperando retirada", sub: "carro pronto, cliente ainda não veio", info: true },
+    { k: "semPedidoAval", g: "aval", l: "Entregue sem pedir avaliação", sub: "últimos 15 dias" },
+    { k: "avaliacoes", g: "aval", l: "Avaliações no Google", sub: "no mês", bom: true },
+    { k: "recontatos", g: "aval", l: "Clientes da casa chamados", sub: "no mês", bom: true },
 ];
+/* v82: a tabela ficou comprida — as colunas foram separadas em blocos (g) */
+var CTRL_BLOCOS = [
+    ["resumo", "Resumo"],
+    ["orc", "Orçamentos"],
+    ["carro", "Carros na loja"],
+    ["aval", "Avaliações e clientes"],
+];
+var CTRL_BLOCO_NOTA = {
+    resumo: "Visão geral: quantas pendências cada closer tem em cada assunto. O detalhe de cada assunto está nos blocos logo abaixo.",
+    orc: "Orçamentos e vendas que precisam de atenção: rascunho parado, cliente esperando retorno, validade vencida e venda fora do piloto.",
+    carro: "O que está parado com os carros dentro da loja: sem dizer se está na loja, entrada e entrega atrasadas e carro pronto que o cliente não retirou.",
+    aval: "Pós-venda: quem foi entregue e ainda não recebeu o pedido de avaliação, e o que o closer já fez de avaliações e clientes chamados de volta.",
+};
 function useControlePiloto() {
     var _this = this;
     var _a = __read(useState({ carregando: true, erro: null }), 2), st = _a[0], setSt = _a[1];
@@ -8455,6 +8479,8 @@ function SecaoControlePiloto(_a) {
         return datas.length ? datas[datas.length - 1] : null;
     };
     var pendencias = function (c) { return CTRL_KPIS.filter(function (k) { return !k.bom && !k.info; }).reduce(function (t, k) { return t + doCloser(k.k, c).length; }, 0); };
+    var pendGrupo = function (c, g) { return CTRL_KPIS.filter(function (k) { return k.g === g && !k.bom && !k.info; }).reduce(function (t, k) { return t + doCloser(k.k, c).length; }, 0); };
+    var totGrupo = function (g) { return CTRL_KPIS.filter(function (k) { return k.g === g && !k.bom && !k.info; }).reduce(function (t, k) { return t + tot(k.k); }, 0); };
     /* v79: tendência — série dos últimos 14 dias (foto da noite) + o valor de agora */
     var hist = s.hist || [];
     var serieDe = function (cod, campo) {
@@ -8639,14 +8665,21 @@ function SecaoControlePiloto(_a) {
             React.createElement(Kpi, { label: "Or\u00E7amentos gerados no m\u00EAs", value: nInt(tot("gerados")), sub: "".concat(nInt(tot("naoEnviados")), " ainda n\u00E3o enviados ao cliente") }),
             React.createElement(Kpi, { label: "Dinheiro esperando o closer", value: nReal(vEsperando), sub: "or\u00E7amento com retorno atrasado ou validade vencida", tone: vEsperando ? "bad" : undefined }),
             React.createElement(Kpi, { label: "O.S. sem situa\u00E7\u00E3o do carro", value: nInt(tot("semSituacao")), sub: "".concat(nInt(tot("semPrazo")), " na loja sem prazo \u00B7 ").concat(nInt(tot("prazoVencido")), " entrega atrasada \u00B7 ").concat(nInt(tot("entradaAtrasada")), " entrada n\u00E3o confirmada \u00B7 ").concat(nInt(tot("retiradaVencida")), " retirada n\u00E3o confirmada \u00B7 ").concat(nInt(tot("prontos")), " pronto").concat(tot("prontos") === 1 ? "" : "s", " esperando o cliente"), tone: tot("semSituacao") ? "bad" : undefined })),
-        React.createElement(Card, { className: "p0 rolagem" },
-            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 1500 } },
+        React.createElement("div", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 13, letterSpacing: ".06em", textTransform: "uppercase", color: T.ink2, marginBottom: 4 } }, "Resumo"),
+        React.createElement("div", { style: { fontSize: 12, color: T.ink2, marginBottom: 8 } }, CTRL_BLOCO_NOTA.resumo),
+        React.createElement(Card, { className: "p0 rolagem", style: { marginBottom: 22 } },
+            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 900 } },
                 React.createElement("thead", null,
                     React.createElement("tr", null,
                         React.createElement(Th, null, "Closer"),
                         React.createElement(Th, { right: true }, "Pend\u00EAncias"),
-                        CTRL_KPIS.map(function (k) { return React.createElement(Th, { key: k.k, right: true },
-                            React.createElement("span", { title: k.sub, style: { whiteSpace: "normal", display: "inline-block", maxWidth: 96, lineHeight: 1.25 } }, k.l)); }),
+                        CTRL_BLOCOS.filter(function (_a) {
+                            var _b = __read(_a, 1), v = _b[0];
+                            return v !== "resumo";
+                        }).map(function (_a) {
+                            var _b = __read(_a, 2), v = _b[0], l = _b[1];
+                            return React.createElement(Th, { key: v, right: true }, l);
+                        }),
                         React.createElement(Th, { right: true }, "Tend\u00EAncia \u00B7 14 dias"),
                         React.createElement(Th, { right: true }, "\u00DAltima atividade"))),
                 React.createElement("tbody", null,
@@ -8661,8 +8694,15 @@ function SecaoControlePiloto(_a) {
                                     !c.auth_user_id ? " · sem login" : "")),
                             React.createElement(Td, { right: true },
                                 React.createElement("span", { style: { fontWeight: 800, color: pend ? T.bad : T.good } }, nInt(pend))),
-                            CTRL_KPIS.map(function (k) { return React.createElement(Td, { key: k.k, right: true },
-                                React.createElement(Celula, { k: k.k, c: c, valor: doCloser(k.k, c).length, bom: k.bom, info: k.info })); }),
+                            CTRL_BLOCOS.filter(function (_a) {
+                                var _b = __read(_a, 1), v = _b[0];
+                                return v !== "resumo";
+                            }).map(function (_a) {
+                                var _b = __read(_a, 1), v = _b[0];
+                                var n = pendGrupo(c, v);
+                                return React.createElement(Td, { key: v, right: true },
+                                    React.createElement("span", { style: { fontWeight: n ? 700 : 400, color: n ? T.bad : T.muted } }, nInt(n)));
+                            }),
                             React.createElement(Td, { right: true },
                                 React.createElement(Tend, { cod: c.erp_codigo, hojeV: pend })),
                             React.createElement(Td, { right: true, color: dUlt == null || dUlt >= 3 ? T.bad : T.ink, bold: dUlt == null || dUlt >= 3 }, dUlt == null ? "nunca usou" : dUlt === 0 ? "hoje" : "h\u00E1 ".concat(dUlt, " dia").concat(dUlt === 1 ? "" : "s"))));
@@ -8670,11 +8710,60 @@ function SecaoControlePiloto(_a) {
                     React.createElement("tr", { style: { background: "#FAFAFA" } },
                         React.createElement(Td, { bold: true }, "Todos"),
                         React.createElement(Td, { right: true, bold: true }, nInt(totPend)),
-                        CTRL_KPIS.map(function (k) { return React.createElement(Td, { key: k.k, right: true },
-                            React.createElement(Celula, { k: k.k, c: null, valor: tot(k.k), bom: k.bom, info: k.info })); }),
+                        CTRL_BLOCOS.filter(function (_a) {
+                            var _b = __read(_a, 1), v = _b[0];
+                            return v !== "resumo";
+                        }).map(function (_a) {
+                            var _b = __read(_a, 1), v = _b[0];
+                            return React.createElement(Td, { key: v, right: true, bold: true }, nInt(totGrupo(v)));
+                        }),
                         React.createElement(Td, null),
                         React.createElement(Td, null))))),
-        detalhe,
+        CTRL_BLOCOS.filter(function (_a) {
+            var _b = __read(_a, 1), v = _b[0];
+            return v !== "resumo";
+        }).map(function (_a) {
+            var _b = __read(_a, 2), g = _b[0], rotulo = _b[1];
+            var cols = CTRL_KPIS.filter(function (k) { return k.g === g; });
+            var selDoBloco = sel && (CTRL_KPIS.find(function (x) { return x.k === sel.k; }) || {}).g === g;
+            return (React.createElement("div", { key: g, style: { marginBottom: 22 } },
+                React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 10, marginBottom: 4 } },
+                    React.createElement("span", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 13, letterSpacing: ".06em", textTransform: "uppercase", color: T.ink } }, rotulo),
+                    React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: totGrupo(g) ? T.bad : T.good } },
+                        totGrupo(g),
+                        " pend\u00EAncia",
+                        totGrupo(g) === 1 ? "" : "s")),
+                React.createElement("div", { style: { fontSize: 12, color: T.ink2, marginBottom: 8 } }, CTRL_BLOCO_NOTA[g]),
+                React.createElement(Card, { className: "p0 rolagem" },
+                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 720 } },
+                        React.createElement("thead", null,
+                            React.createElement("tr", null,
+                                React.createElement(Th, null, "Closer"),
+                                React.createElement(Th, { right: true }, "Pend\u00EAncias do bloco"),
+                                cols.map(function (k) { return React.createElement(Th, { key: k.k, right: true },
+                                    React.createElement("span", { title: k.sub, style: { whiteSpace: "normal", display: "inline-block", maxWidth: 120, lineHeight: 1.25 } },
+                                        k.l,
+                                        React.createElement("span", { style: { display: "block", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10.5, color: T.muted } }, k.sub))); }))),
+                        React.createElement("tbody", null,
+                            linhas.map(function (_a) {
+                                var c = _a.c;
+                                var pg = pendGrupo(c, g);
+                                return (React.createElement("tr", { key: c.erp_codigo },
+                                    React.createElement(Td, { bold: true },
+                                        c.nome_oficial,
+                                        React.createElement("div", { style: { fontSize: 11, color: T.muted, fontWeight: 400 } }, c.unidade)),
+                                    React.createElement(Td, { right: true },
+                                        React.createElement("span", { style: { fontWeight: 800, color: pg ? T.bad : T.good } }, nInt(pg))),
+                                    cols.map(function (k) { return React.createElement(Td, { key: k.k, right: true },
+                                        React.createElement(Celula, { k: k.k, c: c, valor: doCloser(k.k, c).length, bom: k.bom, info: k.info })); })));
+                            }),
+                            React.createElement("tr", { style: { background: "#FAFAFA" } },
+                                React.createElement(Td, { bold: true }, "Todos"),
+                                React.createElement(Td, { right: true, bold: true }, nInt(totGrupo(g))),
+                                cols.map(function (k) { return React.createElement(Td, { key: k.k, right: true },
+                                    React.createElement(Celula, { k: k.k, c: null, valor: tot(k.k), bom: k.bom, info: k.info })); }))))),
+                selDoBloco && detalhe));
+        }),
         React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 8 } }, "\"Tend\u00EAncia\" \u00E9 a linha das pend\u00EAncias nos \u00FAltimos 14 dias (foto tirada toda noite \u00E0s 23:40) \u2014 descendo \u00E9 bom; a seta compara com 7 dias atr\u00E1s. \"\u00DAltima atividade\" \u00E9 o \u00FAltimo or\u00E7amento, avalia\u00E7\u00E3o, contato com cliente da casa ou carro entregue marcado no piloto. Tr\u00EAs dias ou mais sem nada, fica em vermelho.")));
 }
 /* v69 — visão geral das avaliações, na aba Closers (admin/gerente) */
@@ -9094,10 +9183,22 @@ var FORM_VAZIO = function () { return ({
     observacoes: "", retorno_em: "", validade: addDays(hoje(), 7),
     itens: [ITEM_VAZIO()],
 }); };
+/* v84: orçamento salvo (linha da orcamento_v + itens) → formulário de edição */
+var orcParaForm = function (o, itens) { return ({
+    origem: o.origem, indicado_por: o.indicado_por || "", lead_kommo_id: o.lead_kommo_id || null,
+    cliente_nome: o.cliente_nome || "", cliente_whatsapp: o.cliente_whatsapp || "", placa: o.placa || "", veiculo: o.veiculo || "", cor: o.cor || "",
+    formato: o.formato, titulo: o.titulo || "", prazo_execucao: o.prazo_execucao || "", cortesia: o.cortesia || "",
+    condicao_pagamento: o.condicao_pagamento || "", observacoes: o.observacoes || "",
+    retorno_em: o.retorno_em ? String(o.retorno_em).slice(0, 10) : "", validade: o.validade ? String(o.validade).slice(0, 10) : "",
+    itens: (itens && itens.length ? itens : [ITEM_VAZIO()]).map(function (it) { return ({
+        nome: it.nome || "", aplicacao: it.aplicacao || "", garantia: it.garantia || "", opcao: it.opcao || "", destaque: !!it.destaque, descricao: it.descricao || "",
+        preco: it.preco == null ? "" : String(it.preco).replace(".", ","),
+    }); }),
+}); };
 var paraNumero = function (s) { var n = Number(String(s).replace(/\./g, "").replace(",", ".")); return isNaN(n) ? 0 : n; };
 function NovoOrcamento(_a) {
     var _this = this;
-    var closer = _a.closer, inicial = _a.inicial, aoSalvar = _a.aoSalvar;
+    var closer = _a.closer, inicial = _a.inicial, aoSalvar = _a.aoSalvar, editando = _a.editando, aoCancelar = _a.aoCancelar;
     var _b = __read(useState(function () { return (__assign(__assign({}, FORM_VAZIO()), (inicial || {}))); }), 2), f = _b[0], setF = _b[1];
     var _c = __read(useState(false), 2), salvando = _c[0], setSalvando = _c[1];
     var _d = __read(useState(null), 2), erro = _d[0], setErro = _d[1];
@@ -9135,7 +9236,7 @@ function NovoOrcamento(_a) {
     var itensValidos = f.itens.filter(function (it) { return it.nome.trim(); });
     var pronto = f.prazo_execucao && itensValidos.length > 0 && (f.cliente_nome.trim() || f.placa.trim());
     var salvar = function (statusInicial) { return __awaiter(_this, void 0, void 0, function () {
-        var cab, novo, _a, id_1, e_29;
+        var cab, linhasItem, closer_codigo, _s, cabEd, ok, antigos, idsAntigos, nota, e_29, novo, _a, id, e_30;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -9145,7 +9246,7 @@ function NovoOrcamento(_a) {
                     setErro(null);
                     _b.label = 1;
                 case 1:
-                    _b.trys.push([1, 4, , 5]);
+                    _b.trys.push([1, 13, , 14]);
                     cab = {
                         closer_codigo: closer.erp_codigo, origem: f.origem,
                         indicado_por: f.origem === "indicacao" ? f.indicado_por || null : null,
@@ -9156,29 +9257,67 @@ function NovoOrcamento(_a) {
                         cortesia: f.cortesia || null, condicao_pagamento: f.condicao_pagamento || null, observacoes: f.observacoes || null,
                         status: statusInicial, validade: f.validade || null, retorno_em: f.retorno_em || null,
                     };
+                    linhasItem = function (id) { return itensValidos.map(function (it, i) { return ({
+                        orcamento_id: id, ordem: i + 1, nome: it.nome.trim(), aplicacao: it.aplicacao || null, garantia: it.garantia || null,
+                        descricao: (it.descricao || "").trim() || null,
+                        preco: paraNumero(it.preco), opcao: f.formato === "opcoes" ? it.opcao || null : null, destaque: !!it.destaque,
+                    }); }); };
+                    if (!editando) return [3 /*break*/, 10];
+                    closer_codigo = cab.closer_codigo, _s = cab.status, cabEd = __rest(cab, ["closer_codigo", "status"]);
+                    if (statusInicial && editando.status === "rascunho")
+                        cabEd.status = statusInicial;
+                    return [4 /*yield*/, exigir(db.from("orcamento").update(cabEd).eq("id", editando.id).select("id"))];
+                case 2:
+                    ok = _b.sent();
+                    if (!ok || !ok.length)
+                        throw new Error("o banco não aceitou a alteração (sem permissão neste orçamento)");
+                    return [4 /*yield*/, exigir(db.from("orcamento_item").select("id").eq("orcamento_id", editando.id))];
+                case 3:
+                    antigos = _b.sent();
+                    return [4 /*yield*/, exigir(db.from("orcamento_item").insert(linhasItem(editando.id)))];
+                case 4:
+                    _b.sent();
+                    idsAntigos = (antigos || []).map(function (x) { return x.id; });
+                    if (!idsAntigos.length) return [3 /*break*/, 6];
+                    return [4 /*yield*/, exigir(db.from("orcamento_item").delete().in("id", idsAntigos))];
+                case 5:
+                    _b.sent();
+                    _b.label = 6;
+                case 6:
+                    _b.trys.push([6, 8, , 9]);
+                    nota = "Editado: ".concat(itensValidos.length, " ite").concat(itensValidos.length === 1 ? "m" : "ns", ", total ").concat(nReal2(editando.total || 0), " \u2192 ").concat(nReal2(total));
+                    return [4 /*yield*/, exigir(db.from("orcamento_evento").insert({ orcamento_id: editando.id, tipo: "nota", nota: nota }))];
+                case 7:
+                    _b.sent();
+                    return [3 /*break*/, 9];
+                case 8:
+                    e_29 = _b.sent();
+                    return [3 /*break*/, 9];
+                case 9:
+                    setDaCasa(null);
+                    aoSalvar(editando.id, null);
+                    setSalvando(false);
+                    return [2 /*return*/];
+                case 10:
                     _a = umSo;
                     return [4 /*yield*/, exigir(db.from("orcamento").insert(cab).select("id, ano, seq").single())];
-                case 2:
+                case 11:
                     novo = _a.apply(void 0, [_b.sent()]);
-                    id_1 = novo && novo.id;
-                    if (!id_1)
+                    id = novo && novo.id;
+                    if (!id)
                         throw new Error("o banco não devolveu o número do orçamento");
-                    return [4 /*yield*/, exigir(db.from("orcamento_item").insert(itensValidos.map(function (it, i) { return ({
-                            orcamento_id: id_1, ordem: i + 1, nome: it.nome.trim(), aplicacao: it.aplicacao || null, garantia: it.garantia || null,
-                            descricao: (it.descricao || "").trim() || null,
-                            preco: paraNumero(it.preco), opcao: f.formato === "opcoes" ? it.opcao || null : null, destaque: !!it.destaque,
-                        }); })))];
-                case 3:
+                    return [4 /*yield*/, exigir(db.from("orcamento_item").insert(linhasItem(id)))];
+                case 12:
                     _b.sent();
                     setF(FORM_VAZIO());
                     setDaCasa(null);
-                    aoSalvar(id_1, novo);
-                    return [3 /*break*/, 5];
-                case 4:
-                    e_29 = _b.sent();
-                    setErro(e_29.message);
-                    return [3 /*break*/, 5];
-                case 5:
+                    aoSalvar(id, novo);
+                    return [3 /*break*/, 14];
+                case 13:
+                    e_30 = _b.sent();
+                    setErro(e_30.message);
+                    return [3 /*break*/, 14];
+                case 14:
                     setSalvando(false);
                     return [2 /*return*/];
             }
@@ -9294,10 +9433,16 @@ function NovoOrcamento(_a) {
                 erro && React.createElement("div", { style: { fontSize: 12.5, color: T.bad, margin: "6px 0" } },
                     "N\u00E3o salvou: ",
                     erro),
-                React.createElement(Btn, { kind: "solid", onClick: function () { return salvar("enviado"); }, style: { display: "block", width: "100%", padding: 10, marginTop: 10, opacity: pronto && !salvando ? 1 : .45 } }, salvando ? "Salvando…" : "Salvar e marcar como enviado"),
-                React.createElement(Btn, { onClick: function () { return salvar("rascunho"); }, style: { display: "block", width: "100%", padding: 9, marginTop: 8, opacity: pronto && !salvando ? 1 : .45 } }, "Salvar como rascunho"),
-                React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 9, lineHeight: 1.5 } }, !pronto ? "Para salvar: pelo menos um item com nome, o prazo de execução e o cliente ou a placa."
-                    : "Depois de salvo, o orçamento recebe número e vai para \"Orçamentos gerados\" — a imagem para o cliente sai de lá.")))));
+                editando ? (React.createElement(React.Fragment, null,
+                    React.createElement(Btn, { kind: "solid", onClick: function () { return salvar(null); }, style: { display: "block", width: "100%", padding: 10, marginTop: 10, opacity: pronto && !salvando ? 1 : .45 } }, salvando ? "Salvando…" : "Salvar alterações"),
+                    editando.status === "rascunho" && (React.createElement(Btn, { onClick: function () { return salvar("enviado"); }, style: { display: "block", width: "100%", padding: 9, marginTop: 8, opacity: pronto && !salvando ? 1 : .45 } }, "Salvar e marcar como enviado")),
+                    React.createElement(Btn, { onClick: aoCancelar, style: { display: "block", width: "100%", padding: 9, marginTop: 8 } }, "Cancelar edi\u00E7\u00E3o"),
+                    React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 9, lineHeight: 1.5 } }, !pronto ? "Para salvar: pelo menos um item com nome, o prazo de execução e o cliente ou a placa."
+                        : "Mant\u00E9m o N\u00BA ".concat(editando.numero, " e o status atual. A imagem para o cliente sai de novo j\u00E1 com os valores novos.")))) : (React.createElement(React.Fragment, null,
+                    React.createElement(Btn, { kind: "solid", onClick: function () { return salvar("enviado"); }, style: { display: "block", width: "100%", padding: 10, marginTop: 10, opacity: pronto && !salvando ? 1 : .45 } }, salvando ? "Salvando…" : "Salvar e marcar como enviado"),
+                    React.createElement(Btn, { onClick: function () { return salvar("rascunho"); }, style: { display: "block", width: "100%", padding: 9, marginTop: 8, opacity: pronto && !salvando ? 1 : .45 } }, "Salvar como rascunho"),
+                    React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 9, lineHeight: 1.5 } }, !pronto ? "Para salvar: pelo menos um item com nome, o prazo de execução e o cliente ou a placa."
+                        : "Depois de salvo, o orçamento recebe número e vai para \"Orçamentos gerados\" — a imagem para o cliente sai de lá.")))))));
 }
 /* ---------- a imagem que o cliente recebe (formato Q2 "Galeria", votado
    pelo time em 25/09; capa C1 escolhida pelo Rafael em 25/09) ----------
@@ -9477,7 +9622,7 @@ function JanelaImagem(_a) {
     useEffect(function () {
         var vivo = true;
         var gerar = function () { return __awaiter(_this, void 0, void 0, function () {
-            var e_30, cv, e_31;
+            var e_31, cv, e_32;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
@@ -9497,7 +9642,7 @@ function JanelaImagem(_a) {
                         _a.sent();
                         return [3 /*break*/, 5];
                     case 4:
-                        e_30 = _a.sent();
+                        e_31 = _a.sent();
                         return [3 /*break*/, 5];
                     case 5: return [4 /*yield*/, new Promise(function (r) { return setTimeout(r, 350); })];
                     case 6:
@@ -9511,9 +9656,9 @@ function JanelaImagem(_a) {
                         db.from("orcamento_evento").insert({ orcamento_id: o.id, tipo: "imagem_ia", nota: "imagem para o cliente gerada (formato Q2)" }).then(function () { }, function () { });
                         return [3 /*break*/, 9];
                     case 8:
-                        e_31 = _a.sent();
+                        e_32 = _a.sent();
                         if (vivo)
-                            setErro(e_31.message || String(e_31));
+                            setErro(e_32.message || String(e_32));
                         return [3 /*break*/, 9];
                     case 9: return [2 /*return*/];
                 }
@@ -9526,7 +9671,7 @@ function JanelaImagem(_a) {
     var baixar = function () { var a = document.createElement("a"); a.href = png; a.download = nomeArq; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
     var podeCompartilhar = !!(navigator.share && navigator.canShare && window.File);
     var compartilhar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var blob, file, e_32;
+        var blob, file, e_33;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -9546,7 +9691,7 @@ function JanelaImagem(_a) {
                     _a.label = 5;
                 case 5: return [3 /*break*/, 7];
                 case 6:
-                    e_32 = _a.sent();
+                    e_33 = _a.sent();
                     return [3 /*break*/, 7];
                 case 7: return [2 /*return*/];
             }
@@ -9576,7 +9721,7 @@ function JanelaImagem(_a) {
 /* Um orçamento aberto: itens, status, retorno, motivo. */
 function DetalheOrcamento(_a) {
     var _this = this;
-    var o = _a.o, closer = _a.closer, aoMudar = _a.aoMudar, fechar = _a.fechar;
+    var o = _a.o, closer = _a.closer, aoMudar = _a.aoMudar, fechar = _a.fechar, editar = _a.editar;
     var _b = __read(useState(null), 2), itens = _b[0], setItens = _b[1];
     var _c = __read(useState(false), 2), imagem = _c[0], setImagem = _c[1];
     var _d = __read(useState(o.status), 2), status = _d[0], setStatus = _d[1];
@@ -9598,7 +9743,7 @@ function DetalheOrcamento(_a) {
     var mudou = status !== o.status || motivo !== (o.motivo_perda || "") || retorno !== (o.retorno_em ? String(o.retorno_em).slice(0, 10) : "") || os !== (o.os_numero || "");
     var precisaMotivo = status === "perdido" && !motivo.trim();
     var salvar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var e_33;
+        var e_34;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -9616,8 +9761,8 @@ function DetalheOrcamento(_a) {
                     aoMudar();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_33 = _a.sent();
-                    setErro(e_33.message);
+                    e_34 = _a.sent();
+                    setErro(e_34.message);
                     return [3 /*break*/, 4];
                 case 4:
                     setSalvando(false);
@@ -9699,25 +9844,36 @@ function DetalheOrcamento(_a) {
                     React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 12 } },
                         React.createElement(Btn, { kind: "solid", onClick: salvar, style: { opacity: mudou && !precisaMotivo && !salvando ? 1 : .45 } }, salvando ? "Salvando…" : "Salvar"),
                         React.createElement(Btn, { onClick: fechar }, "Fechar"),
+                        editar && (o.status === "fechado"
+                            ? React.createElement("span", { title: "Or\u00E7amento fechado n\u00E3o muda \u2014 foi vendido com esses valores. Se precisar, monte um novo.", style: { display: "inline-flex" } },
+                                React.createElement(Btn, { style: { opacity: .45, cursor: "not-allowed" } }, "\u270E Editar"))
+                            : React.createElement(Btn, { onClick: function () { return itens && editar(o, itens); }, style: { opacity: itens ? 1 : .45 } }, "\u270E Editar")),
                         React.createElement("span", { style: { flex: 1 } }),
                         React.createElement(Btn, { kind: "accent", onClick: function () { return setImagem(true); }, style: { opacity: itens && itens.length ? 1 : .45 } }, "Imagem para o cliente")),
-                    React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 8 } }, "A imagem sai no formato aprovado pelo time (quadrada, 1080). Toda mudan\u00E7a de status fica no hist\u00F3rico."),
+                    React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 8 } }, "A imagem sai no formato aprovado pelo time (quadrada, 1080). Toda mudan\u00E7a de status fica no hist\u00F3rico. Para mudar itens, pre\u00E7os ou prazo, use Editar."),
                     imagem && itens && React.createElement(JanelaImagem, { o: o, itens: itens, closer: closer, fechar: function () { return setImagem(false); } }))))));
 }
 /* v73: o gerador e o banco viraram abas separadas. O gerador só monta e
    salva; o banco é onde o closer trabalha a carteira — busca, filtros,
    o que precisa de ação, WhatsApp direto e exportação. */
 function AbaNovoOrcamento(_a) {
-    var closer = _a.closer, prefill = _a.prefill, limparPrefill = _a.limparPrefill, aoSalvar = _a.aoSalvar;
-    return (React.createElement(Secao, { n: 1, titulo: "Novo or\u00E7amento", nota: "Monta aqui e salva: ele ganha n\u00FAmero pr\u00F3prio e vai direto para o Banco de or\u00E7amentos. Origem e prazo de execu\u00E7\u00E3o s\u00E3o obrigat\u00F3rios em todo or\u00E7amento; item e pre\u00E7o s\u00E3o livres nesta fase." },
-        prefill && React.createElement("div", { style: { marginBottom: 10 } },
+    var closer = _a.closer, prefill = _a.prefill, limparPrefill = _a.limparPrefill, aoSalvar = _a.aoSalvar, editando = _a.editando, aoCancelar = _a.aoCancelar;
+    return (React.createElement(Secao, { n: 1, titulo: editando ? "Editando o or\u00E7amento N\u00BA ".concat(editando.numero) : "Novo orçamento", nota: editando ? "Mude o que precisar — itens, preços, prazo, validade — e salve. O número e o status continuam os mesmos, e a imagem para o cliente é gerada de novo com os valores atualizados."
+            : "Monta aqui e salva: ele ganha número próprio e vai direto para o Banco de orçamentos. Origem e prazo de execução são obrigatórios em todo orçamento; item e preço são livres nesta fase." },
+        editando && React.createElement("div", { style: { marginBottom: 10 } },
+            React.createElement(Tag, { cor: T.warn },
+                "Edi\u00E7\u00E3o \u00B7 N\u00BA ",
+                editando.numero),
+            " ",
+            React.createElement(Btn, { onClick: aoCancelar, style: { padding: "3px 9px", fontSize: 11.5, marginLeft: 6 } }, "cancelar edi\u00E7\u00E3o")),
+        !editando && prefill && React.createElement("div", { style: { marginBottom: 10 } },
             React.createElement(Tag, { cor: T.good },
                 "Puxado do CRM: ",
                 prefill.cliente_nome || "lead",
                 prefill.veiculo ? " \u00B7 ".concat(prefill.veiculo) : ""),
             " ",
             React.createElement(Btn, { onClick: limparPrefill, style: { padding: "3px 9px", fontSize: 11.5, marginLeft: 6 } }, "limpar")),
-        React.createElement(NovoOrcamento, { closer: closer, inicial: prefill, aoSalvar: aoSalvar })));
+        React.createElement(NovoOrcamento, { closer: closer, inicial: prefill, aoSalvar: aoSalvar, editando: editando, aoCancelar: aoCancelar })));
 }
 var semAcento = function (s) { return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); };
 function msgFollowUp(o, closer) {
@@ -9726,7 +9882,7 @@ function msgFollowUp(o, closer) {
     return "Oi".concat(nome ? " " + nome : "", "! Aqui \u00E9 ").concat(eu ? "o " + eu : "a equipe", " da The Wonder ").concat(o.loja || "", ". Passando sobre o or\u00E7amento N\u00BA ").concat(o.numero).concat(o.veiculo ? " do seu ".concat(o.veiculo) : "", ". Ficou alguma d\u00FAvida? Se quiser, consigo reservar a agenda para voc\u00EA esta semana.");
 }
 function AbaBancoOrcamentos(_a) {
-    var d = _a.d, closer = _a.closer, recarregar = _a.recarregar, abertoId = _a.abertoId, setAbertoId = _a.setAbertoId, aviso = _a.aviso, irParaNovo = _a.irParaNovo;
+    var d = _a.d, closer = _a.closer, recarregar = _a.recarregar, abertoId = _a.abertoId, setAbertoId = _a.setAbertoId, aviso = _a.aviso, irParaNovo = _a.irParaNovo, editarOrcamento = _a.editarOrcamento;
     var h = hoje(), m0 = primeiroDia(h), mAnt = mesAnteriorDe(h);
     var _b = __read(useState("abertos"), 2), filtro = _b[0], setFiltro = _b[1];
     var _c = __read(useState("valor"), 2), ordem = _c[0], setOrdem = _c[1];
@@ -9811,7 +9967,7 @@ function AbaBancoOrcamentos(_a) {
         ["perdidos", "Perdidos e vencidos (".concat(todos.filter(function (o) { return o.status === "perdido" || o.status === "vencido"; }).length, ")")],
         ["rascunhos", "Rascunhos (".concat(todos.filter(function (o) { return o.status === "rascunho"; }).length, ")")], ["todos", "Todos (".concat(todos.length, ")")]];
     return (React.createElement(React.Fragment, null,
-        React.createElement(Secao, { n: 1, titulo: "Banco de or\u00E7amentos", nota: 'Toda a sua carteira num lugar s\u00F3. "Fechado" \u00E9 conferido no Oficina pela placa; or\u00E7amento fechado sem O.S. fica em alerta at\u00E9 aparecer. Clique na linha para ver os itens, mudar o status ou gerar a imagem para o cliente.' },
+        React.createElement(Secao, { n: 1, titulo: "Banco de or\u00E7amentos", nota: 'Toda a sua carteira num lugar s\u00F3. "Fechado" \u00E9 conferido no Oficina pela placa; or\u00E7amento fechado sem O.S. fica em alerta at\u00E9 aparecer. Clique na linha para ver os itens, mudar o status, editar o or\u00E7amento ou gerar a imagem para o cliente.' },
             aviso && React.createElement(Card, { className: "p12", style: { marginBottom: 12, borderColor: "#B7DFD0", background: "#E6F4EF", fontSize: 13, color: T.good, fontWeight: 600 } }, aviso),
             React.createElement("div", { className: "grid-kpi-4", style: { marginBottom: 12 } },
                 React.createElement(Kpi, { label: "Em aberto", value: nReal(vAbertos), sub: "".concat(nInt(abertos.length), " or\u00E7amento").concat(abertos.length === 1 ? "" : "s", " esperando resposta") }),
@@ -9907,7 +10063,7 @@ function AbaBancoOrcamentos(_a) {
                                         React.createElement("span", { style: { display: "inline-flex", gap: 6, alignItems: "center" } },
                                             wa && React.createElement("a", { href: wa, target: "_blank", rel: "noopener", onClick: function (e) { return e.stopPropagation(); }, title: "Mensagem de follow-up pronta", style: { fontSize: 11.5, fontWeight: 700, color: T.preto, background: T.marca, borderRadius: 5, padding: "4px 8px", textDecoration: "none" } }, "WhatsApp \u2197"),
                                             React.createElement("span", { style: { fontSize: 12, color: T.muted } }, aberto ? "▲" : "▼")))),
-                                aberto && React.createElement(DetalheOrcamento, { o: o, closer: closer, aoMudar: function () { recarregar(); }, fechar: function () { return setAbertoId(null); } })));
+                                aberto && React.createElement(DetalheOrcamento, { o: o, closer: closer, aoMudar: function () { recarregar(); }, fechar: function () { return setAbertoId(null); }, editar: editarOrcamento })));
                         }),
                         !lista.length && React.createElement("tr", null,
                             React.createElement(Td, { color: T.muted, style: { whiteSpace: "normal" } }, todos.length ? (busca ? "Nada encontrado para \"".concat(busca, "\" neste filtro.") : "Nada nesse filtro.") : "Nenhum orçamento ainda. Clique em \"+ Novo orçamento\" para montar o primeiro.")),
@@ -9946,6 +10102,7 @@ function Piloto(_a) {
     var _g = __read(useState(null), 2), prefill = _g[0], setPrefill = _g[1];
     var _h = __read(useState(null), 2), abertoId = _h[0], setAbertoId = _h[1];
     var _j = __read(useState(null), 2), avisoOrc = _j[0], setAvisoOrc = _j[1];
+    var _k = __read(useState(null), 2), editando = _k[0], setEditando = _k[1];
     var d = usePiloto(closer && closer.erp_codigo, versao, closer && closer.unidade);
     var recarregar = function () { return setVersao(function (v) { return v + 1; }); };
     /* O título do lead no Kommo vem como "Johnny - Haval H6 - PPF + película":
@@ -9958,6 +10115,7 @@ function Piloto(_a) {
         var nome = partes[0] || "";
         var veic = l.veiculo || (partes.length > 2 ? partes[1] : "");
         var interesse = l.interesse || (partes.length > 2 ? partes.slice(2).join(" · ") : partes.length === 2 ? partes[1] : "");
+        setEditando(null);
         setPrefill({ origem: "crm", lead_kommo_id: l.kommo_id, cliente_nome: nome, veiculo: veic, titulo: interesse });
         setAba("novo");
         try {
@@ -9966,8 +10124,22 @@ function Piloto(_a) {
         catch (e) { /* segue */ }
     };
     var abrirOrcamento = function (id) { setAbertoId(id); setAba("banco"); };
+    /* v84: Editar no banco leva o orçamento salvo de volta ao formulário */
+    var editarOrcamento = function (o, itens) {
+        setEditando({ id: o.id, numero: o.numero, status: o.status, total: Number(o.total) || 0 });
+        setPrefill(orcParaForm(o, itens));
+        setAba("novo");
+        try {
+            window.scrollTo(0, 0);
+        }
+        catch (e) { /* segue */ }
+    };
+    var cancelarEdicao = function () { setEditando(null); setPrefill(null); setAba("banco"); };
+    var irParaNovoLimpo = function () { setEditando(null); setPrefill(null); setAba("novo"); };
     var aoSalvarOrc = function (id, novo) {
-        setAvisoOrc("Or\u00E7amento ".concat(novo && novo.ano ? "".concat(novo.ano, "-").concat(String(novo.seq).padStart(4, "0")) : "", " salvo \u2014 est\u00E1 aqui no banco, aberto."));
+        setAvisoOrc(editando ? "Or\u00E7amento ".concat(editando.numero, " atualizado \u2014 a imagem para o cliente j\u00E1 sai com os valores novos.")
+            : "Or\u00E7amento ".concat(novo && novo.ano ? "".concat(novo.ano, "-").concat(String(novo.seq).padStart(4, "0")) : "", " salvo \u2014 est\u00E1 aqui no banco, aberto."));
+        setEditando(null);
         setPrefill(null);
         recarregar();
         setAbertoId(id);
@@ -10000,7 +10172,7 @@ function Piloto(_a) {
                 return (React.createElement("button", { key: v, onClick: function () { return setAba(v); }, style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700, padding: "8px 16px",
                         border: 0, borderRadius: 5, cursor: "pointer", background: aba === v ? T.ink : "transparent", color: aba === v ? "#fff" : T.ink2 } }, l));
             })),
-            todos && (React.createElement(Select, { value: String(closer.erp_codigo), onChange: function (v) { setSel(v); setAbertoId(null); setPrefill(null); }, options: lista.map(function (c) { return ({ v: String(c.erp_codigo), l: "".concat(c.nome_oficial, " \u00B7 ").concat(c.unidade) }); }) })),
+            todos && (React.createElement(Select, { value: String(closer.erp_codigo), onChange: function (v) { setSel(v); setAbertoId(null); setPrefill(null); setEditando(null); }, options: lista.map(function (c) { return ({ v: String(c.erp_codigo), l: "".concat(c.nome_oficial, " \u00B7 ").concat(c.unidade) }); }) })),
             !embutido && React.createElement("span", { style: { fontSize: 12, color: T.muted } },
                 closer.nome_oficial,
                 " \u00B7 ",
@@ -10015,8 +10187,8 @@ function Piloto(_a) {
         aba === "controle" && todos ? React.createElement(SecaoControlePiloto, { n: 1 }) : (d.em || !d.carregando) && !d.erro && (aba === "painel"
             ? React.createElement(MeuPainel, { d: d, closer: closer, irParaOrcamentos: function () { return setAba("banco"); }, novoDoLead: novoDoLead, abrirOrcamento: abrirOrcamento, recarregar: recarregar, podeValidar: !!todos })
             : aba === "novo"
-                ? React.createElement(AbaNovoOrcamento, { closer: closer, prefill: prefill, limparPrefill: function () { return setPrefill(null); }, aoSalvar: aoSalvarOrc })
-                : React.createElement(AbaBancoOrcamentos, { d: d, closer: closer, recarregar: recarregar, abertoId: abertoId, setAbertoId: setAbertoId, aviso: avisoOrc, irParaNovo: function () { return setAba("novo"); } }))));
+                ? React.createElement(AbaNovoOrcamento, { closer: closer, prefill: prefill, limparPrefill: function () { return setPrefill(null); }, aoSalvar: aoSalvarOrc, editando: editando, aoCancelar: cancelarEdicao })
+                : React.createElement(AbaBancoOrcamentos, { d: d, closer: closer, recarregar: recarregar, abertoId: abertoId, setAbertoId: setAbertoId, aviso: avisoOrc, irParaNovo: irParaNovoLimpo, editarOrcamento: editarOrcamento }))));
 }
 /* A casca do closer: cabeçalho preto com o nome dele, sem as abas de SDR.
    O closer não precisa do funil do time para trabalhar o dia dele. */
