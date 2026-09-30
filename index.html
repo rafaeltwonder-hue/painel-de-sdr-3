@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v84 — CAR SERVICE</title>
-<meta name="painel-versao" content="v84">
+<title>Painel de SDR v85 — CAR SERVICE</title>
+<meta name="painel-versao" content="v85">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -234,7 +234,7 @@ window.FOTOS_ORC = {"hero_rear_logo": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ
 <script>
 function iniciarPainel() {
 "use strict";
-/* Painel de SDR — The Wonder / Car Service (v84: botão Editar no orçamento salvo · v83: controle do piloto em blocos, um embaixo do outro)
+/* Painel de SDR — The Wonder / Car Service (v85: miniatura só quando a foto é do mesmo serviço · v84: botão Editar no orçamento salvo · v83: controle do piloto em blocos, um embaixo do outro)
    Lê as views do Supabase. Sem lançamento manual: o dado vem do Kommo. */
 var __assign = (this && this.__assign) || function () {
     __assign = Object.assign || function(t) {
@@ -9462,6 +9462,25 @@ var FAM_ORC = [
     { k: "pelicula", re: /pel[ií]cula|insulfilm|antivandal|color stable|crystalline|fumê|fume\b/, palavra: "PELÍCULA", frase: "conforto térmico e privacidade", foto: "det_aerofolio" },
     { k: "ppf", re: /\bppf\b|paint protection|pro series|vorza|xpel|stek|full body|frontal/, palavra: "PPF", frase: "proteção invisível para a pintura", foto: "band_front" },
 ];
+/* v85 — miniatura de cada faixa: SÓ quando a foto mostra o mesmo serviço.
+   A biblioteca de fotos é de detalhes de um carro (farol, roda, tela, som); não tem foto de
+   PPF, película, vitrificação nem envelopamento — então esses itens ficam sem miniatura
+   em vez de ganhar uma foto que não tem nada a ver (pinça de freio em vitrificação, etc.).
+   Olha só o NOME do item, e qualquer item de PPF/película/estética nunca recebe foto. */
+var fotoDe = function (nome) {
+    var t = String(nome || "").toLowerCase();
+    if (/\bppf\b|pel[ií]cula|insulfilm|vitrific|cristaliz|cer[aâ]mic|polimento|envelop|revitaliz|higieniz|lavagem|prote[cç][aã]o|antivandal|color stable|\bfilme\b/.test(t))
+        return "";
+    if (/\bfarol|far[óo]is|lanterna/.test(t))
+        return "det_farol";
+    if (/\broda|\brodas\b|pin[çc]a/.test(t))
+        return "det_roda";
+    if (/multim[ií]dia|carplay|android auto|central multim/.test(t))
+        return "mm_carplay";
+    if (/\bsom\b|[áa]udio|alto.?falante|subwoofer|amplific|tweeter|kit de som/.test(t))
+        return "proc_tweeter";
+    return "";
+};
 var familiaDe = function (texto) { return FAM_ORC.find(function (f) { return f.re.test(String(texto || "").toLowerCase()); }) || null; };
 /* O que o closer digita vai direto para o cliente: aqui entram acento,
    maiúscula e as siglas da casa. Não grava nada — só arruma na hora. */
@@ -9502,7 +9521,7 @@ function ImagemOrcamento(_a) {
     /* "Opções" com menos de duas opções é cardápio, independente do que foi marcado */
     var comOpcao = itens.filter(function (i) { return i.opcao; });
     var opcoes = o.formato === "opcoes" && comOpcao.length >= 2;
-    var lista = itens.slice(0, 6).map(function (it, i) { return (__assign(__assign({}, it), { nome: arruma(it.nome), aplicacao: arruma(it.aplicacao), garantia: arruma(it.garantia), descricao: arruma(it.descricao), fam: familiaDe(it.nome + " " + (it.aplicacao || "")) })); });
+    var lista = itens.slice(0, 6).map(function (it, i) { return (__assign(__assign({}, it), { nome: arruma(it.nome), aplicacao: arruma(it.aplicacao), garantia: arruma(it.garantia), descricao: arruma(it.descricao), fam: familiaDe(it.nome + " " + (it.aplicacao || "")), foto: fotoDe(it.nome) })); });
     var n = lista.length;
     var total = Number(o.total) || itens.reduce(function (s, i) { return s + (Number(i.preco) || 0); }, 0);
     var precos = itens.map(function (i) { return Number(i.preco) || 0; });
@@ -9568,8 +9587,8 @@ function ImagemOrcamento(_a) {
             React.createElement("br", null),
             React.createElement("span", { style: { color: "#fff", fontWeight: 500, fontSize: 22, letterSpacing: ".02em" } }, o.prazo || rotPrazo(o.prazo_execucao))),
         React.createElement("div", { style: { position: "absolute", left: 56, right: 56, top: topo, display: "grid", gap: 8 } }, lista.map(function (it, i) { return (React.createElement("div", { key: it.id || i, style: { position: "relative", height: altFaixa, border: "1px solid rgba(255,191,0,".concat(it.destaque || (i === 0 && !opcoes) ? ".85" : ".3", ")"), background: "#0c0c0c",
-                display: "grid", gridTemplateColumns: comFoto && it.fam ? "96px 1fr auto" : "1fr auto", alignItems: "center" } },
-            comFoto && it.fam && React.createElement("div", { style: { height: "100%", backgroundImage: "url(".concat(FOTO(it.fam.foto), ")"), backgroundSize: "cover", backgroundPosition: "center", borderRight: "1px solid rgba(255,191,0,.2)" } }),
+                display: "grid", gridTemplateColumns: comFoto && it.foto ? "96px 1fr auto" : "1fr auto", alignItems: "center" } },
+            comFoto && it.foto && React.createElement("div", { style: { height: "100%", backgroundImage: "url(".concat(FOTO(it.foto), ")"), backgroundSize: "cover", backgroundPosition: "center", borderRight: "1px solid rgba(255,191,0,.2)" } }),
             React.createElement("div", { style: { padding: comDescricao ? "0 34px" : "0 20px", minWidth: 0 } },
                 React.createElement("div", { style: __assign({ fontWeight: 500, fontSize: nomeFs, lineHeight: 1.1 }, corta) },
                     opcoes && it.opcao ? "Op\u00E7\u00E3o ".concat(it.opcao, " \u00B7 ") : "",
