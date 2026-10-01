@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v85 — CAR SERVICE</title>
-<meta name="painel-versao" content="v85">
+<title>Painel de SDR v86 — CAR SERVICE</title>
+<meta name="painel-versao" content="v86">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -1052,6 +1052,253 @@ var Linha = function (_a) {
         React.createElement("b", { style: { fontFamily: F_NUM, fontWeight: 700, color: cor || T.ink,
                 fontVariantNumeric: "tabular-nums", fontSize: 15 } }, valor)));
 };
+/* ---------- v86: divergência de O.S. Kommo × Oficina ----------
+   O Paulo não achava onde o painel e o Oficina se separavam. Aqui o cruzamento
+   é feito sozinho (função comercial.divergencia_os) e só aparece o que NÃO bate:
+   card do Kommo sem O.S., O.S. sem card, origem diferente, valor diferente.
+   "Conferido" fica gravado, com quem marcou, para a lista só ter pendência. */
+var DIV_TIPOS = {
+    kommo_sem_os: { nome: "Kommo sem O.S.", cor: "#C1121F", dica: "Tem card vendido no Kommo, mas não achei O.S. no Oficina" },
+    os_sem_kommo: { nome: "O.S. sem card", cor: "#8A5A00", dica: "O.S. de agendamento no Oficina, sem venda no Kommo" },
+    origem_diferente: { nome: "Origem diferente", cor: "#1652C4", dica: "A venda existe nos dois lados, mas o Oficina não a conta como agendamento desse SDR" },
+    valor_diferente: { nome: "Valor diferente", cor: "#6B3FA0", dica: "Mesmo cliente e SDR, valores diferentes" },
+};
+function BlocoDivergenciaOS(_a) {
+    var _this = this;
+    var sessao = _a.sessao;
+    var h = hoje();
+    var _b = __read(useState("mes"), 2), per = _b[0], setPer = _b[1];
+    var _c = __read(useState("todas"), 2), filtro = _c[0], setFiltro = _c[1];
+    var _d = __read(useState(null), 2), dados = _d[0], setDados = _d[1];
+    var _f = __read(useState(null), 2), erro = _f[0], setErro = _f[1];
+    var _g = __read(useState(false), 2), carregando = _g[0], setCarregando = _g[1];
+    var _h = __read(useState(true), 2), aberto = _h[0], setAberto = _h[1];
+    var _j = __read(useState(null), 2), salvando = _j[0], setSalvando = _j[1];
+    var _k = __read(useState(false), 2), copiado = _k[0], setCopiado = _k[1];
+    var meuEmail = sessao && sessao.user ? sessao.user.email : "";
+    var _l = __read(useMemo(function () {
+        if (per === "passado") {
+            var a = mesAnteriorDe(h);
+            var b = addDays(primeiroDia(h), -1);
+            return [a, b];
+        }
+        if (per === "7d")
+            return [addDays(h, -6), h];
+        return [primeiroDia(h), h];
+    }, [per, h]), 2), ini = _l[0], fim = _l[1];
+    var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
+        var r_1, e_1;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    setCarregando(true);
+                    _a.label = 1;
+                case 1:
+                    _a.trys.push([1, 3, , 4]);
+                    return [4 /*yield*/, exigir(db.rpc("divergencia_os", { p_ini: ini, p_fim: fim }))];
+                case 2:
+                    r_1 = _a.sent();
+                    if (r_1 && r_1.erro)
+                        throw new Error(r_1.erro);
+                    setDados(r_1);
+                    setErro(null);
+                    return [3 /*break*/, 4];
+                case 3:
+                    e_1 = _a.sent();
+                    setErro(e_1.message || String(e_1));
+                    return [3 /*break*/, 4];
+                case 4:
+                    setCarregando(false);
+                    return [2 /*return*/];
+            }
+        });
+    }); }, [ini, fim]);
+    useEffect(function () { carregar(); }, [carregar]);
+    var marcar = function (it, desfazer) { return __awaiter(_this, void 0, void 0, function () {
+        var e_2;
+        return __generator(this, function (_a) {
+            switch (_a.label) {
+                case 0:
+                    setSalvando(it.chave);
+                    _a.label = 1;
+                case 1:
+                    _a.trys.push([1, 7, , 8]);
+                    if (!desfazer) return [3 /*break*/, 3];
+                    return [4 /*yield*/, exigir(db.from("divergencia_os_conferida").delete().eq("chave", it.chave))];
+                case 2:
+                    _a.sent();
+                    return [3 /*break*/, 5];
+                case 3: return [4 /*yield*/, exigir(db.from("divergencia_os_conferida").insert({ chave: it.chave, tipo: it.tipo, conferido_por: meuEmail }))];
+                case 4:
+                    _a.sent();
+                    _a.label = 5;
+                case 5: return [4 /*yield*/, carregar()];
+                case 6:
+                    _a.sent();
+                    return [3 /*break*/, 8];
+                case 7:
+                    e_2 = _a.sent();
+                    setErro(e_2.message || String(e_2));
+                    return [3 /*break*/, 8];
+                case 8:
+                    setSalvando(null);
+                    return [2 /*return*/];
+            }
+        });
+    }); };
+    var itens = (dados && dados.itens) || [];
+    var aguardando = itens.filter(function (i) { return i.aguardando; });
+    var reais = itens.filter(function (i) { return !i.aguardando; });
+    var pend = reais.filter(function (i) { return !i.conferida; });
+    var conf = reais.filter(function (i) { return i.conferida; });
+    var cont = function (t) { return pend.filter(function (i) { return i.tipo === t; }).length; };
+    var lista = filtro === "conferidas" ? conf : pend.filter(function (i) { return filtro === "todas" || i.tipo === filtro; });
+    var dif = function (i) { return (i.kommo_id && i.os_numero ? Number(i.valor) - Number(i.os_valor) : null); };
+    var emJogo = pend.reduce(function (s, i) { return s + Math.abs(i.tipo === "valor_diferente" ? (dif(i) || 0) : Number(i.valor) || 0); }, 0);
+    var r = (dados && dados.resumo) || {};
+    var cob = (dados && dados.cobertura) || {};
+    var cobMin = Object.values(cob).sort()[0];
+    var cobDefasada = cobMin && cobMin < addDays(h, -3);
+    var copiar = function () {
+        var linhas = pend.map(function (i, n) {
+            var t = DIV_TIPOS[i.tipo].nome;
+            var k = i.kommo_id ? "Kommo: ".concat(i.titulo || "", " ").concat(nReal(i.valor), " ").concat(KOMMO_LEAD(i.kommo_id)) : "";
+            var o = i.os_numero ? "Oficina: O.S. ".concat(i.os_numero, " ").concat(i.os_cliente || "", " ").concat(nReal(i.os_valor)) : "";
+            return "".concat(n + 1, ". [").concat(t, "] ").concat(i.loja, " \u00B7 ").concat(i.sdr, " \u00B7 ").concat(brFull(i.dia), "\n   ").concat([k, o].filter(Boolean).join("\n   "));
+        });
+        var txt = "Diverg\u00EAncia Kommo \u00D7 Oficina \u2014 ".concat(brFull(ini), " a ").concat(brFull(fim), " (").concat(pend.length, " pendentes)\n\n") + linhas.join("\n");
+        try {
+            navigator.clipboard.writeText(txt);
+            setCopiado(true);
+            setTimeout(function () { return setCopiado(false); }, 2000);
+        }
+        catch (e) { /* sem clipboard */ }
+    };
+    var semDiv = dados && !carregando && pend.length === 0;
+    var corTitulo = pend.length ? T.bad : T.good;
+    return (React.createElement(Card, { className: "p20", style: { marginBottom: 16, borderColor: pend.length ? "#F0C3C6" : undefined } },
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" } },
+            React.createElement("div", null,
+                React.createElement(Label, null, "Confer\u00EAncia autom\u00E1tica"),
+                React.createElement("h2", { style: { fontFamily: F_MARCA, fontSize: 16, fontWeight: 700, margin: "4px 0 0" } }, "Diverg\u00EAncia de O.S. \u2014 Kommo \u00D7 Oficina"),
+                React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 5, maxWidth: 560 } }, "O painel cruza sozinho cada venda do Kommo com as O.S. de agendamento do Oficina (loja, SDR, valor e data) e mostra s\u00F3 o que n\u00E3o bate.")),
+            React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                React.createElement(Chips, { value: per, onChange: setPer, options: [["mes", "Este mês"], ["passado", "Mês passado"], ["7d", "7 dias"]] }),
+                React.createElement("button", { type: "button", onClick: function () { return setAberto(!aberto); }, style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 600,
+                        padding: "6px 11px", borderRadius: 99, cursor: "pointer", border: "1px solid ".concat(T.hair), background: T.surface, color: T.ink2 } }, aberto ? "Recolher" : "Abrir"))),
+        erro && React.createElement("div", { style: { marginTop: 12, fontSize: 13, color: T.bad, background: "#FDECEE", borderRadius: 6, padding: "9px 11px" } },
+            "N\u00E3o consegui conferir agora: ",
+            erro),
+        carregando && !dados && React.createElement("div", { style: { marginTop: 14, fontSize: 13, color: T.muted } }, "Conferindo Kommo \u00D7 Oficina\u2026"),
+        dados && (React.createElement(React.Fragment, null,
+            React.createElement("div", { style: { marginTop: 14, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
+                    background: pend.length ? "#FDECEE" : "#E6F4EE", borderRadius: 8, padding: "11px 14px" } },
+                React.createElement("span", { style: { fontFamily: F_NUM, fontSize: 26, fontWeight: 700, color: corTitulo, lineHeight: 1 } }, nInt(pend.length)),
+                React.createElement("span", { style: { fontSize: 13.5, color: T.ink, fontWeight: 600 } },
+                    pend.length === 0 ? "nenhuma divergência pendente neste período — Kommo e Oficina batem"
+                        : pend.length === 1 ? "divergência pendente para conferir" : "divergências pendentes para conferir",
+                    pend.length > 0 && React.createElement("span", { style: { fontWeight: 400, color: T.ink2 } },
+                        " \u00B7 ",
+                        nReal(emJogo),
+                        " em jogo"))),
+            React.createElement("div", { style: { display: "grid", gap: 10, marginTop: 12, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" } },
+                React.createElement("div", null,
+                    React.createElement(Label, null, "Vendas no Kommo"),
+                    React.createElement(Metric, { value: nInt(r.kommo_qtd), size: 22 }),
+                    React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, nReal(r.kommo_valor))),
+                React.createElement("div", null,
+                    React.createElement(Label, null, "O.S. agendamento no Oficina"),
+                    React.createElement(Metric, { value: nInt(r.os_qtd), size: 22 }),
+                    React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, nReal(r.os_valor))),
+                React.createElement("div", null,
+                    React.createElement(Label, null, "Diferen\u00E7a de valor"),
+                    React.createElement(Metric, { value: nReal(Number(r.kommo_valor || 0) - Number(r.os_valor || 0)), size: 22, color: Math.abs(Number(r.kommo_valor || 0) - Number(r.os_valor || 0)) > 1000 ? T.bad : T.ink }),
+                    React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, "Kommo \u2212 Oficina")),
+                React.createElement("div", null,
+                    React.createElement(Label, null, "Batem certinho"),
+                    React.createElement(Metric, { value: nInt(r.batem), size: 22, color: T.good }),
+                    React.createElement("div", { style: { fontSize: 12, color: T.ink2 } },
+                        "de ",
+                        nInt(r.kommo_qtd),
+                        " vendas"))),
+            React.createElement("div", { style: { marginTop: 10, fontSize: 11.5, color: cobDefasada ? T.bad : T.muted } },
+                "Oficina importado at\u00E9 ",
+                Object.keys(cob).sort().map(function (l) { return "".concat(l, " ").concat(br(cob[l])); }).join(" · "),
+                cobDefasada ? " — importação atrasada: importe de novo na aba Importar antes de conferir." : "."),
+            aberto && !semDiv && (React.createElement(React.Fragment, null,
+                React.createElement("div", { style: { marginTop: 14, overflowX: "auto" } },
+                    React.createElement(Chips, { value: filtro, onChange: setFiltro, options: __spreadArray(__spreadArray([
+                            ["todas", "Todas (".concat(pend.length, ")")]
+                        ], __read(Object.keys(DIV_TIPOS).map(function (t) { return [t, "".concat(DIV_TIPOS[t].nome, " (").concat(cont(t), ")")]; })), false), [
+                            ["conferidas", "Conferidas (".concat(conf.length, ")")],
+                        ], false) })),
+                filtro !== "todas" && filtro !== "conferidas" && (React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 6 } },
+                    DIV_TIPOS[filtro].dica,
+                    ".")),
+                React.createElement("div", { style: { marginTop: 10, overflowX: "auto", maxHeight: 520, overflowY: "auto", border: "1px solid ".concat(T.hair), borderRadius: 8 } },
+                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 760 } },
+                        React.createElement("thead", null,
+                            React.createElement("tr", null,
+                                React.createElement(Th, null, "Tipo"),
+                                React.createElement(Th, null, "Loja \u00B7 SDR \u00B7 Dia"),
+                                React.createElement(Th, null, "Kommo (card)"),
+                                React.createElement(Th, null, "Oficina (O.S.)"),
+                                React.createElement(Th, { right: true }, "Diferen\u00E7a"),
+                                React.createElement(Th, { right: true }, "Conferi"))),
+                        React.createElement("tbody", null,
+                            lista.length === 0 && React.createElement("tr", null,
+                                React.createElement(Td, { style: { whiteSpace: "normal" } }, "Nada nesta lista."),
+                                React.createElement(Td, null),
+                                React.createElement(Td, null),
+                                React.createElement(Td, null),
+                                React.createElement(Td, null),
+                                React.createElement(Td, null)),
+                            lista.map(function (i) {
+                                var t = DIV_TIPOS[i.tipo];
+                                var d = dif(i);
+                                var solo = d == null ? Number(i.valor) || 0 : d;
+                                return (React.createElement("tr", { key: i.chave, style: { opacity: i.conferida ? 0.6 : 1 } },
+                                    React.createElement(Td, null,
+                                        React.createElement(Tag, { cor: t.cor }, t.nome)),
+                                    React.createElement(Td, null,
+                                        React.createElement("div", { style: { fontWeight: 600 } },
+                                            i.loja,
+                                            " \u00B7 ",
+                                            i.sdr),
+                                        React.createElement("div", { style: { fontSize: 11.5, color: T.muted } }, brFull(i.dia))),
+                                    React.createElement(Td, null, i.kommo_id ? (React.createElement(React.Fragment, null,
+                                        React.createElement("a", { href: KOMMO_LEAD(i.kommo_id), target: "_blank", rel: "noopener", style: { color: T.ink, fontWeight: 600, textDecoration: "none", borderBottom: "1px solid ".concat(T.marca) } }, i.titulo || "Lead ".concat(i.kommo_id)),
+                                        React.createElement("div", { style: { fontSize: 11.5, color: T.muted } },
+                                            nReal(i.valor),
+                                            i.suspeito ? " · valor suspeito" : "",
+                                            " \u00B7 ",
+                                            i.etapa || "sem etapa"))) : React.createElement("span", { style: { color: T.muted } }, "\u2014 n\u00E3o existe card")),
+                                    React.createElement(Td, null, i.os_numero ? (React.createElement(React.Fragment, null,
+                                        React.createElement("div", { style: { fontWeight: 600 } },
+                                            "O.S. ",
+                                            i.os_numero,
+                                            i.os_cliente ? " \u00B7 ".concat(i.os_cliente) : ""),
+                                        React.createElement("div", { style: { fontSize: 11.5, color: T.muted } },
+                                            nReal(i.os_valor),
+                                            " \u00B7 ",
+                                            i.os_pesquisa || "sem pesquisa"))) : React.createElement("span", { style: { color: T.muted } }, "\u2014 n\u00E3o existe O.S.")),
+                                    React.createElement(Td, { right: true, bold: true, color: i.tipo === "origem_diferente" ? T.ink2 : Math.abs(solo) >= 500 ? T.bad : T.warn }, i.tipo === "origem_diferente" ? "".concat(nReal(i.valor), " (origem)") : d == null ? nReal(solo) : (d > 0 ? "+" : "") + nReal(d)),
+                                    React.createElement(Td, { right: true }, i.conferida
+                                        ? React.createElement("button", { type: "button", disabled: salvando === i.chave, onClick: function () { return marcar(i, true); }, title: "".concat(i.conferida_por || ""), style: { fontFamily: F_UI, fontSize: 12, padding: "5px 9px", borderRadius: 6, cursor: "pointer", border: "1px solid ".concat(T.hair), background: T.surface, color: T.ink2 } }, "Desfazer")
+                                        : React.createElement("button", { type: "button", disabled: salvando === i.chave, onClick: function () { return marcar(i, false); }, style: { fontFamily: F_UI, fontSize: 12, fontWeight: 700, padding: "5px 9px", borderRadius: 6, cursor: "pointer", border: "1px solid ".concat(T.ink), background: T.ink, color: "#fff" } }, "Conferido"))));
+                            })))),
+                React.createElement("div", { style: { display: "flex", gap: 10, marginTop: 10, alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement("button", { type: "button", onClick: copiar, disabled: !pend.length, style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 600,
+                            padding: "7px 12px", borderRadius: 6, cursor: "pointer", border: "1px solid ".concat(T.hair), background: T.surface, color: T.ink } }, copiado ? "Copiado ✓" : "Copiar pendências para o WhatsApp"),
+                    React.createElement("span", { style: { fontSize: 11.5, color: T.muted } }, "\u201CConferido\u201D = voc\u00EA olhou e j\u00E1 est\u00E1 resolvido ou explicado. Some da lista; \u201CDesfazer\u201D traz de volta.")))),
+            aberto && aguardando.length > 0 && (React.createElement("div", { style: { marginTop: 12, fontSize: 12, color: T.muted } },
+                nInt(aguardando.length),
+                " ",
+                aguardando.length === 1 ? "venda do Kommo é" : "vendas do Kommo são",
+                " mais ",
+                aguardando.length === 1 ? "nova" : "novas",
+                " que a \u00FAltima importa\u00E7\u00E3o do Oficina; n\u00E3o contam como diverg\u00EAncia at\u00E9 a pr\u00F3xima importa\u00E7\u00E3o."))))));
+}
 /* ---------- aba do coordenador ---------- */
 function AbaCoordenador(_a) {
     var c = _a.c, funil = _a.funil, qualidade = _a.qualidade, tarefas = _a.tarefas, semTarefa = _a.semTarefa, sessao = _a.sessao;
@@ -1102,6 +1349,7 @@ function AbaCoordenador(_a) {
     var porVencidas = c.pessoasLista.slice()
         .sort(function (a, b) { return Number((tk[b.sdr] || {}).vencidas || 0) - Number((tk[a.sdr] || {}).vencidas || 0); });
     return (React.createElement("div", null,
+        !ehStore && React.createElement(BlocoDivergenciaOS, { sessao: sessao }),
         React.createElement(Card, { className: "p20" },
             React.createElement("h2", { style: { fontFamily: F_MARCA, fontSize: 16, fontWeight: 700, margin: 0 } }, "M\u00EAs corrente \u2014 onde estamos"),
             React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 5 } },
@@ -1958,7 +2206,7 @@ function usarDados(de, ate, prevDe, negocio) {
         });
     }); };
     var buscar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var doNegocio_1, timeTudo, doOutroTime_1, semOutroTime, _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, sl, of, _b, ag, co, es, vp, ce, rb, pr, opcional, opcionalPaginado, inicioDoMes_1, oDiaDeHoje_1, _c, q, fa, ms, mt, sd, tf, lst, mm, eq, fm, eh, th, vh, ch, mi, e_1;
+        var doNegocio_1, timeTudo, doOutroTime_1, semOutroTime, _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, sl, of, _b, ag, co, es, vp, ce, rb, pr, opcional, opcionalPaginado, inicioDoMes_1, oDiaDeHoje_1, _c, q, fa, ms, mt, sd, tf, lst, mm, eq, fm, eh, th, vh, ch, mi, e_3;
         var _this = this;
         return __generator(this, function (_d) {
             switch (_d.label) {
@@ -1986,7 +2234,7 @@ function usarDados(de, ate, prevDe, negocio) {
                         return /does not exist|could not find the table|schema cache|não existe/i.test(String(m || ""));
                     };
                     buscarSePuder = function (nome, montar) { return __awaiter(_this, void 0, void 0, function () {
-                        var e_2, m_1;
+                        var e_4, m_1;
                         return __generator(this, function (_a) {
                             switch (_a.label) {
                                 case 0:
@@ -1994,8 +2242,8 @@ function usarDados(de, ate, prevDe, negocio) {
                                     return [4 /*yield*/, buscarTudo(montar)];
                                 case 1: return [2 /*return*/, _a.sent()];
                                 case 2:
-                                    e_2 = _a.sent();
-                                    m_1 = e_2 && e_2.message ? e_2.message : String(e_2);
+                                    e_4 = _a.sent();
+                                    m_1 = e_4 && e_4.message ? e_4.message : String(e_4);
                                     if (!viewAusente_1(m_1))
                                         falhou_1.push({ nome: nome, m: m_1 });
                                     return [2 /*return*/, null];
@@ -2075,7 +2323,7 @@ function usarDados(de, ate, prevDe, negocio) {
                     pr = _d.sent();
                     setPreench(pr || []);
                     opcional = function (fn, padrao) { return __awaiter(_this, void 0, void 0, function () {
-                        var _a, data, error, e_3;
+                        var _a, data, error, e_5;
                         return __generator(this, function (_b) {
                             switch (_b.label) {
                                 case 0:
@@ -2085,14 +2333,14 @@ function usarDados(de, ate, prevDe, negocio) {
                                     _a = _b.sent(), data = _a.data, error = _a.error;
                                     return [2 /*return*/, error ? padrao : (data !== null && data !== void 0 ? data : padrao)];
                                 case 2:
-                                    e_3 = _b.sent();
+                                    e_5 = _b.sent();
                                     return [2 /*return*/, padrao];
                                 case 3: return [2 /*return*/];
                             }
                         });
                     }); };
                     opcionalPaginado = function (montar, padrao) { return __awaiter(_this, void 0, void 0, function () {
-                        var e_4;
+                        var e_6;
                         return __generator(this, function (_a) {
                             switch (_a.label) {
                                 case 0:
@@ -2100,7 +2348,7 @@ function usarDados(de, ate, prevDe, negocio) {
                                     return [4 /*yield*/, buscarTudo(montar)];
                                 case 1: return [2 /*return*/, _a.sent()];
                                 case 2:
-                                    e_4 = _a.sent();
+                                    e_6 = _a.sent();
                                     return [2 /*return*/, padrao];
                                 case 3: return [2 /*return*/];
                             }
@@ -2156,8 +2404,8 @@ function usarDados(de, ate, prevDe, negocio) {
                     setEstado({ carregando: false, erro: null, em: new Date() });
                     return [3 /*break*/, 20];
                 case 19:
-                    e_1 = _d.sent();
-                    setEstado({ carregando: false, erro: e_1.message || String(e_1) });
+                    e_3 = _d.sent();
+                    setEstado({ carregando: false, erro: e_3.message || String(e_3) });
                     return [3 /*break*/, 20];
                 case 20: return [2 /*return*/];
             }
@@ -2257,7 +2505,7 @@ function JanelaVendas(_a) {
     };
     /* Para colar no WhatsApp: número, título e link, um por linha */
     var copiar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var texto, e_5;
+        var texto, e_7;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -2272,7 +2520,7 @@ function JanelaVendas(_a) {
                     setTimeout(function () { return setCopiado(false); }, 2500);
                     return [3 /*break*/, 4];
                 case 3:
-                    e_5 = _a.sent();
+                    e_7 = _a.sent();
                     window.prompt("Copie a lista:", texto);
                     return [3 /*break*/, 4];
                 case 4: return [2 /*return*/];
@@ -3563,16 +3811,7 @@ var LOJAS_IMPORT = ["Itaim", "Ipiranga", "Bandeirantes", "Tatuapé"];
 function ChecklistImport(_a) {
     var lista = _a.lista;
     var hojeISO = hoje();
-    /* Virada do mês (01/10/2026): no dia 1º a equipe sobe os arquivos do mês
-       que FECHOU (fechamento), não do mês novo, que ainda não tem venda. Então
-       no dia 1º a lista confere o mês anterior; do dia 2 em diante volta a
-       cobrar o mês corrente. */
-    var mesCorrente = hojeISO.slice(0, 8) + "01";
-    var dia1 = hojeISO.slice(8, 10) === "01";
-    var mesFech = (function () { var y = Number(mesCorrente.slice(0, 4)), m = Number(mesCorrente.slice(5, 7)) - 1; if (m === 0) { m = 12; y -= 1; } return y + "-" + String(m).padStart(2, "0") + "-01"; })();
-    var inicioMes = dia1 ? mesFech : mesCorrente;
-    var NOMES_MES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
-    var nomeRef = NOMES_MES[Number(inicioMes.slice(5, 7)) - 1];
+    var inicioMes = hojeISO.slice(0, 8) + "01";
     var seteAtras = addDays(hojeISO, -6);
     var mesAnt = String(Number(inicioMes.slice(0, 4)) - 1) + inicioMes.slice(4);
     var ok = function (a) { return a.status === "ok"; };
@@ -3594,19 +3833,18 @@ function ChecklistImport(_a) {
     // que vai para a planilha de cobrança; mensal ficava velho demais.
     var faltamPag = LOJAS_IMPORT.filter(function (l) { return !doTipo("os_pagamento").some(function (a) { return a.loja === l && a.periodo_ini === inicioMes && diaDe(a) >= seteAtras; }); });
     var temAnterior = doTipo("vendas_empresa").some(function (a) { return a.periodo_ini === mesAnt; });
-    var sufixo = dia1 ? " · fechamento de ".concat(nomeRef) : "";
     var itens = [
         { t: "Listagem de OS's c/ Itens (Rede) · 3 meses", quando: "todo dia", falta: !listagemHoje.length || !listagemTrimestre.length,
             det: !listagemHoje.length ? "não foi importada hoje — é o arquivo que move todo o painel"
                 : !listagemTrimestre.length ? "veio só com o mês atual — exporte de 3 meses, senão faltam as O.S. antigas em aberto"
                     : "importada hoje, com os 3 meses" },
-        { t: "Vendas por Responsável" + sufixo, quando: "1 por loja, toda semana", falta: !!faltamVR.length,
-            det: faltamVR.length ? (dia1 ? "faltando o fechamento: " : "faltando desta semana: ").concat(faltamVR.join(", ")) : "as 4 lojas em dia" },
-        { t: (dia1 ? "Vendas por Empresa de ".concat(nomeRef) : "Vendas por Empresa do mês atual"), quando: "1 vez por mês", falta: !empresaHoje.length,
+        { t: "Vendas por Responsável", quando: "1 por loja, toda semana", falta: !!faltamVR.length,
+            det: faltamVR.length ? "faltando desta semana: ".concat(faltamVR.join(", ")) : "as 4 lojas em dia" },
+        { t: "Vendas por Empresa do mês atual", quando: "1 vez por mês", falta: !empresaHoje.length,
             det: empresaHoje.length ? "conferência com o ERP em dia" : "sem a conferência do mês com o Mapa de Metas" },
-        { t: "OS por Pagamento" + sufixo, quando: "1 por loja, toda semana", falta: !!faltamPag.length,
-            det: faltamPag.length ? (dia1 ? "faltando o fechamento: " : "faltando desta semana: ").concat(faltamPag.join(", ")) : "as 4 lojas em dia" },
-        { t: "Vendas por Empresa do ano anterior" + sufixo, quando: "1 vez por mês", falta: !temAnterior,
+        { t: "OS por Pagamento", quando: "1 por loja, toda semana", falta: !!faltamPag.length,
+            det: faltamPag.length ? "faltando desta semana: ".concat(faltamPag.join(", ")) : "as 4 lojas em dia" },
+        { t: "Vendas por Empresa do ano anterior", quando: "1 vez por mês", falta: !temAnterior,
             det: temAnterior ? "base do crescimento carregada" : "sem a base do mesmo mês do ano passado — o crescimento fica vazio" },
     ];
     /* Alarme de contagem em dobro (16/09/2026). O arquivo novo só substitui o
@@ -3625,7 +3863,6 @@ function ChecklistImport(_a) {
     return (React.createElement(Card, { className: "p16", style: { marginBottom: 14, borderColor: faltando ? "#F0DDA0" : T.hair, background: faltando ? "#FFFDF5" : T.surface } },
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
             React.createElement(Label, null, "O que falta importar"),
-            dia1 && React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: T.ink2, background: "#FFF3CC", borderRadius: 6, padding: "2px 8px" } }, "Hoje é dia 1º: confira o fechamento de ".concat(nomeRef, " — a partir de amanhã, arquivos do mês novo")),
             React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: faltando ? T.warn : T.good } }, faltando ? "".concat(faltando, " de ").concat(itens.length, " pendentes") : "tudo em dia ✓")),
         React.createElement("div", { style: { display: "grid", gap: 8, marginTop: 10 } }, itens.map(function (x) { return (React.createElement("div", { key: x.t, style: { display: "flex", gap: 10, alignItems: "baseline", fontSize: 13 } },
             React.createElement("span", { style: { color: x.falta ? T.warn : T.good, fontWeight: 700, width: 14 } }, x.falta ? "•" : "✓"),
@@ -3663,7 +3900,7 @@ function CartaoIntegracao() {
     var _h = __read(useState(false), 2), indoOs = _h[0], setIndoOs = _h[1];
     var brDia = function (iso) { return "".concat(iso.slice(8, 10), "/").concat(iso.slice(5, 7), "/").concat(iso.slice(0, 4)); };
     var buscar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var _a, data, error, e_6;
+        var _a, data, error, e_8;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -3683,8 +3920,8 @@ function CartaoIntegracao() {
                     setOs(data);
                     return [3 /*break*/, 4];
                 case 3:
-                    e_6 = _b.sent();
-                    setErro(e_6.message || String(e_6));
+                    e_8 = _b.sent();
+                    setErro(e_8.message || String(e_8));
                     return [3 /*break*/, 4];
                 case 4:
                     setIndoOs(false);
@@ -3693,7 +3930,7 @@ function CartaoIntegracao() {
         });
     }); };
     var conferir = function () { return __awaiter(_this, void 0, void 0, function () {
-        var _a, data, error, e_7;
+        var _a, data, error, e_9;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -3713,8 +3950,8 @@ function CartaoIntegracao() {
                     setR(data);
                     return [3 /*break*/, 4];
                 case 3:
-                    e_7 = _b.sent();
-                    setErro(e_7.message || String(e_7));
+                    e_9 = _b.sent();
+                    setErro(e_9.message || String(e_9));
                     return [3 /*break*/, 4];
                 case 4:
                     setIndo(false);
@@ -3827,7 +4064,7 @@ function AbaImportar(_a) {
     }); };
     useEffect(function () { carregar(); }, []);
     var chamar = function (arquivo_id, amostra) { return __awaiter(_this, void 0, void 0, function () {
-        var _a, data, error, corpo, e_8;
+        var _a, data, error, corpo, e_10;
         var _b, _c;
         return __generator(this, function (_d) {
             switch (_d.label) {
@@ -3844,7 +4081,7 @@ function AbaImportar(_a) {
                     corpo = _d.sent();
                     return [3 /*break*/, 5];
                 case 4:
-                    e_8 = _d.sent();
+                    e_10 = _d.sent();
                     return [3 /*break*/, 5];
                 case 5: throw new Error((corpo === null || corpo === void 0 ? void 0 : corpo.erro) || error.message || "falha ao chamar a função");
                 case 6:
@@ -3855,8 +4092,8 @@ function AbaImportar(_a) {
         });
     }); };
     var enviar = function (arquivos) { return __awaiter(_this, void 0, void 0, function () {
-        var lote, hojeStr, _loop_1, lote_1, lote_1_1, a, e_9_1;
-        var e_9, _a;
+        var lote, hojeStr, _loop_1, lote_1, lote_1_1, a, e_11_1;
+        var e_11, _a;
         var _b;
         return __generator(this, function (_c) {
             switch (_c.label) {
@@ -3869,7 +4106,7 @@ function AbaImportar(_a) {
                     }
                     hojeStr = hoje();
                     _loop_1 = function (a) {
-                        var item, atualiza, caminho, up, reg, r, e_10;
+                        var item, atualiza, caminho, up, reg, r, e_12;
                         return __generator(this, function (_d) {
                             switch (_d.label) {
                                 case 0:
@@ -3899,8 +4136,8 @@ function AbaImportar(_a) {
                                     atualiza({ etapa: "ok", resultado: r });
                                     return [3 /*break*/, 6];
                                 case 5:
-                                    e_10 = _d.sent();
-                                    atualiza({ etapa: "erro", erro: e_10.message || String(e_10) });
+                                    e_12 = _d.sent();
+                                    atualiza({ etapa: "erro", erro: e_12.message || String(e_12) });
                                     return [3 /*break*/, 6];
                                 case 6: return [4 /*yield*/, carregar()];
                                 case 7:
@@ -3926,21 +4163,21 @@ function AbaImportar(_a) {
                     return [3 /*break*/, 2];
                 case 5: return [3 /*break*/, 8];
                 case 6:
-                    e_9_1 = _c.sent();
-                    e_9 = { error: e_9_1 };
+                    e_11_1 = _c.sent();
+                    e_11 = { error: e_11_1 };
                     return [3 /*break*/, 8];
                 case 7:
                     try {
                         if (lote_1_1 && !lote_1_1.done && (_a = lote_1.return)) _a.call(lote_1);
                     }
-                    finally { if (e_9) throw e_9.error; }
+                    finally { if (e_11) throw e_11.error; }
                     return [7 /*endfinally*/];
                 case 8: return [2 /*return*/];
             }
         });
     }); };
     var reprocessar = function (arq, amostra) { return __awaiter(_this, void 0, void 0, function () {
-        var r, e_11;
+        var r, e_13;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -3960,8 +4197,8 @@ function AbaImportar(_a) {
                         setPrevia({ arq: arq, r: r });
                     return [3 /*break*/, 4];
                 case 3:
-                    e_11 = _a.sent();
-                    setErroGeral("".concat(arq.nome_original, ": ").concat(e_11.message));
+                    e_13 = _a.sent();
+                    setErroGeral("".concat(arq.nome_original, ": ").concat(e_13.message));
                     return [3 /*break*/, 4];
                 case 4:
                     setOcupado(null);
@@ -4335,7 +4572,7 @@ function useHoje() {
     var _a = __read(useState(null), 2), linhas = _a[0], setLinhas = _a[1];
     var _b = __read(useState(null), 2), erro = _b[0], setErro = _b[1];
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var _e_1, _a, data, error, e_12;
+        var _e_1, _a, data, error, e_14;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -4359,8 +4596,8 @@ function useHoje() {
                     setErro(null);
                     return [3 /*break*/, 7];
                 case 6:
-                    e_12 = _b.sent();
-                    setErro(e_12.message || String(e_12));
+                    e_14 = _b.sent();
+                    setErro(e_14.message || String(e_14));
                     return [3 /*break*/, 7];
                 case 7: return [2 /*return*/];
             }
@@ -4949,7 +5186,7 @@ function AbaResumo(_a) {
     var du = diasUteisDoMes(hojeISO);
     var frac = du.diaDoMes / du.diasNoMes;
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, extra, _a, fatoMes, eq, mm, lojas, closers, setores, dias, arquivos, vendasResp, empresaAnt, mapCloser, metaGrupo, abertas, ex, aberto_1, abertoCloser_1, e_13;
+        var pega, extra, _a, fatoMes, eq, mm, lojas, closers, setores, dias, arquivos, vendasResp, empresaAnt, mapCloser, metaGrupo, abertas, ex, aberto_1, abertoCloser_1, e_15;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -5005,8 +5242,8 @@ function AbaResumo(_a) {
                     setR({ fatoMes: fatoMes, equipe: eq.map(function (x) { return x.sdr; }), meta: mm[0] || null, lojas: lojas, closers: closers, setores: setores, dias: dias, arquivos: arquivos, aberto: aberto_1, abertoCloser: abertoCloser_1, ex: ex });
                     return [3 /*break*/, 4];
                 case 3:
-                    e_13 = _b.sent();
-                    setErro(e_13.message || String(e_13));
+                    e_15 = _b.sent();
+                    setErro(e_15.message || String(e_15));
                     return [3 /*break*/, 4];
                 case 4: return [2 /*return*/];
             }
@@ -5016,7 +5253,7 @@ function AbaResumo(_a) {
     var CARTOES = [["geral", "Geral"]].concat(RESUMO_LOJAS.map(function (l) { return [RESUMO_CHAVE_LOJA[l], l]; })).concat([["sdr", "SDR"]]);
     var refs = useRef({});
     var baixar = function (k) { return __awaiter(_this, void 0, void 0, function () {
-        var el, cv, a, e_14;
+        var el, cv, a, e_16;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -5040,8 +5277,8 @@ function AbaResumo(_a) {
                     a.click();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_14 = _a.sent();
-                    setAviso("Não consegui gerar a imagem: " + (e_14.message || e_14));
+                    e_16 = _a.sent();
+                    setAviso("Não consegui gerar a imagem: " + (e_16.message || e_16));
                     return [3 /*break*/, 4];
                 case 4:
                     setBaixando("");
@@ -5156,7 +5393,7 @@ function useOficina() {
     var hojeISO = hoje();
     var inicioMes = hojeISO.slice(0, 8) + "01";
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, empresaMes, mapCloser, arquivosExtra_1, metaGrupo, abertasCru, vendidoLoja, entregas, receberLoja, entregueDe_1, abertas, ultimoDia, ex, ultimoDe, e_15;
+        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, empresaMes, mapCloser, arquivosExtra_1, metaGrupo, abertasCru, vendidoLoja, entregas, receberLoja, entregueDe_1, abertas, ultimoDia, ex, ultimoDe, e_17;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -5225,8 +5462,8 @@ function useOficina() {
                     setR({ lojas: lojas, closers: closers, setores: setores, dias: dias, os: os, origem: origem, itens: itens, funil: funil, mapLoja: mapLoja, mapCloser: mapCloser, arquivos: arquivos, abertas: abertas, vendidoLoja: vendidoLoja, receberLoja: receberLoja, ultimoDia: ultimoDia, hojeISO: hojeISO, inicioMes: inicioMes, ex: ex });
                     return [3 /*break*/, 4];
                 case 3:
-                    e_15 = _b.sent();
-                    setErro(e_15.message || String(e_15));
+                    e_17 = _b.sent();
+                    setErro(e_17.message || String(e_17));
                     return [3 /*break*/, 4];
                 case 4: return [2 /*return*/];
             }
@@ -6085,7 +6322,7 @@ function AbaLojas() {
         setTimeout(function () { return URL.revokeObjectURL(a.href); }, 4000);
     };
     var copiarTabela = function () { return __awaiter(_this, void 0, void 0, function () {
-        var texto, ta, e_16;
+        var texto, ta, e_18;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -6113,7 +6350,7 @@ function AbaLojas() {
                     setTimeout(function () { return setCopiado(false); }, 2500);
                     return [3 /*break*/, 6];
                 case 5:
-                    e_16 = _a.sent();
+                    e_18 = _a.sent();
                     setCopiado(false);
                     return [3 /*break*/, 6];
                 case 6: return [2 /*return*/];
@@ -7039,7 +7276,7 @@ function usePiloto(closerCodigo, versao, lojaDoCloser) {
                     return [2 /*return*/, data || []];
             }
         }); }); };
-        var opc = function (q) { return __awaiter(_this, void 0, void 0, function () { var _a, data, error, e_17; return __generator(this, function (_b) {
+        var opc = function (q) { return __awaiter(_this, void 0, void 0, function () { var _a, data, error, e_19; return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
                     _b.trys.push([0, 2, , 3]);
@@ -7048,7 +7285,7 @@ function usePiloto(closerCodigo, versao, lojaDoCloser) {
                     _a = _b.sent(), data = _a.data, error = _a.error;
                     return [2 /*return*/, error ? [] : data || []];
                 case 2:
-                    e_17 = _b.sent();
+                    e_19 = _b.sent();
                     return [2 /*return*/, []];
                 case 3: return [2 /*return*/];
             }
@@ -7621,7 +7858,7 @@ function EntregaOs(_a) {
     var o = _a.o, aoSalvar = _a.aoSalvar, grande = _a.grande, rotulo = _a.rotulo, solido = _a.solido;
     var _b = __read(useState(null), 2), st = _b[0], setSt = _b[1];
     var marcar = function (sim) { return __awaiter(_this, void 0, void 0, function () {
-        var uid, data, e_18, error;
+        var uid, data, e_20, error;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -7636,7 +7873,7 @@ function EntregaOs(_a) {
                     uid = data && data.session && data.session.user ? data.session.user.id : null;
                     return [3 /*break*/, 4];
                 case 3:
-                    e_18 = _a.sent();
+                    e_20 = _a.sent();
                     return [3 /*break*/, 4];
                 case 4: return [4 /*yield*/, db.from("os_prazo").upsert({ loja: o.loja, os_numero: String(o.os_numero),
                         entregue_em: sim ? new Date().toISOString() : null, entregue_por: sim ? uid : null }, { onConflict: "loja,os_numero" })];
@@ -7758,7 +7995,7 @@ function SecaoPedirAvaliacao(_a) {
         .sort(function (a, b) { return (a.avaliacao_pedida_em ? 1 : 0) - (b.avaliacao_pedida_em ? 1 : 0) || (String(b.entregue_em) > String(a.entregue_em) ? 1 : -1); });
     var semLink = lista.some(function (o) { return !o.link_avaliacao; });
     var copiar = function (o) { return __awaiter(_this, void 0, void 0, function () {
-        var t, e_19;
+        var t, e_21;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -7771,7 +8008,7 @@ function SecaoPedirAvaliacao(_a) {
                     _a.sent();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_19 = _a.sent();
+                    e_21 = _a.sent();
                     window.prompt("Copie a mensagem:", t);
                     return [3 /*break*/, 4];
                 case 4:
@@ -7879,8 +8116,8 @@ function SecaoAvaliacoes(_a) {
     }, [previa]);
     var podeLerClipboard = !!(navigator.clipboard && navigator.clipboard.read);
     var colarDoBotao = function () { return __awaiter(_this, void 0, void 0, function () {
-        var itens, itens_1, itens_1_1, it, tipo, b, e_20_1, e_21;
-        var e_20, _a;
+        var itens, itens_1, itens_1_1, it, tipo, b, e_22_1, e_23;
+        var e_22, _a;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -7911,20 +8148,20 @@ function SecaoAvaliacoes(_a) {
                     return [3 /*break*/, 4];
                 case 7: return [3 /*break*/, 10];
                 case 8:
-                    e_20_1 = _b.sent();
-                    e_20 = { error: e_20_1 };
+                    e_22_1 = _b.sent();
+                    e_22 = { error: e_22_1 };
                     return [3 /*break*/, 10];
                 case 9:
                     try {
                         if (itens_1_1 && !itens_1_1.done && (_a = itens_1.return)) _a.call(itens_1);
                     }
-                    finally { if (e_20) throw e_20.error; }
+                    finally { if (e_22) throw e_22.error; }
                     return [7 /*endfinally*/];
                 case 10:
                     setAvisoCola("Não achei imagem copiada. Tire o print de novo (Win + Shift + S) e tente.");
                     return [3 /*break*/, 12];
                 case 11:
-                    e_21 = _b.sent();
+                    e_23 = _b.sent();
                     setAvisoCola("O navegador não deixou ler a área de transferência — use Ctrl + V.");
                     return [3 /*break*/, 12];
                 case 12: return [2 /*return*/];
@@ -7957,7 +8194,7 @@ function SecaoAvaliacoes(_a) {
         setPrevia(f ? URL.createObjectURL(f) : null);
     };
     var enviar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var blob, caminho, up, _a, loja, osNum, error, e_22;
+        var blob, caminho, up, _a, loja, osNum, error, e_24;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -7998,15 +8235,15 @@ function SecaoAvaliacoes(_a) {
                     setTimeout(function () { return setSt(null); }, 6000);
                     return [3 /*break*/, 6];
                 case 5:
-                    e_22 = _b.sent();
-                    setSt({ erro: "Não salvou: " + (e_22.message || e_22) });
+                    e_24 = _b.sent();
+                    setSt({ erro: "Não salvou: " + (e_24.message || e_24) });
                     return [3 /*break*/, 6];
                 case 6: return [2 /*return*/];
             }
         });
     }); };
     var mudarStatus = function (a, status) { return __awaiter(_this, void 0, void 0, function () {
-        var uid, data, e_23;
+        var uid, data, e_25;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -8020,7 +8257,7 @@ function SecaoAvaliacoes(_a) {
                     uid = data && data.session && data.session.user ? data.session.user.id : null;
                     return [3 /*break*/, 4];
                 case 3:
-                    e_23 = _a.sent();
+                    e_25 = _a.sent();
                     return [3 /*break*/, 4];
                 case 4: return [4 /*yield*/, db.from("closer_avaliacao").update({ status: status, validado_por: uid, validado_em: new Date().toISOString() }).eq("id", a.id)];
                 case 5:
@@ -8031,7 +8268,7 @@ function SecaoAvaliacoes(_a) {
         });
     }); };
     var apagar = function (a) { return __awaiter(_this, void 0, void 0, function () {
-        var e_24;
+        var e_26;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -8046,7 +8283,7 @@ function SecaoAvaliacoes(_a) {
                     _a.sent();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_24 = _a.sent();
+                    e_26 = _a.sent();
                     return [3 /*break*/, 4];
                 case 4: return [4 /*yield*/, db.from("closer_avaliacao").delete().eq("id", a.id)];
                 case 5:
@@ -8176,7 +8413,7 @@ function SecaoRecompra(_a) {
         });
     }); };
     var copiar = function (r) { return __awaiter(_this, void 0, void 0, function () {
-        var t, e_25;
+        var t, e_27;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -8189,7 +8426,7 @@ function SecaoRecompra(_a) {
                     _a.sent();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_25 = _a.sent();
+                    e_27 = _a.sent();
                     window.prompt("Copie a mensagem:", t);
                     return [3 /*break*/, 4];
                 case 4:
@@ -8223,7 +8460,7 @@ function SecaoRecompra(_a) {
         });
     }); };
     var copiarPpf = function (r) { return __awaiter(_this, void 0, void 0, function () {
-        var t, e_26;
+        var t, e_28;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -8236,7 +8473,7 @@ function SecaoRecompra(_a) {
                     _a.sent();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_26 = _a.sent();
+                    e_28 = _a.sent();
                     window.prompt("Copie a mensagem:", t);
                     return [3 /*break*/, 4];
                 case 4:
@@ -8398,7 +8635,7 @@ function useControlePiloto() {
     useEffect(function () {
         var vivo = true;
         var m0 = primeiroDia(hoje());
-        var opc = function (q) { return __awaiter(_this, void 0, void 0, function () { var _a, data, error, e_27; return __generator(this, function (_b) {
+        var opc = function (q) { return __awaiter(_this, void 0, void 0, function () { var _a, data, error, e_29; return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
                     _b.trys.push([0, 2, , 3]);
@@ -8407,7 +8644,7 @@ function useControlePiloto() {
                     _a = _b.sent(), data = _a.data, error = _a.error;
                     return [2 /*return*/, error ? [] : data || []];
                 case 2:
-                    e_27 = _b.sent();
+                    e_29 = _b.sent();
                     return [2 /*return*/, []];
                 case 3: return [2 /*return*/];
             }
@@ -8831,7 +9068,7 @@ function SecaoAvaliacoesGeral(_a) {
         return __assign(__assign({}, c), { n: ls.length, validadas: ls.filter(function (a) { return a.status === "validada"; }).length, pend: ls.filter(function (a) { return a.status === "enviada"; }).length, media: comNota.length ? comNota.reduce(function (s, a) { return s + Number(a.nota); }, 0) / comNota.length : 0 });
     }).sort(function (a, b) { return b.n - a.n || (a.unidade < b.unidade ? -1 : 1); });
     var mudar = function (a, status) { return __awaiter(_this, void 0, void 0, function () {
-        var uid, data, e_28;
+        var uid, data, e_30;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -8845,7 +9082,7 @@ function SecaoAvaliacoesGeral(_a) {
                     uid = data && data.session && data.session.user ? data.session.user.id : null;
                     return [3 /*break*/, 4];
                 case 3:
-                    e_28 = _a.sent();
+                    e_30 = _a.sent();
                     return [3 /*break*/, 4];
                 case 4: return [4 /*yield*/, db.from("closer_avaliacao").update({ status: status, validado_por: uid, validado_em: new Date().toISOString() }).eq("id", a.id)];
                 case 5:
@@ -9247,7 +9484,7 @@ function NovoOrcamento(_a) {
     var itensValidos = f.itens.filter(function (it) { return it.nome.trim(); });
     var pronto = f.prazo_execucao && itensValidos.length > 0 && (f.cliente_nome.trim() || f.placa.trim());
     var salvar = function (statusInicial) { return __awaiter(_this, void 0, void 0, function () {
-        var cab, linhasItem, closer_codigo, _s, cabEd, ok, antigos, idsAntigos, nota, e_29, novo, _a, id, e_30;
+        var cab, linhasItem, closer_codigo, _s, cabEd, ok, antigos, idsAntigos, nota, e_31, novo, _a, id, e_32;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -9302,7 +9539,7 @@ function NovoOrcamento(_a) {
                     _b.sent();
                     return [3 /*break*/, 9];
                 case 8:
-                    e_29 = _b.sent();
+                    e_31 = _b.sent();
                     return [3 /*break*/, 9];
                 case 9:
                     setDaCasa(null);
@@ -9325,8 +9562,8 @@ function NovoOrcamento(_a) {
                     aoSalvar(id, novo);
                     return [3 /*break*/, 14];
                 case 13:
-                    e_30 = _b.sent();
-                    setErro(e_30.message);
+                    e_32 = _b.sent();
+                    setErro(e_32.message);
                     return [3 /*break*/, 14];
                 case 14:
                     setSalvando(false);
@@ -9652,7 +9889,7 @@ function JanelaImagem(_a) {
     useEffect(function () {
         var vivo = true;
         var gerar = function () { return __awaiter(_this, void 0, void 0, function () {
-            var e_31, cv, e_32;
+            var e_33, cv, e_34;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
@@ -9672,7 +9909,7 @@ function JanelaImagem(_a) {
                         _a.sent();
                         return [3 /*break*/, 5];
                     case 4:
-                        e_31 = _a.sent();
+                        e_33 = _a.sent();
                         return [3 /*break*/, 5];
                     case 5: return [4 /*yield*/, new Promise(function (r) { return setTimeout(r, 350); })];
                     case 6:
@@ -9686,9 +9923,9 @@ function JanelaImagem(_a) {
                         db.from("orcamento_evento").insert({ orcamento_id: o.id, tipo: "imagem_ia", nota: "imagem para o cliente gerada (formato Q2)" }).then(function () { }, function () { });
                         return [3 /*break*/, 9];
                     case 8:
-                        e_32 = _a.sent();
+                        e_34 = _a.sent();
                         if (vivo)
-                            setErro(e_32.message || String(e_32));
+                            setErro(e_34.message || String(e_34));
                         return [3 /*break*/, 9];
                     case 9: return [2 /*return*/];
                 }
@@ -9701,7 +9938,7 @@ function JanelaImagem(_a) {
     var baixar = function () { var a = document.createElement("a"); a.href = png; a.download = nomeArq; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
     var podeCompartilhar = !!(navigator.share && navigator.canShare && window.File);
     var compartilhar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var blob, file, e_33;
+        var blob, file, e_35;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -9721,7 +9958,7 @@ function JanelaImagem(_a) {
                     _a.label = 5;
                 case 5: return [3 /*break*/, 7];
                 case 6:
-                    e_33 = _a.sent();
+                    e_35 = _a.sent();
                     return [3 /*break*/, 7];
                 case 7: return [2 /*return*/];
             }
@@ -9773,7 +10010,7 @@ function DetalheOrcamento(_a) {
     var mudou = status !== o.status || motivo !== (o.motivo_perda || "") || retorno !== (o.retorno_em ? String(o.retorno_em).slice(0, 10) : "") || os !== (o.os_numero || "");
     var precisaMotivo = status === "perdido" && !motivo.trim();
     var salvar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var e_34;
+        var e_36;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -9791,8 +10028,8 @@ function DetalheOrcamento(_a) {
                     aoMudar();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_34 = _a.sent();
-                    setErro(e_34.message);
+                    e_36 = _a.sent();
+                    setErro(e_36.message);
                     return [3 /*break*/, 4];
                 case 4:
                     setSalvando(false);
