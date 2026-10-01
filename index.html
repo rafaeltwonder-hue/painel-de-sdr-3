@@ -3563,7 +3563,16 @@ var LOJAS_IMPORT = ["Itaim", "Ipiranga", "Bandeirantes", "Tatuapé"];
 function ChecklistImport(_a) {
     var lista = _a.lista;
     var hojeISO = hoje();
-    var inicioMes = hojeISO.slice(0, 8) + "01";
+    /* Virada do mês (01/10/2026): no dia 1º a equipe sobe os arquivos do mês
+       que FECHOU (fechamento), não do mês novo, que ainda não tem venda. Então
+       no dia 1º a lista confere o mês anterior; do dia 2 em diante volta a
+       cobrar o mês corrente. */
+    var mesCorrente = hojeISO.slice(0, 8) + "01";
+    var dia1 = hojeISO.slice(8, 10) === "01";
+    var mesFech = (function () { var y = Number(mesCorrente.slice(0, 4)), m = Number(mesCorrente.slice(5, 7)) - 1; if (m === 0) { m = 12; y -= 1; } return y + "-" + String(m).padStart(2, "0") + "-01"; })();
+    var inicioMes = dia1 ? mesFech : mesCorrente;
+    var NOMES_MES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
+    var nomeRef = NOMES_MES[Number(inicioMes.slice(5, 7)) - 1];
     var seteAtras = addDays(hojeISO, -6);
     var mesAnt = String(Number(inicioMes.slice(0, 4)) - 1) + inicioMes.slice(4);
     var ok = function (a) { return a.status === "ok"; };
@@ -3585,18 +3594,19 @@ function ChecklistImport(_a) {
     // que vai para a planilha de cobrança; mensal ficava velho demais.
     var faltamPag = LOJAS_IMPORT.filter(function (l) { return !doTipo("os_pagamento").some(function (a) { return a.loja === l && a.periodo_ini === inicioMes && diaDe(a) >= seteAtras; }); });
     var temAnterior = doTipo("vendas_empresa").some(function (a) { return a.periodo_ini === mesAnt; });
+    var sufixo = dia1 ? " · fechamento de ".concat(nomeRef) : "";
     var itens = [
         { t: "Listagem de OS's c/ Itens (Rede) · 3 meses", quando: "todo dia", falta: !listagemHoje.length || !listagemTrimestre.length,
             det: !listagemHoje.length ? "não foi importada hoje — é o arquivo que move todo o painel"
                 : !listagemTrimestre.length ? "veio só com o mês atual — exporte de 3 meses, senão faltam as O.S. antigas em aberto"
                     : "importada hoje, com os 3 meses" },
-        { t: "Vendas por Responsável", quando: "1 por loja, toda semana", falta: !!faltamVR.length,
-            det: faltamVR.length ? "faltando desta semana: ".concat(faltamVR.join(", ")) : "as 4 lojas em dia" },
-        { t: "Vendas por Empresa do mês atual", quando: "1 vez por mês", falta: !empresaHoje.length,
+        { t: "Vendas por Responsável" + sufixo, quando: "1 por loja, toda semana", falta: !!faltamVR.length,
+            det: faltamVR.length ? (dia1 ? "faltando o fechamento: " : "faltando desta semana: ").concat(faltamVR.join(", ")) : "as 4 lojas em dia" },
+        { t: (dia1 ? "Vendas por Empresa de ".concat(nomeRef) : "Vendas por Empresa do mês atual"), quando: "1 vez por mês", falta: !empresaHoje.length,
             det: empresaHoje.length ? "conferência com o ERP em dia" : "sem a conferência do mês com o Mapa de Metas" },
-        { t: "OS por Pagamento", quando: "1 por loja, toda semana", falta: !!faltamPag.length,
-            det: faltamPag.length ? "faltando desta semana: ".concat(faltamPag.join(", ")) : "as 4 lojas em dia" },
-        { t: "Vendas por Empresa do ano anterior", quando: "1 vez por mês", falta: !temAnterior,
+        { t: "OS por Pagamento" + sufixo, quando: "1 por loja, toda semana", falta: !!faltamPag.length,
+            det: faltamPag.length ? (dia1 ? "faltando o fechamento: " : "faltando desta semana: ").concat(faltamPag.join(", ")) : "as 4 lojas em dia" },
+        { t: "Vendas por Empresa do ano anterior" + sufixo, quando: "1 vez por mês", falta: !temAnterior,
             det: temAnterior ? "base do crescimento carregada" : "sem a base do mesmo mês do ano passado — o crescimento fica vazio" },
     ];
     /* Alarme de contagem em dobro (16/09/2026). O arquivo novo só substitui o
@@ -3615,6 +3625,7 @@ function ChecklistImport(_a) {
     return (React.createElement(Card, { className: "p16", style: { marginBottom: 14, borderColor: faltando ? "#F0DDA0" : T.hair, background: faltando ? "#FFFDF5" : T.surface } },
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
             React.createElement(Label, null, "O que falta importar"),
+            dia1 && React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: T.ink2, background: "#FFF3CC", borderRadius: 6, padding: "2px 8px" } }, "Hoje é dia 1º: confira o fechamento de ".concat(nomeRef, " — a partir de amanhã, arquivos do mês novo")),
             React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: faltando ? T.warn : T.good } }, faltando ? "".concat(faltando, " de ").concat(itens.length, " pendentes") : "tudo em dia ✓")),
         React.createElement("div", { style: { display: "grid", gap: 8, marginTop: 10 } }, itens.map(function (x) { return (React.createElement("div", { key: x.t, style: { display: "flex", gap: 10, alignItems: "baseline", fontSize: 13 } },
             React.createElement("span", { style: { color: x.falta ? T.warn : T.good, fontWeight: 700, width: 14 } }, x.falta ? "•" : "✓"),
