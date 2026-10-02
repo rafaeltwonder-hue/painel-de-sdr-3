@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v92 — CAR SERVICE</title>
-<meta name="painel-versao" content="v92">
+<title>Painel de SDR v93 — CAR SERVICE</title>
+<meta name="painel-versao" content="v93">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -3211,9 +3211,8 @@ var BIB_DOCS = [
     ["TREINAMENTO-CARS", "Vídeo", "Car Store", "07/07/2026", "1oqSmEMJWyq-6FkY2gVe9e4uqsLM45WLB"],
 ].map(function (d) { return ({ doc: d[0], tipo: d[1], frente: d[2], em: d[3], url: "https://drive.google.com/file/d/" + d[4] + "/view" }); });
 var BIB_FALTA = [
-    "Um playbook próprio de Car Service (os atuais são de Car Store).",
     "Prazos por serviço.",
-    "Endereços e horários das 4 lojas.",
+    "Confirmar o Playbook Car Service e o Kit de scripts (hoje em rascunho na trilha).",
 ];
 var PESQ_OBJECOES = [
     ["“Por que 3M se o PPF deles é mais barato?”", "Prime Sound vende 3M no vidro e PPF próprio na pintura",
@@ -3225,24 +3224,511 @@ var PESQ_OBJECOES = [
     ["“Meu carro é blindado”", "ASES atende blindados desde 1967",
         "Funilaria de blindado cobra o dobro, só com avaliação."],
 ];
+/* ===================== v93 · BIBLIOTECA EM TRILHA (03/10/2026) =====================
+   A Biblioteca agora lê do banco (schema comercial): biblioteca_modulo, biblioteca_aula e
+   biblioteca_progresso. O SDR vê só o que está publicado e marca as aulas como concluídas;
+   o admin (Rafael) vê também os rascunhos e edita tudo aqui mesmo, no "Modo edição".
+   Dois filtros: Unidade de negócio (em cima) e Função (embaixo). Vazio = vale para todos. */
+var BIB_UNIDADES = [["car_service", "Car Service"], ["car_store", "Car Store"], ["academy", "Academy"], ["house_service", "House Service"]];
+var BIB_FUNCOES = [["sdr", "SDR"], ["bdr", "BDR"], ["closer", "Closer"]];
+var BIB_TIPOS = [["texto", "Texto"], ["playbook", "Playbook"], ["link", "Link"], ["video", "Vídeo"], ["prova", "Prova"]];
+function bibRotulo(lista, v) {
+    for (var i = 0; i < lista.length; i++) {
+        if (lista[i][0] === v)
+            return lista[i][1];
+    }
+    return v;
+}
+/* vazio herda de cima / vale para todos */
+function bibCasa(arr, sel) { return sel === "todas" || !arr || !arr.length || arr.indexOf(sel) >= 0; }
+function bibEsc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function bibInline(s) {
+    s = bibEsc(s);
+    s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+    s = s.replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+    s = s.replace(/\*([^*\n]+)\*/g, "<i>$1</i>");
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    s = s.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
+    return s;
+}
+/* markdown simples (títulos, negrito, listas, citações, tabelas, links). O texto é escapado antes. */
+function bibMd(src) {
+    var L = String(src || "").replace(/\r/g, "").split("\n"), out = [], i = 0;
+    var celulas = function (ln) {
+        ln = ln.trim();
+        if (ln.charAt(0) === "|")
+            ln = ln.slice(1);
+        if (ln.charAt(ln.length - 1) === "|")
+            ln = ln.slice(0, -1);
+        return ln.split("|").map(function (c) { return c.trim(); });
+    };
+    var ehBloco = function (ln) {
+        return /^#{1,4}\s/.test(ln) || /^>/.test(ln) || /^\s*[-*]\s+/.test(ln) || /^\s*\d+[.)]\s+/.test(ln) || /^\|/.test(ln) || /^---+\s*$/.test(ln);
+    };
+    while (i < L.length) {
+        var ln = L[i];
+        if (!ln.trim()) {
+            i++;
+            continue;
+        }
+        var h = /^(#{1,4})\s+(.*)$/.exec(ln);
+        if (h) {
+            var n = Math.min(h[1].length + 1, 5);
+            out.push("<h" + n + ">" + bibInline(h[2]) + "</h" + n + ">");
+            i++;
+            continue;
+        }
+        if (/^---+\s*$/.test(ln)) {
+            out.push("<hr>");
+            i++;
+            continue;
+        }
+        if (/^\|/.test(ln) && i + 1 < L.length && /^\|?\s*:?-{3,}/.test(L[i + 1].trim())) {
+            var cab = celulas(ln), html = "<div class=\"bibtab\"><table><thead><tr>";
+            cab.forEach(function (c) { html += "<th>" + bibInline(c) + "</th>"; });
+            html += "</tr></thead><tbody>";
+            i += 2;
+            while (i < L.length && /^\|/.test(L[i])) {
+                html += "<tr>";
+                celulas(L[i]).forEach(function (c) { html += "<td>" + bibInline(c) + "</td>"; });
+                html += "</tr>";
+                i++;
+            }
+            out.push(html + "</tbody></table></div>");
+            continue;
+        }
+        if (/^>/.test(ln)) {
+            var par = [], atual = [];
+            while (i < L.length && /^>/.test(L[i])) {
+                var t = L[i].replace(/^>\s?/, "");
+                if (!t.trim()) {
+                    if (atual.length)
+                        par.push(atual.join(" "));
+                    atual = [];
+                }
+                else
+                    atual.push(t);
+                i++;
+            }
+            if (atual.length)
+                par.push(atual.join(" "));
+            out.push("<blockquote>" + par.map(function (p) { return "<p>" + bibInline(p) + "</p>"; }).join("") + "</blockquote>");
+            continue;
+        }
+        if (/^\s*[-*]\s+/.test(ln)) {
+            var lis = [];
+            while (i < L.length && /^\s*[-*]\s+/.test(L[i])) {
+                lis.push("<li>" + bibInline(L[i].replace(/^\s*[-*]\s+/, "")) + "</li>");
+                i++;
+            }
+            out.push("<ul>" + lis.join("") + "</ul>");
+            continue;
+        }
+        if (/^\s*\d+[.)]\s+/.test(ln)) {
+            var ols = [];
+            while (i < L.length && /^\s*\d+[.)]\s+/.test(L[i])) {
+                ols.push("<li>" + bibInline(L[i].replace(/^\s*\d+[.)]\s+/, "")) + "</li>");
+                i++;
+            }
+            out.push("<ol>" + ols.join("") + "</ol>");
+            continue;
+        }
+        var ps = [];
+        while (i < L.length && L[i].trim() && !ehBloco(L[i])) {
+            ps.push(L[i].trim());
+            i++;
+        }
+        if (!ps.length) {
+            ps.push(L[i].trim());
+            i++;
+        }
+        out.push("<p>" + bibInline(ps.join(" ")) + "</p>");
+    }
+    return out.join("\n");
+}
+var BIB_CSS = ".bibmd{font-size:14px;line-height:1.65;color:#1A1A1A;max-width:80ch}" +
+    ".bibmd h3{font-family:" + F_MARCA + ";font-size:19px;margin:30px 0 8px;padding-top:16px;border-top:1px solid #E2E2E2}" +
+    ".bibmd h3:first-child{border-top:0;margin-top:0;padding-top:0}" +
+    ".bibmd h4{font-family:" + F_MARCA + ";font-size:15.5px;margin:22px 0 6px}" +
+    ".bibmd h5{font-size:14px;margin:16px 0 4px}" +
+    ".bibmd p{margin:0 0 10px}.bibmd blockquote{margin:10px 0;padding:8px 14px;border-left:4px solid #FFBF00;background:#FFF8E1;border-radius:0 8px 8px 0}" +
+    ".bibmd blockquote p{margin:0 0 6px}.bibmd blockquote p:last-child{margin:0}" +
+    ".bibtab{overflow-x:auto;margin:10px 0}.bibmd table{border-collapse:collapse;width:100%;font-size:13px}" +
+    ".bibmd th,.bibmd td{border:1px solid #E2E2E2;padding:7px 9px;text-align:left;vertical-align:top;min-width:90px}" +
+    ".bibmd th{background:#F5F5F5;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em}" +
+    ".bibmd ul,.bibmd ol{padding-left:22px;margin:6px 0 12px}.bibmd li{margin-bottom:3px}" +
+    ".bibmd code{background:#F0F0F0;padding:1px 5px;border-radius:4px;font-size:12.5px}" +
+    ".bibmd hr{border:0;border-top:1px solid #E2E2E2;margin:18px 0}.bibmd a{color:#1652C4}";
+function bibBtn(tipo) {
+    var base = { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "7px 12px", borderRadius: 6, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-block" };
+    if (tipo === "marca")
+        return __assign(__assign({}, base), { background: T.marca, color: T.preto, border: "1px solid " + T.marca });
+    if (tipo === "perigo")
+        return __assign(__assign({}, base), { background: T.surface, color: T.bad, border: "1px solid #F0C3C6" });
+    return __assign(__assign({}, base), { background: T.surface, color: T.ink, border: "1px solid " + T.hair });
+}
+function BibMulti(_a) {
+    var valor = _a.valor, opcoes = _a.opcoes, onChange = _a.onChange;
+    return (React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } }, opcoes.map(function (o) {
+        var on = (valor || []).indexOf(o[0]) >= 0;
+        return (React.createElement("button", { key: o[0], type: "button", onClick: function () {
+                var v = (valor || []).slice();
+                var k = v.indexOf(o[0]);
+                if (k >= 0)
+                    v.splice(k, 1);
+                else
+                    v.push(o[0]);
+                onChange(v);
+            }, style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 600, padding: "6px 11px", borderRadius: 99, cursor: "pointer",
+                border: "1px solid " + (on ? T.ink : T.hair), background: on ? T.ink : T.surface, color: on ? "#fff" : T.ink2 } }, o[1]));
+    })));
+}
+function BibCampo(_a) {
+    var rotulo = _a.rotulo, dica = _a.dica, children = _a.children;
+    return (React.createElement("div", { style: { marginBottom: 12 } },
+        React.createElement(Label, { style: { marginBottom: 4 } }, rotulo),
+        children,
+        dica && React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 3 } }, dica)));
+}
+/* janela de edição de módulo ou aula (só admin) */
+function BibEditor(_a) {
+    var tipo = _a.tipo, obj = _a.obj, mods = _a.mods, onClose = _a.onClose, onSalvo = _a.onSalvo;
+    var novo = !obj.id;
+    var s = useState(obj), f = s[0], setF = s[1];
+    var se = useState(null), erro = se[0], setErro = se[1];
+    var sg = useState(false), gravando = sg[0], setGravando = sg[1];
+    var sp = useState(false), previa = sp[0], setPrevia = sp[1];
+    var mudar = function (k, v) { setF(function (o) { var n = __assign({}, o); n[k] = v; return n; }); };
+    var inteiro = function (v) { return (v === "" || v == null ? null : parseInt(v, 10)); };
+    var gravar = function () {
+        setErro(null);
+        if (!String(f.titulo || "").trim()) {
+            setErro("Falta o título.");
+            return;
+        }
+        var tabela = tipo === "modulo" ? "biblioteca_modulo" : "biblioteca_aula";
+        var corpo;
+        if (tipo === "modulo") {
+            if (inteiro(f.numero) == null) {
+                setErro("Falta o número do módulo.");
+                return;
+            }
+            corpo = { numero: inteiro(f.numero), titulo: String(f.titulo).trim(), resumo: f.resumo || null, unidades: f.unidades || [], funcoes: f.funcoes || [],
+                nota_minima: inteiro(f.nota_minima) == null ? 80 : inteiro(f.nota_minima), publicado: !!f.publicado };
+        }
+        else {
+            if (!f.modulo_id || inteiro(f.ordem) == null) {
+                setErro("Falta o módulo ou a ordem.");
+                return;
+            }
+            corpo = { modulo_id: parseInt(f.modulo_id, 10), ordem: inteiro(f.ordem), titulo: String(f.titulo).trim(), tipo: f.tipo || "texto", minutos: inteiro(f.minutos),
+                conteudo: f.conteudo || "", link: f.link || null, unidades: f.unidades || [], funcoes: f.funcoes || [], publicado: !!f.publicado };
+        }
+        setGravando(true);
+        var q = novo ? db.from(tabela).insert(corpo) : db.from(tabela).update(corpo).eq("id", obj.id);
+        q.then(function (r) {
+            setGravando(false);
+            if (r.error)
+                setErro(r.error.message);
+            else
+                onSalvo();
+        }, function (e) { setGravando(false); setErro(String((e && e.message) || e)); });
+    };
+    var apagar = function () {
+        var msg = tipo === "modulo" ? "Apagar este módulo e TODAS as aulas dele? Não dá para desfazer." : "Apagar esta aula? Não dá para desfazer.";
+        if (!window.confirm(msg))
+            return;
+        setGravando(true);
+        db.from(tipo === "modulo" ? "biblioteca_modulo" : "biblioteca_aula").delete().eq("id", obj.id).then(function (r) {
+            setGravando(false);
+            if (r.error)
+                setErro(r.error.message);
+            else
+                onSalvo();
+        });
+    };
+    return (React.createElement("div", { style: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,.55)", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", padding: "24px 12px" } },
+        React.createElement("div", { style: { background: T.surface, borderRadius: 12, width: "100%", maxWidth: 860, padding: 20, boxSizing: "border-box" } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10 } },
+                React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 17, fontWeight: 700 } }, (novo ? "Novo " : "Editar ") + (tipo === "modulo" ? "módulo" : "aula")),
+                React.createElement("button", { type: "button", onClick: onClose, style: bibBtn() }, "Fechar")),
+            tipo === "modulo" ? React.createElement("div", null,
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "110px 1fr", gap: 12 } },
+                    React.createElement(BibCampo, { rotulo: "Número" }, React.createElement(Inp, { type: "number", value: f.numero == null ? "" : f.numero, onChange: function (e) { return mudar("numero", e.target.value); } })),
+                    React.createElement(BibCampo, { rotulo: "Título" }, React.createElement(Inp, { value: f.titulo || "", onChange: function (e) { return mudar("titulo", e.target.value); } }))),
+                React.createElement(BibCampo, { rotulo: "Resumo (aparece no cartão do módulo)" }, React.createElement("textarea", { rows: 3, value: f.resumo || "", onChange: function (e) { return mudar("resumo", e.target.value); }, style: __assign(__assign({}, inputStyle), { fontFamily: F_UI }) })),
+                React.createElement(BibCampo, { rotulo: "Unidade de negócio", dica: "Nada marcado = vale para todas." }, React.createElement(BibMulti, { valor: f.unidades, opcoes: BIB_UNIDADES, onChange: function (v) { return mudar("unidades", v); } })),
+                React.createElement(BibCampo, { rotulo: "Função", dica: "Nada marcado = vale para todas." }, React.createElement(BibMulti, { valor: f.funcoes, opcoes: BIB_FUNCOES, onChange: function (v) { return mudar("funcoes", v); } })),
+                React.createElement(BibCampo, { rotulo: "Nota mínima da prova" }, React.createElement(Inp, { type: "number", value: f.nota_minima == null ? 80 : f.nota_minima, onChange: function (e) { return mudar("nota_minima", e.target.value); }, style: { maxWidth: 120 } }))) : React.createElement("div", null,
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "minmax(0,1fr) 100px", gap: 12 } },
+                    React.createElement(BibCampo, { rotulo: "Módulo" }, React.createElement("select", { value: f.modulo_id || "", onChange: function (e) { return mudar("modulo_id", e.target.value); }, style: inputStyle }, mods.map(function (m) { return React.createElement("option", { key: m.id, value: m.id }, m.numero + " · " + m.titulo); }))),
+                    React.createElement(BibCampo, { rotulo: "Ordem" }, React.createElement(Inp, { type: "number", value: f.ordem == null ? "" : f.ordem, onChange: function (e) { return mudar("ordem", e.target.value); } }))),
+                React.createElement(BibCampo, { rotulo: "Título da aula" }, React.createElement(Inp, { value: f.titulo || "", onChange: function (e) { return mudar("titulo", e.target.value); } })),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "180px 110px 1fr", gap: 12 } },
+                    React.createElement(BibCampo, { rotulo: "Tipo" }, React.createElement("select", { value: f.tipo || "texto", onChange: function (e) { return mudar("tipo", e.target.value); }, style: inputStyle }, BIB_TIPOS.map(function (t) { return React.createElement("option", { key: t[0], value: t[0] }, t[1]); }))),
+                    React.createElement(BibCampo, { rotulo: "Minutos" }, React.createElement(Inp, { type: "number", value: f.minutos == null ? "" : f.minutos, onChange: function (e) { return mudar("minutos", e.target.value); } })),
+                    React.createElement(BibCampo, { rotulo: "Link (Drive, vídeo ou arquivo)", dica: "Opcional. Aparece como botão “Abrir” na aula." }, React.createElement(Inp, { value: f.link || "", onChange: function (e) { return mudar("link", e.target.value); }, placeholder: "https://" }))),
+                React.createElement(BibCampo, { rotulo: "Unidade de negócio", dica: "Nada marcado = herda do módulo." }, React.createElement(BibMulti, { valor: f.unidades, opcoes: BIB_UNIDADES, onChange: function (v) { return mudar("unidades", v); } })),
+                React.createElement(BibCampo, { rotulo: "Função", dica: "Nada marcado = herda do módulo." }, React.createElement(BibMulti, { valor: f.funcoes, opcoes: BIB_FUNCOES, onChange: function (v) { return mudar("funcoes", v); } })),
+                React.createElement(BibCampo, { rotulo: "Texto da aula", dica: "Use ## para título, **negrito**, - para lista, > para citação e | para tabela." },
+                    React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 6 } },
+                        React.createElement("button", { type: "button", onClick: function () { return setPrevia(false); }, style: bibBtn(previa ? "" : "marca") }, "Escrever"),
+                        React.createElement("button", { type: "button", onClick: function () { return setPrevia(true); }, style: bibBtn(previa ? "marca" : "") }, "Pré-visualizar")),
+                    previa ? React.createElement("div", { className: "bibmd", style: { border: "1px solid " + T.hair, borderRadius: 6, padding: 14, maxHeight: 460, overflowY: "auto" }, dangerouslySetInnerHTML: { __html: bibMd(f.conteudo) } })
+                        : React.createElement("textarea", { rows: 22, value: f.conteudo || "", onChange: function (e) { return mudar("conteudo", e.target.value); },
+                            style: __assign(__assign({}, inputStyle), { fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace", fontSize: 12.5, lineHeight: 1.5 }) }))),
+            React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600, margin: "6px 0 14px" } },
+                React.createElement("input", { type: "checkbox", checked: !!f.publicado, onChange: function (e) { return mudar("publicado", e.target.checked); } }),
+                "Publicado (os SDRs só veem o que está publicado)"),
+            erro && React.createElement("div", { style: { color: T.bad, fontSize: 13, marginBottom: 10 } }, "Não consegui salvar: " + erro),
+            React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "space-between", flexWrap: "wrap" } },
+                React.createElement("div", null, !novo && React.createElement("button", { type: "button", disabled: gravando, onClick: apagar, style: bibBtn("perigo") }, "Apagar")),
+                React.createElement("div", { style: { display: "flex", gap: 8 } },
+                    React.createElement("button", { type: "button", onClick: onClose, style: bibBtn() }, "Cancelar"),
+                    React.createElement("button", { type: "button", disabled: gravando, onClick: gravar, style: bibBtn("marca") }, gravando ? "Salvando…" : "Salvar"))))));
+}
 function AbaBiblioteca() {
-    var _a = __read(useState(""), 2), busca = _a[0], setBusca = _a[1];
-    var _b = __read(useState("Todas"), 2), area = _b[0], setArea = _b[1];
+    var st = useState({ carregando: true, erro: null, mods: [], aulas: [], prog: [], time: [] }), dados = st[0], setDados = st[1];
+    var us = useState(null), user = us[0], setUser = us[1];
+    var ue = useState("todas"), fUni = ue[0], setFUni = ue[1];
+    var uf = useState("todas"), fFun = uf[0], setFFun = uf[1];
+    var ub = useState(""), busca = ub[0], setBusca = ub[1];
+    var ua = useState(null), aberta = ua[0], setAberta = ua[1];
+    var ued = useState(false), edicao = ued[0], setEdicao = ued[1];
+    var uei = useState(null), editor = uei[0], setEditor = uei[1];
+    var uc = useState({}), fechados = uc[0], setFechados = uc[1];
+    var ur = useState(0), tick = ur[0], setTick = ur[1];
+    var um = useState(null), aviso = um[0], setAviso = um[1];
+    var perfil = (user && user.app_metadata && user.app_metadata.perfil) || "";
+    var ehAdm = perfil === "admin";
+    var vePerfisTodos = perfil === "admin" || perfil === "gerente";
+    useEffect(function () {
+        var vivo = true;
+        db.auth.getSession().then(function (r) { if (vivo)
+            setUser(r && r.data && r.data.session ? r.data.session.user : { id: "", app_metadata: {} }); });
+        return function () { vivo = false; };
+    }, []);
+    useEffect(function () {
+        if (!user)
+            return undefined;
+        var vivo = true;
+        var pedidos = [
+            db.from("biblioteca_modulo").select("*").order("numero"),
+            db.from("biblioteca_aula").select("id,modulo_id,ordem,titulo,tipo,minutos,link,publicado,versao,atualizado_em,unidades,funcoes").order("ordem"),
+            db.from("biblioteca_progresso").select("aula_id,concluida_em,nota").eq("user_id", user.id || "00000000-0000-0000-0000-000000000000"),
+        ];
+        if (vePerfisTodos)
+            pedidos.push(db.from("biblioteca_progresso_v").select("user_id,sdr_nome,numero,percentual"));
+        Promise.all(pedidos).then(function (r) {
+            if (!vivo)
+                return;
+            var erro = r[0].error || r[1].error || r[2].error || (r[3] && r[3].error);
+            setDados({ carregando: false, erro: erro ? erro.message : null, mods: r[0].data || [], aulas: r[1].data || [], prog: r[2].data || [], time: (r[3] && r[3].data) || [] });
+        }, function (e) { if (vivo)
+            setDados({ carregando: false, erro: String((e && e.message) || e), mods: [], aulas: [], prog: [], time: [] }); });
+        return function () { vivo = false; };
+    }, [user, tick, vePerfisTodos]);
     var q = busca.trim().toLowerCase();
-    /* “Todas” na coluna Frente vale para qualquer área; “a classificar” só aparece em Todas */
+    var feitas = {};
+    dados.prog.forEach(function (p) { feitas[p.aula_id] = true; });
+    var modsView = dados.mods.map(function (m) {
+        var aulas = dados.aulas.filter(function (a) {
+            return a.modulo_id === m.id &&
+                bibCasa(a.unidades && a.unidades.length ? a.unidades : m.unidades, fUni) &&
+                bibCasa(a.funcoes && a.funcoes.length ? a.funcoes : m.funcoes, fFun) &&
+                (!q || (a.titulo + " " + m.titulo).toLowerCase().indexOf(q) >= 0);
+        });
+        var pub = aulas.filter(function (a) { return a.publicado; });
+        var ok = pub.filter(function (a) { return feitas[a.id]; }).length;
+        return { m: m, aulas: aulas, pub: pub.length, ok: ok, pct: pub.length ? ok / pub.length : 0 };
+    }).filter(function (v) {
+        return bibCasa(v.m.unidades, fUni) && bibCasa(v.m.funcoes, fFun) && (edicao || v.aulas.length > 0);
+    });
+    var totAulas = modsView.reduce(function (s, v) { return s + v.pub; }, 0);
+    var totOk = modsView.reduce(function (s, v) { return s + v.ok; }, 0);
+    var modsFeitos = modsView.filter(function (v) { return v.pub > 0 && v.ok === v.pub; }).length;
+    var recarregar = function () { setTick(function (t) { return t + 1; }); };
+    var abrirAula = function (a) {
+        setAviso(null);
+        db.from("biblioteca_aula").select("*").eq("id", a.id).single().then(function (r) {
+            if (r.error)
+                setAviso("Não consegui abrir a aula: " + r.error.message);
+            else
+                setAberta(r.data);
+        });
+    };
+    var marcar = function (aulaId, jaFeita) {
+        var p = jaFeita ? db.from("biblioteca_progresso").delete().eq("aula_id", aulaId).eq("user_id", user.id)
+            : db.from("biblioteca_progresso").insert({ aula_id: aulaId });
+        p.then(function (r) {
+            if (r.error)
+                setAviso("Não consegui salvar: " + r.error.message);
+            else {
+                setAviso(null);
+                recarregar();
+            }
+        });
+    };
+    var editarAula = function (a) {
+        db.from("biblioteca_aula").select("*").eq("id", a.id).single().then(function (r) {
+            if (r.error)
+                setAviso("Não consegui abrir para editar: " + r.error.message);
+            else
+                setEditor({ tipo: "aula", obj: r.data });
+        });
+    };
+    var alternar = function (tabela, id, publicado) {
+        db.from(tabela).update({ publicado: publicado }).eq("id", id).then(function (r) {
+            if (r.error)
+                setAviso("Não consegui alterar: " + r.error.message);
+            else
+                recarregar();
+        });
+    };
+    var corTipo = function (t) { return (t === "playbook" ? T.good : t === "prova" ? T.bad : T.ink2); };
+    var rotuloTipo = function (t) { return bibRotulo(BIB_TIPOS, t); };
+    var tagsDe = function (arr, lista) { return (arr || []).map(function (u) { return React.createElement(Tag, { key: u, cor: T.ink2 }, bibRotulo(lista, u)); }); };
+    /* ---------- leitura da aula ---------- */
+    if (aberta) {
+        var jaFez = !!feitas[aberta.id];
+        var m0 = dados.mods.filter(function (x) { return x.id === aberta.modulo_id; })[0];
+        return (React.createElement("div", null,
+            React.createElement("style", null, BIB_CSS),
+            React.createElement("button", { type: "button", onClick: function () { setAberta(null); setAviso(null); }, style: __assign(__assign({}, bibBtn()), { marginBottom: 14 }) }, "← Voltar à trilha"),
+            React.createElement(Card, { className: "p16" },
+                React.createElement(Label, null, m0 ? "Módulo " + m0.numero + " · " + m0.titulo : "Módulo"),
+                React.createElement("h2", { style: { fontFamily: F_MARCA, fontSize: 22, margin: "6px 0 8px" } }, aberta.titulo),
+                React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 14 } },
+                    React.createElement(Tag, { cor: corTipo(aberta.tipo) }, rotuloTipo(aberta.tipo)),
+                    aberta.minutos ? React.createElement(Tag, { cor: T.ink2 }, aberta.minutos + " min") : null,
+                    !aberta.publicado && React.createElement(Tag, { cor: T.warn }, "Rascunho"),
+                    React.createElement("span", { style: { fontSize: 11.5, color: T.muted } }, "versão " + aberta.versao)),
+                aberta.link && React.createElement("div", { style: { marginBottom: 14 } }, React.createElement("a", { href: aberta.link, target: "_blank", rel: "noopener noreferrer", style: bibBtn("marca") }, "Abrir material")),
+                aberta.tipo === "prova" && React.createElement("div", { style: { fontSize: 13, color: T.warn, background: "#FFF8E1", border: "1px solid #F0DDA0", borderRadius: 8, padding: "9px 11px", marginBottom: 14 } }, "A prova deste módulo ainda não está disponível nesta versão."),
+                React.createElement("div", { className: "bibmd", dangerouslySetInnerHTML: { __html: bibMd(aberta.conteudo) } }),
+                aviso && React.createElement("div", { style: { color: T.bad, fontSize: 13, marginTop: 14 } }, aviso),
+                aberta.tipo !== "prova" && React.createElement("div", { style: { marginTop: 22, paddingTop: 16, borderTop: "1px solid " + T.hair, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement("button", { type: "button", onClick: function () { marcar(aberta.id, jaFez); }, style: jaFez ? bibBtn() : bibBtn("marca") }, jaFez ? "✓ Concluída (desmarcar)" : "Marcar como concluída"),
+                    !aberta.publicado && React.createElement("span", { style: { fontSize: 12, color: T.muted } }, "Rascunho: só você vê esta aula."),
+                    ehAdm && React.createElement("button", { type: "button", onClick: function () { editarAula(aberta); }, style: bibBtn() }, "Editar aula"))),
+            editor && React.createElement(BibEditor, { tipo: editor.tipo, obj: editor.obj, mods: dados.mods, onClose: function () { return setEditor(null); }, onSalvo: function () { setEditor(null); setAberta(null); recarregar(); } })));
+    }
+    /* ---------- trilha ---------- */
+    var proxOrdem = function (mid) {
+        var o = dados.aulas.filter(function (a) { return a.modulo_id === mid; }).map(function (a) { return a.ordem; });
+        return o.length ? Math.max.apply(null, o) + 1 : 1;
+    };
+    var proxNumero = dados.mods.length ? Math.max.apply(null, dados.mods.map(function (x) { return x.numero; })) + 1 : 1;
+    var moduloCard = function (v) {
+        var m = v.m;
+        var fechado = fechados[m.id] === true;
+        var concluido = v.pub > 0 && v.ok === v.pub;
+        return (React.createElement(Card, { key: m.id, className: "p16", style: { marginTop: 12, borderLeft: "4px solid " + (concluido ? T.good : T.marca) } },
+            React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap" } },
+                React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "flex-start", minWidth: 0, flex: 1 } },
+                    React.createElement("span", { style: { fontFamily: F_MARCA, background: T.marca, color: T.preto, fontSize: 12, fontWeight: 700, borderRadius: 6, padding: "4px 8px", lineHeight: 1.2, marginTop: 2 } }, String(m.numero).padStart(2, "0")),
+                    React.createElement("div", { style: { minWidth: 0 } },
+                        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 16.5, fontWeight: 700 } }, m.titulo),
+                        m.resumo && React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 2, lineHeight: 1.5 } }, m.resumo),
+                        React.createElement("div", { style: { display: "flex", gap: 5, flexWrap: "wrap", marginTop: 6 } },
+                            !m.publicado && React.createElement(Tag, { cor: T.warn }, "Rascunho"),
+                            tagsDe(m.unidades, BIB_UNIDADES), tagsDe(m.funcoes, BIB_FUNCOES)))),
+                React.createElement("div", { style: { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" } },
+                    edicao && ehAdm && React.createElement("button", { type: "button", onClick: function () { return setEditor({ tipo: "modulo", obj: m }); }, style: bibBtn() }, "Editar módulo"),
+                    edicao && ehAdm && React.createElement("button", { type: "button", onClick: function () { return alternar("biblioteca_modulo", m.id, !m.publicado); }, style: bibBtn() }, m.publicado ? "Tirar do ar" : "Publicar"),
+                    edicao && ehAdm && React.createElement("button", { type: "button", onClick: function () { return setEditor({ tipo: "aula", obj: { modulo_id: m.id, ordem: proxOrdem(m.id), titulo: "", tipo: "texto", conteudo: "", unidades: [], funcoes: [], publicado: false } }); }, style: bibBtn("marca") }, "+ Aula"),
+                    React.createElement("button", { type: "button", onClick: function () { var n = __assign({}, fechados); n[m.id] = !fechado; setFechados(n); }, style: bibBtn() }, fechado ? "Mostrar aulas" : "Recolher"))),
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, margin: "12px 0 4px" } },
+                React.createElement("div", { style: { flex: 1 } }, React.createElement(Barra, { pct: v.pct, cor: concluido ? T.good : T.ink, alt: 8 })),
+                React.createElement("span", { style: { fontFamily: F_NUM, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" } }, v.pub ? v.ok + " de " + v.pub + " aulas" : "sem aulas publicadas"),
+                concluido && React.createElement(Tag, { cor: T.good }, "Concluído")),
+            !fechado && React.createElement("div", { style: { marginTop: 6 } },
+                v.aulas.map(function (a) {
+                    var fez = !!feitas[a.id];
+                    return (React.createElement("div", { key: a.id, style: { display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: "1px solid " + T.hair, flexWrap: "wrap" } },
+                        React.createElement("span", { style: { width: 22, height: 22, borderRadius: 99, flex: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700,
+                                background: fez ? T.good : T.canvas, color: fez ? "#fff" : T.muted } }, fez ? "✓" : a.ordem),
+                        React.createElement("div", { style: { flex: 1, minWidth: 180 } },
+                            React.createElement("div", { style: { fontWeight: 700, fontSize: 14 } }, a.titulo),
+                            React.createElement("div", { style: { display: "flex", gap: 5, flexWrap: "wrap", marginTop: 3 } },
+                                React.createElement(Tag, { cor: corTipo(a.tipo) }, rotuloTipo(a.tipo)),
+                                a.minutos ? React.createElement(Tag, { cor: T.ink2 }, a.minutos + " min") : null,
+                                !a.publicado && React.createElement(Tag, { cor: T.warn }, "Rascunho"),
+                                a.unidades && a.unidades.length ? tagsDe(a.unidades, BIB_UNIDADES) : null,
+                                a.funcoes && a.funcoes.length ? tagsDe(a.funcoes, BIB_FUNCOES) : null)),
+                        React.createElement("div", { style: { display: "flex", gap: 6 } },
+                            edicao && ehAdm && React.createElement("button", { type: "button", onClick: function () { return editarAula(a); }, style: bibBtn() }, "Editar"),
+                            edicao && ehAdm && React.createElement("button", { type: "button", onClick: function () { return alternar("biblioteca_aula", a.id, !a.publicado); }, style: bibBtn() }, a.publicado ? "Tirar do ar" : "Publicar"),
+                            React.createElement("button", { type: "button", onClick: function () { return abrirAula(a); }, style: bibBtn("marca") }, fez ? "Rever" : "Abrir"))));
+                }),
+                !v.aulas.length && React.createElement("div", { style: { fontSize: 12.5, color: T.muted, padding: "8px 0" } }, "Nenhuma aula neste filtro."))));
+    };
+    /* progresso do time (admin e gerente): uma linha por pessoa, uma coluna por módulo */
+    var timePessoas = {};
+    dados.time.forEach(function (r) {
+        var k = r.user_id;
+        if (!timePessoas[k])
+            timePessoas[k] = { nome: r.sdr_nome || "(sem nome)", mods: {} };
+        timePessoas[k].mods[r.numero] = r.percentual;
+    });
+    var listaTime = Object.keys(timePessoas).map(function (k) { return timePessoas[k]; }).sort(function (a, b) { return String(a.nome).localeCompare(String(b.nome)); });
+    var numerosMods = dados.mods.map(function (x) { return x.numero; });
+    return (React.createElement("div", null,
+        React.createElement("style", null, BIB_CSS),
+        React.createElement(Card, { className: "p12" },
+            React.createElement(Inp, { type: "search", value: busca, onChange: function (e) { return setBusca(e.target.value); }, placeholder: "Buscar aula, módulo ou documento", style: { marginBottom: 12 } }),
+            React.createElement(Label, { style: { marginBottom: 6 } }, "Unidade de negócio"),
+            React.createElement(Chips, { value: fUni, onChange: setFUni, options: [["todas", "Todas"]].concat(BIB_UNIDADES) }),
+            React.createElement(Label, { style: { margin: "12px 0 6px" } }, "Função"),
+            React.createElement(Chips, { value: fFun, onChange: setFFun, options: [["todas", "Todas"]].concat(BIB_FUNCOES) })),
+        React.createElement(Secao, { n: 1, titulo: "Trilha do SDR", nota: "Siga os módulos na ordem, abra cada aula e marque como concluída. O que você conclui fica salvo no seu login." },
+            React.createElement("div", { className: "grid-kpi", style: { gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" } },
+                React.createElement(Kpi, { label: "Seu progresso", value: totAulas ? Math.round(100 * totOk / totAulas) + "%" : "—", sub: totOk + " de " + totAulas + " aulas" }),
+                React.createElement(Kpi, { label: "Módulos concluídos", value: modsFeitos + " de " + modsView.filter(function (v) { return v.pub > 0; }).length, sub: "neste filtro" })),
+            ehAdm && React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 14 } },
+                React.createElement("button", { type: "button", onClick: function () { return setEdicao(!edicao); }, style: edicao ? bibBtn("marca") : bibBtn() }, edicao ? "Sair do modo edição" : "Modo edição"),
+                edicao && React.createElement("button", { type: "button", onClick: function () { return setEditor({ tipo: "modulo", obj: { numero: proxNumero, titulo: "", resumo: "", unidades: [], funcoes: [], nota_minima: 80, publicado: false } }); }, style: bibBtn("marca") }, "+ Módulo"),
+                !edicao && React.createElement("span", { style: { fontSize: 12, color: T.muted } }, "Você vê também os rascunhos. Os SDRs só veem o que está publicado.")),
+            aviso && React.createElement("div", { style: { color: T.bad, fontSize: 13, marginTop: 10 } }, aviso),
+            dados.erro && React.createElement("div", { style: { color: T.bad, fontSize: 13, marginTop: 10 } }, "Não consegui ler a trilha: " + dados.erro),
+            dados.carregando && React.createElement("div", { style: { fontSize: 13, color: T.muted, marginTop: 14 } }, "Carregando…"),
+            !dados.carregando && !dados.erro && !modsView.length && React.createElement(Card, { className: "p16", style: { marginTop: 12 } },
+                React.createElement("div", { style: { fontSize: 13.5, color: T.ink2 } }, ehAdm ? "Nenhum módulo neste filtro." : "Ainda não há módulos publicados para este filtro. Assim que o Rafael publicar, eles aparecem aqui.")),
+            modsView.map(moduloCard)),
+        React.createElement(BibDrive, { busca: busca, fUni: fUni, fFun: fFun }),
+        vePerfisTodos && React.createElement(Secao, { n: 5, titulo: "Progresso do time", nota: "Percentual de aulas concluídas por pessoa e módulo. Aparece quem já concluiu pelo menos uma aula." },
+            React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
+                React.createElement("div", { className: "rolagem" },
+                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 420 } },
+                        React.createElement("thead", null, React.createElement("tr", null,
+                            React.createElement(Th, null, "Pessoa"),
+                            numerosMods.map(function (n) { return React.createElement(Th, { key: n, right: true }, "M" + n); }))),
+                        React.createElement("tbody", null,
+                            listaTime.map(function (p) { return (React.createElement("tr", { key: p.nome },
+                                React.createElement(Td, { bold: true }, p.nome),
+                                numerosMods.map(function (n) { return React.createElement(Td, { key: n, right: true, color: p.mods[n] >= 100 ? T.good : p.mods[n] ? T.ink : T.muted }, p.mods[n] != null ? p.mods[n] + "%" : "—"); }))); }),
+                            !listaTime.length && React.createElement("tr", null, React.createElement(Td, { style: { whiteSpace: "normal" } }, "Ninguém concluiu aula ainda."))))))),
+        editor && React.createElement(BibEditor, { tipo: editor.tipo, obj: editor.obj, mods: dados.mods, onClose: function () { return setEditor(null); }, onSalvo: function () { setEditor(null); recarregar(); } })));
+}
+
+function BibDrive(_p) {
+    var busca = _p.busca, fUni = _p.fUni, fFun = _p.fFun;
+    var q = busca.trim().toLowerCase();
+    /* v93: dois filtros. Frente de unidade (Car Service…) só responde ao filtro de unidade; frente de função (SDR, BDR, Closer) só ao de função. */
+    var ROT_UNI = BIB_UNIDADES.map(function (x) { return x[1]; }), ROT_FUN = BIB_FUNCOES.map(function (x) { return x[1]; });
     var lista = BIB_DOCS.filter(function (d) {
-        return (area === "Todas" || d.frente === area || d.frente === "Todas") &&
-            (!q || [d.doc, d.tipo, d.frente].join(" ").toLowerCase().indexOf(q) >= 0);
+        var f = d.frente, ehUni = ROT_UNI.indexOf(f) >= 0, ehFun = ROT_FUN.indexOf(f) >= 0;
+        var okUni = fUni === "todas" || f === "Todas" || ehFun || f === bibRotulo(BIB_UNIDADES, fUni);
+        var okFun = fFun === "todas" || f === "Todas" || ehUni || f === bibRotulo(BIB_FUNCOES, fFun);
+        var q = busca.trim().toLowerCase();
+        return okUni && okFun && (!q || [d.doc, d.tipo, d.frente].join(" ").toLowerCase().indexOf(q) >= 0);
     });
     var corFrente = function (f) { return (f === "a classificar" ? T.warn : f === "Todas" ? T.ink : T.good); };
     return (React.createElement("div", null,
         React.createElement("div", { className: "duo2", style: { display: "grid", gap: 24, alignItems: "start" } },
             React.createElement("div", { style: { minWidth: 0 } },
-                React.createElement(Secao, { n: 1, titulo: "Biblioteca do comercial", nota: "Espelho dos Drives do comercial: o que existe, de que frente \u00E9 e quando foi atualizado. Os arquivos ficam no Drive da conta thewoperation@gmail.com: se o Drive pedir permiss\u00E3o, pe\u00E7a acesso ao Rafael." },
-                    React.createElement(Card, { className: "p12" },
-                        React.createElement("input", { type: "search", value: busca, onChange: function (e) { return setBusca(e.target.value); }, placeholder: "Buscar documento, tipo ou frente", style: __assign(__assign({}, inputStyle), { marginBottom: 10 }) }),
-                        React.createElement(Chips, { value: area, onChange: setArea, options: BIB_AREAS.map(function (a) { return [a, a]; }) })),
-                    React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden", marginTop: 12 } },
+                React.createElement(Secao, { n: 2, titulo: "Documentos no Drive", nota: "Espelho dos Drives do comercial: o que existe, de que frente \u00E9 e quando foi atualizado. Os arquivos ficam no Drive da conta thewoperation@gmail.com: se o Drive pedir permiss\u00E3o, pe\u00E7a acesso ao Rafael." },
+                    React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden", marginTop: 0 } },
                         React.createElement("div", { className: "rolagem" },
                             React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 600 } },
                                 React.createElement("thead", null,
@@ -3268,7 +3754,7 @@ function AbaBiblioteca() {
                         React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: T.bad, marginBottom: 6 } }, "O que falta para o SDR de Car Service"),
                         React.createElement("ul", { style: { margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.7, color: T.ink } }, BIB_FALTA.map(function (f) { return React.createElement("li", { key: f }, f); }))))),
             React.createElement("div", { style: { minWidth: 0 } },
-                React.createElement(Secao, { n: 2, titulo: "Pesquisa de mercado", nota: "Levantamento de 10/09/2026, S\u00E3o Paulo capital." },
+                React.createElement(Secao, { n: 3, titulo: "Pesquisa de mercado", nota: "Levantamento de 10/09/2026, S\u00E3o Paulo capital." },
                     React.createElement("div", { className: "grid-kpi", style: { gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" } },
                         React.createElement(Kpi, { label: "Concorrentes mapeados", value: "30", sub: "5 por frente" }),
                         React.createElement(Kpi, { label: "Credenciados 3M", value: "8", sub: "pelo que cada loja declara no site" })),
@@ -3288,7 +3774,7 @@ function AbaBiblioteca() {
                         React.createElement("div", { style: { fontSize: 12.5, marginTop: 10, background: "#FFF8E1", border: "1px solid #F0DDA0", borderRadius: 8, padding: "9px 11px", lineHeight: 1.5 } },
                             React.createElement("b", null, "Dica para a conversa:"),
                             " o selo 3M de pel\u00EDcula de vidro n\u00E3o cobre PPF. Pergunte se a loja \u00E9 credenciada em prote\u00E7\u00E3o de pintura."))))),
-        React.createElement(Secao, { n: 3, titulo: "O cliente diz \u2192 o concorrente \u2192 como a gente conduz" },
+        React.createElement(Secao, { n: 4, titulo: "O cliente diz \u2192 o concorrente \u2192 como a gente conduz" },
             React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
                 React.createElement("div", { className: "rolagem" },
                     React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 680 } },
