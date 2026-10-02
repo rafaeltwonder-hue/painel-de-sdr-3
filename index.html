@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v90 — CAR SERVICE</title>
-<meta name="painel-versao" content="v90">
+<title>Painel de SDR v92 — CAR SERVICE</title>
+<meta name="painel-versao" content="v92">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -3069,15 +3069,54 @@ var TREINO_CRITERIOS = [
     ["Valor da visita", 10], ["Fechamento", 20], ["Respeito", 10],
 ];
 var TREINO_SDRS = ["Paulo Allan", "Milena", "Marcos", "Alessandro", "Alexandre Nogueira"];
-function AbaTreinador() {
+/* v92: segunda-feira da semana atual em São Paulo (UTC-3, sem horário de verão), como "AAAA-MM-DD". */
+function segundaSP() {
+    var d = new Date(Date.now() - 3 * 3600 * 1000);
+    var dow = (d.getUTCDay() + 6) % 7;
+    d.setUTCDate(d.getUTCDate() - dow);
+    return d.toISOString().slice(0, 10);
+}
+var TREINO_META = 3;
+function AbaTreinador(_a) {
+    var nome = _a.nome, semPlacar = _a.semPlacar;
+    var _b = __read(useState({ carregando: true, erro: null, sem: [], eq: [], ult: [] }), 2), pl = _b[0], setPl = _b[1];
+    useEffect(function () {
+        if (semPlacar)
+            return undefined;
+        var vivo = true;
+        Promise.all([
+            db.from("treino_semana_v").select("*").eq("semana", segundaSP()),
+            db.from("equipe_sdr").select("sdr,ativo,negocio").eq("negocio", "car_service").eq("ativo", true),
+            db.from("treino_ligacao").select("conversation_id,sdr_nome,persona,nivel,iniciada_em,duracao_s,nota,agendou,conta")
+                .not("sdr_nome", "is", null).order("iniciada_em", { ascending: false }).limit(15),
+        ]).then(function (r) {
+            if (!vivo)
+                return;
+            var erro = (r[0].error || r[1].error || r[2].error);
+            setPl({ carregando: false, erro: erro ? erro.message : null, sem: r[0].data || [], eq: r[1].data || [], ult: r[2].data || [] });
+        }, function (e) { if (vivo)
+            setPl({ carregando: false, erro: String((e && e.message) || e), sem: [], eq: [], ult: [] }); });
+        return function () { vivo = false; };
+    }, [semPlacar]);
+    var porSdr = {};
+    pl.sem.forEach(function (x) { porSdr[String(x.sdr).toLowerCase()] = x; });
+    var linhas = pl.eq.map(function (e) { return ({ sdr: e.sdr, x: porSdr[String(e.sdr).toLowerCase()] || null }); })
+        .sort(function (a, b) { return ((b.x ? b.x.treinos : 0) - (a.x ? a.x.treinos : 0)) || String(a.sdr).localeCompare(String(b.sdr)); });
+    var totalTreinos = pl.sem.reduce(function (t, x) { return t + (x.treinos || 0); }, 0);
+    var fmtQuando = function (iso) {
+        var d = new Date(iso);
+        var dd = new Date(d.getTime() - 3 * 3600 * 1000);
+        var z = function (n) { return (n < 10 ? "0" : "") + n; };
+        return z(dd.getUTCDate()) + "/" + z(dd.getUTCMonth() + 1) + " " + z(dd.getUTCHours()) + ":" + z(dd.getUTCMinutes());
+    };
     var nPersonas = TREINO_NIVEIS.reduce(function (s, n) { return s + n.personas.length; }, 0);
     return (React.createElement("div", null,
         React.createElement("div", { className: "grid-kpi" },
             React.createElement(Kpi, { label: "Personas no ar", value: nInt(nPersonas), sub: "Car Service \u00B7 3 por n\u00EDvel" }),
             React.createElement(Kpi, { label: "Meta do time", value: "3", sub: "treinos por SDR por semana" }),
-            React.createElement(Kpi, { label: "Piloto \u00B7 liga\u00E7\u00E3o errada", value: "28/100", sub: "Thiago, sem seguir o roteiro", tone: "bad" }),
-            React.createElement(Kpi, { label: "Piloto \u00B7 liga\u00E7\u00E3o certa", value: "85/100", sub: "Thiago, seguindo o roteiro", tone: "good" })),
-        React.createElement(Secao, { n: 1, titulo: "Treinar agora", nota: "Escolha o cliente e ligue pelo navegador, com o microfone. Diga o seu nome no come\u00E7o da liga\u00E7\u00E3o: \u00E9 assim que o treino \u00E9 identificado. A nota sai sozinha ao final." },
+            React.createElement(Kpi, { label: "Treinos do time", value: semPlacar ? "—" : nInt(totalTreinos), sub: "nesta semana (liga\u00E7\u00F5es de 60 s ou mais)" }),
+            React.createElement(Kpi, { label: "Piloto \u00B7 liga\u00E7\u00E3o errada", value: "28/100", sub: "Thiago, sem seguir o roteiro", tone: "bad" })),
+        React.createElement(Secao, { n: 1, titulo: "Treinar agora", nota: "Escolha o cliente e ligue pelo navegador, com o microfone. " + (nome ? "O seu nome já vai junto no link: é assim que o treino é identificado. A nota sai sozinha ao final." : "Diga o seu nome no começo da ligação: é assim que o treino é identificado. A nota sai sozinha ao final.") },
             React.createElement("div", { className: "grid-kpi", style: { gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" } }, TREINO_NIVEIS.map(function (nv) { return (React.createElement(Card, { key: nv.id, className: "p16", style: { borderTop: "4px solid ".concat(nv.cor) } },
                 React.createElement("div", { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between" } },
                     React.createElement("span", { style: { fontFamily: F_MARCA, fontSize: 17, fontWeight: 700, color: nv.cor } }, nv.id),
@@ -3089,26 +3128,60 @@ function AbaTreinador() {
                     React.createElement("div", { style: { flex: 1, minWidth: 0 } },
                         React.createElement("div", { style: { fontWeight: 700, fontSize: 14 } }, p.nome),
                         React.createElement("div", { style: { fontSize: 12, color: T.muted, lineHeight: 1.4 } }, p.gancho)),
-                    React.createElement("a", { href: TREINO_LINK + p.id, target: "_blank", rel: "noopener noreferrer", style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "7px 11px", borderRadius: 6, background: T.marca,
+                    React.createElement("a", { href: TREINO_LINK + p.id + (nome ? "&var_sdr_nome=" + encodeURIComponent(nome) : ""), target: "_blank", rel: "noopener noreferrer", style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "7px 11px", borderRadius: 6, background: T.marca,
                             color: T.preto, textDecoration: "none", whiteSpace: "nowrap", border: "1px solid ".concat(T.marca) } }, "\uD83D\uDCDE Ligar"))); }))); }))),
-        React.createElement(Secao, { n: 2, titulo: "Placar do time", nota: "Fica vazio at\u00E9 cada SDR treinar. O registro autom\u00E1tico das liga\u00E7\u00F5es (nota, n\u00EDvel e ponto de treino) entra na fase 2, depois da sua autoriza\u00E7\u00E3o \u2014 por isso nenhum n\u00FAmero \u00E9 inventado aqui." },
+        !semPlacar && React.createElement(Secao, { n: 2, titulo: "Placar da semana", nota: "Meta: " + TREINO_META + " treinos por SDR por semana. Só contam ligações de 60 segundos ou mais. A nota é a soma dos critérios cumpridos (não a nota solta da IA)." + (pl.erro ? " Não consegui ler o placar: " + pl.erro : "") },
             React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
                 React.createElement("div", { className: "rolagem" },
                     React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 640 } },
                         React.createElement("thead", null,
                             React.createElement("tr", null,
                                 React.createElement(Th, null, "SDR"),
-                                React.createElement(Th, { right: true }, "Treinos na semana"),
+                                React.createElement(Th, { right: true },
+                                    "Treinos (meta ",
+                                    TREINO_META,
+                                    ")"),
                                 React.createElement(Th, { right: true }, "Nota m\u00E9dia"),
-                                React.createElement(Th, { right: true }, "N\u00EDvel mais alto"),
-                                React.createElement(Th, null, "Ponto de treino"))),
-                        React.createElement("tbody", null, TREINO_SDRS.map(function (s) { return (React.createElement("tr", { key: s },
-                            React.createElement(Td, { bold: true }, s),
-                            React.createElement(Td, { right: true, color: T.muted }, "\u2014"),
-                            React.createElement(Td, { right: true, color: T.muted }, "\u2014"),
-                            React.createElement(Td, { right: true, color: T.muted }, "\u2014"),
-                            React.createElement(Td, { color: T.muted }, "\u2014"))); })))))),
-        React.createElement(Secao, { n: 3, titulo: "Como a nota sai", nota: "Igual nos 12 clientes. Cada liga\u00E7\u00E3o recebe nota de 0 a 100, se o SDR agendou ou n\u00E3o, e um ponto de treino: a frase que ele disse, ao lado de uma vers\u00E3o melhor." },
+                                React.createElement(Th, { right: true }, "Melhor nota"),
+                                React.createElement(Th, null, "\u00DAltimo ponto de treino"))),
+                        React.createElement("tbody", null, linhas.map(function (l) {
+                            var x = l.x;
+                            var n = x ? x.treinos : 0;
+                            return (React.createElement("tr", { key: l.sdr },
+                                React.createElement(Td, { bold: true }, l.sdr),
+                                React.createElement(Td, { right: true, bold: true, color: n >= TREINO_META ? T.good : (n > 0 ? T.warn : T.muted) }, pl.carregando ? "…" : n + "/" + TREINO_META),
+                                React.createElement(Td, { right: true, color: x && n > 0 ? T.ink : T.muted }, x && n > 0 ? x.media_nota : "—"),
+                                React.createElement(Td, { right: true, color: x && n > 0 ? T.ink : T.muted }, x && n > 0 ? x.melhor_nota : "—"),
+                                React.createElement(Td, { color: x && x.ultimo_ponto ? T.ink : T.muted }, x && x.ultimo_ponto ? x.ultimo_ponto : "—")));
+                        })))))),
+        !semPlacar && React.createElement(Secao, { n: 3, titulo: "\u00DAltimas liga\u00E7\u00F5es", nota: "As 15 mais recentes do time. A liga\u00E7\u00E3o curta (menos de 60 s) aparece, mas n\u00E3o conta no placar." },
+            React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
+                React.createElement("div", { className: "rolagem" },
+                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 640 } },
+                        React.createElement("thead", null,
+                            React.createElement("tr", null,
+                                React.createElement(Th, null, "Quando"),
+                                React.createElement(Th, null, "SDR"),
+                                React.createElement(Th, null, "Cliente"),
+                                React.createElement(Th, null, "N\u00EDvel"),
+                                React.createElement(Th, { right: true }, "Nota"),
+                                React.createElement(Th, null, "Agendou"),
+                                React.createElement(Th, { right: true }, "Dura\u00E7\u00E3o"))),
+                        React.createElement("tbody", null,
+                            pl.ult.length === 0 && (React.createElement("tr", null,
+                                React.createElement(Td, { color: T.muted }, pl.carregando ? "Carregando…" : "Nenhuma ligação registrada ainda."))),
+                            pl.ult.map(function (u) { return (React.createElement("tr", { key: u.conversation_id, style: { opacity: u.conta ? 1 : 0.55 } },
+                                React.createElement(Td, null, fmtQuando(u.iniciada_em)),
+                                React.createElement(Td, { bold: true }, u.sdr_nome || "—"),
+                                React.createElement(Td, null, u.persona || "—"),
+                                React.createElement(Td, null, u.nivel || "—"),
+                                React.createElement(Td, { right: true, bold: true }, u.conta ? u.nota : "—"),
+                                React.createElement(Td, null, u.conta ? (u.agendou ? "Sim" : "Não") : "não conta"),
+                                React.createElement(Td, { right: true },
+                                    Math.floor((u.duracao_s || 0) / 60),
+                                    ":",
+                                    ((u.duracao_s || 0) % 60 < 10 ? "0" : "") + ((u.duracao_s || 0) % 60)))); })))))),
+        React.createElement(Secao, { n: semPlacar ? 2 : 4, titulo: "Como a nota sai", nota: "Igual nos 12 clientes. A nota \u00E9 a soma dos pesos dos crit\u00E9rios cumpridos (0 a 100). Cada liga\u00E7\u00E3o tamb\u00E9m diz se o SDR agendou e traz um ponto de treino: a frase que ele disse, ao lado de uma vers\u00E3o melhor." },
             React.createElement(Card, { className: "p20" },
                 TREINO_CRITERIOS.map(function (_a) {
                     var _b = __read(_a, 2), n = _b[0], pt = _b[1];
@@ -3231,10 +3304,10 @@ function AbaBiblioteca() {
 }
 /* faixa de abas do Hub (usada na casca do closer). Painel principal usa o próprio menu. */
 function HubConteudo(_a) {
-    var aba = _a.aba;
+    var aba = _a.aba, nome = _a.nome, semPlacar = _a.semPlacar;
     return (React.createElement("div", null,
         aba === "precos" && React.createElement(AbaPrecos, null),
-        aba === "treinador" && React.createElement(AbaTreinador, null),
+        aba === "treinador" && React.createElement(AbaTreinador, { nome: nome, semPlacar: semPlacar }),
         aba === "biblioteca" && React.createElement(AbaBiblioteca, null)));
 }
 /* ===================== app ===================== */
@@ -3877,7 +3950,7 @@ function Painel(_a) {
             ehAdmin && aba === "lojas" && React.createElement(AbaLojas, { mes: mesAba }),
             ehAdmin && aba === "origem" && React.createElement(AbaOrigem, { mes: mesAba }),
             (ehAdmin || ehAgencia) && aba === "marketing" && React.createElement(AbaMarketing, { negocio: negocio }),
-            HUB_IDS.indexOf(aba) >= 0 && podeVer(aba) && React.createElement(HubConteudo, { aba: aba }),
+            HUB_IDS.indexOf(aba) >= 0 && podeVer(aba) && React.createElement(HubConteudo, { aba: aba, nome: nomeDoLogin(sessao) }),
             aba === "coordenador" && mesAba !== mesAtualISO && React.createElement(CoordenadorMesFechado, { mes: mesAba, negocio: negocio, sessao: sessao }),
             aba === "coordenador" && mesAba === mesAtualISO && rot && React.createElement(AbaCoordenador, { sessao: sessao, c: rot, funil: d.funilAgora, qualidade: d.qualidade, tarefas: d.tarefas, semTarefa: d.semTarefa }),
             aba === "painel" && (React.createElement(React.Fragment, null,
@@ -11461,7 +11534,44 @@ function PainelCloser(_a) {
             })),
             React.createElement("div", { style: { display: hub === "piloto" ? "block" : "none" } },
                 React.createElement(Piloto, { sessao: sessao, todos: todos })),
-            hub !== "piloto" && React.createElement(HubConteudo, { aba: hub }))));
+            hub !== "piloto" && React.createElement(HubConteudo, { aba: hub, nome: nomeDoLogin(sessao), semPlacar: true }))));
+}
+/* v91: login de SDR só com o Hub (perfil 'sdr_hub'). Não monta o Painel nem
+   consulta o banco: só Preços, Treinador e Biblioteca, que são dados fixos da página.
+   O nome vai no link do Treinador (var_sdr_nome): vem de app_metadata.nome ou
+   user_metadata.nome; se não houver, usa o começo do e-mail. */
+function nomeDoLogin(sessao) {
+    var u = (sessao && sessao.user) || {};
+    var n = (u.app_metadata && u.app_metadata.nome) || (u.user_metadata && u.user_metadata.nome) || "";
+    if (n)
+        return String(n);
+    var e = String(u.email || "").split("@")[0].split(/[._\-0-9]/)[0];
+    return e ? e.charAt(0).toUpperCase() + e.slice(1) : "";
+}
+function PainelHub(_a) {
+    var sessao = _a.sessao;
+    var _b = __read(useState("precos"), 2), hub = _b[0], setHub = _b[1];
+    var nome = nomeDoLogin(sessao);
+    return (React.createElement("div", { style: { background: T.canvas, minHeight: "100vh", fontFamily: F_UI, color: T.ink } },
+        React.createElement("header", { style: { background: T.preto, position: "sticky", top: 0, zIndex: 30 } },
+            React.createElement("div", { className: "wrap", style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, padding: "11px 24px" } },
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 13 } },
+                    React.createElement(Selo, { tam: 32 }),
+                    React.createElement("div", { style: { lineHeight: 1.2 } },
+                        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 15, fontWeight: 700, color: "#fff" } }, "Hub do SDR"),
+                        React.createElement("div", { style: { fontSize: 11.5, color: "rgba(255,255,255,.6)" } }, nome ? "Olá, " + nome : "Preços · Treinador · Biblioteca"))),
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+                    React.createElement("span", { style: { fontSize: 12, color: "rgba(255,255,255,.55)" } }, sessao.user.email),
+                    React.createElement("button", { onClick: function () { return db.auth.signOut(); }, style: { background: "transparent", border: "1px solid rgba(255,255,255,.28)", color: "rgba(255,255,255,.85)",
+                            borderRadius: 7, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: F_UI } }, "Sair")))),
+        React.createElement("main", { className: "wrap", style: { padding: "24px 24px 80px" } },
+            React.createElement("div", { style: { display: "flex", gap: 4, background: T.surface, border: "1px solid ".concat(T.hair), borderRadius: 8, padding: 4,
+                    marginBottom: 16, width: "fit-content", maxWidth: "100%", flexWrap: "wrap", alignItems: "center" } }, HUB_ABAS.map(function (_a) {
+                var _b = __read(_a, 2), v = _b[0], l = _b[1];
+                return (React.createElement("button", { key: v, onClick: function () { return setHub(v); }, style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700, padding: "8px 16px",
+                        border: 0, borderRadius: 5, cursor: "pointer", background: hub === v ? T.ink : "transparent", color: hub === v ? "#fff" : T.ink2 } }, l));
+            })),
+            React.createElement(HubConteudo, { aba: hub, nome: nome }))));
 }
 function App() {
     var _a = __read(useState(undefined), 2), sessao = _a[0], setSessao = _a[1];
@@ -11513,6 +11623,8 @@ function App() {
         return React.createElement(PainelCloser, { sessao: sessao });
     if (sessao && perfilSessao === "gerente")
         return React.createElement(PainelCloser, { sessao: sessao, todos: true });
+    if (sessao && perfilSessao === "sdr_hub")
+        return React.createElement(PainelHub, { sessao: sessao });
     return sessao ? React.createElement(Painel, { sessao: sessao }) : React.createElement(Login, null);
 }
 ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
