@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v87 — CAR SERVICE</title>
-<meta name="painel-versao" content="v87">
+<title>Painel de SDR v88 — CAR SERVICE</title>
+<meta name="painel-versao" content="v88">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -479,8 +479,34 @@ function faixa(f) {
             var p = addDays(t.slice(0, 8) + "01", -1);
             return [p.slice(0, 8) + "01", p];
         }
-        default: return [f.de, f.ate];
+        default:
+            /* v88: "m:2026-08" = o mês inteiro escolhido na lista */
+            if (String(f.periodo).indexOf("m:") === 0) {
+                var m = f.periodo.slice(2), u = ultimoDiaMes(m);
+                return [m, u > t ? t : u];
+            }
+            return [f.de, f.ate];
     }
+}
+/* nome do período para título e lista (v88: inclui os meses) */
+function rotuloPeriodo(f, de, ate) {
+    if (f.periodo === "custom")
+        return "".concat(brFull(de), " a ").concat(brFull(ate));
+    if (String(f.periodo).indexOf("m:") === 0)
+        return rotuloMes(f.periodo.slice(2));
+    return PERIODOS[f.periodo];
+}
+/* meses para o filtro da aba SDR: os dois mais recentes já têm atalho próprio */
+function opcoesPeriodo() {
+    var base = Object.entries(PERIODOS).filter(function (_a) {
+        var _b = __read(_a, 1), v = _b[0];
+        return v !== "custom";
+    }).map(function (_a) {
+        var _b = __read(_a, 2), v = _b[0], l = _b[1];
+        return ({ v: v, l: l });
+    });
+    var meses = listaMeses().slice(2).map(function (m) { return ({ v: "m:" + m, l: rotuloMes(m) }); });
+    return base.concat(meses, [{ v: "custom", l: PERIODOS.custom }]);
 }
 /* ===================== UI ===================== */
 var Card = function (_a) {
@@ -1065,7 +1091,7 @@ var DIV_TIPOS = {
 };
 function BlocoDivergenciaOS(_a) {
     var _this = this;
-    var sessao = _a.sessao;
+    var sessao = _a.sessao, mesFixo = _a.mesFixo;
     var h = hoje();
     var _b = __read(useState("mes"), 2), per = _b[0], setPer = _b[1];
     var _c = __read(useState("todas"), 2), filtro = _c[0], setFiltro = _c[1];
@@ -1077,6 +1103,8 @@ function BlocoDivergenciaOS(_a) {
     var _k = __read(useState(false), 2), copiado = _k[0], setCopiado = _k[1];
     var meuEmail = sessao && sessao.user ? sessao.user.email : "";
     var _l = __read(useMemo(function () {
+        if (mesFixo)
+            return [mesFixo, ultimoDiaMes(mesFixo)];
         if (per === "passado") {
             var a = mesAnteriorDe(h);
             var b = addDays(primeiroDia(h), -1);
@@ -1085,7 +1113,7 @@ function BlocoDivergenciaOS(_a) {
         if (per === "7d")
             return [addDays(h, -6), h];
         return [primeiroDia(h), h];
-    }, [per, h]), 2), ini = _l[0], fim = _l[1];
+    }, [per, h, mesFixo]), 2), ini = _l[0], fim = _l[1];
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
         var r_1, e_1;
         return __generator(this, function (_a) {
@@ -1183,7 +1211,9 @@ function BlocoDivergenciaOS(_a) {
                 React.createElement("h2", { style: { fontFamily: F_MARCA, fontSize: 16, fontWeight: 700, margin: "4px 0 0" } }, "Diverg\u00EAncia de O.S. \u2014 Kommo \u00D7 Oficina"),
                 React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 5, maxWidth: 560 } }, "O painel cruza sozinho cada venda do Kommo com as O.S. de agendamento do Oficina (loja, SDR, valor e data) e mostra s\u00F3 o que n\u00E3o bate.")),
             React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
-                React.createElement(Chips, { value: per, onChange: setPer, options: [["mes", "Este mês"], ["passado", "Mês passado"], ["7d", "7 dias"]] }),
+                mesFixo
+                    ? React.createElement("span", { style: { fontSize: 12.5, fontWeight: 600, color: T.ink2 } }, rotuloMes(mesFixo))
+                    : React.createElement(Chips, { value: per, onChange: setPer, options: [["mes", "Este mês"], ["passado", "Mês passado"], ["7d", "7 dias"]] }),
                 React.createElement("button", { type: "button", onClick: function () { return setAberto(!aberto); }, style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 600,
                         padding: "6px 11px", borderRadius: 99, cursor: "pointer", border: "1px solid ".concat(T.hair), background: T.surface, color: T.ink2 } }, aberto ? "Recolher" : "Abrir"))),
         erro && React.createElement("div", { style: { marginTop: 12, fontSize: 13, color: T.bad, background: "#FDECEE", borderRadius: 6, padding: "9px 11px" } },
@@ -1300,6 +1330,123 @@ function BlocoDivergenciaOS(_a) {
                 " que a \u00FAltima importa\u00E7\u00E3o do Oficina; n\u00E3o contam como diverg\u00EAncia at\u00E9 a pr\u00F3xima importa\u00E7\u00E3o."))))));
 }
 /* ---------- aba do coordenador ---------- */
+/* v88: Coordenador de um mês que já fechou. A aba normal é a rotina de HOJE
+   (ranking do dia, tarefas vencidas, funil agora) e não existe "ao vivo" de
+   setembro em outubro. Aqui entra o fechamento do mês escolhido: placar contra
+   a meta, a equipe, e a divergência Kommo × Oficina daquele mês. */
+function CoordenadorMesFechado(_a) {
+    var _this = this;
+    var mes = _a.mes, negocio = _a.negocio, sessao = _a.sessao;
+    var _b = __read(useState(null), 2), d = _b[0], setD = _b[1];
+    var _c = __read(useState(null), 2), erro = _c[0], setErro = _c[1];
+    var ehStore = negocio === "car_store";
+    useEffect(function () {
+        var vivo = true;
+        setD(null);
+        setErro(null);
+        var fim = ultimoDiaMes(mes);
+        (function () { return __awaiter(_this, void 0, void 0, function () {
+            var fato, _a, mm, e2, _b, eq, e3, e_3;
+            return __generator(this, function (_c) {
+                switch (_c.label) {
+                    case 0:
+                        _c.trys.push([0, 4, , 5]);
+                        return [4 /*yield*/, pegaPaginado(function () { return db.from("fato_dia").select("*").eq("negocio", negocio).gte("data", mes).lte("data", fim).order("data"); })];
+                    case 1:
+                        fato = _c.sent();
+                        return [4 /*yield*/, db.from("meta_do_mes").select("*").eq("negocio", negocio).lte("mes", mes).order("mes", { ascending: false }).limit(1)];
+                    case 2:
+                        _a = _c.sent(), mm = _a.data, e2 = _a.error;
+                        if (e2)
+                            throw new Error(e2.message);
+                        return [4 /*yield*/, db.from("equipe_sdr").select("sdr,ativo,negocio").eq("negocio", negocio)];
+                    case 3:
+                        _b = _c.sent(), eq = _b.data, e3 = _b.error;
+                        if (e3)
+                            throw new Error(e3.message);
+                        if (vivo)
+                            setD({ fato: fato, meta: (mm || [])[0] || null, equipe: (eq || []).map(function (x) { return x.sdr; }) });
+                        return [3 /*break*/, 5];
+                    case 4:
+                        e_3 = _c.sent();
+                        if (vivo)
+                            setErro(e_3.message || String(e_3));
+                        return [3 /*break*/, 5];
+                    case 5: return [2 /*return*/];
+                }
+            });
+        }); })();
+        return function () { vivo = false; };
+    }, [mes, negocio]);
+    var N = function (v) { return Number(v) || 0; };
+    var corpo = null;
+    if (erro)
+        corpo = React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.bad } },
+            "N\u00E3o consegui ler o fechamento: ",
+            erro);
+    else if (!d)
+        corpo = React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando\u2026");
+    else {
+        var tot_1 = { leads: 0, agend: 0, compar: 0, vendas: 0, receita: 0 };
+        var por_1 = {};
+        d.fato.forEach(function (x) {
+            var p = por_1[x.sdr] || (por_1[x.sdr] = { sdr: x.sdr, leads: 0, agend: 0, compar: 0, vendas: 0, receita: 0 });
+            p.leads += N(x.leads_recebidos);
+            p.agend += N(x.agendamentos_marcados);
+            p.compar += N(x.comparecimentos);
+            p.vendas += N(x.vendas);
+            p.receita += N(x.receita);
+            tot_1.leads += N(x.leads_recebidos);
+            tot_1.agend += N(x.agendamentos_marcados);
+            tot_1.compar += N(x.comparecimentos);
+            tot_1.vendas += N(x.vendas);
+            tot_1.receita += N(x.receita);
+        });
+        var lista = Object.values(por_1).sort(function (a, b) { return (b.receita - a.receita) || (b.vendas - a.vendas); });
+        var metaFat = d.meta ? N(d.meta.faturamento) : 0, metaOs = d.meta ? N(d.meta.os) : 0;
+        var pFat = metaFat ? tot_1.receita / metaFat : 0, pOs = metaOs ? tot_1.vendas / metaOs : 0;
+        corpo = (React.createElement(Card, { className: "p20" },
+            React.createElement("h2", { style: { fontFamily: F_MARCA, fontSize: 16, fontWeight: 700, margin: 0 } },
+                "Fechamento de ",
+                rotuloMes(mes)),
+            React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 5 } },
+                brFull(mes),
+                " a ",
+                brFull(ultimoDiaMes(mes)),
+                " \u00B7 placar contra a meta cadastrada para o m\u00EAs"),
+            React.createElement("div", { className: "grid-kpi", style: { marginTop: 14 } },
+                !ehStore && React.createElement(Kpi, { label: "Faturamento", value: nReal(tot_1.receita), sub: metaFat ? "".concat(nPct(pFat, 0), " de ").concat(nReal(metaFat)) : "sem meta cadastrada", tone: metaFat ? (pFat >= 1 ? "good" : "bad") : undefined }),
+                React.createElement(Kpi, { label: ehStore ? "Carros" : "O.S. fechadas", value: nInt(tot_1.vendas), sub: metaOs ? "".concat(nPct(pOs, 0), " de ").concat(nInt(metaOs)) : "sem meta cadastrada", tone: metaOs ? (pOs >= 1 ? "good" : "bad") : undefined }),
+                React.createElement(Kpi, { label: "Leads recebidos", value: nInt(tot_1.leads) }),
+                React.createElement(Kpi, { label: "Agendamentos", value: nInt(tot_1.agend), sub: tot_1.leads ? "".concat(nPct(tot_1.agend / tot_1.leads, 0), " dos leads") : undefined }),
+                React.createElement(Kpi, { label: "Comparecimentos", value: nInt(tot_1.compar), sub: tot_1.agend ? "".concat(nPct(tot_1.compar / tot_1.agend, 0), " dos agendados") : undefined })),
+            React.createElement("div", { className: "rolagem", style: { marginTop: 16 } },
+                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 640 } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            React.createElement(Th, null, "SDR"),
+                            React.createElement(Th, { right: true }, "Leads"),
+                            React.createElement(Th, { right: true }, "Agendou"),
+                            React.createElement(Th, { right: true }, "Compareceu"),
+                            React.createElement(Th, { right: true }, ehStore ? "Carros" : "Vendas"),
+                            !ehStore && React.createElement(Th, { right: true }, "Faturamento"))),
+                    React.createElement("tbody", null,
+                        lista.map(function (p) { return (React.createElement("tr", { key: p.sdr },
+                            React.createElement(Td, { bold: true },
+                                p.sdr,
+                                d.equipe.indexOf(p.sdr) < 0 && React.createElement("span", { style: { fontSize: 11, color: T.muted, fontWeight: 400 } }, " \u00B7 fora do time hoje")),
+                            React.createElement(Td, { right: true }, nInt(p.leads)),
+                            React.createElement(Td, { right: true }, nInt(p.agend)),
+                            React.createElement(Td, { right: true }, nInt(p.compar)),
+                            React.createElement(Td, { right: true }, nInt(p.vendas)),
+                            !ehStore && React.createElement(Td, { right: true, bold: true }, nReal(p.receita)))); }),
+                        !lista.length && React.createElement("tr", null,
+                            React.createElement(Td, null, "Nenhum dado neste m\u00EAs.")))))));
+    }
+    return (React.createElement("div", null,
+        !ehStore && React.createElement(BlocoDivergenciaOS, { sessao: sessao, mesFixo: mes }),
+        corpo));
+}
 function AbaCoordenador(_a) {
     var c = _a.c, funil = _a.funil, qualidade = _a.qualidade, tarefas = _a.tarefas, semTarefa = _a.semTarefa, sessao = _a.sessao;
     var rotina = useRotinaCheck(sessao);
@@ -2206,7 +2353,7 @@ function usarDados(de, ate, prevDe, negocio) {
         });
     }); };
     var buscar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var doNegocio_1, timeTudo, doOutroTime_1, semOutroTime, _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, sl, of, _b, ag, co, es, vp, ce, rb, pr, opcional, opcionalPaginado, inicioDoMes_1, oDiaDeHoje_1, _c, q, fa, ms, mt, sd, tf, lst, mm, eq, fm, eh, th, vh, ch, mi, e_3;
+        var doNegocio_1, timeTudo, doOutroTime_1, semOutroTime, _a, f, m, falhou_1, viewAusente_1, buscarSePuder, s, antiga, v, sl, of, _b, ag, co, es, vp, ce, rb, pr, opcional, opcionalPaginado, inicioDoMes_1, oDiaDeHoje_1, _c, q, fa, ms, mt, sd, tf, lst, mm, eq, fm, eh, th, vh, ch, mi, e_4;
         var _this = this;
         return __generator(this, function (_d) {
             switch (_d.label) {
@@ -2234,7 +2381,7 @@ function usarDados(de, ate, prevDe, negocio) {
                         return /does not exist|could not find the table|schema cache|não existe/i.test(String(m || ""));
                     };
                     buscarSePuder = function (nome, montar) { return __awaiter(_this, void 0, void 0, function () {
-                        var e_4, m_1;
+                        var e_5, m_1;
                         return __generator(this, function (_a) {
                             switch (_a.label) {
                                 case 0:
@@ -2242,8 +2389,8 @@ function usarDados(de, ate, prevDe, negocio) {
                                     return [4 /*yield*/, buscarTudo(montar)];
                                 case 1: return [2 /*return*/, _a.sent()];
                                 case 2:
-                                    e_4 = _a.sent();
-                                    m_1 = e_4 && e_4.message ? e_4.message : String(e_4);
+                                    e_5 = _a.sent();
+                                    m_1 = e_5 && e_5.message ? e_5.message : String(e_5);
                                     if (!viewAusente_1(m_1))
                                         falhou_1.push({ nome: nome, m: m_1 });
                                     return [2 /*return*/, null];
@@ -2323,7 +2470,7 @@ function usarDados(de, ate, prevDe, negocio) {
                     pr = _d.sent();
                     setPreench(pr || []);
                     opcional = function (fn, padrao) { return __awaiter(_this, void 0, void 0, function () {
-                        var _a, data, error, e_5;
+                        var _a, data, error, e_6;
                         return __generator(this, function (_b) {
                             switch (_b.label) {
                                 case 0:
@@ -2333,14 +2480,14 @@ function usarDados(de, ate, prevDe, negocio) {
                                     _a = _b.sent(), data = _a.data, error = _a.error;
                                     return [2 /*return*/, error ? padrao : (data !== null && data !== void 0 ? data : padrao)];
                                 case 2:
-                                    e_5 = _b.sent();
+                                    e_6 = _b.sent();
                                     return [2 /*return*/, padrao];
                                 case 3: return [2 /*return*/];
                             }
                         });
                     }); };
                     opcionalPaginado = function (montar, padrao) { return __awaiter(_this, void 0, void 0, function () {
-                        var e_6;
+                        var e_7;
                         return __generator(this, function (_a) {
                             switch (_a.label) {
                                 case 0:
@@ -2348,7 +2495,7 @@ function usarDados(de, ate, prevDe, negocio) {
                                     return [4 /*yield*/, buscarTudo(montar)];
                                 case 1: return [2 /*return*/, _a.sent()];
                                 case 2:
-                                    e_6 = _a.sent();
+                                    e_7 = _a.sent();
                                     return [2 /*return*/, padrao];
                                 case 3: return [2 /*return*/];
                             }
@@ -2404,8 +2551,8 @@ function usarDados(de, ate, prevDe, negocio) {
                     setEstado({ carregando: false, erro: null, em: new Date() });
                     return [3 /*break*/, 20];
                 case 19:
-                    e_3 = _d.sent();
-                    setEstado({ carregando: false, erro: e_3.message || String(e_3) });
+                    e_4 = _d.sent();
+                    setEstado({ carregando: false, erro: e_4.message || String(e_4) });
                     return [3 /*break*/, 20];
                 case 20: return [2 /*return*/];
             }
@@ -2505,7 +2652,7 @@ function JanelaVendas(_a) {
     };
     /* Para colar no WhatsApp: número, título e link, um por linha */
     var copiar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var texto, e_7;
+        var texto, e_8;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -2520,7 +2667,7 @@ function JanelaVendas(_a) {
                     setTimeout(function () { return setCopiado(false); }, 2500);
                     return [3 /*break*/, 4];
                 case 3:
-                    e_7 = _a.sent();
+                    e_8 = _a.sent();
                     window.prompt("Copie a lista:", texto);
                     return [3 /*break*/, 4];
                 case 4: return [2 /*return*/];
@@ -2623,7 +2770,13 @@ function Painel(_a) {
         catch (e) { /* sem storage, segue */ }
     };
     var ehStore = negocio === "car_store";
-    var _d = __read(faixa(f), 2), de = _d[0], ate = _d[1];
+    /* v88: mês escolhido nas abas Resumo, Closers, Lojas, Origem e Coordenador.
+       null = mês atual (assim a tela aberta de um mês para o outro não fica presa). */
+    var _d = __read(useState(null), 2), mesEscolhido = _d[0], setMesEscolhido = _d[1];
+    var mesAtualISO = primeiroDia(hoje());
+    var mesAba = mesEscolhido || mesAtualISO;
+    var trocarMesAba = function (m) { return setMesEscolhido(m === mesAtualISO ? null : m); };
+    var _f = __read(faixa(f), 2), de = _f[0], ate = _f[1];
     var dias = Math.max(1, diasEntre(de, ate));
     var prevAte = addDays(de, -1), prevDe = addDays(prevAte, -(dias - 1));
     var d = usarDados(de, ate, prevDe, negocio);
@@ -2651,7 +2804,7 @@ function Painel(_a) {
     var ehAgencia = perfil === "agencia";
     /* v67: lista de vendas lead a lead — admin, SDR e gerente */
     var podeListarVendas = ["admin", "sdr", "gerente"].indexOf(perfil) >= 0;
-    var _f = __read(useState(false), 2), verVendas = _f[0], setVerVendas = _f[1];
+    var _g = __read(useState(false), 2), verVendas = _g[0], setVerVendas = _g[1];
     var ABAS = [["painel", "SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["marketing", "Marketing"], ["closers", "Closers"], ["piloto", "Piloto"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]];
     var ABAS_SDR = ["painel", "coordenador", "tv"];
     // 16/09: o importador também monta e envia os resumos do dia, então vê
@@ -2675,7 +2828,7 @@ function Painel(_a) {
         });
         return conhecida && podeVer(h) ? h : abaInicial;
     };
-    var _g = __read(useState(abaDaURL), 2), aba = _g[0], setAbaBruto = _g[1];
+    var _h = __read(useState(abaDaURL), 2), aba = _h[0], setAbaBruto = _h[1];
     var setAba = function (v) {
         setAbaBruto(v);
         try {
@@ -2832,7 +2985,7 @@ function Painel(_a) {
         });
         return c;
     }, [semLigacaoTudo]);
-    var _h = __read(useState("explicar"), 2), baldeAberto = _h[0], setBaldeAberto = _h[1];
+    var _j = __read(useState("explicar"), 2), baldeAberto = _j[0], setBaldeAberto = _j[1];
     var semLigacaoLista = useMemo(function () { return semLigacaoTudo.filter(function (r) { return r.balde === baldeAberto; }); }, [semLigacaoTudo, baldeAberto]);
     /* Esforço: agregado e por pessoa. Vem da esforco_dia, que só existe
        depois da carga de atividades — por isso o bloco some sozinho quando
@@ -3047,7 +3200,7 @@ function Painel(_a) {
        poder mudar sem republicar o painel. */
     var segConversa = Number(metaTaxa.segundos_conversa || 30);
     var reaisPorLigacaoGeral = div(a.receita, esf.ligacoes_tentadas - esf.ligacoes_fora);
-    var rotulo = f.periodo === "custom" ? "".concat(brFull(de), " a ").concat(brFull(ate)) : PERIODOS[f.periodo];
+    var rotulo = rotuloPeriodo(f, de, ate);
     var set = function (k, v) { return setF(function (x) {
         var _a;
         return (__assign(__assign({}, x), (_a = {}, _a[k] = v, _a)));
@@ -3213,22 +3366,23 @@ function Painel(_a) {
                         background: aba === v ? T.ink : "transparent",
                         color: aba === v ? "#fff" : T.ink2 } }, l));
             })),
-            aba !== "painel" && aba !== "importar" && aba !== "resumo" && aba !== "closers" && aba !== "piloto" && aba !== "lojas" && aba !== "origem" && aba !== "marketing" && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
+            aba !== "painel" && aba !== "importar" && aba !== "resumo" && aba !== "closers" && aba !== "piloto" && aba !== "lojas" && aba !== "origem" && aba !== "marketing" && !(aba === "coordenador" && mesAba !== mesAtualISO) && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
             (ehAdmin || ehImportador) && aba === "importar" && React.createElement(AbaImportar, { sessao: sessao }),
-            (ehAdmin || ehImportador) && aba === "resumo" && React.createElement(AbaResumo, { sessao: sessao }),
-            ehAdmin && aba === "closers" && React.createElement(AbaClosers, null),
+            ((aba === "resumo" && (ehAdmin || ehImportador)) || (ehAdmin && (aba === "closers" || aba === "lojas" || aba === "origem")) || aba === "coordenador") && (React.createElement(SeletorMes, { mes: mesAba, aoTrocar: trocarMesAba, nota: aba === "resumo" ? "Mês fechado: os cartões mostram o fechamento no último dia do mês."
+                    : aba === "coordenador" ? "Mês fechado: a aba mostra o fechamento. Ranking do dia, tarefas e funil são ao vivo — volte para o mês atual."
+                        : "" })),
+            (ehAdmin || ehImportador) && aba === "resumo" && React.createElement(AbaResumo, { sessao: sessao, mes: mesAba }),
+            ehAdmin && aba === "closers" && React.createElement(AbaClosers, { mes: mesAba }),
             ehAdmin && aba === "piloto" && React.createElement(Piloto, { sessao: sessao, todos: true, embutido: true }),
-            ehAdmin && aba === "lojas" && React.createElement(AbaLojas, null),
-            ehAdmin && aba === "origem" && React.createElement(AbaOrigem, null),
+            ehAdmin && aba === "lojas" && React.createElement(AbaLojas, { mes: mesAba }),
+            ehAdmin && aba === "origem" && React.createElement(AbaOrigem, { mes: mesAba }),
             (ehAdmin || ehAgencia) && aba === "marketing" && React.createElement(AbaMarketing, { negocio: negocio }),
-            aba === "coordenador" && rot && React.createElement(AbaCoordenador, { sessao: sessao, c: rot, funil: d.funilAgora, qualidade: d.qualidade, tarefas: d.tarefas, semTarefa: d.semTarefa }),
+            aba === "coordenador" && mesAba !== mesAtualISO && React.createElement(CoordenadorMesFechado, { mes: mesAba, negocio: negocio, sessao: sessao }),
+            aba === "coordenador" && mesAba === mesAtualISO && rot && React.createElement(AbaCoordenador, { sessao: sessao, c: rot, funil: d.funilAgora, qualidade: d.qualidade, tarefas: d.tarefas, semTarefa: d.semTarefa }),
             aba === "painel" && (React.createElement(React.Fragment, null,
                 React.createElement(Card, { className: "p12", style: { position: "sticky", top: 54, zIndex: 20 } },
                     React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
-                        React.createElement(Select, { value: f.periodo, onChange: function (v) { return set("periodo", v); }, options: Object.entries(PERIODOS).map(function (_a) {
-                                var _b = __read(_a, 2), v = _b[0], l = _b[1];
-                                return ({ v: v, l: l });
-                            }) }),
+                        React.createElement(Select, { value: f.periodo, onChange: function (v) { return set("periodo", v); }, options: opcoesPeriodo() }),
                         f.periodo === "custom" && (React.createElement(React.Fragment, null,
                             React.createElement("input", { type: "date", value: f.de, onChange: function (e) { return set("de", e.target.value); }, className: "dt" }),
                             React.createElement("span", { style: { color: T.muted, fontSize: 12 } }, "at\u00E9"),
@@ -3900,7 +4054,7 @@ function CartaoIntegracao() {
     var _h = __read(useState(false), 2), indoOs = _h[0], setIndoOs = _h[1];
     var brDia = function (iso) { return "".concat(iso.slice(8, 10), "/").concat(iso.slice(5, 7), "/").concat(iso.slice(0, 4)); };
     var buscar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var _a, data, error, e_8;
+        var _a, data, error, e_9;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -3920,8 +4074,8 @@ function CartaoIntegracao() {
                     setOs(data);
                     return [3 /*break*/, 4];
                 case 3:
-                    e_8 = _b.sent();
-                    setErro(e_8.message || String(e_8));
+                    e_9 = _b.sent();
+                    setErro(e_9.message || String(e_9));
                     return [3 /*break*/, 4];
                 case 4:
                     setIndoOs(false);
@@ -3930,7 +4084,7 @@ function CartaoIntegracao() {
         });
     }); };
     var conferir = function () { return __awaiter(_this, void 0, void 0, function () {
-        var _a, data, error, e_9;
+        var _a, data, error, e_10;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -3950,8 +4104,8 @@ function CartaoIntegracao() {
                     setR(data);
                     return [3 /*break*/, 4];
                 case 3:
-                    e_9 = _b.sent();
-                    setErro(e_9.message || String(e_9));
+                    e_10 = _b.sent();
+                    setErro(e_10.message || String(e_10));
                     return [3 /*break*/, 4];
                 case 4:
                     setIndo(false);
@@ -4064,7 +4218,7 @@ function AbaImportar(_a) {
     }); };
     useEffect(function () { carregar(); }, []);
     var chamar = function (arquivo_id, amostra) { return __awaiter(_this, void 0, void 0, function () {
-        var _a, data, error, corpo, e_10;
+        var _a, data, error, corpo, e_11;
         var _b, _c;
         return __generator(this, function (_d) {
             switch (_d.label) {
@@ -4081,7 +4235,7 @@ function AbaImportar(_a) {
                     corpo = _d.sent();
                     return [3 /*break*/, 5];
                 case 4:
-                    e_10 = _d.sent();
+                    e_11 = _d.sent();
                     return [3 /*break*/, 5];
                 case 5: throw new Error((corpo === null || corpo === void 0 ? void 0 : corpo.erro) || error.message || "falha ao chamar a função");
                 case 6:
@@ -4092,8 +4246,8 @@ function AbaImportar(_a) {
         });
     }); };
     var enviar = function (arquivos) { return __awaiter(_this, void 0, void 0, function () {
-        var lote, hojeStr, _loop_1, lote_1, lote_1_1, a, e_11_1;
-        var e_11, _a;
+        var lote, hojeStr, _loop_1, lote_1, lote_1_1, a, e_12_1;
+        var e_12, _a;
         var _b;
         return __generator(this, function (_c) {
             switch (_c.label) {
@@ -4106,7 +4260,7 @@ function AbaImportar(_a) {
                     }
                     hojeStr = hoje();
                     _loop_1 = function (a) {
-                        var item, atualiza, caminho, up, reg, r, e_12;
+                        var item, atualiza, caminho, up, reg, r, e_13;
                         return __generator(this, function (_d) {
                             switch (_d.label) {
                                 case 0:
@@ -4136,8 +4290,8 @@ function AbaImportar(_a) {
                                     atualiza({ etapa: "ok", resultado: r });
                                     return [3 /*break*/, 6];
                                 case 5:
-                                    e_12 = _d.sent();
-                                    atualiza({ etapa: "erro", erro: e_12.message || String(e_12) });
+                                    e_13 = _d.sent();
+                                    atualiza({ etapa: "erro", erro: e_13.message || String(e_13) });
                                     return [3 /*break*/, 6];
                                 case 6: return [4 /*yield*/, carregar()];
                                 case 7:
@@ -4163,21 +4317,21 @@ function AbaImportar(_a) {
                     return [3 /*break*/, 2];
                 case 5: return [3 /*break*/, 8];
                 case 6:
-                    e_11_1 = _c.sent();
-                    e_11 = { error: e_11_1 };
+                    e_12_1 = _c.sent();
+                    e_12 = { error: e_12_1 };
                     return [3 /*break*/, 8];
                 case 7:
                     try {
                         if (lote_1_1 && !lote_1_1.done && (_a = lote_1.return)) _a.call(lote_1);
                     }
-                    finally { if (e_11) throw e_11.error; }
+                    finally { if (e_12) throw e_12.error; }
                     return [7 /*endfinally*/];
                 case 8: return [2 /*return*/];
             }
         });
     }); };
     var reprocessar = function (arq, amostra) { return __awaiter(_this, void 0, void 0, function () {
-        var r, e_13;
+        var r, e_14;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -4197,8 +4351,8 @@ function AbaImportar(_a) {
                         setPrevia({ arq: arq, r: r });
                     return [3 /*break*/, 4];
                 case 3:
-                    e_13 = _a.sent();
-                    setErroGeral("".concat(arq.nome_original, ": ").concat(e_13.message));
+                    e_14 = _a.sent();
+                    setErroGeral("".concat(arq.nome_original, ": ").concat(e_14.message));
                     return [3 /*break*/, 4];
                 case 4:
                     setOcupado(null);
@@ -4572,7 +4726,7 @@ function useHoje() {
     var _a = __read(useState(null), 2), linhas = _a[0], setLinhas = _a[1];
     var _b = __read(useState(null), 2), erro = _b[0], setErro = _b[1];
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var _e_1, _a, data, error, e_14;
+        var _e_1, _a, data, error, e_15;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -4596,8 +4750,8 @@ function useHoje() {
                     setErro(null);
                     return [3 /*break*/, 7];
                 case 6:
-                    e_14 = _b.sent();
-                    setErro(e_14.message || String(e_14));
+                    e_15 = _b.sent();
+                    setErro(e_15.message || String(e_15));
                     return [3 /*break*/, 7];
                 case 7: return [2 /*return*/];
             }
@@ -5175,18 +5329,19 @@ function CartaoSDR(_a) {
 }
 function AbaResumo(_a) {
     var _this = this;
-    var sessao = _a.sessao;
+    var sessao = _a.sessao, mes = _a.mes;
     var _b = __read(useState(null), 2), r = _b[0], setR = _b[1];
     var _c = __read(useState(null), 2), erro = _c[0], setErro = _c[1];
     var _d = __read(useState("sdr"), 2), cartao = _d[0], setCartao = _d[1];
     var _f = __read(useState(""), 2), baixando = _f[0], setBaixando = _f[1];
     var _g = __read(useState(""), 2), aviso = _g[0], setAviso = _g[1];
-    var hojeISO = hoje();
-    var inicioMes = hojeISO.slice(0, 8) + "01";
+    /* v88: mês escolhido. Mês fechado usa o último dia dele como "hoje" dos cartões. */
+    var inicioMes = mes || primeiroDia(hoje());
+    var hojeISO = inicioMes < primeiroDia(hoje()) ? ultimoDiaMes(inicioMes) : hoje();
     var du = diasUteisDoMes(hojeISO);
     var frac = du.diaDoMes / du.diasNoMes;
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, extra, _a, fatoMes, eq, mm, lojas, closers, setores, dias, arquivos, vendasResp, empresaAnt, mapCloser, metaGrupo, abertas, ex, aberto_1, abertoCloser_1, e_15;
+        var pega, extra, _a, fatoMes, eq, mm, lojas, closers, setores, dias, arquivos, vendasResp, empresaAnt, mapCloser, metaGrupo, abertas, ex, aberto_1, abertoCloser_1, e_16;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -5242,18 +5397,18 @@ function AbaResumo(_a) {
                     setR({ fatoMes: fatoMes, equipe: eq.map(function (x) { return x.sdr; }), meta: mm[0] || null, lojas: lojas, closers: closers, setores: setores, dias: dias, arquivos: arquivos, aberto: aberto_1, abertoCloser: abertoCloser_1, ex: ex });
                     return [3 /*break*/, 4];
                 case 3:
-                    e_15 = _b.sent();
-                    setErro(e_15.message || String(e_15));
+                    e_16 = _b.sent();
+                    setErro(e_16.message || String(e_16));
                     return [3 /*break*/, 4];
                 case 4: return [2 /*return*/];
             }
         });
     }); }, [inicioMes, hojeISO]);
-    useEffect(function () { carregar(); }, [carregar]);
+    useEffect(function () { setR(null); carregar(); }, [carregar]);
     var CARTOES = [["geral", "Geral"]].concat(RESUMO_LOJAS.map(function (l) { return [RESUMO_CHAVE_LOJA[l], l]; })).concat([["sdr", "SDR"]]);
     var refs = useRef({});
     var baixar = function (k) { return __awaiter(_this, void 0, void 0, function () {
-        var el, cv, a, e_16;
+        var el, cv, a, e_17;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -5277,8 +5432,8 @@ function AbaResumo(_a) {
                     a.click();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_16 = _a.sent();
-                    setAviso("Não consegui gerar a imagem: " + (e_16.message || e_16));
+                    e_17 = _a.sent();
+                    setAviso("Não consegui gerar a imagem: " + (e_17.message || e_17));
                     return [3 /*break*/, 4];
                 case 4:
                     setBaixando("");
@@ -5386,14 +5541,17 @@ var nCurto = function (v) {
         return "R$ " + nInt(Math.round(n / 1000)) + " mil";
     return nReal(n);
 };
-function useOficina() {
+function useOficina(mes) {
     var _this = this;
     var _a = __read(useState(null), 2), r = _a[0], setR = _a[1];
     var _b = __read(useState(null), 2), erro = _b[0], setErro = _b[1];
-    var hojeISO = hoje();
-    var inicioMes = hojeISO.slice(0, 8) + "01";
+    /* v88: mês escolhido no seletor. Mês que já fechou usa o último dia dele
+       como "hoje" da base, e o ritmo vira 100% (o mês inteiro já passou). */
+    var inicioMes = mes || primeiroDia(hoje());
+    var ehPassado = inicioMes < primeiroDia(hoje());
+    var hojeISO = ehPassado ? ultimoDiaMes(inicioMes) : hoje();
     var carregar = useCallback(function () { return __awaiter(_this, void 0, void 0, function () {
-        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, empresaMes, mapCloser, arquivosExtra_1, metaGrupo, abertasCru, vendidoLoja, entregas, receberLoja, entregueDe_1, abertas, ultimoDia, ex, ultimoDe, e_17;
+        var pega, extra, _a, lojas, closers, setores, dias, os, origem, itens, funil, mapLoja, arquivos, vendasResp, pagamentos, empresaAnt, empresaMes, mapCloser, arquivosExtra_1, metaGrupo, abertasCru, vendidoLoja, entregas, receberLoja, entregueDe_1, abertas, ultimoDia, ex, ultimoDe, e_18;
         var _this = this;
         return __generator(this, function (_b) {
             switch (_b.label) {
@@ -5450,7 +5608,7 @@ function useOficina() {
                     entregueDe_1 = {};
                     entregas.forEach(function (e) { entregueDe_1[e.loja + "|" + e.os_numero] = e.entregue_em; });
                     abertas = abertasCru.map(function (o) { return (entregueDe_1[o.loja + "|" + o.os_numero] ? __assign(__assign({}, o), { entregue_em: entregueDe_1[o.loja + "|" + o.os_numero] }) : o); });
-                    ultimoDia = dias.reduce(function (m, d) { return (d.dia > m && d.dia <= hojeISO ? d.dia : m); }, "");
+                    ultimoDia = ehPassado ? hojeISO : dias.reduce(function (m, d) { return (d.dia > m && d.dia <= hojeISO ? d.dia : m); }, "");
                     ex = agregarOficinaExtra({ vendasResp: vendasResp, pagamentos: pagamentos, empresaAnt: empresaAnt, empresaMes: empresaMes, mapCloser: mapCloser, mesAnt: extra.mesAnt, inicioMes: inicioMes });
                     ultimoDe = function (tipo, periodo) { return (arquivosExtra_1.filter(function (a) { return a.tipo === tipo && (!periodo || a.periodo_ini === periodo); })[0] || {}).processado_em || null; };
                     ex.importDesconto = ultimoDe("vendas_responsavel", inicioMes);
@@ -5459,16 +5617,16 @@ function useOficina() {
                     ex.importErpMes = ultimoDe("vendas_empresa", inicioMes);
                     ex.mesAnt = extra.mesAnt;
                     ex.metaGrupo = metaGrupo;
-                    setR({ lojas: lojas, closers: closers, setores: setores, dias: dias, os: os, origem: origem, itens: itens, funil: funil, mapLoja: mapLoja, mapCloser: mapCloser, arquivos: arquivos, abertas: abertas, vendidoLoja: vendidoLoja, receberLoja: receberLoja, ultimoDia: ultimoDia, hojeISO: hojeISO, inicioMes: inicioMes, ex: ex });
+                    setR({ lojas: lojas, closers: closers, setores: setores, dias: dias, os: os, origem: origem, itens: itens, funil: funil, mapLoja: mapLoja, mapCloser: mapCloser, arquivos: arquivos, abertas: abertas, vendidoLoja: vendidoLoja, receberLoja: receberLoja, ultimoDia: ultimoDia, hojeISO: hojeISO, inicioMes: inicioMes, ehPassado: ehPassado, ex: ex });
                     return [3 /*break*/, 4];
                 case 3:
-                    e_17 = _b.sent();
-                    setErro(e_17.message || String(e_17));
+                    e_18 = _b.sent();
+                    setErro(e_18.message || String(e_18));
                     return [3 /*break*/, 4];
                 case 4: return [2 /*return*/];
             }
         });
-    }); }, [inicioMes, hojeISO]);
+    }); }, [inicioMes, hojeISO, ehPassado]);
     useEffect(function () { carregar(); }, [carregar]);
     return { r: r, erro: erro, carregar: carregar };
 }
@@ -5528,6 +5686,20 @@ function AvisoBase(_a) {
     var ult = r.arquivos[0];
     var diaDoImport = ult ? iso(new Date(ult.processado_em)) : null;
     var atrasado = !ult || diaDoImport < r.hojeISO;
+    if (r.ehPassado) {
+        return (React.createElement(Card, { className: "p12", style: { marginBottom: 14, fontSize: 12.5, color: T.ink2, background: T.surface, borderColor: T.hair,
+                display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" } },
+            React.createElement("span", null,
+                React.createElement("b", null,
+                    rotuloMes(r.inicioMes),
+                    " \u2014 m\u00EAs fechado: faturamento de 01 a ",
+                    br(r.hojeISO),
+                    "."),
+                " ",
+                "O funil de leads e as O.S. em aberto abaixo s\u00E3o a foto de hoje, n\u00E3o do fim do m\u00EAs."),
+            React.createElement("button", { onClick: carregar, style: { marginLeft: "auto", fontSize: 12, borderRadius: 8, padding: "6px 12px", border: "1px solid ".concat(T.hair),
+                    background: T.surface, color: T.ink2, cursor: "pointer", fontFamily: F_UI } }, "Atualizar")));
+    }
     return (React.createElement(Card, { className: "p12", style: { marginBottom: 14, fontSize: 12.5, color: atrasado ? T.warn : T.ink2,
             background: atrasado ? "#FFF8E1" : T.surface, borderColor: atrasado ? "#F0DDA0" : T.hair,
             display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" } },
@@ -5723,15 +5895,16 @@ function ConferenciaErp(_a) {
             ", medem coisas diferentes: o do painel \u00E9 o que foi vendido no m\u00EAs, o do ERP \u00E9 o que entrou no m\u00EAs.")));
 }
 /* ---------------------------- CLOSERS ---------------------------- */
-function AbaClosers() {
-    var _a = useOficina(), r = _a.r, erro = _a.erro, carregar = _a.carregar;
+function AbaClosers(_a) {
+    var mes = _a.mes;
+    var _b = useOficina(mes), r = _b.r, erro = _b.erro, carregar = _b.carregar;
     if (erro)
         return React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.bad } },
             "N\u00E3o consegui ler os dados: ",
             erro);
     if (!r)
         return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando\u2026");
-    var _b = ritmoDoMes(r), du = _b.du, frac = _b.frac;
+    var _c = ritmoDoMes(r), du = _c.du, frac = _c.frac;
     // O ranking sai do CADASTRO, não das O.S.: closer sem venda no mês (dia 1,
     // férias, contratação nova) tem que aparecer com zero, senão a "meta somada"
     // encolhe e a pessoa some da cobrança.
@@ -5983,7 +6156,7 @@ function AbaClosers() {
                         "/dia hoje ",
                         faz >= precisa ? "✓" : "· abaixo do necessário")));
             }))),
-        React.createElement(SecaoSdrGeral, { n: 6 }),
+        React.createElement(SecaoSdrGeral, { n: 6, mes: mes }),
         React.createElement(SecaoAvaliacoesGeral, { n: 7 }),
         React.createElement(SecaoControlePiloto, { n: 8 }),
         React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 22, paddingTop: 12, borderTop: "1px solid ".concat(T.hair), lineHeight: 1.5 } },
@@ -5996,7 +6169,7 @@ function AbaClosers() {
 /* ---------- v62: "O que o SDR entrega" — visão geral, na aba Closers ----------
    A mesma leitura que cada closer vê no piloto, agora lado a lado, para a
    gestão. Lê as mesmas views (o admin enxerga todos). */
-function useSdrGeral() {
+function useSdrGeral(mes) {
     var _this = this;
     var _a = __read(useState({ carregando: true, erro: null, funil: [], dias: [], agenda: [], closers: [], semCloser: [] }), 2), st = _a[0], setSt = _a[1];
     useEffect(function () {
@@ -6011,10 +6184,12 @@ function useSdrGeral() {
                     return [2 /*return*/, data || []];
             }
         }); }); };
-        var m0 = primeiroDia(hoje());
+        var m0 = mes || primeiroDia(hoje());
+        var fimMes = ultimoDiaMes(m0);
+        setSt(function (x) { return (__assign(__assign({}, x), { carregando: true })); });
         Promise.all([
             pega(db.from("closer_funil_v").select("*").eq("mes", m0)),
-            pega(db.from("closer_sdr_dia_v").select("*").gte("dia", m0)),
+            pega(db.from("closer_sdr_dia_v").select("*").gte("dia", m0).lte("dia", fimMes)),
             pega(db.from("closer_agenda_v").select("closer_codigo, kommo_id, dia, desfecho, etapa_grupo")),
             pega(db.from("map_closer").select("*").eq("ativo", true)),
             /* v64: visitas do mês que ficaram no nome do SDR — a outra metade da conta */
@@ -6027,13 +6202,15 @@ function useSdrGeral() {
             .catch(function (e) { if (vivo)
             setSt(function (x) { return (__assign(__assign({}, x), { carregando: false, erro: e.message })); }); });
         return function () { vivo = false; };
-    }, []);
+    }, [mes]);
     return st;
 }
 function SecaoSdrGeral(_a) {
-    var n = _a.n;
-    var s = useSdrGeral();
-    var h = hoje();
+    var n = _a.n, mes = _a.mes;
+    var s = useSdrGeral(mes);
+    /* mês fechado: tudo já passou, então a "data de corte" é o dia seguinte ao fim do mês */
+    var mesRef = mes || primeiroDia(hoje());
+    var h = mesRef < primeiroDia(hoje()) ? addDays(ultimoDiaMes(mesRef), 1) : hoje();
     if (s.erro)
         return React.createElement(Secao, { n: n, titulo: "O que o SDR entrega aos closers" },
             React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.bad } },
@@ -6095,7 +6272,7 @@ function SecaoSdrGeral(_a) {
             React.createElement("div", { style: { width: "".concat(c.perd / base * 100, "%"), background: T.bad } })));
     };
     var pct = function (a, b) { return (b ? nPct(a / b, 0) : "—"); };
-    return (React.createElement(Secao, { n: n, titulo: "O que o SDR entrega aos closers", nota: "".concat(nomeMes(h).charAt(0).toUpperCase() + nomeMes(h).slice(1), ": visitas marcadas no nome de cada closer \u2192 compareceram \u2192 convertidos, em follow-up ou perdidos. Duas convers\u00F5es de prop\u00F3sito: sobre agendados mede SDR + closer; sobre quem veio mede s\u00F3 o closer.") },
+    return (React.createElement(Secao, { n: n, titulo: "O que o SDR entrega aos closers", nota: "".concat(nomeMes(mesRef).charAt(0).toUpperCase() + nomeMes(mesRef).slice(1), ": visitas marcadas no nome de cada closer \u2192 compareceram \u2192 convertidos, em follow-up ou perdidos. Duas convers\u00F5es de prop\u00F3sito: sobre agendados mede SDR + closer; sobre quem veio mede s\u00F3 o closer.") },
         React.createElement("div", { className: "grid-kpi-4", style: { marginBottom: 12 } },
             React.createElement(Kpi, { label: "Agendamentos do SDR", value: nInt(tot.agendados), sub: "".concat(nInt(tot.recebidos), " leads recebidos pelos closers \u00B7 ").concat(nInt(tot.agu), " visitas ainda por acontecer") }),
             React.createElement(Kpi, { label: "Compareceram", value: "".concat(nInt(tot.comp), " \u00B7 ").concat(pct(tot.comp, tot.agendados)), sub: "das visitas que chegaram ao closer \u00B7 ".concat(nInt(tot.falt), " faltaram \u00B7 ").concat(nInt(tot.naoVieram), " sem reagendamento"), tone: tot.agendados && tot.comp / tot.agendados < 0.7 ? "bad" : undefined }),
@@ -6232,18 +6409,19 @@ function SecaoSdrGeral(_a) {
             ". Agendamentos contados pelo dia da visita, como na aba SDR. \"Converteu\" e \"perdeu\" seguem a etapa do lead no Kommo; \"n\u00E3o vieram sem retorno\" s\u00E3o faltas dos \u00FAltimos 30 dias sem reagendamento.")));
 }
 /* ---------------------------- LOJAS ---------------------------- */
-function AbaLojas() {
+function AbaLojas(_a) {
     var _this = this;
-    var _a = useOficina(), r = _a.r, erro = _a.erro, carregar = _a.carregar;
-    var _b = __read(useState("todas"), 2), lojaAberta = _b[0], setLojaAberta = _b[1]; // hook antes de qualquer return
-    var _c = __read(useState(false), 2), copiado = _c[0], setCopiado = _c[1]; // idem: hook nunca depois de um return
+    var mes = _a.mes;
+    var _b = useOficina(mes), r = _b.r, erro = _b.erro, carregar = _b.carregar;
+    var _c = __read(useState("todas"), 2), lojaAberta = _c[0], setLojaAberta = _c[1]; // hook antes de qualquer return
+    var _d = __read(useState(false), 2), copiado = _d[0], setCopiado = _d[1]; // idem: hook nunca depois de um return
     if (erro)
         return React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.bad } },
             "N\u00E3o consegui ler os dados: ",
             erro);
     if (!r)
         return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando\u2026");
-    var _d = ritmoDoMes(r), du = _d.du, frac = _d.frac;
+    var _f = ritmoDoMes(r), du = _f.du, frac = _f.frac;
     // Em aberto vem de resumo_aberto_v: toda O.S. parada, de qualquer mês (v41)
     var abertoPorLoja = {};
     (r.abertas || []).forEach(function (o) {
@@ -6322,7 +6500,7 @@ function AbaLojas() {
         setTimeout(function () { return URL.revokeObjectURL(a.href); }, 4000);
     };
     var copiarTabela = function () { return __awaiter(_this, void 0, void 0, function () {
-        var texto, ta, e_18;
+        var texto, ta, e_19;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -6350,7 +6528,7 @@ function AbaLojas() {
                     setTimeout(function () { return setCopiado(false); }, 2500);
                     return [3 /*break*/, 6];
                 case 5:
-                    e_18 = _a.sent();
+                    e_19 = _a.sent();
                     setCopiado(false);
                     return [3 /*break*/, 6];
                 case 6: return [2 /*return*/];
@@ -6741,8 +6919,9 @@ function AbaLojas() {
             ex.temPagamento && React.createElement(TabelaParcelas, { titulo: "Cr\u00E9dito parcelado, por loja", linhas: OF_LOJAS.map(function (l) { return ({ nome: l, pg: ex.pagLoja[l] }); }) }))));
 }
 /* ---------------------------- ORIGEM ---------------------------- */
-function AbaOrigem() {
-    var _a = useOficina(), r = _a.r, erro = _a.erro, carregar = _a.carregar;
+function AbaOrigem(_a) {
+    var mes = _a.mes;
+    var _b = useOficina(mes), r = _b.r, erro = _b.erro, carregar = _b.carregar;
     if (erro)
         return React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.bad } },
             "N\u00E3o consegui ler os dados: ",
@@ -6862,6 +7041,11 @@ var tomRoas = function (x) { return (x >= 2 ? "good" : x < 1 ? "bad" : undefined
 function mktFaixa(periodo) {
     var h = hoje();
     var inicioMes = h.slice(0, 8) + "01";
+    /* v88: "m:2026-08" = mês inteiro escolhido na lista */
+    if (String(periodo).indexOf("m:") === 0) {
+        var m = periodo.slice(2), u = ultimoDiaMes(m);
+        return { de: m, ate: u > h ? h : u, rotulo: rotuloMes(m) };
+    }
     if (periodo === "ant") {
         var d = new Date("".concat(inicioMes, "T12:00:00"));
         d.setMonth(d.getMonth() - 1);
@@ -7106,9 +7290,9 @@ function AbaMarketing(_a) {
     var ehStore = negocio === "car_store";
     return (React.createElement("div", null,
         React.createElement(Card, { className: "p12", style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
-            React.createElement(Select, { value: periodo, onChange: setPeriodo, options: [
+            React.createElement(Select, { value: periodo, onChange: setPeriodo, options: __spreadArray([
                     { v: "mes", l: "Mês atual" }, { v: "ant", l: "Mês passado" }, { v: "30", l: "Últimos 30 dias" }
-                ] }),
+                ], __read(listaMeses().slice(2).map(function (m) { return ({ v: "m:" + m, l: rotuloMes(m) }); })), false) }),
             React.createElement("span", { style: { fontSize: 12, color: T.muted } },
                 faixa.de.split("-").reverse().join("/"),
                 " a ",
@@ -7241,6 +7425,12 @@ var brData = function (s) { return (s ? br(String(s).slice(0, 10)) : "—"); };
 var primeiroDia = function (isoDia) { return String(isoDia).slice(0, 7) + "-01"; };
 var mesAnteriorDe = function (isoDia) { var d = parseISO(primeiroDia(isoDia)); d.setMonth(d.getMonth() - 1); return iso(d); };
 var nomeMes = function (isoDia) { return parseISO(primeiroDia(isoDia)).toLocaleDateString("pt-BR", { month: "long" }); };
+/* v88: seletor de mês em todas as abas. O Oficina começa em junho/2026. */
+var PRIMEIRO_MES = "2026-06-01";
+var ultimoDiaMes = function (m) { var d = parseISO(primeiroDia(m)); d.setMonth(d.getMonth() + 1); d.setDate(0); return iso(d); };
+var rotuloMes = function (m) { var n = nomeMes(m); return n.charAt(0).toUpperCase() + n.slice(1) + " de " + String(m).slice(0, 4); };
+var listaMeses = function () { var out = []; for (var m = primeiroDia(hoje()); m >= PRIMEIRO_MES; m = mesAnteriorDe(m))
+    out.push(m); return out; };
 var placaLimpa = function (p) { return String(p || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); };
 /* Um insert/update do Supabase devolve {data,error}; aqui vira exceção
    com a mensagem do banco, para o formulário mostrar em vez de engolir. */
@@ -7277,7 +7467,7 @@ function usePiloto(closerCodigo, versao, lojaDoCloser, mesSel) {
                     return [2 /*return*/, data || []];
             }
         }); }); };
-        var opc = function (q) { return __awaiter(_this, void 0, void 0, function () { var _a, data, error, e_19; return __generator(this, function (_b) {
+        var opc = function (q) { return __awaiter(_this, void 0, void 0, function () { var _a, data, error, e_20; return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
                     _b.trys.push([0, 2, , 3]);
@@ -7286,7 +7476,7 @@ function usePiloto(closerCodigo, versao, lojaDoCloser, mesSel) {
                     _a = _b.sent(), data = _a.data, error = _a.error;
                     return [2 /*return*/, error ? [] : data || []];
                 case 2:
-                    e_19 = _b.sent();
+                    e_20 = _b.sent();
                     return [2 /*return*/, []];
                 case 3: return [2 /*return*/];
             }
@@ -7401,7 +7591,7 @@ var Chips = function (_a) {
 /* Meta do mês + ranking. É a primeira coisa que o closer vê. */
 /* v87: o closer escolhe o mês (de junho/2026, quando o Oficina começa, até o atual) */
 function SeletorMes(_a) {
-    var mes = _a.mes, aoTrocar = _a.aoTrocar, carregando = _a.carregando;
+    var mes = _a.mes, aoTrocar = _a.aoTrocar, carregando = _a.carregando, nota = _a.nota;
     var atual = primeiroDia(hoje());
     var opcoes = [];
     for (var m = atual; m >= "2026-06-01"; m = mesAnteriorDe(m))
@@ -7410,7 +7600,7 @@ function SeletorMes(_a) {
     return (React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" } },
         React.createElement(Label, null, "M\u00EAs"),
         React.createElement(Select, { value: mes, onChange: aoTrocar, options: opcoes.map(function (m) { return ({ v: m, l: nome(m) }); }), style: { minWidth: 190, fontWeight: 600 } }),
-        mes !== atual && React.createElement("span", { style: { fontSize: 12, color: T.muted } }, "Voc\u00EA est\u00E1 vendo um m\u00EAs que j\u00E1 fechou. \u201CHoje voc\u00EA precisa\u201D e as O.S. em aberto continuam sendo de hoje."),
+        mes !== atual && nota !== "" && React.createElement("span", { style: { fontSize: 12, color: T.muted } }, nota || "Você está vendo um mês que já fechou. “Hoje você precisa” e as O.S. em aberto continuam sendo de hoje."),
         carregando && React.createElement("span", { style: { fontSize: 12, color: T.muted } }, "carregando\u2026")));
 }
 function CartaoMeta(_a) {
@@ -7522,7 +7712,7 @@ var capital = function (s) { var t = String(s || "").trim(); return t ? t.charAt
 var MOTIVOS_PERDA = ["Preço acima do que queria", "Foi para o concorrente", "Vai pensar / adiou", "Sumiu, não respondeu mais", "Não tínhamos o serviço", "Só veio pesquisar"];
 function salvarDesfecho(l, closer, desfecho, motivo, origem) {
     return __awaiter(this, void 0, void 0, function () {
-        var uid, data, e_20, error;
+        var uid, data, e_21, error;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -7536,7 +7726,7 @@ function salvarDesfecho(l, closer, desfecho, motivo, origem) {
                     uid = data && data.session && data.session.user ? data.session.user.id : null;
                     return [3 /*break*/, 4];
                 case 3:
-                    e_20 = _a.sent();
+                    e_21 = _a.sent();
                     return [3 /*break*/, 4];
                 case 4: return [4 /*yield*/, db.from("closer_desfecho_visita").upsert({
                         kommo_id: l.kommo_id, closer_codigo: closer && closer.erp_codigo,
@@ -8062,7 +8252,7 @@ function PrazoOs(_a) {
     useEffect(function () { setEnt(o.entrada_prevista ? String(o.entrada_prevista).slice(0, 10) : ""); setModo(false); }, [o.entrada_prevista, o.pago_em]);
     var jaNaLoja = o.situacao === "na_loja" || !!o.pronto_em || !!o.carro_entregue;
     var grava = function (campos) { return __awaiter(_this, void 0, void 0, function () {
-        var uid, data, e_21, erro;
+        var uid, data, e_22, erro;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -8077,7 +8267,7 @@ function PrazoOs(_a) {
                     uid = data && data.session && data.session.user ? data.session.user.id : null;
                     return [3 /*break*/, 4];
                 case 3:
-                    e_21 = _a.sent();
+                    e_22 = _a.sent();
                     return [3 /*break*/, 4];
                 case 4: return [4 /*yield*/, salvarOs(o, campos.pago_em === null ? campos : __assign(__assign({}, campos), { pago_por: uid }))];
                 case 5:
@@ -8127,7 +8317,7 @@ function EntregaOs(_a) {
     var o = _a.o, aoSalvar = _a.aoSalvar, grande = _a.grande, rotulo = _a.rotulo, solido = _a.solido;
     var _b = __read(useState(null), 2), st = _b[0], setSt = _b[1];
     var marcar = function (sim) { return __awaiter(_this, void 0, void 0, function () {
-        var uid, data, e_22, error;
+        var uid, data, e_23, error;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -8142,7 +8332,7 @@ function EntregaOs(_a) {
                     uid = data && data.session && data.session.user ? data.session.user.id : null;
                     return [3 /*break*/, 4];
                 case 3:
-                    e_22 = _a.sent();
+                    e_23 = _a.sent();
                     return [3 /*break*/, 4];
                 case 4: return [4 /*yield*/, db.from("os_prazo").upsert({ loja: o.loja, os_numero: String(o.os_numero),
                         entregue_em: sim ? new Date().toISOString() : null, entregue_por: sim ? uid : null }, { onConflict: "loja,os_numero" })];
@@ -8264,7 +8454,7 @@ function SecaoPedirAvaliacao(_a) {
         .sort(function (a, b) { return (a.avaliacao_pedida_em ? 1 : 0) - (b.avaliacao_pedida_em ? 1 : 0) || (String(b.entregue_em) > String(a.entregue_em) ? 1 : -1); });
     var semLink = lista.some(function (o) { return !o.link_avaliacao; });
     var copiar = function (o) { return __awaiter(_this, void 0, void 0, function () {
-        var t, e_23;
+        var t, e_24;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -8277,7 +8467,7 @@ function SecaoPedirAvaliacao(_a) {
                     _a.sent();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_23 = _a.sent();
+                    e_24 = _a.sent();
                     window.prompt("Copie a mensagem:", t);
                     return [3 /*break*/, 4];
                 case 4:
@@ -8385,8 +8575,8 @@ function SecaoAvaliacoes(_a) {
     }, [previa]);
     var podeLerClipboard = !!(navigator.clipboard && navigator.clipboard.read);
     var colarDoBotao = function () { return __awaiter(_this, void 0, void 0, function () {
-        var itens, itens_1, itens_1_1, it, tipo, b, e_24_1, e_25;
-        var e_24, _a;
+        var itens, itens_1, itens_1_1, it, tipo, b, e_25_1, e_26;
+        var e_25, _a;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -8417,20 +8607,20 @@ function SecaoAvaliacoes(_a) {
                     return [3 /*break*/, 4];
                 case 7: return [3 /*break*/, 10];
                 case 8:
-                    e_24_1 = _b.sent();
-                    e_24 = { error: e_24_1 };
+                    e_25_1 = _b.sent();
+                    e_25 = { error: e_25_1 };
                     return [3 /*break*/, 10];
                 case 9:
                     try {
                         if (itens_1_1 && !itens_1_1.done && (_a = itens_1.return)) _a.call(itens_1);
                     }
-                    finally { if (e_24) throw e_24.error; }
+                    finally { if (e_25) throw e_25.error; }
                     return [7 /*endfinally*/];
                 case 10:
                     setAvisoCola("Não achei imagem copiada. Tire o print de novo (Win + Shift + S) e tente.");
                     return [3 /*break*/, 12];
                 case 11:
-                    e_25 = _b.sent();
+                    e_26 = _b.sent();
                     setAvisoCola("O navegador não deixou ler a área de transferência — use Ctrl + V.");
                     return [3 /*break*/, 12];
                 case 12: return [2 /*return*/];
@@ -8463,7 +8653,7 @@ function SecaoAvaliacoes(_a) {
         setPrevia(f ? URL.createObjectURL(f) : null);
     };
     var enviar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var blob, caminho, up, _a, loja, osNum, error, e_26;
+        var blob, caminho, up, _a, loja, osNum, error, e_27;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -8504,15 +8694,15 @@ function SecaoAvaliacoes(_a) {
                     setTimeout(function () { return setSt(null); }, 6000);
                     return [3 /*break*/, 6];
                 case 5:
-                    e_26 = _b.sent();
-                    setSt({ erro: "Não salvou: " + (e_26.message || e_26) });
+                    e_27 = _b.sent();
+                    setSt({ erro: "Não salvou: " + (e_27.message || e_27) });
                     return [3 /*break*/, 6];
                 case 6: return [2 /*return*/];
             }
         });
     }); };
     var mudarStatus = function (a, status) { return __awaiter(_this, void 0, void 0, function () {
-        var uid, data, e_27;
+        var uid, data, e_28;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -8526,7 +8716,7 @@ function SecaoAvaliacoes(_a) {
                     uid = data && data.session && data.session.user ? data.session.user.id : null;
                     return [3 /*break*/, 4];
                 case 3:
-                    e_27 = _a.sent();
+                    e_28 = _a.sent();
                     return [3 /*break*/, 4];
                 case 4: return [4 /*yield*/, db.from("closer_avaliacao").update({ status: status, validado_por: uid, validado_em: new Date().toISOString() }).eq("id", a.id)];
                 case 5:
@@ -8537,7 +8727,7 @@ function SecaoAvaliacoes(_a) {
         });
     }); };
     var apagar = function (a) { return __awaiter(_this, void 0, void 0, function () {
-        var e_28;
+        var e_29;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -8552,7 +8742,7 @@ function SecaoAvaliacoes(_a) {
                     _a.sent();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_28 = _a.sent();
+                    e_29 = _a.sent();
                     return [3 /*break*/, 4];
                 case 4: return [4 /*yield*/, db.from("closer_avaliacao").delete().eq("id", a.id)];
                 case 5:
@@ -8682,7 +8872,7 @@ function SecaoRecompra(_a) {
         });
     }); };
     var copiar = function (r) { return __awaiter(_this, void 0, void 0, function () {
-        var t, e_29;
+        var t, e_30;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -8695,7 +8885,7 @@ function SecaoRecompra(_a) {
                     _a.sent();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_29 = _a.sent();
+                    e_30 = _a.sent();
                     window.prompt("Copie a mensagem:", t);
                     return [3 /*break*/, 4];
                 case 4:
@@ -8729,7 +8919,7 @@ function SecaoRecompra(_a) {
         });
     }); };
     var copiarPpf = function (r) { return __awaiter(_this, void 0, void 0, function () {
-        var t, e_30;
+        var t, e_31;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -8742,7 +8932,7 @@ function SecaoRecompra(_a) {
                     _a.sent();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_30 = _a.sent();
+                    e_31 = _a.sent();
                     window.prompt("Copie a mensagem:", t);
                     return [3 /*break*/, 4];
                 case 4:
@@ -8906,7 +9096,7 @@ function useControlePiloto() {
     useEffect(function () {
         var vivo = true;
         var m0 = primeiroDia(hoje());
-        var opc = function (q) { return __awaiter(_this, void 0, void 0, function () { var _a, data, error, e_31; return __generator(this, function (_b) {
+        var opc = function (q) { return __awaiter(_this, void 0, void 0, function () { var _a, data, error, e_32; return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
                     _b.trys.push([0, 2, , 3]);
@@ -8915,7 +9105,7 @@ function useControlePiloto() {
                     _a = _b.sent(), data = _a.data, error = _a.error;
                     return [2 /*return*/, error ? [] : data || []];
                 case 2:
-                    e_31 = _b.sent();
+                    e_32 = _b.sent();
                     return [2 /*return*/, []];
                 case 3: return [2 /*return*/];
             }
@@ -9355,7 +9545,7 @@ function SecaoAvaliacoesGeral(_a) {
         return __assign(__assign({}, c), { n: ls.length, validadas: ls.filter(function (a) { return a.status === "validada"; }).length, pend: ls.filter(function (a) { return a.status === "enviada"; }).length, media: comNota.length ? comNota.reduce(function (s, a) { return s + Number(a.nota); }, 0) / comNota.length : 0 });
     }).sort(function (a, b) { return b.n - a.n || (a.unidade < b.unidade ? -1 : 1); });
     var mudar = function (a, status) { return __awaiter(_this, void 0, void 0, function () {
-        var uid, data, e_32;
+        var uid, data, e_33;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -9369,7 +9559,7 @@ function SecaoAvaliacoesGeral(_a) {
                     uid = data && data.session && data.session.user ? data.session.user.id : null;
                     return [3 /*break*/, 4];
                 case 3:
-                    e_32 = _a.sent();
+                    e_33 = _a.sent();
                     return [3 /*break*/, 4];
                 case 4: return [4 /*yield*/, db.from("closer_avaliacao").update({ status: status, validado_por: uid, validado_em: new Date().toISOString() }).eq("id", a.id)];
                 case 5:
@@ -9762,7 +9952,7 @@ function NovoOrcamento(_a) {
     var itensValidos = f.itens.filter(function (it) { return it.nome.trim(); });
     var pronto = f.prazo_execucao && itensValidos.length > 0 && (f.cliente_nome.trim() || f.placa.trim());
     var salvar = function (statusInicial) { return __awaiter(_this, void 0, void 0, function () {
-        var cab, linhasItem, closer_codigo, _s, cabEd, ok, antigos, idsAntigos, nota, e_33, novo, _a, id, e_34;
+        var cab, linhasItem, closer_codigo, _s, cabEd, ok, antigos, idsAntigos, nota, e_34, novo, _a, id, e_35;
         return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -9817,7 +10007,7 @@ function NovoOrcamento(_a) {
                     _b.sent();
                     return [3 /*break*/, 9];
                 case 8:
-                    e_33 = _b.sent();
+                    e_34 = _b.sent();
                     return [3 /*break*/, 9];
                 case 9:
                     setDaCasa(null);
@@ -9840,8 +10030,8 @@ function NovoOrcamento(_a) {
                     aoSalvar(id, novo);
                     return [3 /*break*/, 14];
                 case 13:
-                    e_34 = _b.sent();
-                    setErro(e_34.message);
+                    e_35 = _b.sent();
+                    setErro(e_35.message);
                     return [3 /*break*/, 14];
                 case 14:
                     setSalvando(false);
@@ -10167,7 +10357,7 @@ function JanelaImagem(_a) {
     useEffect(function () {
         var vivo = true;
         var gerar = function () { return __awaiter(_this, void 0, void 0, function () {
-            var e_35, cv, e_36;
+            var e_36, cv, e_37;
             return __generator(this, function (_a) {
                 switch (_a.label) {
                     case 0:
@@ -10187,7 +10377,7 @@ function JanelaImagem(_a) {
                         _a.sent();
                         return [3 /*break*/, 5];
                     case 4:
-                        e_35 = _a.sent();
+                        e_36 = _a.sent();
                         return [3 /*break*/, 5];
                     case 5: return [4 /*yield*/, new Promise(function (r) { return setTimeout(r, 350); })];
                     case 6:
@@ -10201,9 +10391,9 @@ function JanelaImagem(_a) {
                         db.from("orcamento_evento").insert({ orcamento_id: o.id, tipo: "imagem_ia", nota: "imagem para o cliente gerada (formato Q2)" }).then(function () { }, function () { });
                         return [3 /*break*/, 9];
                     case 8:
-                        e_36 = _a.sent();
+                        e_37 = _a.sent();
                         if (vivo)
-                            setErro(e_36.message || String(e_36));
+                            setErro(e_37.message || String(e_37));
                         return [3 /*break*/, 9];
                     case 9: return [2 /*return*/];
                 }
@@ -10216,7 +10406,7 @@ function JanelaImagem(_a) {
     var baixar = function () { var a = document.createElement("a"); a.href = png; a.download = nomeArq; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
     var podeCompartilhar = !!(navigator.share && navigator.canShare && window.File);
     var compartilhar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var blob, file, e_37;
+        var blob, file, e_38;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -10236,7 +10426,7 @@ function JanelaImagem(_a) {
                     _a.label = 5;
                 case 5: return [3 /*break*/, 7];
                 case 6:
-                    e_37 = _a.sent();
+                    e_38 = _a.sent();
                     return [3 /*break*/, 7];
                 case 7: return [2 /*return*/];
             }
@@ -10288,7 +10478,7 @@ function DetalheOrcamento(_a) {
     var mudou = status !== o.status || motivo !== (o.motivo_perda || "") || retorno !== (o.retorno_em ? String(o.retorno_em).slice(0, 10) : "") || os !== (o.os_numero || "");
     var precisaMotivo = status === "perdido" && !motivo.trim();
     var salvar = function () { return __awaiter(_this, void 0, void 0, function () {
-        var e_38;
+        var e_39;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
@@ -10306,8 +10496,8 @@ function DetalheOrcamento(_a) {
                     aoMudar();
                     return [3 /*break*/, 4];
                 case 3:
-                    e_38 = _a.sent();
-                    setErro(e_38.message);
+                    e_39 = _a.sent();
+                    setErro(e_39.message);
                     return [3 /*break*/, 4];
                 case 4:
                     setSalvando(false);
