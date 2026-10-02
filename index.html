@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v88 — CAR SERVICE</title>
-<meta name="painel-versao" content="v88">
+<title>Painel de SDR v89 — CAR SERVICE</title>
+<meta name="painel-versao" content="v89">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -2742,6 +2742,416 @@ function JanelaVendas(_a) {
                                 React.createElement("b", null, "Data da Venda"),
                                 " do Kommo. Se no Kommo o filtro for por data de fechamento, os cards em amarelo (fechados em outro m\u00EAs) ficam de fora. Em laranja: mesmo cliente com o mesmo valor em dois cards."))))));
 }
+/* ===================== HUB COMERCIAL (v89 · 02/10/2026) =====================
+   Três abas novas: Preços, Treinador e Biblioteca (+ Pesquisa de mercado).
+   Nesta versão os dados são FIXOS aqui dentro — nada é lido do banco nem do
+   Kommo. Quando o Rafael autorizar, preços e placar vão para o Supabase.
+
+   Fonte dos preços: Tabela SDR CORRIGIDA (planilha "PREÇO SDR 2025",
+   atualizada em 18/04/2026). Exceção: PPF full vale a faixa validada, não os
+   valores da planilha (15.990, 22.990 etc.). Só entram os itens já conferidos;
+   o resto da planilha ainda precisa ser importado, e a tela diz isso. */
+var HUB_ABAS = [["precos", "Preços"], ["treinador", "Treinador"], ["biblioteca", "Biblioteca"]];
+var HUB_IDS = ["precos", "treinador", "biblioteca"];
+/* alçada: o que o SDR pode fazer com o preço */
+var ALCADA = {
+    fechado: { rotulo: "Preço fechado", cor: T.good, dica: "Pode passar o valor." },
+    apartir: { rotulo: "A partir de", cor: T.warn, dica: "Passa só o “a partir de”; o valor final depende do modelo." },
+    avaliacao: { rotulo: "Exige avaliação", cor: T.muted, dica: "Não passa preço: convida para avaliação na loja." },
+    naocotar: { rotulo: "NÃO COTAR", cor: T.bad, dica: "Não cota. Qualifica e agenda avaliação." },
+};
+var PRECOS_ITENS = [
+    { id: "ppf-vorza-pro", cat: "PPF", linha: "Vorza Pro — full", escopo: "sem desmontagem", garantia: "5 anos",
+        inclui: "Sem desmontagem, garantia de 5 anos", preco: 11900, alcada: "fechado" },
+    { id: "ppf-vorza-bs", cat: "PPF", linha: "Vorza Black Series — full", escopo: "com desmontagem", garantia: "10 anos",
+        inclui: "Com desmontagem, garantia de 10 anos", preco: 14900, alcada: "fechado" },
+    { id: "ppf-vorza-bs-corte", cat: "PPF", linha: "Vorza Black Series + corte computadorizado",
+        escopo: "com desmontagem, 3 trocas anuais e 2 manutenções semestrais", garantia: "10 anos",
+        inclui: "Desmontagem, 3 trocas anuais, 2 manutenções semestrais, 10 anos", preco: 17900, alcada: "fechado" },
+    { id: "ppf-3m", cat: "PPF", linha: "3M — full", escopo: "com desmontagem, corte opcional sem custo e sem troca", garantia: "10 anos",
+        inclui: "Desmontagem, corte opcional sem custo, 10 anos, sem troca", preco: 21900, alcada: "fechado" },
+    { id: "pel-pl4", cat: "Películas", linha: "Proteck Line 4 (antivandalismo)", escopo: "4 vidros", garantia: "",
+        inclui: "4 vidros", preco: 990, alcada: "fechado" },
+    { id: "pel-pl8", cat: "Películas", linha: "Proteck Line 8", escopo: "4 vidros", garantia: "",
+        inclui: "4 vidros", preco: 1490, alcada: "fechado" },
+    { id: "pel-pl12", cat: "Películas", linha: "Proteck Line 12", escopo: "4 vidros", garantia: "",
+        inclui: "4 vidros (6 vidros: R$ 2.290)", preco: 2190, alcada: "fechado",
+        extra: { rotulo: "6 vidros", preco: 2290 } },
+    { id: "pel-3m-sas", cat: "Películas", linha: "3M SAS (G5/G20) antivandalismo", escopo: "4 vidros", garantia: "",
+        inclui: "4 vidros", preco: 2690, alcada: "fechado" },
+    { id: "ace-multimidia", cat: "Acessórios", linha: "Multimídia", escopo: "", garantia: "",
+        inclui: "Modelo e marca definem o valor", preco: 1890, alcada: "apartir" },
+    { id: "fun-peca", cat: "Funilaria", linha: "Funilaria de peça", escopo: "", garantia: "",
+        inclui: "Blindado cobra o dobro; Tatuapé não executa", preco: null, alcada: "avaliacao", precoTxt: "na loja", funilaria: true },
+    { id: "est-vitrificacao", cat: "Estética", linha: "Vitrificação / coating", escopo: "", garantia: "",
+        inclui: "Sem preço na tabela do SDR", preco: null, alcada: "naocotar", precoTxt: "—" },
+];
+var PRECOS_CATS = ["PPF", "Películas", "Estética", "Funilaria", "Acessórios"];
+var PRECOS_LOJAS = ["Itaim", "Ipiranga", "Bandeirantes", "Tatuapé"];
+var FATOR_PICKUP = 1.15;
+var REGRAS_PRECO = [
+    "Cobrir orçamento de concorrente só com print ou PDF.",
+    "Condição especial: falar com o Rafael ou com o closer.",
+    "Parcelamento até 6x sem juros (nunca 10x).",
+    "Funilaria bloqueada no Tatuapé.",
+    "Itens NÃO COTAR: qualificar e agendar avaliação.",
+];
+/* copia para a área de transferência; cai no método antigo se o navegador não deixar */
+function copiarTexto(txt, depois) {
+    var ok = function () { if (depois)
+        depois(true); };
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(txt).then(ok, function () { return legado(); });
+            return;
+        }
+    }
+    catch (e) { /* tenta o legado */ }
+    legado();
+    function legado() {
+        try {
+            var ta = document.createElement("textarea");
+            ta.value = txt;
+            ta.style.position = "fixed";
+            ta.style.opacity = "0";
+            document.body.appendChild(ta);
+            ta.select();
+            var fez = document.execCommand("copy");
+            document.body.removeChild(ta);
+            if (depois)
+                depois(!!fez);
+        }
+        catch (e2) {
+            if (depois)
+                depois(false);
+        }
+    }
+}
+function textoWhats(it, preco, loja, o1, o2) {
+    var op1 = (o1 || "").trim() || "[opção 1]";
+    var op2 = (o2 || "").trim() || "[opção 2]";
+    if (it.funilaria && loja === "Tatuapé") {
+        return "Aqui no Tatuap\u00E9 a gente n\u00E3o executa funilaria. Posso agendar a avalia\u00E7\u00E3o em outra unidade \u2014 qual fica melhor pra voc\u00EA: ".concat(op1, " ou ").concat(op2, "?");
+    }
+    if (it.alcada === "avaliacao" || it.alcada === "naocotar") {
+        return "".concat(it.linha, ": pra passar o valor certo a gente precisa avaliar o ve\u00EDculo na loja. Qual fica melhor pra voc\u00EA: ").concat(op1, " ou ").concat(op2, "?");
+    }
+    var parcela = nReal2(preco / 6);
+    var cab = [it.linha, it.escopo].filter(Boolean).join(", ") + (it.garantia ? ", garantia de ".concat(it.garantia) : "");
+    var valor = it.alcada === "apartir" ? "a partir de ".concat(nReal(preco)) : nReal(preco);
+    return "".concat(cab, ": ").concat(valor, " em at\u00E9 6x sem juros de ").concat(parcela, ". O valor pode variar conforme o estado do ve\u00EDculo \u2014 por isso a gente avalia na loja. Qual fica melhor pra voc\u00EA: ").concat(op1, " ou ").concat(op2, "?");
+}
+function AbaPrecos() {
+    var _a = __read(useState(""), 2), busca = _a[0], setBusca = _a[1];
+    var _b = __read(useState("Todos"), 2), cat = _b[0], setCat = _b[1];
+    var _c = __read(useState("passeio"), 2), carro = _c[0], setCarro = _c[1];
+    var _d = __read(useState("Itaim"), 2), loja = _d[0], setLoja = _d[1];
+    var _f = __read(useState(null), 2), selId = _f[0], setSelId = _f[1];
+    var _g = __read(useState(""), 2), op1 = _g[0], setOp1 = _g[1];
+    var _h = __read(useState(""), 2), op2 = _h[0], setOp2 = _h[1];
+    var _j = __read(useState(null), 2), copiado = _j[0], setCopiado = _j[1];
+    var fator = carro === "pickup" ? FATOR_PICKUP : 1;
+    var ajusta = function (p) { return (p == null ? null : Math.round(p * fator * 100) / 100); };
+    var q = busca.trim().toLowerCase();
+    var lista = PRECOS_ITENS.filter(function (it) {
+        return (cat === "Todos" || it.cat === cat) &&
+            (!q || [it.cat, it.linha, it.inclui, ALCADA[it.alcada].rotulo].join(" ").toLowerCase().indexOf(q) >= 0);
+    });
+    var sel = PRECOS_ITENS.filter(function (it) { return it.id === selId; })[0] || null;
+    var bloqueado = function (it) { return !!(it && it.funilaria && loja === "Tatuapé"); };
+    var precoSel = sel ? ajusta(sel.preco) : null;
+    var texto = sel ? textoWhats(sel, precoSel, loja, op1, op2) : "";
+    var copiar = function (k, t) { return copiarTexto(t, function (ok) { setCopiado(ok ? k : "erro"); setTimeout(function () { return setCopiado(null); }, 2200); }); };
+    return (React.createElement("div", null,
+        React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.ink2, lineHeight: 1.55 } },
+            React.createElement("b", null, "Fonte:"),
+            " Tabela SDR CORRIGIDA (planilha \u201CPRE\u00C7O SDR 2025\u201D, atualizada em 18/04/2026). N\u00E3o \u00E9 a Tabela Closer. PPF full vale a faixa validada, n\u00E3o o valor da planilha.",
+            " ",
+            React.createElement("span", { style: { color: T.warn, fontWeight: 600 } },
+                "Aqui est\u00E3o s\u00F3 os ",
+                PRECOS_ITENS.length,
+                " itens j\u00E1 conferidos \u2014 o restante da tabela ainda ser\u00E1 importado.")),
+        React.createElement(Card, { className: "p12", style: { position: "sticky", top: 54, zIndex: 20, marginTop: 12 } },
+            React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
+                React.createElement("input", { type: "search", value: busca, onChange: function (e) { return setBusca(e.target.value); }, placeholder: "Buscar servi\u00E7o, linha ou carro", style: __assign(__assign({}, inputStyle), { width: 260, maxWidth: "100%" }) }),
+                React.createElement(Select, { value: carro, onChange: setCarro, options: [{ v: "passeio", l: "Carro de passeio" }, { v: "pickup", l: "Pick-up (+15%)" }] }),
+                React.createElement(Select, { value: loja, onChange: setLoja, options: PRECOS_LOJAS.map(function (l) { return ({ v: l, l: "Loja: " + l }); }) })),
+            React.createElement("div", { style: { marginTop: 10 } },
+                React.createElement(Chips, { value: cat, onChange: setCat, options: [["Todos", "Todos"]].concat(PRECOS_CATS.map(function (c) { return [c, c]; })) }))),
+        React.createElement(Secao, { n: 1, titulo: "Tabela de pre\u00E7os", nota: carro === "pickup" ? "Pick-up soma 15% ao preço de tabela. Os valores abaixo já estão com o acréscimo." : "Valores de carro de passeio. Para pick-up, troque no filtro: soma 15%." },
+            React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
+                React.createElement("div", { className: "rolagem" },
+                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 720 } },
+                        React.createElement("thead", null,
+                            React.createElement("tr", null,
+                                React.createElement(Th, null, "Categoria"),
+                                React.createElement(Th, null, "Linha"),
+                                React.createElement(Th, null, "O que inclui"),
+                                React.createElement(Th, { right: true }, "Pre\u00E7o"),
+                                React.createElement(Th, null, "SDR pode"))),
+                        React.createElement("tbody", null,
+                            lista.map(function (it) {
+                                var al = ALCADA[it.alcada];
+                                var bl = bloqueado(it);
+                                var on = it.id === selId;
+                                return (React.createElement("tr", { key: it.id, onClick: function () { return setSelId(it.id); }, style: { cursor: "pointer", background: on ? "#FFF8E1" : "transparent", opacity: bl ? 0.55 : 1 } },
+                                    React.createElement(Td, { color: T.muted }, it.cat),
+                                    React.createElement(Td, { bold: true, style: { whiteSpace: "normal", minWidth: 190 } }, it.linha),
+                                    React.createElement(Td, { color: T.ink2, style: { whiteSpace: "normal", minWidth: 200 } }, it.inclui),
+                                    React.createElement(Td, { right: true, bold: true }, it.preco == null ? React.createElement("span", { style: { color: T.muted, fontWeight: 600 } }, it.precoTxt)
+                                        : it.alcada === "apartir" ? React.createElement("span", null,
+                                            "a partir de ",
+                                            nReal(ajusta(it.preco))) : nReal(ajusta(it.preco))),
+                                    React.createElement(Td, null, bl ? React.createElement(TagSolida, { cor: T.bad }, "Bloqueada no Tatuap\u00E9")
+                                        : React.createElement(TagSolida, { cor: it.alcada === "apartir" ? "#B07A00" : al.cor }, al.rotulo))));
+                            }),
+                            !lista.length && React.createElement("tr", null,
+                                React.createElement(Td, null, "Nada encontrado para essa busca."))))))),
+        React.createElement(Secao, { n: 2, titulo: "Cota\u00E7\u00E3o selecionada", nota: "Clique em uma linha da tabela para montar a cota\u00E7\u00E3o e o texto pronto para o WhatsApp." },
+            !sel && React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhum item selecionado ainda."),
+            sel && (React.createElement("div", { className: "duo2", style: { display: "grid", gap: 14 } },
+                React.createElement(Card, { className: "p20" },
+                    React.createElement(Label, null,
+                        sel.cat,
+                        " \u00B7 ",
+                        sel.linha),
+                    bloqueado(sel) ? (React.createElement("div", { style: { marginTop: 8 } },
+                        React.createElement(TagSolida, { cor: T.bad }, "Funilaria bloqueada no Tatuap\u00E9"),
+                        React.createElement("div", { style: { fontSize: 13, color: T.ink2, marginTop: 10 } }, "Troque a loja do cliente ou ofere\u00E7a avalia\u00E7\u00E3o em outra unidade."))) : sel.preco != null ? (React.createElement("div", null,
+                        React.createElement("div", { style: { marginTop: 6 } },
+                            React.createElement(Metric, { value: (sel.alcada === "apartir" ? "a partir de " : "") + nReal(precoSel), size: 32 })),
+                        React.createElement("div", { style: { fontSize: 14, color: T.ink2, marginTop: 6 } },
+                            "em at\u00E9 ",
+                            React.createElement("b", null,
+                                "6x sem juros de ",
+                                nReal2(precoSel / 6))),
+                        carro === "pickup" && React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 4 } },
+                            nReal(sel.preco),
+                            " \u00D7 1,15 = ",
+                            nReal2(precoSel)),
+                        sel.extra && React.createElement("div", { style: { fontSize: 13, color: T.ink2, marginTop: 8 } },
+                            sel.extra.rotulo,
+                            ": ",
+                            React.createElement("b", null, nReal(ajusta(sel.extra.preco))),
+                            " \u00B7 6x de ",
+                            nReal2(ajusta(sel.extra.preco) / 6)),
+                        React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 8 } }, sel.inclui))) : (React.createElement("div", { style: { marginTop: 8, fontSize: 13, color: T.ink2 } },
+                        "Sem pre\u00E7o para o SDR: ",
+                        sel.inclui,
+                        ".")),
+                    React.createElement("div", { style: { marginTop: 12 } },
+                        React.createElement(TagSolida, { cor: bloqueado(sel) ? T.bad : sel.alcada === "apartir" ? "#B07A00" : ALCADA[sel.alcada].cor }, ALCADA[sel.alcada].rotulo),
+                        React.createElement("span", { style: { fontSize: 12, color: T.muted, marginLeft: 8 } }, ALCADA[sel.alcada].dica))),
+                React.createElement(Card, { className: "p20" },
+                    React.createElement(Label, null, "Texto para o WhatsApp"),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 } },
+                        React.createElement("input", { value: op1, onChange: function (e) { return setOp1(e.target.value); }, placeholder: "Op\u00E7\u00E3o 1 (ex.: amanh\u00E3 de manh\u00E3)", style: inputStyle }),
+                        React.createElement("input", { value: op2, onChange: function (e) { return setOp2(e.target.value); }, placeholder: "Op\u00E7\u00E3o 2 (ex.: amanh\u00E3 \u00E0 tarde)", style: inputStyle })),
+                    React.createElement("div", { style: { marginTop: 10, background: T.canvas, borderRadius: 8, padding: "12px 14px", fontSize: 13.5, lineHeight: 1.55, whiteSpace: "pre-wrap" } }, texto),
+                    React.createElement("div", { style: { marginTop: 10, display: "flex", alignItems: "center", gap: 10 } },
+                        React.createElement(Btn, { kind: "accent", onClick: function () { return copiar("zap", texto); } }, "Copiar texto"),
+                        copiado === "zap" && React.createElement("span", { style: { fontSize: 12.5, color: T.good, fontWeight: 600 } }, "Copiado"),
+                        copiado === "erro" && React.createElement("span", { style: { fontSize: 12.5, color: T.bad } }, "N\u00E3o consegui copiar \u2014 selecione o texto e copie.")))))),
+        React.createElement(Secao, { n: 3, titulo: "Regras de pre\u00E7o", nota: "Sempre \u00E0 vista, para n\u00E3o esquecer na hora da conversa." },
+            React.createElement(Card, { className: "p16", style: { borderColor: "#F0DDA0", background: "#FFFBEE" } },
+                React.createElement("ul", { style: { margin: 0, paddingLeft: 20, fontSize: 13.5, lineHeight: 1.8, color: T.ink } }, REGRAS_PRECO.map(function (r) { return React.createElement("li", { key: r }, r); }))))));
+}
+/* ---------------- TREINADOR ----------------
+   O SDR liga, com voz, para um cliente criado por IA na ElevenLabs. A nota
+   sai sozinha ao fim da ligação, mas por enquanto ela só aparece na
+   ElevenLabs: o placar do time precisa de Edge Function + tabela (fase 2). */
+var TREINO_LINK = "https://elevenlabs.io/app/talk-to?agent_id=";
+var TREINO_NIVEIS = [
+    { id: "Easy", cor: T.good, min: "~3 min", txt: "Cliente receptivo. Pra pegar o ritmo.", personas: [
+            { nome: "Camila", gancho: "Película · carro zero, medo pela família", id: "agent_7301m3ypd8kwewqve3r8g10e9q86" },
+            { nome: "Marcelo", gancho: "Antivandalismo · vidro quebrado 2x", id: "agent_8501m3ypdaywe5jan7f6vmdxrepe" },
+            { nome: "Lucas", gancho: "Película · já pesquisou tudo, tá no almoço", id: "agent_0401m3ypdebcfgd9a0yhsjpfdrh2" }
+        ] },
+    { id: "Normal", cor: T.warn, min: "~5 min", txt: "Tem objeção e compara. Pede condução.", personas: [
+            { nome: "Thiago", gancho: "PPF · “ainda nem peguei o carro”", id: "agent_0401m3yk7msaeqmvvqv5s1evwffz" },
+            { nome: "Rodrigo", gancho: "“A concessionária cobra igual”", id: "agent_1101m3ypdh2eepzvr45n9f1czm1e" },
+            { nome: "Felipe", gancho: "Compara antes de agendar", id: "agent_7601m3ypdkaffa7s2kpwzg250jqp" }
+        ] },
+    { id: "Hard", cor: "#C85A16", min: "~7 min", txt: "Pressiona por preço e prazo.", personas: [
+            { nome: "Bruno", gancho: "“Lá saiu mais barato e é pra amanhã”", id: "agent_9901m3ypdng5fezay1gc6vyz4dfe" },
+            { nome: "Diego", gancho: "Multimídia · o bagre ensaboado", id: "agent_4601m3ypdvb2e4xtnqqcq62e72m4" },
+            { nome: "Patrícia", gancho: "“Vou perder a garantia de fábrica”", id: "agent_4901m3ypdxyxewkafcthgn3f90hc" }
+        ] },
+    { id: "Infernal", cor: T.bad, min: "~10 min", txt: "Sem paciência. Erra uma regra e perde o cliente.", personas: [
+            { nome: "Valdir", gancho: "“Se não passar preço, esquece”", id: "agent_7401m3ype0heez6vs5j6wh4ctwav" },
+            { nome: "Renata", gancho: "Rapidinho, tá numa reunião", id: "agent_8401m3ype32yeysbhfxggvs0q96f" },
+            { nome: "Gustavo", gancho: "Testa a regra de preço", id: "agent_9901m3ype5p5erprfgf4qfz26ftr" }
+        ] },
+];
+var TREINO_CRITERIOS = [
+    ["Abertura", 10], ["Personalização", 15], ["Diagnóstico", 20], ["Condução de preço", 15],
+    ["Valor da visita", 10], ["Fechamento", 20], ["Respeito", 10],
+];
+var TREINO_SDRS = ["Paulo Allan", "Milena", "Marcos", "Alessandro", "Alexandre Nogueira"];
+function AbaTreinador() {
+    var nPersonas = TREINO_NIVEIS.reduce(function (s, n) { return s + n.personas.length; }, 0);
+    return (React.createElement("div", null,
+        React.createElement("div", { className: "grid-kpi" },
+            React.createElement(Kpi, { label: "Personas no ar", value: nInt(nPersonas), sub: "Car Service \u00B7 3 por n\u00EDvel" }),
+            React.createElement(Kpi, { label: "Meta do time", value: "3", sub: "treinos por SDR por semana" }),
+            React.createElement(Kpi, { label: "Piloto \u00B7 liga\u00E7\u00E3o errada", value: "28/100", sub: "Thiago, sem seguir o roteiro", tone: "bad" }),
+            React.createElement(Kpi, { label: "Piloto \u00B7 liga\u00E7\u00E3o certa", value: "85/100", sub: "Thiago, seguindo o roteiro", tone: "good" })),
+        React.createElement(Secao, { n: 1, titulo: "Treinar agora", nota: "Escolha o cliente e ligue pelo navegador, com o microfone. Diga o seu nome no come\u00E7o da liga\u00E7\u00E3o: \u00E9 assim que o treino \u00E9 identificado. A nota sai sozinha ao final." },
+            React.createElement("div", { className: "grid-kpi", style: { gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" } }, TREINO_NIVEIS.map(function (nv) { return (React.createElement(Card, { key: nv.id, className: "p16", style: { borderTop: "4px solid ".concat(nv.cor) } },
+                React.createElement("div", { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between" } },
+                    React.createElement("span", { style: { fontFamily: F_MARCA, fontSize: 17, fontWeight: 700, color: nv.cor } }, nv.id),
+                    React.createElement("span", { style: { fontSize: 12, color: T.muted } },
+                        nv.min,
+                        " por liga\u00E7\u00E3o")),
+                React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 2, marginBottom: 10 } }, nv.txt),
+                nv.personas.map(function (p) { return (React.createElement("div", { key: p.id, style: { display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: "1px solid ".concat(T.hair) } },
+                    React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                        React.createElement("div", { style: { fontWeight: 700, fontSize: 14 } }, p.nome),
+                        React.createElement("div", { style: { fontSize: 12, color: T.muted, lineHeight: 1.4 } }, p.gancho)),
+                    React.createElement("a", { href: TREINO_LINK + p.id, target: "_blank", rel: "noopener noreferrer", style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "7px 11px", borderRadius: 6, background: T.marca,
+                            color: T.preto, textDecoration: "none", whiteSpace: "nowrap", border: "1px solid ".concat(T.marca) } }, "\uD83D\uDCDE Ligar"))); }))); }))),
+        React.createElement(Secao, { n: 2, titulo: "Placar do time", nota: "Fica vazio at\u00E9 cada SDR treinar. O registro autom\u00E1tico das liga\u00E7\u00F5es (nota, n\u00EDvel e ponto de treino) entra na fase 2, depois da sua autoriza\u00E7\u00E3o \u2014 por isso nenhum n\u00FAmero \u00E9 inventado aqui." },
+            React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
+                React.createElement("div", { className: "rolagem" },
+                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 640 } },
+                        React.createElement("thead", null,
+                            React.createElement("tr", null,
+                                React.createElement(Th, null, "SDR"),
+                                React.createElement(Th, { right: true }, "Treinos na semana"),
+                                React.createElement(Th, { right: true }, "Nota m\u00E9dia"),
+                                React.createElement(Th, { right: true }, "N\u00EDvel mais alto"),
+                                React.createElement(Th, null, "Ponto de treino"))),
+                        React.createElement("tbody", null, TREINO_SDRS.map(function (s) { return (React.createElement("tr", { key: s },
+                            React.createElement(Td, { bold: true }, s),
+                            React.createElement(Td, { right: true, color: T.muted }, "\u2014"),
+                            React.createElement(Td, { right: true, color: T.muted }, "\u2014"),
+                            React.createElement(Td, { right: true, color: T.muted }, "\u2014"),
+                            React.createElement(Td, { color: T.muted }, "\u2014"))); })))))),
+        React.createElement(Secao, { n: 3, titulo: "Como a nota sai", nota: "Igual nos 12 clientes. Cada liga\u00E7\u00E3o recebe nota de 0 a 100, se o SDR agendou ou n\u00E3o, e um ponto de treino: a frase que ele disse, ao lado de uma vers\u00E3o melhor." },
+            React.createElement(Card, { className: "p20" },
+                TREINO_CRITERIOS.map(function (_a) {
+                    var _b = __read(_a, 2), n = _b[0], pt = _b[1];
+                    return (React.createElement("div", { key: n, style: { display: "grid", gridTemplateColumns: "minmax(120px, 190px) 1fr 44px", gap: 12, alignItems: "center", padding: "6px 0" } },
+                        React.createElement("span", { style: { fontSize: 13.5, fontWeight: 600 } }, n),
+                        React.createElement(Barra, { pct: pt / 20, cor: T.ink, alt: 8 }),
+                        React.createElement("span", { style: { fontFamily: F_NUM, fontWeight: 700, textAlign: "right" } }, pt)));
+                }),
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", borderTop: "1px solid ".concat(T.hair), marginTop: 8, paddingTop: 10, fontSize: 13 } },
+                    React.createElement("b", null, "Total"),
+                    React.createElement("b", { style: { fontFamily: F_NUM } }, TREINO_CRITERIOS.reduce(function (s, c) { return s + c[1]; }, 0)))))));
+}
+/* ---------------- BIBLIOTECA + PESQUISA DE MERCADO ---------------- */
+var BIB_AREAS = ["Todas", "SDR", "BDR", "Closer", "Car Service", "Car Store", "Academy", "House Service"];
+var BIB_DOCS = [
+    ["Manual de Elite em Objeções, Persuasão e Conversão", "Treinamento", "Todas", "30/04/2026"],
+    ["Script de Elite — Leads de Tráfego Pago", "Script", "a classificar", "30/04/2026"],
+    ["Script de Elite — Reativação de Base", "Script", "BDR", "12/05/2026"],
+    ["Ativação de Base", "Treinamento", "BDR", "20/08/2026"],
+    ["The Wonder STI", "Treinamento", "a classificar", "24/08/2026"],
+    ["Consultoria Premium", "Treinamento", "Car Store", "20/08/2026"],
+    ["SDR Challenger — CarStore", "Treinamento", "Car Store", "07/08/2026"],
+    ["WONDERCARS SDR PLAYBOOK", "Treinamento", "Car Store", "07/07/2026"],
+    ["ROTINA SDR CARS", "Rotina", "Car Store", "16/09/2026"],
+    ["Playbook SDR/BDR Car Store — Processo e Rotina V2", "POP", "Car Store", "10/07/2026"],
+    ["CARS — Diretrizes Comerciais SDR", "Política", "Car Store", "07/07/2026"],
+    ["TREINAMENTO-CARS", "Vídeo", "Car Store", "07/07/2026"],
+].map(function (d) { return ({ doc: d[0], tipo: d[1], frente: d[2], em: d[3] }); });
+var BIB_FALTA = [
+    "Um playbook próprio de Car Service (os atuais são de Car Store).",
+    "Prazos por serviço.",
+    "Endereços e horários das 4 lojas.",
+];
+var PESQ_OBJECOES = [
+    ["“Por que 3M se o PPF deles é mais barato?”", "Prime Sound vende 3M no vidro e PPF próprio na pintura",
+        "Comparar garantia de fábrica e credenciamento em PPF, não só preço."],
+    ["“Lá tem corte computadorizado”", "Itafran e Anália entregam",
+        "Nosso Vorza BS de R$ 17.900 e o 3M de R$ 21.900 também têm: falar logo de cara."],
+    ["“Lá tem kit Inicial / Frontal / Full”", "Nago (PPF) e Box Detail (vitrificação em níveis)",
+        "Apresentar projeto, não peça solta, e trazer o cliente para ver o acabamento."],
+    ["“Meu carro é blindado”", "ASES atende blindados desde 1967",
+        "Funilaria de blindado cobra o dobro, só com avaliação."],
+];
+function AbaBiblioteca() {
+    var _a = __read(useState(""), 2), busca = _a[0], setBusca = _a[1];
+    var _b = __read(useState("Todas"), 2), area = _b[0], setArea = _b[1];
+    var q = busca.trim().toLowerCase();
+    /* “Todas” na coluna Frente vale para qualquer área; “a classificar” só aparece em Todas */
+    var lista = BIB_DOCS.filter(function (d) {
+        return (area === "Todas" || d.frente === area || d.frente === "Todas") &&
+            (!q || [d.doc, d.tipo, d.frente].join(" ").toLowerCase().indexOf(q) >= 0);
+    });
+    var corFrente = function (f) { return (f === "a classificar" ? T.warn : f === "Todas" ? T.ink : T.good); };
+    return (React.createElement("div", null,
+        React.createElement("div", { className: "duo2", style: { display: "grid", gap: 24, alignItems: "start" } },
+            React.createElement("div", { style: { minWidth: 0 } },
+                React.createElement(Secao, { n: 1, titulo: "Biblioteca do comercial", nota: "Espelho dos Drives do comercial: o que existe, de que frente \u00E9 e quando foi atualizado." },
+                    React.createElement(Card, { className: "p12" },
+                        React.createElement("input", { type: "search", value: busca, onChange: function (e) { return setBusca(e.target.value); }, placeholder: "Buscar documento, tipo ou frente", style: __assign(__assign({}, inputStyle), { marginBottom: 10 }) }),
+                        React.createElement(Chips, { value: area, onChange: setArea, options: BIB_AREAS.map(function (a) { return [a, a]; }) })),
+                    React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden", marginTop: 12 } },
+                        React.createElement("div", { className: "rolagem" },
+                            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 520 } },
+                                React.createElement("thead", null,
+                                    React.createElement("tr", null,
+                                        React.createElement(Th, null, "Documento"),
+                                        React.createElement(Th, null, "Tipo"),
+                                        React.createElement(Th, null, "Frente"),
+                                        React.createElement(Th, { right: true }, "Atualizado"))),
+                                React.createElement("tbody", null,
+                                    lista.map(function (d) { return (React.createElement("tr", { key: d.doc },
+                                        React.createElement(Td, { bold: true, style: { whiteSpace: "normal", minWidth: 220 } }, d.doc),
+                                        React.createElement(Td, { color: T.ink2 }, d.tipo),
+                                        React.createElement(Td, null,
+                                            React.createElement(Tag, { cor: corFrente(d.frente) }, d.frente)),
+                                        React.createElement(Td, { right: true, color: T.muted }, d.em))); }),
+                                    !lista.length && React.createElement("tr", null,
+                                        React.createElement(Td, { style: { whiteSpace: "normal" } }, "Nenhum documento classificado nessa frente ainda.")))))),
+                    React.createElement(Card, { className: "p16", style: { marginTop: 12, borderColor: "#F0C3C6", background: "#FDF3F3" } },
+                        React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: T.bad, marginBottom: 6 } }, "O que falta para o SDR de Car Service"),
+                        React.createElement("ul", { style: { margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.7, color: T.ink } }, BIB_FALTA.map(function (f) { return React.createElement("li", { key: f }, f); }))))),
+            React.createElement("div", { style: { minWidth: 0 } },
+                React.createElement(Secao, { n: 2, titulo: "Pesquisa de mercado", nota: "Levantamento de 10/09/2026, S\u00E3o Paulo capital." },
+                    React.createElement("div", { className: "grid-kpi", style: { gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" } },
+                        React.createElement(Kpi, { label: "Concorrentes mapeados", value: "30", sub: "5 por frente" }),
+                        React.createElement(Kpi, { label: "Credenciados 3M", value: "8", sub: "pelo que cada loja declara no site" })),
+                    React.createElement(Card, { className: "p16", style: { marginTop: 12, borderLeft: "4px solid ".concat(T.marca) } },
+                        React.createElement(Label, null, "Concorrente mais direto"),
+                        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 20, fontWeight: 700, marginTop: 4 } }, "An\u00E1lia Film"),
+                        React.createElement("div", { style: { fontSize: 13, color: T.ink2, marginTop: 6, lineHeight: 1.6 } },
+                            "3M Pro Shop nas duas unidades:",
+                            React.createElement("br", null),
+                            "\u00B7 ",
+                            React.createElement("b", null, "Tatuap\u00E9"),
+                            " (Av. Regente Feij\u00F3, 1111) \u2014 disputa com a The W Tatuap\u00E9.",
+                            React.createElement("br", null),
+                            "\u00B7 ",
+                            React.createElement("b", null, "Campo Belo"),
+                            " (R. Xavier de Gouveia, 286) \u2014 disputa com a The W Bandeirantes."),
+                        React.createElement("div", { style: { fontSize: 12.5, marginTop: 10, background: "#FFF8E1", border: "1px solid #F0DDA0", borderRadius: 8, padding: "9px 11px", lineHeight: 1.5 } },
+                            React.createElement("b", null, "Dica para a conversa:"),
+                            " o selo 3M de pel\u00EDcula de vidro n\u00E3o cobre PPF. Pergunte se a loja \u00E9 credenciada em prote\u00E7\u00E3o de pintura."))))),
+        React.createElement(Secao, { n: 3, titulo: "O cliente diz \u2192 o concorrente \u2192 como a gente conduz" },
+            React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
+                React.createElement("div", { className: "rolagem" },
+                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 680 } },
+                        React.createElement("thead", null,
+                            React.createElement("tr", null,
+                                React.createElement(Th, null, "O cliente diz"),
+                                React.createElement(Th, null, "O concorrente"),
+                                React.createElement(Th, null, "Como a gente conduz"))),
+                        React.createElement("tbody", null, PESQ_OBJECOES.map(function (r) { return (React.createElement("tr", { key: r[0] },
+                            React.createElement(Td, { bold: true, style: { whiteSpace: "normal", minWidth: 180 } }, r[0]),
+                            React.createElement(Td, { color: T.ink2, style: { whiteSpace: "normal", minWidth: 200 } }, r[1]),
+                            React.createElement(Td, { style: { whiteSpace: "normal", minWidth: 240 } }, r[2]))); }))))))));
+}
+/* faixa de abas do Hub (usada na casca do closer). Painel principal usa o próprio menu. */
+function HubConteudo(_a) {
+    var aba = _a.aba;
+    return (React.createElement("div", null,
+        aba === "precos" && React.createElement(AbaPrecos, null),
+        aba === "treinador" && React.createElement(AbaTreinador, null),
+        aba === "biblioteca" && React.createElement(AbaBiblioteca, null)));
+}
 /* ===================== app ===================== */
 function Painel(_a) {
     var sessao = _a.sessao;
@@ -2805,8 +3215,10 @@ function Painel(_a) {
     /* v67: lista de vendas lead a lead — admin, SDR e gerente */
     var podeListarVendas = ["admin", "sdr", "gerente"].indexOf(perfil) >= 0;
     var _g = __read(useState(false), 2), verVendas = _g[0], setVerVendas = _g[1];
-    var ABAS = [["painel", "SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["marketing", "Marketing"], ["closers", "Closers"], ["piloto", "Piloto"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]];
-    var ABAS_SDR = ["painel", "coordenador", "tv"];
+    var ABAS = [["painel", "SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["marketing", "Marketing"], ["closers", "Closers"], ["piloto", "Piloto"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]].concat(HUB_ABAS);
+    /* v89: o Hub (Preços, Treinador, Biblioteca) é de todo mundo do time comercial.
+       Importador e agência não veem: preço interno e regras de alçada não são deles. */
+    var ABAS_SDR = ["painel", "coordenador", "tv"].concat(HUB_IDS);
     // 16/09: o importador também monta e envia os resumos do dia, então vê
     // Importar + Resumo (e nada além disso).
     var ABAS_IMPORTADOR = ["importar", "resumo"];
@@ -3356,17 +3768,20 @@ function Painel(_a) {
                             .map(function (x) { return "".concat(x.fonte, " ").concat(idade(x.min)); }).join(" · "),
                         "."))))),
             React.createElement("div", { style: { display: "flex", gap: 4, background: T.surface, border: "1px solid ".concat(T.hair),
-                    borderRadius: 8, padding: 4, marginBottom: 16, width: "fit-content" } }, ABAS.filter(function (_a) {
+                    borderRadius: 8, padding: 4, marginBottom: 16, width: "fit-content", maxWidth: "100%", flexWrap: "wrap", alignItems: "center" } }, ABAS.filter(function (_a) {
                 var _b = __read(_a, 1), v = _b[0];
                 return podeVer(v);
             }).map(function (_a) {
                 var _b = __read(_a, 2), v = _b[0], l = _b[1];
-                return (React.createElement("button", { key: v, onClick: function () { return setAba(v); }, style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700, padding: "8px 16px",
-                        border: 0, borderRadius: 5, cursor: "pointer",
-                        background: aba === v ? T.ink : "transparent",
-                        color: aba === v ? "#fff" : T.ink2 } }, l));
+                return (React.createElement(React.Fragment, { key: v },
+                    v === "precos" && React.createElement("span", { style: { fontFamily: F_MARCA, fontSize: 10.5, fontWeight: 700, letterSpacing: ".1em", color: T.preto,
+                            background: T.marca, borderRadius: 4, padding: "4px 7px", margin: "0 4px 0 10px" } }, "HUB"),
+                    React.createElement("button", { onClick: function () { return setAba(v); }, style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700, padding: "8px 12px",
+                            border: 0, borderRadius: 5, cursor: "pointer",
+                            background: aba === v ? T.ink : "transparent",
+                            color: aba === v ? "#fff" : T.ink2 } }, l)));
             })),
-            aba !== "painel" && aba !== "importar" && aba !== "resumo" && aba !== "closers" && aba !== "piloto" && aba !== "lojas" && aba !== "origem" && aba !== "marketing" && !(aba === "coordenador" && mesAba !== mesAtualISO) && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
+            aba !== "painel" && aba !== "importar" && aba !== "resumo" && aba !== "closers" && aba !== "piloto" && aba !== "lojas" && aba !== "origem" && aba !== "marketing" && HUB_IDS.indexOf(aba) < 0 && !(aba === "coordenador" && mesAba !== mesAtualISO) && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
             (ehAdmin || ehImportador) && aba === "importar" && React.createElement(AbaImportar, { sessao: sessao }),
             ((aba === "resumo" && (ehAdmin || ehImportador)) || (ehAdmin && (aba === "closers" || aba === "lojas" || aba === "origem")) || aba === "coordenador") && (React.createElement(SeletorMes, { mes: mesAba, aoTrocar: trocarMesAba, nota: aba === "resumo" ? "Mês fechado: os cartões mostram o fechamento no último dia do mês."
                     : aba === "coordenador" ? "Mês fechado: a aba mostra o fechamento. Ranking do dia, tarefas e funil são ao vivo — volte para o mês atual."
@@ -3377,6 +3792,7 @@ function Painel(_a) {
             ehAdmin && aba === "lojas" && React.createElement(AbaLojas, { mes: mesAba }),
             ehAdmin && aba === "origem" && React.createElement(AbaOrigem, { mes: mesAba }),
             (ehAdmin || ehAgencia) && aba === "marketing" && React.createElement(AbaMarketing, { negocio: negocio }),
+            HUB_IDS.indexOf(aba) >= 0 && podeVer(aba) && React.createElement(HubConteudo, { aba: aba }),
             aba === "coordenador" && mesAba !== mesAtualISO && React.createElement(CoordenadorMesFechado, { mes: mesAba, negocio: negocio, sessao: sessao }),
             aba === "coordenador" && mesAba === mesAtualISO && rot && React.createElement(AbaCoordenador, { sessao: sessao, c: rot, funil: d.funilAgora, qualidade: d.qualidade, tarefas: d.tarefas, semTarefa: d.semTarefa }),
             aba === "painel" && (React.createElement(React.Fragment, null,
@@ -10931,6 +11347,9 @@ function Piloto(_a) {
 function PainelCloser(_a) {
     var sessao = _a.sessao, todos = _a.todos;
     var perfil = ((sessao && sessao.user && sessao.user.app_metadata) || {}).perfil || "";
+    /* v89: o closer também enxerga o Hub. O piloto fica montado por baixo (display:none)
+       para não perder o que ele estava fazendo ao olhar um preço. */
+    var _b = __read(useState("piloto"), 2), hub = _b[0], setHub = _b[1];
     return (React.createElement("div", { style: { background: T.canvas, minHeight: "100vh", fontFamily: F_UI, color: T.ink } },
         React.createElement("header", { style: { background: T.preto, position: "sticky", top: 0, zIndex: 30 } },
             React.createElement("div", { className: "wrap", style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, padding: "11px 24px" } },
@@ -10946,7 +11365,18 @@ function PainelCloser(_a) {
                     React.createElement("button", { onClick: function () { return db.auth.signOut(); }, style: { background: "transparent", border: "1px solid rgba(255,255,255,.28)", color: "rgba(255,255,255,.85)",
                             borderRadius: 7, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: F_UI } }, "Sair")))),
         React.createElement("main", { className: "wrap", style: { padding: "24px 24px 80px" } },
-            React.createElement(Piloto, { sessao: sessao, todos: todos }))));
+            React.createElement("div", { style: { display: "flex", gap: 4, background: T.surface, border: "1px solid ".concat(T.hair), borderRadius: 8, padding: 4,
+                    marginBottom: 16, width: "fit-content", maxWidth: "100%", flexWrap: "wrap", alignItems: "center" } }, [["piloto", todos ? "Piloto dos closers" : "Meu piloto"]].concat(HUB_ABAS).map(function (_a) {
+                var _b = __read(_a, 2), v = _b[0], l = _b[1];
+                return (React.createElement(React.Fragment, { key: v },
+                    v === "precos" && React.createElement("span", { style: { fontFamily: F_MARCA, fontSize: 10.5, fontWeight: 700, letterSpacing: ".1em", color: T.preto,
+                            background: T.marca, borderRadius: 4, padding: "4px 7px", margin: "0 4px 0 10px" } }, "HUB"),
+                    React.createElement("button", { onClick: function () { return setHub(v); }, style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700, padding: "8px 16px",
+                            border: 0, borderRadius: 5, cursor: "pointer", background: hub === v ? T.ink : "transparent", color: hub === v ? "#fff" : T.ink2 } }, l)));
+            })),
+            React.createElement("div", { style: { display: hub === "piloto" ? "block" : "none" } },
+                React.createElement(Piloto, { sessao: sessao, todos: todos })),
+            hub !== "piloto" && React.createElement(HubConteudo, { aba: hub }))));
 }
 function App() {
     var _a = __read(useState(undefined), 2), sessao = _a[0], setSessao = _a[1];
