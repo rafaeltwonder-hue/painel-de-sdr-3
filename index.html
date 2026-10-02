@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v89 — CAR SERVICE</title>
-<meta name="painel-versao" content="v89">
+<title>Painel de SDR v90 — CAR SERVICE</title>
+<meta name="painel-versao" content="v90">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -2748,9 +2748,8 @@ function JanelaVendas(_a) {
    Kommo. Quando o Rafael autorizar, preços e placar vão para o Supabase.
 
    Fonte dos preços: Tabela SDR CORRIGIDA (planilha "PREÇO SDR 2025",
-   atualizada em 18/04/2026). Exceção: PPF full vale a faixa validada, não os
-   valores da planilha (15.990, 22.990 etc.). Só entram os itens já conferidos;
-   o resto da planilha ainda precisa ser importado, e a tela diz isso. */
+   atualizada em 18/04/2026), completa desde a v90. Exceção: PPF full vale a
+   faixa validada, não os valores da planilha (15.990, 22.990 etc.). */
 var HUB_ABAS = [["precos", "Preços"], ["treinador", "Treinador"], ["biblioteca", "Biblioteca"]];
 var HUB_IDS = ["precos", "treinador", "biblioteca"];
 /* alçada: o que o SDR pode fazer com o preço */
@@ -2760,35 +2759,108 @@ var ALCADA = {
     avaliacao: { rotulo: "Exige avaliação", cor: T.muted, dica: "Não passa preço: convida para avaliação na loja." },
     naocotar: { rotulo: "NÃO COTAR", cor: T.bad, dica: "Não cota. Qualifica e agenda avaliação." },
 };
+/* v90: tabela completa. Cada item tem "opcoes" (variações de porte, nº de vidros, aro…) e,
+   nas películas, "extras" (parabrisa e teto vendidos à parte). Preço de pick-up soma 15% em tudo. */
+var _PMG = function (a, b, c) { return [{ r: "Pequeno", p: a }, { r: "Médio", p: b }, { r: "Grande", p: c }]; };
+var _V46 = function (a, b) { return [{ r: "4 vidros", p: a }, { r: "6 vidros", p: b }]; };
+var _U = function (p) { return [{ r: "", p: p }]; };
+function _it(id, cat, linha, garantia, inclui, alcada, opcoes, x) {
+    var o = { id: id, cat: cat, linha: linha, garantia: garantia, inclui: inclui, alcada: alcada, opcoes: opcoes, extras: [] };
+    if (x) {
+        for (var k in x) {
+            if (Object.prototype.hasOwnProperty.call(x, k))
+                o[k] = x[k];
+        }
+    }
+    return o;
+}
+var _PBT = function (pb, teto) { return [{ r: "Só parabrisa", p: pb }, { r: "Só teto", p: teto }]; };
+var _AVAL = { precoTxt: "na loja" };
 var PRECOS_ITENS = [
-    { id: "ppf-vorza-pro", cat: "PPF", linha: "Vorza Pro — full", escopo: "sem desmontagem", garantia: "5 anos",
-        inclui: "Sem desmontagem, garantia de 5 anos", preco: 11900, alcada: "fechado" },
-    { id: "ppf-vorza-bs", cat: "PPF", linha: "Vorza Black Series — full", escopo: "com desmontagem", garantia: "10 anos",
-        inclui: "Com desmontagem, garantia de 10 anos", preco: 14900, alcada: "fechado" },
-    { id: "ppf-vorza-bs-corte", cat: "PPF", linha: "Vorza Black Series + corte computadorizado",
-        escopo: "com desmontagem, 3 trocas anuais e 2 manutenções semestrais", garantia: "10 anos",
-        inclui: "Desmontagem, 3 trocas anuais, 2 manutenções semestrais, 10 anos", preco: 17900, alcada: "fechado" },
-    { id: "ppf-3m", cat: "PPF", linha: "3M — full", escopo: "com desmontagem, corte opcional sem custo e sem troca", garantia: "10 anos",
-        inclui: "Desmontagem, corte opcional sem custo, 10 anos, sem troca", preco: 21900, alcada: "fechado" },
-    { id: "pel-pl4", cat: "Películas", linha: "Proteck Line 4 (antivandalismo)", escopo: "4 vidros", garantia: "",
-        inclui: "4 vidros", preco: 990, alcada: "fechado" },
-    { id: "pel-pl8", cat: "Películas", linha: "Proteck Line 8", escopo: "4 vidros", garantia: "",
-        inclui: "4 vidros", preco: 1490, alcada: "fechado" },
-    { id: "pel-pl12", cat: "Películas", linha: "Proteck Line 12", escopo: "4 vidros", garantia: "",
-        inclui: "4 vidros (6 vidros: R$ 2.290)", preco: 2190, alcada: "fechado",
-        extra: { rotulo: "6 vidros", preco: 2290 } },
-    { id: "pel-3m-sas", cat: "Películas", linha: "3M SAS (G5/G20) antivandalismo", escopo: "4 vidros", garantia: "",
-        inclui: "4 vidros", preco: 2690, alcada: "fechado" },
-    { id: "ace-multimidia", cat: "Acessórios", linha: "Multimídia", escopo: "", garantia: "",
-        inclui: "Modelo e marca definem o valor", preco: 1890, alcada: "apartir" },
-    { id: "fun-peca", cat: "Funilaria", linha: "Funilaria de peça", escopo: "", garantia: "",
-        inclui: "Blindado cobra o dobro; Tatuapé não executa", preco: null, alcada: "avaliacao", precoTxt: "na loja", funilaria: true },
-    { id: "est-vitrificacao", cat: "Estética", linha: "Vitrificação / coating", escopo: "", garantia: "",
-        inclui: "Sem preço na tabela do SDR", preco: null, alcada: "naocotar", precoTxt: "—" },
+    /* ---- PPF ---- */
+    _it("ppf-vorza-pro", "PPF", "Vorza Pro — full", "5 anos", "Sem desmontagem", "fechado", [{ r: "sem desmontagem", p: 11900 }]),
+    _it("ppf-vorza-bs", "PPF", "Vorza Black Series — full", "10 anos", "Com desmontagem", "fechado", [{ r: "com desmontagem", p: 14900 }]),
+    _it("ppf-vorza-bs-corte", "PPF", "Vorza Black Series + corte computadorizado", "10 anos", "Desmontagem, 3 trocas anuais e 2 manutenções semestrais", "fechado", [{ r: "com desmontagem, 3 trocas anuais e 2 manutenções semestrais", p: 17900 }]),
+    _it("ppf-3m", "PPF", "3M — full", "10 anos", "Desmontagem, corte opcional sem custo, sem troca", "fechado", [{ r: "com desmontagem, corte opcional sem custo e sem troca", p: 21900 }]),
+    _it("ppf-full-outros", "PPF", "Full Xpell e Across (inclusive fosco)", "", "Sem faixa validada para o SDR: convida para avaliação", "avaliacao", [], _AVAL),
+    _it("ppf-frontal", "PPF", "Frontal completo (Across)", "", "Capô, para-choque, para-lamas, retrovisores, quinas e conchas", "fechado", _U(7490)),
+    _it("ppf-parachoque", "PPF", "Para-choque", "", "Porte do carro", "fechado", _PMG(1890, 2190, 2490)),
+    _it("ppf-capo", "PPF", "Capô", "", "Porte do carro", "fechado", _PMG(2290, 2590, 2790)),
+    _it("ppf-paralamas", "PPF", "Para-lamas", "", "Porte do carro", "fechado", _PMG(1590, 1990, 2190)),
+    _it("ppf-farol", "PPF", "Farol transparente", "", "Porte do carro", "fechado", _PMG(690, 790, 890)),
+    _it("ppf-smoke", "PPF", "Smoke", "", "Porte do carro", "fechado", _PMG(990, 1090, 1290)),
+    _it("ppf-black-piano", "PPF", "Black piano para teto", "", "Porte do carro", "fechado", _PMG(3290, 3490, 3790)),
+    _it("ppf-quinas", "PPF", "Quinas", "", "", "fechado", _U(150)),
+    _it("ppf-conchas", "PPF", "Conchas", "", "", "fechado", _U(150)),
+    _it("ppf-soleiras", "PPF", "Soleiras", "", "", "fechado", _U(350)),
+    _it("ppf-portamalas", "PPF", "Saída de porta-malas", "", "", "fechado", _U(350)),
+    _it("ppf-retrovisores", "PPF", "Retrovisores", "", "", "fechado", _U(550)),
+    _it("ppf-colunab", "PPF", "Colunas B", "", "", "fechado", _U(690)),
+    _it("ppf-moto", "PPF", "PPF moto", "", "Valor final depende da moto", "apartir", _U(1790)),
+    _it("ppf-pelicula-vida", "PPF", "Película da vida", "", "Valor final depende do carro", "apartir", _U(1200)),
+    /* ---- PELÍCULAS ---- */
+    _it("pel-3m-color", "Películas", "3M Color Stable", "10 anos", "4 ou 6 vidros; parabrisa e teto à parte", "fechado", _V46(1790, 1890), { extras: _PBT(1250, 1250) }),
+    _it("pel-3m-g5", "Películas", "3M FX (G5)", "3 anos", "4 ou 6 vidros; parabrisa e teto à parte", "fechado", _V46(1590, 1690), { extras: _PBT(1090, 1090) }),
+    _it("pel-3m-g20", "Películas", "3M FX (G20 / G35)", "3 anos", "4 ou 6 vidros; parabrisa e teto à parte", "fechado", _V46(1290, 1390), { extras: _PBT(790, 790) }),
+    _it("pel-cryst70", "Películas", "3M Crystalline 70", "15 anos", "4 ou 6 vidros; parabrisa e teto à parte", "fechado", _V46(3190, 3490), { extras: _PBT(1990, 1990) }),
+    _it("pel-cryst40", "Películas", "3M Crystalline 40", "15 anos", "4 ou 6 vidros; parabrisa e teto à parte", "fechado", _V46(3490, 3990), { extras: _PBT(2590, 2590) }),
+    _it("pel-cryst20", "Películas", "3M Crystalline 20", "15 anos", "4 ou 6 vidros; parabrisa e teto à parte", "fechado", _V46(4990, 5490), { extras: _PBT(2990, 2590) }),
+    _it("pel-wonder-ceramic", "Películas", "Wonder Ceramic (nano cerâmica)", "10 anos", "4 ou 6 vidros; parabrisa e teto à parte", "fechado", _V46(1490, 1790), { extras: _PBT(1090, 1090) }),
+    _it("pel-clearplex", "Películas", "Clear Plex (anti-trinco)", "1 ano", "Preço depende da medida do vidro", "fechado", [{ r: "até 1,20", p: 2190 }, { r: "acima de 1,20", p: 3900 }]),
+    _it("pel-ultrafit", "Películas", "Ultra Fit", "", "Até 1,20", "fechado", [{ r: "até 1,20", p: 2690 }]),
+    _it("pel-dyed", "Películas", "Dyed Black", "1 ano", "4 ou 6 vidros; parabrisa e teto à parte", "fechado", _V46(450, 650), { extras: _PBT(350, 350) }),
+    _it("pel-pl4", "Películas", "Proteck Line 4 (antivandalismo)", "5 anos", "Resistência a impacto: 34 kgf", "fechado", _V46(990, 1090)),
+    _it("pel-pl8", "Películas", "Proteck Line 8 (antivandalismo)", "5 anos", "Resistência a impacto: 55 kgf", "fechado", _V46(1490, 1590)),
+    _it("pel-pl12", "Películas", "Proteck Line 12 (antivandalismo)", "10 anos", "Resistência a impacto: 83 kgf", "fechado", _V46(2190, 2290)),
+    _it("pel-3m-sas", "Películas", "3M SAS (G5 / G20) antivandalismo", "3 anos", "Resistência a impacto: 88 joules", "fechado", _V46(2690, 2990)),
+    _it("pel-ss-standard", "Películas", "SS Laminados Standard (antivandalismo)", "10 anos", "Resistência a impacto: acima de 110 kg", "fechado", _V46(3490, 3490)),
+    _it("pel-ss-premium", "Películas", "SS Laminados Premium (antivandalismo)", "10 anos", "Resistência a impacto: acima de 110 kg", "fechado", _V46(4490, 4490)),
+    /* ---- ENVELOPAMENTO ---- */
+    _it("env-teto", "Envelopamento", "Teto", "", "Porte do carro", "fechado", _PMG(790, 890, 990)),
+    _it("env-teto-colunas", "Envelopamento", "Teto + colunas + aerofólio", "", "Porte do carro", "fechado", _PMG(1190, 1390, 1590)),
+    _it("env-teto-colunas-esp", "Envelopamento", "Teto + colunas + aerofólio (modelos especiais)", "", "Linha da planilha com Compass e Evoque: confirmar com o closer", "apartir", [{ r: "padrão", p: 1990 }, { r: "Evoque", p: 2590 }]),
+    _it("env-friso", "Envelopamento", "Friso de para-choque", "", "", "fechado", _U(450)),
+    _it("env-retrovisor", "Envelopamento", "Retrovisor", "", "", "fechado", _U(390)),
+    _it("env-longarina", "Envelopamento", "Longarina", "", "", "fechado", _U(890)),
+    _it("env-emblemas", "Envelopamento", "Emblemas", "", "", "fechado", _U(300)),
+    _it("env-grade", "Envelopamento", "Grade", "", "", "fechado", _U(500)),
+    _it("env-letras", "Envelopamento", "Face de letras (delete chrome)", "", "", "fechado", _U(250)),
+    _it("env-full-oracal", "Envelopamento", "Full Oracal / Altak", "", "Porte do carro", "fechado", _PMG(3990, 4490, 4990)),
+    _it("env-full-mactac", "Envelopamento", "Full Mactac / Hexis", "", "Porte do carro", "fechado", _PMG(7990, 8490, 9990)),
+    _it("env-full-avery", "Envelopamento", "Full Avery / Teckwrap", "", "Porte do carro", "fechado", _PMG(13990, 15490, 16990)),
+    /* ---- ESTÉTICA ---- */
+    _it("est-hig-essence", "Estética", "Higienização Essence (somente bancos)", "", "Porte do carro", "fechado", _PMG(350, 400, 450)),
+    _it("est-hig-standard", "Estética", "Higienização Standard", "", "Mesmo valor para todos os portes", "fechado", _U(990)),
+    _it("est-hig-premium", "Estética", "Higienização Premium", "", "Mesmo valor para todos os portes", "fechado", _U(1490)),
+    _it("est-hig-full", "Estética", "Higienização Full Detail", "", "Se for caso de enchente, só avaliação presencial", "fechado", _U(2190)),
+    _it("est-filtro", "Estética", "Filtro de ar-condicionado (à parte)", "", "Depende do estoque", "avaliacao", [], _AVAL),
+    _it("est-oxi", "Estética", "Oxi-sanitização", "", "", "fechado", _U(150)),
+    _it("est-pwclean", "Estética", "PW Clean (sanitizante, elimina vírus)", "", "", "fechado", _U(150)),
+    _it("est-bancos-hidrat", "Estética", "Limpeza técnica dos bancos + hidratação", "", "Porte do carro", "fechado", _PMG(450, 500, 600)),
+    _it("est-bancos-imperm", "Estética", "Limpeza técnica dos bancos + impermeabilização", "", "Porte do carro", "fechado", _PMG(490, 590, 690)),
+    _it("est-leather", "Estética", "Leather coating (proteção de couro)", "", "A planilha traz dois valores sem legenda: confirmar", "apartir", [{ r: "Pequeno", p: 800 }, { r: "Médio", p: 1200 }]),
+    _it("est-enceramento", "Estética", "Enceramento técnico", "", "Porte do carro", "fechado", _PMG(490, 550, 590)),
+    _it("est-polimento-std", "Estética", "Polimento standard", "", "Porte do carro", "fechado", _PMG(690, 790, 890)),
+    _it("est-polimento-tec", "Estética", "Polimento técnico", "", "Porte do carro", "fechado", _PMG(1090, 1190, 1290)),
+    _it("est-vitrificacao", "Estética", "Vitrificação / coating", "", "Sem preço na tabela do SDR", "naocotar", [], { precoTxt: "—" }),
+    /* ---- FUNILARIA (bloqueada no Tatuapé) ---- */
+    _it("fun-peca", "Funilaria", "Funilaria de peça", "", "Blindado cobra o dobro; Tatuapé não executa", "avaliacao", [], { precoTxt: "na loja", funilaria: true }),
+    _it("fun-diamantacao", "Funilaria", "Diamantação de roda", "", "Preço por aro", "fechado", [{ r: "aro 13 a 16", p: 550 }, { r: "aro 17 a 19", p: 650 }, { r: "aro 20 em diante", p: 850 }], { funilaria: true }),
+    _it("fun-pintura-roda", "Funilaria", "Pintura de roda (por roda)", "", "Preço por aro", "fechado", [{ r: "aro 13 a 16", p: 350 }, { r: "aro 17 a 19", p: 450 }, { r: "aro 20 em diante", p: 625 }], { funilaria: true }),
+    _it("fun-martelinho", "Funilaria", "Martelinho de ouro", "", "A consultar", "avaliacao", [], { precoTxt: "na loja", funilaria: true }),
+    /* ---- ACESSÓRIOS ---- */
+    _it("ace-multimidia", "Acessórios", "Multimídia (MP5)", "", "Modelo e marca definem o valor", "apartir", _U(1890)),
+    _it("ace-carplay", "Acessórios", "Sistema CarPlay", "", "Modelo e marca definem o valor", "apartir", _U(3990)),
+    _it("ace-pioneer", "Acessórios", "Multimídia Pioneer", "", "Valor depende do custo: só closer ou avaliação", "avaliacao", [], _AVAL),
+    _it("ace-led", "Acessórios", "Super LED", "", "Escolha a linha", "fechado", [{ r: "Gold", p: 590 }, { r: "Maxx", p: 890 }, { r: "Philips", p: 1250 }]),
+    _it("ace-sensor", "Acessórios", "Sensor de estacionamento", "", "Escolha o modelo", "fechado", [{ r: "sobressalente", p: 690 }, { r: "embutido", p: 1090 }, { r: "8 pontos sobressalente", p: 1490 }, { r: "8 pontos embutido", p: 1990 },
+        { r: "multimídia sobressalente", p: 650 }, { r: "multimídia embutido", p: 950 }]),
+    _it("ace-camera", "Acessórios", "Câmera de ré", "", "Escolha o modelo", "fechado", [{ r: "Tartaruga / Borboleta standard", p: 300 }, { r: "KX3", p: 400 }, { r: "Maçaneta", p: 750 }]),
 ];
-var PRECOS_CATS = ["PPF", "Películas", "Estética", "Funilaria", "Acessórios"];
+var PRECOS_CATS = ["PPF", "Películas", "Envelopamento", "Estética", "Funilaria", "Acessórios"];
 var PRECOS_LOJAS = ["Itaim", "Ipiranga", "Bandeirantes", "Tatuapé"];
 var FATOR_PICKUP = 1.15;
+var PRECOS_PLANILHA = "https://drive.google.com/file/d/1v8skCKiy1XF2gLQ3hD6S2EKgyQuI3lQw/view";
 var REGRAS_PRECO = [
     "Cobrir orçamento de concorrente só com print ou PDF.",
     "Condição especial: falar com o Rafael ou com o closer.",
@@ -2827,19 +2899,31 @@ function copiarTexto(txt, depois) {
         }
     }
 }
-function textoWhats(it, preco, loja, o1, o2) {
+function textoWhats(it, op, preco, loja, o1, o2) {
     var op1 = (o1 || "").trim() || "[opção 1]";
     var op2 = (o2 || "").trim() || "[opção 2]";
     if (it.funilaria && loja === "Tatuapé") {
         return "Aqui no Tatuap\u00E9 a gente n\u00E3o executa funilaria. Posso agendar a avalia\u00E7\u00E3o em outra unidade \u2014 qual fica melhor pra voc\u00EA: ".concat(op1, " ou ").concat(op2, "?");
     }
-    if (it.alcada === "avaliacao" || it.alcada === "naocotar") {
+    if (it.alcada === "avaliacao" || it.alcada === "naocotar" || !op) {
         return "".concat(it.linha, ": pra passar o valor certo a gente precisa avaliar o ve\u00EDculo na loja. Qual fica melhor pra voc\u00EA: ").concat(op1, " ou ").concat(op2, "?");
     }
     var parcela = nReal2(preco / 6);
-    var cab = [it.linha, it.escopo].filter(Boolean).join(", ") + (it.garantia ? ", garantia de ".concat(it.garantia) : "");
+    var cab = [it.linha, op.r].filter(Boolean).join(", ") + (it.garantia ? ", garantia de ".concat(it.garantia) : "");
     var valor = it.alcada === "apartir" ? "a partir de ".concat(nReal(preco)) : nReal(preco);
     return "".concat(cab, ": ").concat(valor, " em at\u00E9 6x sem juros de ").concat(parcela, ". O valor pode variar conforme o estado do ve\u00EDculo \u2014 por isso a gente avalia na loja. Qual fica melhor pra voc\u00EA: ").concat(op1, " ou ").concat(op2, "?");
+}
+/* todas as variações de um item: as principais e, nas películas, parabrisa e teto */
+function opcoesDoItem(it) { return it.opcoes.concat(it.extras); }
+/* texto da coluna Preço na tabela */
+function faixaPreco(it, ajusta) {
+    if (!it.opcoes.length)
+        return it.precoTxt || "—";
+    var ps = it.opcoes.map(function (o) { return ajusta(o.p); });
+    var mn = Math.min.apply(null, ps), mx = Math.max.apply(null, ps);
+    if (it.alcada === "apartir")
+        return "a partir de " + nReal(mn);
+    return mn === mx ? nReal(mn) : nReal(mn) + " a " + nReal(mx);
 }
 function AbaPrecos() {
     var _a = __read(useState(""), 2), busca = _a[0], setBusca = _a[1];
@@ -2847,30 +2931,33 @@ function AbaPrecos() {
     var _c = __read(useState("passeio"), 2), carro = _c[0], setCarro = _c[1];
     var _d = __read(useState("Itaim"), 2), loja = _d[0], setLoja = _d[1];
     var _f = __read(useState(null), 2), selId = _f[0], setSelId = _f[1];
-    var _g = __read(useState(""), 2), op1 = _g[0], setOp1 = _g[1];
-    var _h = __read(useState(""), 2), op2 = _h[0], setOp2 = _h[1];
-    var _j = __read(useState(null), 2), copiado = _j[0], setCopiado = _j[1];
+    var _g = __read(useState("0"), 2), opK = _g[0], setOpK = _g[1];
+    var _h = __read(useState(""), 2), op1 = _h[0], setOp1 = _h[1];
+    var _j = __read(useState(""), 2), op2 = _j[0], setOp2 = _j[1];
+    var _k = __read(useState(null), 2), copiado = _k[0], setCopiado = _k[1];
     var fator = carro === "pickup" ? FATOR_PICKUP : 1;
     var ajusta = function (p) { return (p == null ? null : Math.round(p * fator * 100) / 100); };
     var q = busca.trim().toLowerCase();
     var lista = PRECOS_ITENS.filter(function (it) {
         return (cat === "Todos" || it.cat === cat) &&
-            (!q || [it.cat, it.linha, it.inclui, ALCADA[it.alcada].rotulo].join(" ").toLowerCase().indexOf(q) >= 0);
+            (!q || [it.cat, it.linha, it.inclui, it.garantia, ALCADA[it.alcada].rotulo].concat(opcoesDoItem(it).map(function (o) { return o.r; })).join(" ").toLowerCase().indexOf(q) >= 0);
     });
     var sel = PRECOS_ITENS.filter(function (it) { return it.id === selId; })[0] || null;
     var bloqueado = function (it) { return !!(it && it.funilaria && loja === "Tatuapé"); };
-    var precoSel = sel ? ajusta(sel.preco) : null;
-    var texto = sel ? textoWhats(sel, precoSel, loja, op1, op2) : "";
+    var todasOp = sel ? opcoesDoItem(sel) : [];
+    var opAtual = todasOp[parseInt(opK, 10)] || todasOp[0] || null;
+    var precoSel = opAtual ? ajusta(opAtual.p) : null;
+    var texto = sel ? textoWhats(sel, opAtual, precoSel, loja, op1, op2) : "";
+    var escolher = function (id) { setSelId(id); setOpK("0"); };
     var copiar = function (k, t) { return copiarTexto(t, function (ok) { setCopiado(ok ? k : "erro"); setTimeout(function () { return setCopiado(null); }, 2200); }); };
     return (React.createElement("div", null,
         React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.ink2, lineHeight: 1.55 } },
             React.createElement("b", null, "Fonte:"),
-            " Tabela SDR CORRIGIDA (planilha \u201CPRE\u00C7O SDR 2025\u201D, atualizada em 18/04/2026). N\u00E3o \u00E9 a Tabela Closer. PPF full vale a faixa validada, n\u00E3o o valor da planilha.",
+            " Tabela SDR CORRIGIDA (planilha \u201CPRE\u00C7O SDR 2025\u201D, atualizada em 18/04/2026) \u2014 ",
+            PRECOS_ITENS.length,
+            " itens. N\u00E3o \u00E9 a Tabela Closer. PPF full vale a faixa validada, n\u00E3o o valor da planilha; Xpell e Across full ficam para avalia\u00E7\u00E3o.",
             " ",
-            React.createElement("span", { style: { color: T.warn, fontWeight: 600 } },
-                "Aqui est\u00E3o s\u00F3 os ",
-                PRECOS_ITENS.length,
-                " itens j\u00E1 conferidos \u2014 o restante da tabela ainda ser\u00E1 importado.")),
+            React.createElement("a", { href: PRECOS_PLANILHA, target: "_blank", rel: "noopener noreferrer", style: { color: T.ink, fontWeight: 700 } }, "Abrir planilha original")),
         React.createElement(Card, { className: "p12", style: { position: "sticky", top: 54, zIndex: 20, marginTop: 12 } },
             React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
                 React.createElement("input", { type: "search", value: busca, onChange: function (e) { return setBusca(e.target.value); }, placeholder: "Buscar servi\u00E7o, linha ou carro", style: __assign(__assign({}, inputStyle), { width: 260, maxWidth: "100%" }) }),
@@ -2878,7 +2965,7 @@ function AbaPrecos() {
                 React.createElement(Select, { value: loja, onChange: setLoja, options: PRECOS_LOJAS.map(function (l) { return ({ v: l, l: "Loja: " + l }); }) })),
             React.createElement("div", { style: { marginTop: 10 } },
                 React.createElement(Chips, { value: cat, onChange: setCat, options: [["Todos", "Todos"]].concat(PRECOS_CATS.map(function (c) { return [c, c]; })) }))),
-        React.createElement(Secao, { n: 1, titulo: "Tabela de pre\u00E7os", nota: carro === "pickup" ? "Pick-up soma 15% ao preço de tabela. Os valores abaixo já estão com o acréscimo." : "Valores de carro de passeio. Para pick-up, troque no filtro: soma 15%." },
+        React.createElement(Secao, { n: 1, titulo: "Tabela de pre\u00E7os", nota: carro === "pickup" ? "Pick-up soma 15% ao preço de tabela. Os valores abaixo já estão com o acréscimo." : "Valores de carro de passeio. Para pick-up, troque no filtro: soma 15%. Onde há faixa (“de X a Y”), escolha o porte ou a variação na cotação." },
             React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
                 React.createElement("div", { className: "rolagem" },
                     React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 720 } },
@@ -2894,14 +2981,12 @@ function AbaPrecos() {
                                 var al = ALCADA[it.alcada];
                                 var bl = bloqueado(it);
                                 var on = it.id === selId;
-                                return (React.createElement("tr", { key: it.id, onClick: function () { return setSelId(it.id); }, style: { cursor: "pointer", background: on ? "#FFF8E1" : "transparent", opacity: bl ? 0.55 : 1 } },
+                                var semPreco = !it.opcoes.length;
+                                return (React.createElement("tr", { key: it.id, onClick: function () { return escolher(it.id); }, style: { cursor: "pointer", background: on ? "#FFF8E1" : "transparent", opacity: bl ? 0.55 : 1 } },
                                     React.createElement(Td, { color: T.muted }, it.cat),
                                     React.createElement(Td, { bold: true, style: { whiteSpace: "normal", minWidth: 190 } }, it.linha),
-                                    React.createElement(Td, { color: T.ink2, style: { whiteSpace: "normal", minWidth: 200 } }, it.inclui),
-                                    React.createElement(Td, { right: true, bold: true }, it.preco == null ? React.createElement("span", { style: { color: T.muted, fontWeight: 600 } }, it.precoTxt)
-                                        : it.alcada === "apartir" ? React.createElement("span", null,
-                                            "a partir de ",
-                                            nReal(ajusta(it.preco))) : nReal(ajusta(it.preco))),
+                                    React.createElement(Td, { color: T.ink2, style: { whiteSpace: "normal", minWidth: 200 } }, [it.inclui, it.garantia ? "garantia de " + it.garantia : ""].filter(Boolean).join(" · ")),
+                                    React.createElement(Td, { right: true, bold: true }, semPreco ? React.createElement("span", { style: { color: T.muted, fontWeight: 600 } }, it.precoTxt) : faixaPreco(it, ajusta)),
                                     React.createElement(Td, null, bl ? React.createElement(TagSolida, { cor: T.bad }, "Bloqueada no Tatuap\u00E9")
                                         : React.createElement(TagSolida, { cor: it.alcada === "apartir" ? "#B07A00" : al.cor }, al.rotulo))));
                             }),
@@ -2917,8 +3002,10 @@ function AbaPrecos() {
                         sel.linha),
                     bloqueado(sel) ? (React.createElement("div", { style: { marginTop: 8 } },
                         React.createElement(TagSolida, { cor: T.bad }, "Funilaria bloqueada no Tatuap\u00E9"),
-                        React.createElement("div", { style: { fontSize: 13, color: T.ink2, marginTop: 10 } }, "Troque a loja do cliente ou ofere\u00E7a avalia\u00E7\u00E3o em outra unidade."))) : sel.preco != null ? (React.createElement("div", null,
-                        React.createElement("div", { style: { marginTop: 6 } },
+                        React.createElement("div", { style: { fontSize: 13, color: T.ink2, marginTop: 10 } }, "Troque a loja do cliente ou ofere\u00E7a avalia\u00E7\u00E3o em outra unidade."))) : opAtual ? (React.createElement("div", null,
+                        todasOp.length > 1 && (React.createElement("div", { style: { marginTop: 8 } },
+                            React.createElement(Chips, { value: opK, onChange: setOpK, options: todasOp.map(function (o, i) { return [String(i), o.r.charAt(0).toUpperCase() + o.r.slice(1) + " · " + nReal(ajusta(o.p))]; }) }))),
+                        React.createElement("div", { style: { marginTop: 10 } },
                             React.createElement(Metric, { value: (sel.alcada === "apartir" ? "a partir de " : "") + nReal(precoSel), size: 32 })),
                         React.createElement("div", { style: { fontSize: 14, color: T.ink2, marginTop: 6 } },
                             "em at\u00E9 ",
@@ -2926,16 +3013,10 @@ function AbaPrecos() {
                                 "6x sem juros de ",
                                 nReal2(precoSel / 6))),
                         carro === "pickup" && React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 4 } },
-                            nReal(sel.preco),
+                            nReal(opAtual.p),
                             " \u00D7 1,15 = ",
                             nReal2(precoSel)),
-                        sel.extra && React.createElement("div", { style: { fontSize: 13, color: T.ink2, marginTop: 8 } },
-                            sel.extra.rotulo,
-                            ": ",
-                            React.createElement("b", null, nReal(ajusta(sel.extra.preco))),
-                            " \u00B7 6x de ",
-                            nReal2(ajusta(sel.extra.preco) / 6)),
-                        React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 8 } }, sel.inclui))) : (React.createElement("div", { style: { marginTop: 8, fontSize: 13, color: T.ink2 } },
+                        React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 8 } }, [opAtual.r, sel.inclui, sel.garantia ? "garantia de " + sel.garantia : ""].filter(Boolean).join(" · ")))) : (React.createElement("div", { style: { marginTop: 8, fontSize: 13, color: T.ink2 } },
                         "Sem pre\u00E7o para o SDR: ",
                         sel.inclui,
                         ".")),
@@ -3043,19 +3124,19 @@ function AbaTreinador() {
 /* ---------------- BIBLIOTECA + PESQUISA DE MERCADO ---------------- */
 var BIB_AREAS = ["Todas", "SDR", "BDR", "Closer", "Car Service", "Car Store", "Academy", "House Service"];
 var BIB_DOCS = [
-    ["Manual de Elite em Objeções, Persuasão e Conversão", "Treinamento", "Todas", "30/04/2026"],
-    ["Script de Elite — Leads de Tráfego Pago", "Script", "a classificar", "30/04/2026"],
-    ["Script de Elite — Reativação de Base", "Script", "BDR", "12/05/2026"],
-    ["Ativação de Base", "Treinamento", "BDR", "20/08/2026"],
-    ["The Wonder STI", "Treinamento", "a classificar", "24/08/2026"],
-    ["Consultoria Premium", "Treinamento", "Car Store", "20/08/2026"],
-    ["SDR Challenger — CarStore", "Treinamento", "Car Store", "07/08/2026"],
-    ["WONDERCARS SDR PLAYBOOK", "Treinamento", "Car Store", "07/07/2026"],
-    ["ROTINA SDR CARS", "Rotina", "Car Store", "16/09/2026"],
-    ["Playbook SDR/BDR Car Store — Processo e Rotina V2", "POP", "Car Store", "10/07/2026"],
-    ["CARS — Diretrizes Comerciais SDR", "Política", "Car Store", "07/07/2026"],
-    ["TREINAMENTO-CARS", "Vídeo", "Car Store", "07/07/2026"],
-].map(function (d) { return ({ doc: d[0], tipo: d[1], frente: d[2], em: d[3] }); });
+    ["Manual de Elite em Objeções, Persuasão e Conversão", "Treinamento", "Todas", "30/04/2026", "1sF76SSkiwoNu8oC9pPrD6MRpdnCVtVRI"],
+    ["Script de Elite — Leads de Tráfego Pago", "Script", "a classificar", "30/04/2026", "1jOHK6_pRvcNCRV_S7u2kdpk1vHgIKWiD"],
+    ["Script de Elite — Reativação de Base", "Script", "BDR", "12/05/2026", "1pwSYS57a2hWoye2VeBA9ViV6_uCjiBRQ"],
+    ["Ativação de Base", "Treinamento", "BDR", "20/08/2026", "1OK2v8uQ2qH4KoWFyByYaXu3TPYwnY0_s"],
+    ["The Wonder STI", "Treinamento", "a classificar", "24/08/2026", "1zGUvC_Eqtw9F0je4s-OwmOGBZPLsFaTN"],
+    ["Consultoria Premium", "Treinamento", "Car Store", "20/08/2026", "1yNP-hru7DQW2Vniu2Y-0bNnTKdB-MW7W"],
+    ["SDR Challenger — CarStore", "Treinamento", "Car Store", "07/08/2026", "1MEl7DFIpp_57w4FoZBMID1xidyI1BXkZ"],
+    ["WONDERCARS SDR PLAYBOOK", "Treinamento", "Car Store", "07/07/2026", "1k2193LDRozcN3JEtaSV9Ywx-Lahpp4sq"],
+    ["ROTINA SDR CARS", "Rotina", "Car Store", "16/09/2026", "12j7wADZcVjI1XbYLHCs1JdMwgg8sIuf0"],
+    ["Playbook SDR/BDR Car Store — Processo e Rotina V2", "POP", "Car Store", "10/07/2026", "1wHsFGtOvqBBHvnoG4GJpO0naaGBeXCvk"],
+    ["CARS — Diretrizes Comerciais SDR", "Política", "Car Store", "07/07/2026", "1Lf1qtdTC_fHIwHHfudN73rOjxN702G77"],
+    ["TREINAMENTO-CARS", "Vídeo", "Car Store", "07/07/2026", "1oqSmEMJWyq-6FkY2gVe9e4uqsLM45WLB"],
+].map(function (d) { return ({ doc: d[0], tipo: d[1], frente: d[2], em: d[3], url: "https://drive.google.com/file/d/" + d[4] + "/view" }); });
 var BIB_FALTA = [
     "Um playbook próprio de Car Service (os atuais são de Car Store).",
     "Prazos por serviço.",
@@ -3084,26 +3165,30 @@ function AbaBiblioteca() {
     return (React.createElement("div", null,
         React.createElement("div", { className: "duo2", style: { display: "grid", gap: 24, alignItems: "start" } },
             React.createElement("div", { style: { minWidth: 0 } },
-                React.createElement(Secao, { n: 1, titulo: "Biblioteca do comercial", nota: "Espelho dos Drives do comercial: o que existe, de que frente \u00E9 e quando foi atualizado." },
+                React.createElement(Secao, { n: 1, titulo: "Biblioteca do comercial", nota: "Espelho dos Drives do comercial: o que existe, de que frente \u00E9 e quando foi atualizado. Os arquivos ficam no Drive da conta thewoperation@gmail.com: se o Drive pedir permiss\u00E3o, pe\u00E7a acesso ao Rafael." },
                     React.createElement(Card, { className: "p12" },
                         React.createElement("input", { type: "search", value: busca, onChange: function (e) { return setBusca(e.target.value); }, placeholder: "Buscar documento, tipo ou frente", style: __assign(__assign({}, inputStyle), { marginBottom: 10 }) }),
                         React.createElement(Chips, { value: area, onChange: setArea, options: BIB_AREAS.map(function (a) { return [a, a]; }) })),
                     React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden", marginTop: 12 } },
                         React.createElement("div", { className: "rolagem" },
-                            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 520 } },
+                            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 600 } },
                                 React.createElement("thead", null,
                                     React.createElement("tr", null,
                                         React.createElement(Th, null, "Documento"),
                                         React.createElement(Th, null, "Tipo"),
                                         React.createElement(Th, null, "Frente"),
-                                        React.createElement(Th, { right: true }, "Atualizado"))),
+                                        React.createElement(Th, { right: true }, "Atualizado"),
+                                        React.createElement(Th, null, " "))),
                                 React.createElement("tbody", null,
                                     lista.map(function (d) { return (React.createElement("tr", { key: d.doc },
                                         React.createElement(Td, { bold: true, style: { whiteSpace: "normal", minWidth: 220 } }, d.doc),
                                         React.createElement(Td, { color: T.ink2 }, d.tipo),
                                         React.createElement(Td, null,
                                             React.createElement(Tag, { cor: corFrente(d.frente) }, d.frente)),
-                                        React.createElement(Td, { right: true, color: T.muted }, d.em))); }),
+                                        React.createElement(Td, { right: true, color: T.muted }, d.em),
+                                        React.createElement(Td, null,
+                                            React.createElement("a", { href: d.url, target: "_blank", rel: "noopener noreferrer", style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "6px 11px", borderRadius: 6, background: T.marca,
+                                                    color: T.preto, textDecoration: "none", whiteSpace: "nowrap", border: "1px solid ".concat(T.marca) } }, "Abrir")))); }),
                                     !lista.length && React.createElement("tr", null,
                                         React.createElement(Td, { style: { whiteSpace: "normal" } }, "Nenhum documento classificado nessa frente ainda.")))))),
                     React.createElement(Card, { className: "p16", style: { marginTop: 12, borderColor: "#F0C3C6", background: "#FDF3F3" } },
