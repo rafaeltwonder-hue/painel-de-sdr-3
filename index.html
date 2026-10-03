@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v94 — CAR SERVICE</title>
-<meta name="painel-versao" content="v94">
+<title>Painel de SDR v95 — CAR SERVICE</title>
+<meta name="painel-versao" content="v95">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -3224,13 +3224,16 @@ var PESQ_OBJECOES = [
     ["“Meu carro é blindado”", "ASES atende blindados desde 1967",
         "Funilaria de blindado cobra o dobro, só com avaliação."],
 ];
-/* ===================== v94 · BIBLIOTECA EM CURSO (02/10/2026) =====================
+/* ===================== v95 · BIBLIOTECA EM CURSO + PROVAS (03/10/2026) =====================
    A Biblioteca lê do banco (schema comercial): biblioteca_modulo, biblioteca_aula e
    biblioteca_progresso. v94: a trilha virou um curso. Tela 1: cartões dos módulos (Módulo 01…10) com
    progresso e botão COMEÇAR. Tela 2: o módulo com as aulas numeradas (Aula 01 – …). Tela 3: a aula, com
    Marcar como concluída, botão AULAS e Anterior/Próxima. O SDR vê só o que está publicado;
    o admin (Rafael) vê também os rascunhos e edita tudo no "Modo edição".
-   Dois filtros: Unidade de negócio (em cima) e Função (embaixo). Vazio = vale para todos. */
+   Dois filtros: Unidade de negócio (em cima) e Função (embaixo). Vazio = vale para todos.    v95: a "Prova do módulo" ganhou tela: 5 perguntas embaralhadas, correção no banco (biblioteca_prova_corrigir),
+   gabarito nunca chega ao navegador, melhor nota vale, aprovado com nota >= nota mínima do módulo.
+   v95 (visual): botão Início em todas as telas, cartões iguais em grade, "Continue de onde parou", "Concluir e ir para a próxima", coluna de leitura limitada.
+*/
 var BIB_UNIDADES = [["car_service", "Car Service"], ["car_store", "Car Store"], ["academy", "Academy"], ["house_service", "House Service"]];
 var BIB_FUNCOES = [["sdr", "SDR"], ["bdr", "BDR"], ["closer", "Closer"]];
 var BIB_TIPOS = [["texto", "Texto"], ["playbook", "Playbook"], ["link", "Link"], ["video", "Vídeo"], ["prova", "Prova"]];
@@ -3348,7 +3351,14 @@ function bibMd(src) {
     }
     return out.join("\n");
 }
-var BIB_CSS = ".bibmd{font-size:14px;line-height:1.65;color:#1A1A1A;max-width:80ch}" +
+var BIB_CSS = ".bibcol{max-width:1000px}" +
+    ".bibgrid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(270px,1fr))}" +
+    ".bib3{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}" +
+    ".bibtit{min-height:41px}.bibres{min-height:56px}" +
+    ".bibrow:hover{background:#FAFAFA}.bibrow:focus-visible{outline:2px solid #1A1A1A;outline-offset:-2px}" +
+    "@media (max-width:760px){.bibgrid{grid-template-columns:1fr;gap:10px}.bibhead{min-height:0!important;padding:10px 14px!important;align-items:center!important}" +
+    ".bibtit,.bibres{min-height:0!important}.bibbtns>button{flex:1 1 auto}.bibhead>div:first-child{display:flex;align-items:baseline;gap:10px}.bibhead>div:first-child>div:last-child{font-size:30px!important}.bibrow{padding-right:12px!important}}" +
+    ".bibmd{font-size:14px;line-height:1.65;color:#1A1A1A;max-width:80ch}" +
     ".bibmd h3{font-family:" + F_MARCA + ";font-size:19px;margin:30px 0 8px;padding-top:16px;border-top:1px solid #E2E2E2}" +
     ".bibmd h3:first-child{border-top:0;margin-top:0;padding-top:0}" +
     ".bibmd h4{font-family:" + F_MARCA + ";font-size:15.5px;margin:22px 0 6px}" +
@@ -3361,8 +3371,9 @@ var BIB_CSS = ".bibmd{font-size:14px;line-height:1.65;color:#1A1A1A;max-width:80
     ".bibmd ul,.bibmd ol{padding-left:22px;margin:6px 0 12px}.bibmd li{margin-bottom:3px}" +
     ".bibmd code{background:#F0F0F0;padding:1px 5px;border-radius:4px;font-size:12.5px}" +
     ".bibmd hr{border:0;border-top:1px solid #E2E2E2;margin:18px 0}.bibmd a{color:#1652C4}";
+function bibBtnG() { return __assign(__assign({}, bibBtn("marca")), { fontSize: 14, padding: "11px 20px", minHeight: 44, borderRadius: 8 }); }
 function bibBtn(tipo) {
-    var base = { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "7px 12px", borderRadius: 6, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-block" };
+    var base = { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "8px 13px", minHeight: 36, lineHeight: 1.2, borderRadius: 6, cursor: "pointer", whiteSpace: "nowrap", textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, boxSizing: "border-box" };
     if (tipo === "marca")
         return __assign(__assign({}, base), { background: T.marca, color: T.preto, border: "1px solid " + T.marca });
     if (tipo === "perigo")
@@ -3501,6 +3512,153 @@ function bibTopo() { try {
     window.scrollTo(0, 0);
 }
 catch (e) { } }
+/* ---------- a prova do módulo (v95) ---------- */
+/* As perguntas e o gabarito ficam no banco. O SDR só recebe o enunciado e as alternativas embaralhadas;
+   quem corrige é a função biblioteca_prova_corrigir, que também grava a tentativa e a melhor nota. */
+function BibProva(_p) {
+    var aula = _p.aula, mod = _p.mod, liberada = _p.liberada, faltam = _p.faltam || 0, melhor = _p.melhor, ehAdm = _p.ehAdm, onFim = _p.onFim, onVoltar = _p.onVoltar, onInicio = _p.onInicio;
+    var sf = useState("intro"), fase = sf[0], setFase = sf[1];
+    var sp = useState(null), prova = sp[0], setProva = sp[1];
+    var sr = useState({}), resp = sr[0], setResp = sr[1];
+    var se = useState(null), erro = se[0], setErro = se[1];
+    var so = useState(false), ocupado = so[0], setOcupado = so[1];
+    var sx = useState(null), res = sx[0], setRes = sx[1];
+    var minima = (mod && mod.nota_minima) || 80;
+    var passou = melhor != null && melhor >= minima;
+    var comecar = function () {
+        setOcupado(true);
+        setErro(null);
+        db.rpc("biblioteca_prova_obter", { p_aula_id: aula.id }).then(function (r) {
+            setOcupado(false);
+            if (r.error) {
+                setErro("Não consegui abrir a prova: " + r.error.message);
+                return;
+            }
+            if (!r.data || !r.data.perguntas || !r.data.perguntas.length) {
+                setErro("Esta prova ainda não tem perguntas.");
+                return;
+            }
+            setProva(r.data);
+            setResp({});
+            setRes(null);
+            setFase("fazendo");
+            bibTopo();
+        }, function (e) { setOcupado(false); setErro("Não consegui abrir a prova: " + String((e && e.message) || e)); });
+    };
+    var escolher = function (pid, i) {
+        var n = {};
+        for (var k in resp) {
+            if (Object.prototype.hasOwnProperty.call(resp, k))
+                n[k] = resp[k];
+        }
+        n[pid] = i;
+        setResp(n);
+    };
+    var total = prova ? prova.perguntas.length : 0;
+    var respondidas = 0;
+    if (prova)
+        prova.perguntas.forEach(function (q) { if (resp[q.id] != null)
+            respondidas++; });
+    var corrigir = function () {
+        setOcupado(true);
+        setErro(null);
+        db.rpc("biblioteca_prova_corrigir", { p_aula_id: aula.id, p_respostas: resp }).then(function (r) {
+            setOcupado(false);
+            if (r.error) {
+                setErro("Não consegui corrigir: " + r.error.message);
+                return;
+            }
+            setRes(r.data);
+            setFase("resultado");
+            bibTopo();
+            if (onFim)
+                onFim();
+        }, function (e) { setOcupado(false); setErro("Não consegui corrigir: " + String((e && e.message) || e)); });
+    };
+    var aviso = erro && React.createElement("div", { style: { color: T.bad, fontSize: 13, marginTop: 12 } }, erro);
+    /* ---- antes de começar ---- */
+    if (fase === "intro") {
+        return (React.createElement("div", { style: { marginTop: 4 } },
+            React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 12 } },
+                React.createElement(Tag, { cor: T.ink2 }, "5 perguntas"),
+                React.createElement(Tag, { cor: T.ink2 }, "nota mínima " + minima),
+                melhor != null && React.createElement(Tag, { cor: passou ? T.good : T.bad }, (passou ? "Aprovado · " : "Ainda não passou · ") + "melhor nota " + melhor)),
+            !liberada && React.createElement("div", { style: { fontSize: 13, color: T.warn, background: "#FFF8E1", border: "1px solid #F0DDA0", borderRadius: 8, padding: "9px 11px", marginBottom: 12 } },
+                faltam === 1 ? "Falta 1 aula para liberar a prova. Conclua as outras aulas do módulo primeiro." : "Faltam " + faltam + " aulas para liberar a prova. Conclua as outras aulas do módulo primeiro."),
+            ehAdm && faltam > 0 && React.createElement("div", { style: { fontSize: 12, color: T.muted, marginBottom: 10 } }, "Como administrador, você pode fazer a prova mesmo sem concluir as aulas. A tentativa fica gravada com o seu login."),
+            React.createElement("button", { type: "button", disabled: !liberada || ocupado, onClick: comecar, style: __assign(__assign({}, bibBtn("marca")), { opacity: (!liberada || ocupado) ? 0.55 : 1, cursor: (!liberada || ocupado) ? "default" : "pointer" }) }, ocupado ? "Abrindo…" : melhor != null ? "Refazer a prova" : "Começar a prova"),
+            aviso));
+    }
+    /* ---- respondendo ---- */
+    if (fase === "fazendo" && prova) {
+        return (React.createElement("div", { style: { marginTop: 4 } },
+            React.createElement("div", { style: { marginBottom: 14 } },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontFamily: F_NUM, fontSize: 12, fontWeight: 700, marginBottom: 5 } },
+                    React.createElement("span", null, "Prova do módulo"),
+                    React.createElement("span", null, respondidas + " de " + total + " respondidas")),
+                React.createElement(Barra, { pct: total ? respondidas / total : 0, cor: respondidas === total ? T.good : T.ink, alt: 6 })),
+            prova.perguntas.map(function (q, qi) {
+                return (React.createElement("div", { key: q.id, style: { border: "1px solid " + T.hair, borderRadius: 10, padding: "13px 14px", marginBottom: 12, background: T.surface } },
+                    React.createElement("div", { style: { fontSize: 10.5, letterSpacing: ".1em", fontWeight: 700, color: T.muted, textTransform: "uppercase", marginBottom: 4 } }, "Pergunta " + (qi + 1) + " de " + total),
+                    React.createElement("div", { style: { fontSize: 14.5, fontWeight: 700, lineHeight: 1.45, marginBottom: 10 } }, q.enunciado),
+                    q.alternativas.map(function (alt, ai) {
+                        var on = resp[q.id] === alt.i;
+                        return (React.createElement("button", { key: alt.i, type: "button", onClick: function () { escolher(q.id, alt.i); }, style: { display: "flex", gap: 10, alignItems: "flex-start", width: "100%", textAlign: "left", padding: "9px 11px", marginBottom: 6, borderRadius: 8, cursor: "pointer", fontFamily: F_UI, fontSize: 13.5, lineHeight: 1.45, color: T.ink,
+                                border: "1px solid " + (on ? T.ink : T.hair), background: on ? "#FFF8E1" : T.surface, fontWeight: on ? 700 : 400 } },
+                            React.createElement("span", { style: { flex: "none", width: 22, height: 22, borderRadius: 99, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, fontWeight: 700, background: on ? T.marca : T.canvas, color: T.preto, border: "1px solid " + (on ? T.marca : T.hair) } }, String.fromCharCode(65 + ai)),
+                            React.createElement("span", { style: { flex: 1 } }, alt.t)));
+                    })));
+            }),
+            React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
+                React.createElement("button", { type: "button", disabled: respondidas < total || ocupado, onClick: corrigir, style: __assign(__assign({}, bibBtn("marca")), { opacity: (respondidas < total || ocupado) ? 0.55 : 1, cursor: (respondidas < total || ocupado) ? "default" : "pointer" }) }, ocupado ? "Corrigindo…" : "Corrigir a prova"),
+                React.createElement("button", { type: "button", disabled: ocupado, onClick: function () { setFase("intro"); setProva(null); setResp({}); setErro(null); }, style: bibBtn() }, "Cancelar"),
+                respondidas < total && React.createElement("span", { style: { fontSize: 12.5, color: T.muted } }, "Responda todas para corrigir")),
+            aviso));
+    }
+    /* ---- resultado ---- */
+    if (fase === "resultado" && res) {
+        var det = (res.detalhes || []).slice().sort(function (a, b) { return a.ordem - b.ordem; });
+        var porId = {};
+        if (prova)
+            prova.perguntas.forEach(function (q) { porId[q.id] = q; });
+        var aprov = !!res.aprovado;
+        return (React.createElement("div", { style: { marginTop: 4 } },
+            React.createElement("div", { style: { border: "1px solid " + (aprov ? T.good : T.bad), borderRadius: 10, padding: "14px 16px", marginBottom: 14, background: aprov ? "#F1FAF3" : "#FDF3F3" } },
+                React.createElement("div", { style: { display: "flex", gap: 14, alignItems: "baseline", flexWrap: "wrap" } },
+                    React.createElement("span", { style: { fontFamily: F_NUM, fontSize: 38, fontWeight: 700, lineHeight: 1 } }, res.nota),
+                    React.createElement("span", { style: { fontSize: 13, color: T.ink2 } }, "de 100 · " + res.acertos + " de " + res.total + " certas"),
+                    React.createElement(Tag, { cor: aprov ? T.good : T.bad }, aprov ? "Aprovado" : "Ainda não passou")),
+                React.createElement("div", { style: { fontSize: 13, color: T.ink2, marginTop: 8 } }, aprov ? "Você atingiu a nota mínima (" + res.nota_minima + "). Sua melhor nota é " + res.melhor_nota + "." : "A nota mínima é " + res.nota_minima + " (acertar 4 de 5). Leia as explicações abaixo e refaça quando quiser: vale a melhor nota."),
+                res.melhor_nota != null && res.melhor_nota > res.nota && React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 4 } }, "Esta tentativa foi menor que a sua melhor nota, então a melhor continua valendo.")),
+            det.map(function (d) {
+                var q = porId[d.pergunta_id];
+                if (d.acertou) {
+                    return React.createElement("div", { key: d.pergunta_id, style: { display: "flex", gap: 8, alignItems: "center", padding: "7px 0", borderTop: "1px solid " + T.hair, fontSize: 13.5 } },
+                        React.createElement("span", { style: { color: T.good, fontWeight: 700 } }, "✓"),
+                        React.createElement("span", null, "Pergunta " + d.ordem + ": certa"));
+                }
+                var escolhida = "";
+                if (q) {
+                    q.alternativas.forEach(function (alt) { if (resp[q.id] === alt.i)
+                        escolhida = alt.t; });
+                }
+                return (React.createElement("div", { key: d.pergunta_id, style: { padding: "10px 0", borderTop: "1px solid " + T.hair } },
+                    React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "flex-start", fontSize: 13.5 } },
+                        React.createElement("span", { style: { color: T.bad, fontWeight: 700 } }, "✗"),
+                        React.createElement("span", { style: { fontWeight: 700 } }, "Pergunta " + d.ordem + ": errou" + (q ? ". " + q.enunciado : ""))),
+                    React.createElement("div", { style: { fontSize: 13, color: T.ink2, margin: "6px 0 0 22px" } }, escolhida ? "Sua resposta: " + escolhida : "Sem resposta."),
+                    d.explicacao && React.createElement("div", { style: { fontSize: 13, margin: "6px 0 0 22px", padding: "8px 11px", background: "#FFF8E1", borderLeft: "4px solid " + T.marca, borderRadius: "0 8px 8px 0", lineHeight: 1.5 } }, React.createElement("b", null, "Por quê: "), d.explicacao)));
+            }),
+            React.createElement("div", { style: { display: "flex", gap: 10, flexWrap: "wrap", marginTop: 16 } },
+                React.createElement("button", { type: "button", disabled: ocupado, onClick: comecar, style: aprov ? bibBtn() : bibBtn("marca") }, ocupado ? "Abrindo…" : "Refazer a prova"),
+                React.createElement("button", { type: "button", onClick: function () { if (onVoltar)
+                        onVoltar(); }, style: aprov ? bibBtn("marca") : bibBtn() }, "Voltar ao módulo"),
+                onInicio && React.createElement("button", { type: "button", onClick: function () { onInicio(); }, style: bibBtn() }, "Início")),
+            aviso));
+    }
+    return React.createElement("div", null, "Carregando…");
+}
+
 function AbaBiblioteca() {
     var st = useState({ carregando: true, erro: null, mods: [], aulas: [], prog: [], time: [] }), dados = st[0], setDados = st[1];
     var us = useState(null), user = us[0], setUser = us[1];
@@ -3533,7 +3691,7 @@ function AbaBiblioteca() {
             db.from("biblioteca_progresso").select("aula_id,concluida_em,nota").eq("user_id", user.id || "00000000-0000-0000-0000-000000000000"),
         ];
         if (vePerfisTodos)
-            pedidos.push(db.from("biblioteca_progresso_v").select("user_id,sdr_nome,numero,percentual"));
+            pedidos.push(db.from("biblioteca_progresso_v").select("user_id,sdr_nome,numero,percentual,nota_prova"));
         Promise.all(pedidos).then(function (r) {
             if (!vivo)
                 return;
@@ -3544,8 +3702,28 @@ function AbaBiblioteca() {
         return function () { vivo = false; };
     }, [user, tick, vePerfisTodos]);
     var q = busca.trim().toLowerCase();
-    var feitas = {};
-    dados.prog.forEach(function (p) { feitas[p.aula_id] = true; });
+    var feitas = {}, notas = {};
+    var aulaPorId = {}, modPorId = {};
+    dados.aulas.forEach(function (a) { aulaPorId[a.id] = a; });
+    dados.mods.forEach(function (m) { modPorId[m.id] = m; });
+    dados.prog.forEach(function (p) {
+        var au = aulaPorId[p.aula_id];
+        if (au && au.tipo === "prova") {
+            var mo = modPorId[au.modulo_id];
+            if (p.nota != null)
+                notas[p.aula_id] = p.nota;
+            feitas[p.aula_id] = p.nota != null && p.nota >= ((mo && mo.nota_minima) || 80);
+        }
+        else
+            feitas[p.aula_id] = true;
+    });
+    /* a prova só libera depois das outras aulas publicadas do módulo */
+    var provaStatus = function (m, aulaProva) {
+        var falt = 0;
+        aulasDe(m).forEach(function (a) { if (a.tipo !== "prova" && a.publicado && !feitas[a.id])
+            falt++; });
+        return { faltam: falt, liberada: falt === 0 || ehAdm };
+    };
     /* aulas de um módulo que passam nos filtros de unidade e função (vazio herda do módulo), na ordem */
     var aulasDe = function (m) {
         return dados.aulas.filter(function (a) {
@@ -3591,7 +3769,7 @@ function AbaBiblioteca() {
             }
         });
     };
-    var marcar = function (aulaId, jaFeita) {
+    var marcar = function (aulaId, jaFeita, depois) {
         var p = jaFeita ? db.from("biblioteca_progresso").delete().eq("aula_id", aulaId).eq("user_id", user.id)
             : db.from("biblioteca_progresso").insert({ aula_id: aulaId });
         p.then(function (r) {
@@ -3600,6 +3778,8 @@ function AbaBiblioteca() {
             else {
                 setAviso(null);
                 recarregar();
+                if (depois)
+                    abrirAula(depois);
             }
         });
     };
@@ -3628,183 +3808,256 @@ function AbaBiblioteca() {
     };
     var proxNumero = dados.mods.length ? Math.max.apply(null, dados.mods.map(function (x) { return x.numero; })) + 1 : 1;
     var bolinha = function (fez, texto) {
-        return React.createElement("span", { style: { width: 24, height: 24, borderRadius: 99, flex: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, fontWeight: 700,
+        return React.createElement("span", { style: { width: 28, height: 28, borderRadius: 99, flex: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11.5, fontWeight: 700,
                 background: fez ? T.good : T.canvas, color: fez ? "#fff" : T.muted, border: fez ? "0" : "1px solid " + T.hair } }, fez ? "✓" : texto);
     };
     var editorEl = editor && React.createElement(BibEditor, { tipo: editor.tipo, obj: editor.obj, mods: dados.mods, onClose: function () { return setEditor(null); }, onSalvo: function () { setEditor(null); setAberta(null); recarregar(); } });
     var botaoEdicao = ehAdm && React.createElement("button", { type: "button", onClick: function () { return setEdicao(!edicao); }, style: edicao ? bibBtn("marca") : bibBtn() }, edicao ? "Sair do modo edição" : "Modo edição");
     var modAtual = modAberto ? dados.mods.filter(function (x) { return x.id === modAberto; })[0] : null;
+    var irInicio = function () { setAberta(null); setModAberto(null); setMenuAulas(false); setAviso(null); bibTopo(); };
+    var irModulo = function () { setAberta(null); setMenuAulas(false); setAviso(null); bibTopo(); };
+    var audiencia = function (o) {
+        var u = (o.unidades && o.unidades.length) ? o.unidades.map(function (x) { return bibRotulo(BIB_UNIDADES, x); }).join(", ") : "Todas as unidades";
+        var f = (o.funcoes && o.funcoes.length) ? o.funcoes.map(function (x) { return bibRotulo(BIB_FUNCOES, x); }).join(", ") : "Todas as funções";
+        return u + " · " + f;
+    };
     /* ---------- 3. a aula ---------- */
     if (aberta && modAtual) {
         var jaFez = !!feitas[aberta.id];
+        var ehProva = aberta.tipo === "prova";
         var lista = aulasDe(modAtual);
         var idx = -1;
         lista.forEach(function (x, i) { if (x.id === aberta.id)
             idx = i; });
         var ant = idx > 0 ? lista[idx - 1] : null, prox = idx >= 0 && idx < lista.length - 1 ? lista[idx + 1] : null;
+        var vvA = viewDe(modAtual, true);
         var rotAula = idx >= 0 ? "Aula " + bibPad2(idx + 1) + " – " + aberta.titulo : aberta.titulo;
         var navBox = function (a, i, lado) {
-            return React.createElement("button", { type: "button", onClick: function () { abrirAula(a); }, style: { flex: "1 1 220px", textAlign: lado === "ant" ? "left" : "right", background: T.surface, border: "1px solid " + T.hair, borderRadius: 10, padding: "11px 14px", cursor: "pointer", fontFamily: F_UI, color: T.ink } },
+            return React.createElement("button", { type: "button", onClick: function () { abrirAula(a); }, style: { flex: "1 1 240px", textAlign: lado === "ant" ? "left" : "right", background: T.surface, border: "1px solid " + T.hair, borderRadius: 10, padding: "11px 14px", cursor: "pointer", fontFamily: F_UI, color: T.ink } },
                 React.createElement("div", { style: { fontSize: 10.5, letterSpacing: ".08em", fontWeight: 700, color: T.muted, textTransform: "uppercase" } }, lado === "ant" ? "← Anterior" : "Próxima →"),
                 React.createElement("div", { style: { fontSize: 13.5, fontWeight: 700, marginTop: 2 } }, "Aula " + bibPad2(i + 1) + " – " + a.titulo));
         };
-        return (React.createElement("div", null,
+        return (React.createElement("div", { className: "bibcol" },
             React.createElement("style", null, BIB_CSS),
-            React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 } },
-                React.createElement("button", { type: "button", onClick: function () { setAberta(null); setAviso(null); setMenuAulas(false); bibTopo(); }, style: bibBtn() }, "← Voltar ao módulo"),
-                React.createElement("button", { type: "button", onClick: function () { return setMenuAulas(!menuAulas); }, style: menuAulas ? bibBtn("marca") : bibBtn() }, "☰ AULAS")),
+            React.createElement("div", { className: "bibnav", style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 } },
+                React.createElement("button", { type: "button", onClick: irInicio, style: bibBtn() }, "← Início"),
+                React.createElement("button", { type: "button", onClick: irModulo, style: bibBtn() }, "Módulo " + bibPad2(modAtual.numero)),
+                React.createElement("button", { type: "button", onClick: function () { return setMenuAulas(!menuAulas); }, style: menuAulas ? bibBtn("marca") : bibBtn() }, "☰ Aulas")),
             menuAulas && React.createElement(Card, { className: "p12", style: { marginBottom: 12 } },
                 React.createElement(Label, { style: { marginBottom: 6 } }, "Módulo " + bibPad2(modAtual.numero) + " – " + modAtual.titulo),
                 lista.map(function (x, i) {
                     var f = !!feitas[x.id], atual = x.id === aberta.id;
-                    return (React.createElement("button", { key: x.id, type: "button", onClick: function () { abrirAula(x); }, style: { display: "flex", width: "100%", textAlign: "left", gap: 10, alignItems: "center", padding: "9px 8px", background: atual ? "#FFF8E1" : "transparent", border: 0, borderTop: i ? "1px solid " + T.hair : 0, cursor: "pointer", fontFamily: F_UI, fontSize: 13.5, color: T.ink, fontWeight: atual ? 700 : 400 } },
+                    return (React.createElement("button", { key: x.id, type: "button", onClick: function () { abrirAula(x); }, style: { display: "flex", width: "100%", textAlign: "left", gap: 10, alignItems: "center", padding: "10px 8px", background: atual ? "#FFF8E1" : "transparent", border: 0, borderTop: i ? "1px solid " + T.hair : 0, cursor: "pointer", fontFamily: F_UI, fontSize: 13.5, color: T.ink, fontWeight: atual ? 700 : 400 } },
                         bolinha(f, bibPad2(i + 1)),
                         React.createElement("span", { style: { flex: 1 } }, "Aula " + bibPad2(i + 1) + " – " + x.titulo),
-                        !x.publicado && React.createElement(Tag, { cor: T.warn }, "Rascunho")));
+                        x.tipo === "prova" && notas[x.id] != null && React.createElement(Tag, { cor: f ? T.good : T.bad }, "Nota " + notas[x.id]),
+                        !x.publicado && modAtual.publicado && React.createElement(Tag, { cor: T.warn }, "Rascunho")));
                 })),
-            React.createElement(Card, { className: "p16" },
+            React.createElement(Card, { className: "p20" },
                 React.createElement(Label, null, "Módulo " + bibPad2(modAtual.numero) + " · " + modAtual.titulo),
-                React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", margin: "6px 0 8px" } },
-                    React.createElement("h2", { style: { fontFamily: F_MARCA, fontSize: 22, margin: 0, flex: "1 1 260px" } }, rotAula),
-                    aberta.tipo !== "prova" && React.createElement("button", { type: "button", onClick: function () { marcar(aberta.id, jaFez); }, style: jaFez ? bibBtn() : bibBtn("marca") }, jaFez ? "✓ Concluída (desmarcar)" : "✓ Marcar como concluída")),
-                React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 14 } },
+                React.createElement("h2", { style: { fontFamily: F_MARCA, fontSize: 24, lineHeight: 1.25, margin: "6px 0 10px" } }, rotAula),
+                React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 12 } },
                     React.createElement(Tag, { cor: corTipo(aberta.tipo) }, rotuloTipo(aberta.tipo)),
                     aberta.minutos ? React.createElement(Tag, { cor: T.ink2 }, aberta.minutos + " min") : null,
+                    jaFez && React.createElement(Tag, { cor: T.good }, ehProva ? "Aprovado" : "Concluída"),
                     !aberta.publicado && React.createElement(Tag, { cor: T.warn }, "Rascunho"),
-                    React.createElement("span", { style: { fontSize: 11.5, color: T.muted } }, "versão " + aberta.versao)),
+                    idx >= 0 && React.createElement("span", { style: { fontSize: 11.5, color: T.muted } }, "aula " + (idx + 1) + " de " + lista.length + " · versão " + aberta.versao)),
+                vvA.pub > 0 && React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 16 } },
+                    React.createElement("div", { style: { flex: 1 } }, React.createElement(Barra, { pct: vvA.pct, cor: vvA.ok === vvA.pub ? T.good : T.ink, alt: 5 })),
+                    React.createElement("span", { style: { fontFamily: F_NUM, fontSize: 11.5, fontWeight: 700, color: T.muted, whiteSpace: "nowrap" } }, vvA.ok + "/" + vvA.pub + " do módulo")),
                 aberta.link && React.createElement("div", { style: { marginBottom: 14 } }, React.createElement("a", { href: aberta.link, target: "_blank", rel: "noopener noreferrer", style: bibBtn("marca") }, "Abrir material")),
-                aberta.tipo === "prova" && React.createElement("div", { style: { fontSize: 13, color: T.warn, background: "#FFF8E1", border: "1px solid #F0DDA0", borderRadius: 8, padding: "9px 11px", marginBottom: 14 } }, "A prova deste módulo ainda não está disponível nesta versão."),
                 React.createElement("div", { className: "bibmd", dangerouslySetInnerHTML: { __html: bibMd(aberta.conteudo) } }),
+                ehProva && React.createElement(BibProva, { key: aberta.id, aula: aberta, mod: modAtual, liberada: provaStatus(modAtual, aberta).liberada, faltam: provaStatus(modAtual, aberta).faltam, melhor: notas[aberta.id] != null ? notas[aberta.id] : null, ehAdm: ehAdm, onFim: recarregar, onVoltar: irModulo, onInicio: irInicio }),
                 aviso && React.createElement("div", { style: { color: T.bad, fontSize: 13, marginTop: 14 } }, aviso),
-                React.createElement("div", { style: { marginTop: 22, paddingTop: 16, borderTop: "1px solid " + T.hair, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
-                    aberta.tipo !== "prova" && React.createElement("button", { type: "button", onClick: function () { marcar(aberta.id, jaFez); }, style: jaFez ? bibBtn() : bibBtn("marca") }, jaFez ? "✓ Concluída (desmarcar)" : "✓ Marcar como concluída"),
+                (!ehProva || !aberta.publicado || ehAdm) && React.createElement("div", { className: "bibbtns", style: { marginTop: 24, paddingTop: 18, borderTop: "1px solid " + T.hair, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
+                    !ehProva && !jaFez && React.createElement("button", { type: "button", onClick: function () { marcar(aberta.id, false, prox); }, style: bibBtnG() }, prox ? "✓ Concluir e ir para a próxima →" : "✓ Concluir aula"),
+                    !ehProva && jaFez && prox && React.createElement("button", { type: "button", onClick: function () { abrirAula(prox); }, style: bibBtnG() }, "Próxima aula →"),
+                    !ehProva && jaFez && !prox && React.createElement("button", { type: "button", onClick: irModulo, style: bibBtnG() }, "Voltar ao módulo"),
+                    !ehProva && jaFez && React.createElement("button", { type: "button", onClick: function () { marcar(aberta.id, true); }, style: bibBtn() }, "Desmarcar como concluída"),
                     !aberta.publicado && React.createElement("span", { style: { fontSize: 12, color: T.muted } }, "Rascunho: só você vê esta aula."),
                     ehAdm && React.createElement("button", { type: "button", onClick: function () { editarAula(aberta); }, style: bibBtn() }, "Editar aula"))),
             (ant || prox) && React.createElement("div", { style: { display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 } },
-                ant ? navBox(ant, idx - 1, "ant") : React.createElement("span", { style: { flex: "1 1 220px" } }),
-                prox ? navBox(prox, idx + 1, "prox") : React.createElement("span", { style: { flex: "1 1 220px" } })),
+                ant ? navBox(ant, idx - 1, "ant") : React.createElement("span", { style: { flex: "1 1 240px" } }),
+                prox ? navBox(prox, idx + 1, "prox") : React.createElement("span", { style: { flex: "1 1 240px" } })),
             editorEl));
     }
     /* ---------- 2. o módulo ---------- */
     if (modAtual) {
         var vv = viewDe(modAtual, true);
         var concl = vv.pub > 0 && vv.ok === vv.pub;
-        return (React.createElement("div", null,
+        var proximaId = null;
+        vv.aulas.some(function (a) { if (a.publicado && !feitas[a.id]) {
+            proximaId = a.id;
+            return true;
+        } return false; });
+        var stProva = provaStatus(modAtual, null);
+        var pillM = function (txt, fundo, cor) { return React.createElement("span", { key: txt, style: { display: "inline-block", fontSize: 10.5, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", padding: "3px 9px", borderRadius: 99, background: fundo, color: cor } }, txt); };
+        return (React.createElement("div", { className: "bibcol" },
             React.createElement("style", null, BIB_CSS),
-            React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 } },
-                React.createElement("button", { type: "button", onClick: function () { setModAberto(null); setAviso(null); bibTopo(); }, style: bibBtn() }, "← Voltar à trilha"),
+            React.createElement("div", { className: "bibnav", style: { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 } },
+                React.createElement("button", { type: "button", onClick: irInicio, style: bibBtn() }, "← Início"),
+                React.createElement("span", { style: { flex: 1 } }),
                 botaoEdicao),
-            React.createElement(Card, { className: "p16" },
-                React.createElement(Label, null, "Módulo " + bibPad2(modAtual.numero)),
-                React.createElement("h2", { style: { fontFamily: F_MARCA, fontSize: 22, margin: "6px 0 6px" } }, "Módulo " + bibPad2(modAtual.numero) + " – " + modAtual.titulo),
-                modAtual.resumo && React.createElement("div", { style: { fontSize: 13.5, color: T.ink2, lineHeight: 1.55, maxWidth: "80ch" } }, modAtual.resumo),
-                React.createElement("div", { style: { display: "flex", gap: 5, flexWrap: "wrap", marginTop: 8 } },
-                    !modAtual.publicado && React.createElement(Tag, { cor: T.warn }, "Rascunho"),
-                    tagsDe(modAtual.unidades, BIB_UNIDADES), tagsDe(modAtual.funcoes, BIB_FUNCOES)),
-                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, margin: "14px 0 0" } },
-                    React.createElement("div", { style: { flex: 1 } }, React.createElement(Barra, { pct: vv.pct, cor: concl ? T.good : T.ink, alt: 8 })),
-                    React.createElement("span", { style: { fontFamily: F_NUM, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" } }, vv.ok + "/" + vv.pub + " aulas · " + Math.round(vv.pct * 100) + "%"),
-                    concl && React.createElement(Tag, { cor: T.good }, "Concluído")),
-                React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 6 } }, vv.min ? bibDur(vv.min) + " de conteúdo" : ""),
-                edicao && ehAdm && React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 } },
-                    React.createElement("button", { type: "button", onClick: function () { return setEditor({ tipo: "modulo", obj: modAtual }); }, style: bibBtn() }, "Editar módulo"),
-                    React.createElement("button", { type: "button", onClick: function () { return alternar("biblioteca_modulo", modAtual.id, !modAtual.publicado); }, style: bibBtn() }, modAtual.publicado ? "Tirar do ar" : "Publicar"),
-                    React.createElement("button", { type: "button", onClick: function () { return setEditor({ tipo: "aula", obj: { modulo_id: modAtual.id, ordem: proxOrdem(modAtual.id), titulo: "", tipo: "texto", conteudo: "", unidades: [], funcoes: [], publicado: false } }); }, style: bibBtn("marca") }, "+ Aula"))),
+            React.createElement(Card, { className: "p0", style: { overflow: "hidden" } },
+                React.createElement("div", { style: { background: "#0B0B0B", color: "#fff", padding: "18px 20px", display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement("div", null,
+                        React.createElement("div", { style: { fontSize: 10.5, letterSpacing: ".14em", fontWeight: 700, color: "#BDBDBD" } }, "MÓDULO"),
+                        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 40, fontWeight: 700, lineHeight: 1, color: T.marca } }, bibPad2(modAtual.numero))),
+                    React.createElement("div", { style: { flex: "1 1 240px", minWidth: 0 } },
+                        React.createElement("h2", { style: { fontFamily: F_MARCA, fontSize: 22, lineHeight: 1.25, margin: 0, color: "#fff" } }, modAtual.titulo),
+                        modAtual.resumo && React.createElement("div", { style: { fontSize: 13, color: "#CFCFCF", marginTop: 5, lineHeight: 1.5 } }, modAtual.resumo)),
+                    React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", alignSelf: "flex-start" } }, concl && pillM("Concluído", T.good, "#fff"), !modAtual.publicado && pillM("Rascunho", T.warn, "#fff"))),
+                React.createElement("div", { style: { padding: "14px 20px 16px" } },
+                    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+                        React.createElement("div", { style: { flex: 1 } }, React.createElement(Barra, { pct: vv.pct, cor: concl ? T.good : T.ink, alt: 7 })),
+                        React.createElement("span", { style: { fontFamily: F_NUM, fontSize: 12.5, fontWeight: 700, whiteSpace: "nowrap" } }, vv.pub ? vv.ok + "/" + vv.pub + " aulas · " + Math.round(vv.pct * 100) + "%" : "Nada publicado ainda")),
+                    React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 8 } }, (vv.min ? bibDur(vv.min) + " de conteúdo · " : "") + audiencia(modAtual)),
+                    edicao && ehAdm && React.createElement("div", { className: "bibbtns", style: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 12 } },
+                        React.createElement("button", { type: "button", onClick: function () { return setEditor({ tipo: "modulo", obj: modAtual }); }, style: bibBtn() }, "Editar módulo"),
+                        React.createElement("button", { type: "button", onClick: function () { return alternar("biblioteca_modulo", modAtual.id, !modAtual.publicado); }, style: bibBtn() }, modAtual.publicado ? "Tirar do ar" : "Publicar"),
+                        React.createElement("button", { type: "button", onClick: function () { return setEditor({ tipo: "aula", obj: { modulo_id: modAtual.id, ordem: proxOrdem(modAtual.id), titulo: "", tipo: "texto", conteudo: "", unidades: [], funcoes: [], publicado: false } }); }, style: bibBtn("marca") }, "+ Aula")))),
             aviso && React.createElement("div", { style: { color: T.bad, fontSize: 13, marginTop: 10 } }, aviso),
-            React.createElement(Card, { className: "p16", style: { marginTop: 12 } },
-                !vv.aulas.length && React.createElement("div", { style: { fontSize: 13.5, color: T.muted, padding: "4px 0" } }, vv.embreve ? "Em breve: as aulas deste módulo ainda estão sendo escritas." : "Nenhuma aula neste filtro."),
+            React.createElement(Card, { className: "p0", style: { marginTop: 12, overflow: "hidden" } },
+                !vv.aulas.length && React.createElement("div", { style: { fontSize: 13.5, color: T.muted, padding: "16px" } }, vv.embreve ? "Em breve: as aulas deste módulo ainda estão sendo escritas." : "Nenhuma aula neste filtro."),
                 vv.aulas.map(function (a, i) {
-                    var fez = !!feitas[a.id];
-                    return (React.createElement("div", { key: a.id, style: { display: "flex", alignItems: "center", gap: 10, padding: "11px 0", borderTop: i ? "1px solid " + T.hair : 0, flexWrap: "wrap" } },
+                    var fez = !!feitas[a.id], ehP = a.tipo === "prova", ehProx = a.id === proximaId, travada = ehP && !stProva.liberada;
+                    var rotAcao = ehP ? (fez ? "Ver prova" : "Fazer a prova") : (fez ? "Rever" : (ehProx ? "Continuar" : "Abrir"));
+                    return (React.createElement("div", { key: a.id, className: "bibrow", role: "button", tabIndex: 0, onClick: function () { abrirAula(a); }, onKeyDown: function (e) { if (e.key === "Enter")
+                            abrirAula(a); }, style: { display: "flex", alignItems: "center", gap: 12, padding: "14px 16px 14px 12px", borderTop: i ? "1px solid " + T.hair : 0, borderLeft: "4px solid " + (ehProx ? T.marca : "transparent"), cursor: "pointer", flexWrap: "wrap" } },
                         bolinha(fez, bibPad2(i + 1)),
-                        React.createElement("div", { style: { flex: 1, minWidth: 200 } },
-                            React.createElement("div", { style: { fontWeight: 700, fontSize: 14.5 } }, "Aula " + bibPad2(i + 1) + " – " + a.titulo),
-                            React.createElement("div", { style: { display: "flex", gap: 5, flexWrap: "wrap", marginTop: 3 } },
+                        React.createElement("div", { style: { flex: 1, minWidth: 180 } },
+                            React.createElement("div", { style: { fontWeight: 700, fontSize: 14.5, lineHeight: 1.35 } }, "Aula " + bibPad2(i + 1) + " – " + a.titulo),
+                            React.createElement("div", { style: { display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center", marginTop: 4 } },
                                 React.createElement(Tag, { cor: corTipo(a.tipo) }, rotuloTipo(a.tipo)),
                                 a.minutos ? React.createElement(Tag, { cor: T.ink2 }, a.minutos + " min") : null,
-                                !a.publicado && React.createElement(Tag, { cor: T.warn }, "Rascunho"),
+                                ehP && notas[a.id] != null && React.createElement(Tag, { cor: fez ? T.good : T.bad }, (fez ? "Aprovado · nota " : "Nota ") + notas[a.id]),
+                                ehProx && React.createElement(Tag, { cor: T.ink }, "Próxima"),
+                                !a.publicado && modAtual.publicado && React.createElement(Tag, { cor: T.warn }, "Rascunho"),
                                 a.ordem >= 99 && React.createElement(Tag, { cor: T.bad }, "Cópia antiga: pode apagar"),
-                                a.unidades && a.unidades.length && a.unidades.join() !== (modAtual.unidades || []).join() ? tagsDe(a.unidades, BIB_UNIDADES) : null,
-                                a.funcoes && a.funcoes.length && a.funcoes.join() !== (modAtual.funcoes || []).join() ? tagsDe(a.funcoes, BIB_FUNCOES) : null)),
-                        React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } },
-                            edicao && ehAdm && React.createElement("button", { type: "button", onClick: function () { return editarAula(a); }, style: bibBtn() }, "Editar"),
-                            edicao && ehAdm && React.createElement("button", { type: "button", onClick: function () { return alternar("biblioteca_aula", a.id, !a.publicado); }, style: bibBtn() }, a.publicado ? "Tirar do ar" : "Publicar"),
-                            React.createElement("button", { type: "button", onClick: function () { return abrirAula(a); }, style: bibBtn("marca") }, fez ? "Rever" : "Abrir"))));
-                }))
-            , editorEl));
+                                travada && React.createElement("span", { style: { fontSize: 11.5, color: T.muted } }, "Libera depois das outras aulas"),
+                                edicao && a.unidades && a.unidades.length && a.unidades.join() !== (modAtual.unidades || []).join() ? tagsDe(a.unidades, BIB_UNIDADES) : null,
+                                edicao && a.funcoes && a.funcoes.length && a.funcoes.join() !== (modAtual.funcoes || []).join() ? tagsDe(a.funcoes, BIB_FUNCOES) : null)),
+                        React.createElement("div", { className: "bibbtns", style: { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" } },
+                            edicao && ehAdm && React.createElement("button", { type: "button", onClick: function (e) { e.stopPropagation(); editarAula(a); }, style: bibBtn() }, "Editar"),
+                            edicao && ehAdm && React.createElement("button", { type: "button", onClick: function (e) { e.stopPropagation(); alternar("biblioteca_aula", a.id, !a.publicado); }, style: bibBtn() }, a.publicado ? "Tirar do ar" : "Publicar"),
+                            React.createElement("span", { style: ehProx ? bibBtn("marca") : bibBtn() }, rotAcao + " →"))));
+                })),
+            editorEl));
     }
     /* ---------- 1. a trilha: cartões dos módulos ---------- */
     var moduloCard = function (v) {
         var m = v.m;
         var concluido = v.pub > 0 && v.ok === v.pub;
         var rotBotao = v.embreve ? "Em breve" : v.pub === 0 ? "Abrir" : v.ok === 0 ? "Começar" : concluido ? "Rever" : "Continuar";
-        var pillUni = (m.unidades && m.unidades.length) ? m.unidades.map(function (u) { return bibRotulo(BIB_UNIDADES, u); }).join(" · ") : "Todas as unidades";
-        var pill = function (txt, fundo, cor) { return React.createElement("span", { key: txt, style: { display: "inline-block", fontSize: 10.5, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", padding: "3px 9px", borderRadius: 99, background: fundo, color: cor, marginRight: 6 } }, txt); };
-        return (React.createElement("div", { key: m.id, style: { flex: "1 1 260px", minWidth: 250, maxWidth: 420, background: T.surface, border: "1px solid " + T.hair, borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column" } },
-            React.createElement("div", { style: { background: "#0B0B0B", color: "#fff", padding: "14px 16px", minHeight: 124, display: "flex", flexDirection: "column", justifyContent: "space-between" } },
-                React.createElement("div", null, pill(pillUni, "#1F1F1F", T.marca), !m.publicado && pill("Rascunho", T.warn, "#fff"), v.embreve && pill("Em breve", "#2B2B2B", "#fff")),
+        var pill = function (txt, fundo, cor) { return React.createElement("span", { key: txt, style: { display: "inline-block", fontSize: 10.5, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", padding: "3px 9px", borderRadius: 99, background: fundo, color: cor } }, txt); };
+        var qtd = v.embreve ? 0 : (v.pub > 0 ? v.pub : v.aulas.length);
+        var statsTxt = v.embreve ? "Aulas em preparação" : qtd + (qtd === 1 ? " aula" : " aulas") + (v.min ? " · " + bibDur(v.min) : "");
+        return (React.createElement("div", { key: m.id, className: "bibcard", style: { background: T.surface, border: "1px solid " + T.hair, borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column" } },
+            React.createElement("div", { className: "bibhead", style: { background: "#0B0B0B", color: "#fff", padding: "14px 16px", minHeight: 92, display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 8 } },
                 React.createElement("div", null,
-                    React.createElement("div", { style: { fontSize: 11, letterSpacing: ".14em", fontWeight: 700, color: "#BDBDBD" } }, "MÓDULO"),
-                    React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 42, fontWeight: 700, lineHeight: 1, color: T.marca } }, bibPad2(m.numero)))),
+                    React.createElement("div", { style: { fontSize: 10.5, letterSpacing: ".14em", fontWeight: 700, color: "#BDBDBD" } }, "MÓDULO"),
+                    React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 40, fontWeight: 700, lineHeight: 1, color: T.marca } }, bibPad2(m.numero))),
+                React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end", alignSelf: "flex-start" } },
+                    concluido && pill("Concluído", T.good, "#fff"),
+                    !m.publicado && pill("Rascunho", T.warn, "#fff"),
+                    v.embreve && pill("Em breve", "#2B2B2B", "#fff"))),
             React.createElement("div", { style: { padding: "14px 16px 16px", display: "flex", flexDirection: "column", flex: 1 } },
-                React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 16.5, fontWeight: 700, lineHeight: 1.25 } }, m.titulo),
-                m.resumo && React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 4, lineHeight: 1.5 } }, m.resumo),
-                React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 8, minHeight: 16 } }, v.min ? "⏱ " + bibDur(v.min) + " de conteúdo" : ""),
-                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontFamily: F_NUM, fontSize: 12, fontWeight: 700, margin: "10px 0 4px" } },
-                    React.createElement("span", null, v.embreve ? "0 aulas" : v.pub === 0 ? v.aulas.length + (v.aulas.length === 1 ? " aula (rascunho)" : " aulas (rascunho)") : v.ok + "/" + v.pub + " aulas" + (v.pub !== v.aulas.length ? " (+" + (v.aulas.length - v.pub) + " rascunho)" : "")),
-                    React.createElement("span", null, Math.round(v.pct * 100) + "%")),
-                React.createElement(Barra, { pct: v.pct, cor: concluido ? T.good : T.ink, alt: 6 }),
-                React.createElement("div", { style: { flex: 1 } }),
-                React.createElement("button", { type: "button", disabled: v.embreve, onClick: function () { setModAberto(m.id); setAviso(null); bibTopo(); }, style: __assign(__assign({}, (v.embreve ? bibBtn() : bibBtn("marca"))), { width: "100%", marginTop: 14, textTransform: "uppercase", letterSpacing: ".08em", opacity: v.embreve ? 0.55 : 1, cursor: v.embreve ? "default" : "pointer" }) }, rotBotao + (v.embreve ? "" : " →")),
-                edicao && ehAdm && React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 } },
+                React.createElement("div", { className: "bibtit", style: { fontFamily: F_MARCA, fontSize: 16.5, fontWeight: 700, lineHeight: 1.25 } }, m.titulo),
+                React.createElement("div", { className: "bib3 bibres", style: { fontSize: 12.5, color: T.ink2, marginTop: 5, lineHeight: 1.5 } }, m.resumo || ""),
+                React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 10, lineHeight: 1.45 } }, statsTxt),
+                React.createElement("div", { style: { fontSize: 11.5, color: T.muted, lineHeight: 1.45 } }, audiencia(m)),
+                v.embreve ? null : React.createElement("div", { style: { marginTop: 12 } },
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontFamily: F_NUM, fontSize: 12, fontWeight: 700, marginBottom: 5 } },
+                        React.createElement("span", null, v.pub === 0 ? "Nada publicado ainda" : v.ok + "/" + v.pub + " aulas" + (v.pub !== v.aulas.length ? " (+" + (v.aulas.length - v.pub) + " rascunho)" : "")),
+                        React.createElement("span", null, v.pub === 0 ? "" : Math.round(v.pct * 100) + "%")),
+                    React.createElement(Barra, { pct: v.pct, cor: concluido ? T.good : T.ink, alt: 6 })),
+                React.createElement("div", { style: { flex: 1, minHeight: 12 } }),
+                React.createElement("button", { type: "button", disabled: v.embreve, onClick: function () { setModAberto(m.id); setAviso(null); bibTopo(); }, style: __assign(__assign({}, (v.embreve ? bibBtn() : bibBtn("marca"))), { width: "100%", marginTop: 8, padding: "10px 12px", textTransform: "uppercase", letterSpacing: ".08em", opacity: v.embreve ? 0.55 : 1, cursor: v.embreve ? "default" : "pointer" }) }, rotBotao + (v.embreve ? "" : " →")),
+                edicao && ehAdm && React.createElement("div", { className: "bibbtns", style: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 } },
                     React.createElement("button", { type: "button", onClick: function () { return setEditor({ tipo: "modulo", obj: m }); }, style: bibBtn() }, "Editar módulo"),
                     React.createElement("button", { type: "button", onClick: function () { return alternar("biblioteca_modulo", m.id, !m.publicado); }, style: bibBtn() }, m.publicado ? "Tirar do ar" : "Publicar"),
                     React.createElement("button", { type: "button", onClick: function () { return setEditor({ tipo: "aula", obj: { modulo_id: m.id, ordem: proxOrdem(m.id), titulo: "", tipo: "texto", conteudo: "", unidades: [], funcoes: [], publicado: false } }); }, style: bibBtn("marca") }, "+ Aula")))));
     };
+    /* a próxima aula a fazer, em toda a trilha deste filtro */
+    var proxAula = null, proxMod = null, proxIdx = 0;
+    modsView.some(function (v) {
+        if (!(v.pub > 0 && v.ok < v.pub))
+            return false;
+        var lst = aulasDe(v.m);
+        for (var i = 0; i < lst.length; i++) {
+            if (lst[i].publicado && !feitas[lst[i].id]) {
+                proxAula = lst[i];
+                proxMod = v.m;
+                proxIdx = i;
+                return true;
+            }
+        }
+        return false;
+    });
+    var pctGeral = totAulas ? Math.round(100 * totOk / totAulas) : 0;
+    var heroEl = React.createElement(Card, { className: "p20", style: { display: "flex", gap: "18px 32px", flexWrap: "wrap", alignItems: "center" } },
+        React.createElement("div", { style: { flex: "1 1 260px", minWidth: 0 } },
+            React.createElement(Label, null, "Seu progresso"),
+            React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 10, marginTop: 6 } },
+                React.createElement(Metric, { value: totAulas ? pctGeral + "%" : "—", size: 34 }),
+                React.createElement("span", { style: { fontSize: 12.5, color: T.ink2 } }, totAulas ? totOk + " de " + totAulas + " aulas · " + modsFeitos + " de " + modsComAula + (modsComAula === 1 ? " módulo concluído" : " módulos concluídos") : "Nenhuma aula publicada neste filtro")),
+            React.createElement("div", { style: { marginTop: 10 } }, React.createElement(Barra, { pct: totAulas ? totOk / totAulas : 0, cor: totAulas && totOk === totAulas ? T.good : T.ink, alt: 8 }))),
+        React.createElement("div", { style: { flex: "1 1 280px", minWidth: 0 } },
+            totAulas > 0 && proxAula && React.createElement("div", null,
+                React.createElement(Label, null, totOk === 0 ? "Comece por aqui" : "Continue de onde parou"),
+                React.createElement("div", { style: { fontSize: 14.5, fontWeight: 700, margin: "6px 0 10px", lineHeight: 1.35 } }, "Módulo " + bibPad2(proxMod.numero) + " · Aula " + bibPad2(proxIdx + 1) + " – " + proxAula.titulo),
+                React.createElement("button", { type: "button", onClick: function () { abrirAula(proxAula); }, style: bibBtnG() }, (totOk === 0 ? "Começar" : "Continuar") + " →")),
+            totAulas > 0 && !proxAula && React.createElement("div", null,
+                React.createElement(Label, null, "Trilha concluída"),
+                React.createElement("div", { style: { fontSize: 14, margin: "6px 0 0", lineHeight: 1.4 } }, "Você concluiu todas as aulas publicadas neste filtro. Pode rever qualquer módulo quando quiser.")),
+            !totAulas && React.createElement("div", { style: { fontSize: 13, color: T.muted, lineHeight: 1.5 } }, ehAdm ? "Publique um módulo no Modo edição para liberar as aulas aos SDRs." : "Quando as aulas forem publicadas, elas aparecem aqui.")));
     /* progresso do time (admin e gerente): uma linha por pessoa, uma coluna por módulo */
     var timePessoas = {};
     dados.time.forEach(function (r) {
         var k = r.user_id;
         if (!timePessoas[k])
-            timePessoas[k] = { nome: r.sdr_nome || "(sem nome)", mods: {} };
+            timePessoas[k] = { nome: r.sdr_nome || "(sem nome)", mods: {}, notas: {} };
         timePessoas[k].mods[r.numero] = r.percentual;
+        if (r.nota_prova != null)
+            timePessoas[k].notas[r.numero] = r.nota_prova;
     });
     var listaTime = Object.keys(timePessoas).map(function (k) { return timePessoas[k]; }).sort(function (a, b) { return String(a.nome).localeCompare(String(b.nome)); });
     var numerosMods = dados.mods.map(function (x) { return x.numero; });
     return (React.createElement("div", null,
         React.createElement("style", null, BIB_CSS),
         React.createElement(Card, { className: "p12" },
-            React.createElement(Inp, { type: "search", value: busca, onChange: function (e) { return setBusca(e.target.value); }, placeholder: "Buscar aula, módulo ou documento", style: { marginBottom: 12 } }),
-            React.createElement(Label, { style: { marginBottom: 6 } }, "Unidade de negócio"),
-            React.createElement(Chips, { value: fUni, onChange: setFUni, options: [["todas", "Todas"]].concat(BIB_UNIDADES) }),
-            React.createElement(Label, { style: { margin: "12px 0 6px" } }, "Função"),
-            React.createElement(Chips, { value: fFun, onChange: setFFun, options: [["todas", "Todas"]].concat(BIB_FUNCOES) })),
-        React.createElement(Secao, { n: 1, titulo: "Trilha do SDR", nota: "Faça os módulos na ordem: abra o módulo, siga as aulas e marque cada uma como concluída. O que você conclui fica salvo no seu login." },
-            React.createElement("div", { className: "grid-kpi", style: { gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" } },
-                React.createElement(Kpi, { label: "Seu progresso", value: totAulas ? Math.round(100 * totOk / totAulas) + "%" : "—", sub: totOk + " de " + totAulas + " aulas" }),
-                React.createElement(Kpi, { label: "Módulos concluídos", value: modsFeitos + " de " + modsComAula, sub: "neste filtro" })),
-            ehAdm && React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 14 } },
+            React.createElement(Inp, { type: "search", value: busca, onChange: function (e) { return setBusca(e.target.value); }, placeholder: "Buscar aula, módulo ou documento", style: { marginBottom: 10 } }),
+            React.createElement("div", { style: { display: "flex", gap: "10px 26px", flexWrap: "wrap", alignItems: "center" } },
+                React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement(Label, null, "Unidade"),
+                    React.createElement(Chips, { value: fUni, onChange: setFUni, options: [["todas", "Todas"]].concat(BIB_UNIDADES) })),
+                React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement(Label, null, "Função"),
+                    React.createElement(Chips, { value: fFun, onChange: setFFun, options: [["todas", "Todas"]].concat(BIB_FUNCOES) })))),
+        React.createElement(Secao, { n: 1, titulo: "Trilha do SDR", nota: "Faça os módulos na ordem: abra o módulo, siga as aulas e conclua cada uma. O que você conclui fica salvo no seu login." },
+            heroEl,
+            ehAdm && React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 12 } },
                 botaoEdicao,
                 edicao && React.createElement("button", { type: "button", onClick: function () { return setEditor({ tipo: "modulo", obj: { numero: proxNumero, titulo: "", resumo: "", unidades: [], funcoes: [], nota_minima: 80, publicado: false } }); }, style: bibBtn("marca") }, "+ Módulo"),
-                !edicao && React.createElement("span", { style: { fontSize: 12, color: T.muted } }, "Você vê também os rascunhos. Os SDRs só veem o que está publicado.")),
+                !edicao && React.createElement("span", { style: { fontSize: 12, color: T.muted } }, "Você vê também os rascunhos; os SDRs só veem o que está publicado.")),
             aviso && React.createElement("div", { style: { color: T.bad, fontSize: 13, marginTop: 10 } }, aviso),
             dados.erro && React.createElement("div", { style: { color: T.bad, fontSize: 13, marginTop: 10 } }, "Não consegui ler a trilha: " + dados.erro),
             dados.carregando && React.createElement("div", { style: { fontSize: 13, color: T.muted, marginTop: 14 } }, "Carregando…"),
             !dados.carregando && !dados.erro && !modsView.length && React.createElement(Card, { className: "p16", style: { marginTop: 12 } },
                 React.createElement("div", { style: { fontSize: 13.5, color: T.ink2 } }, ehAdm ? "Nenhum módulo neste filtro." : "Ainda não há módulos publicados para este filtro. Assim que o Rafael publicar, eles aparecem aqui.")),
-            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 14, marginTop: 14 } }, modsView.map(moduloCard))),
+            React.createElement("div", { className: "bibgrid", style: { marginTop: 14 } }, modsView.map(moduloCard))),
         React.createElement(BibDrive, { busca: busca, fUni: fUni, fFun: fFun }),
-        vePerfisTodos && React.createElement(Secao, { n: 5, titulo: "Progresso do time", nota: "Percentual de aulas concluídas por pessoa e módulo. Aparece quem já concluiu pelo menos uma aula." },
+        vePerfisTodos && React.createElement(Secao, { n: 5, titulo: "Progresso do time", nota: "Percentual de aulas concluídas por pessoa e módulo, com a melhor nota da prova quando já fez. Aparece quem já concluiu pelo menos uma aula." },
             React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
                 React.createElement("div", { className: "rolagem" },
-                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 420 } },
+                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 520 } },
                         React.createElement("thead", null, React.createElement("tr", null,
                             React.createElement(Th, null, "Pessoa"),
                             numerosMods.map(function (n) { return React.createElement(Th, { key: n, right: true }, "M" + n); }))),
                         React.createElement("tbody", null,
                             listaTime.map(function (p) { return (React.createElement("tr", { key: p.nome },
                                 React.createElement(Td, { bold: true }, p.nome),
-                                numerosMods.map(function (n) { return React.createElement(Td, { key: n, right: true, color: p.mods[n] >= 100 ? T.good : p.mods[n] ? T.ink : T.muted }, p.mods[n] != null ? p.mods[n] + "%" : "—"); }))); }),
+                                numerosMods.map(function (n) { return React.createElement(Td, { key: n, right: true, color: p.mods[n] >= 100 ? T.good : p.mods[n] ? T.ink : T.muted }, p.mods[n] != null ? p.mods[n] + "%" + (p.notas[n] != null ? " · prova " + p.notas[n] : "") : "—"); }))); }),
                             !listaTime.length && React.createElement("tr", null, React.createElement(Td, { style: { whiteSpace: "normal" } }, "Ninguém concluiu aula ainda."))))))),
         editorEl));
 }
