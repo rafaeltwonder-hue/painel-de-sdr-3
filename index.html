@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v95 — CAR SERVICE</title>
-<meta name="painel-versao" content="v95">
+<title>Painel de SDR v97 — CAR SERVICE</title>
+<meta name="painel-versao" content="v97">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -2750,8 +2750,8 @@ function JanelaVendas(_a) {
    Fonte dos preços: Tabela SDR CORRIGIDA (planilha "PREÇO SDR 2025",
    atualizada em 18/04/2026), completa desde a v90. Exceção: PPF full vale a
    faixa validada, não os valores da planilha (15.990, 22.990 etc.). */
-var HUB_ABAS = [["precos", "Preços"], ["treinador", "Treinador"], ["biblioteca", "Biblioteca"]];
-var HUB_IDS = ["precos", "treinador", "biblioteca"];
+var HUB_ABAS = [["precos", "Preços"], ["treinador", "Treinador"], ["biblioteca", "Biblioteca"], ["benchmark", "Benchmark"]];
+var HUB_IDS = ["precos", "treinador", "biblioteca", "benchmark"];
 /* alçada: o que o SDR pode fazer com o preço */
 var ALCADA = {
     fechado: { rotulo: "Preço fechado", cor: T.good, dica: "Pode passar o valor." },
@@ -3224,7 +3224,7 @@ var PESQ_OBJECOES = [
     ["“Meu carro é blindado”", "ASES atende blindados desde 1967",
         "Funilaria de blindado cobra o dobro, só com avaliação."],
 ];
-/* ===================== v95 · BIBLIOTECA EM CURSO + PROVAS (03/10/2026) =====================
+/* ===================== v97 · BIBLIOTECA EM CURSO + PROVAS + BENCHMARK (03/10/2026) =====================
    A Biblioteca lê do banco (schema comercial): biblioteca_modulo, biblioteca_aula e
    biblioteca_progresso. v94: a trilha virou um curso. Tela 1: cartões dos módulos (Módulo 01…10) com
    progresso e botão COMEÇAR. Tela 2: o módulo com as aulas numeradas (Aula 01 – …). Tela 3: a aula, com
@@ -4047,7 +4047,7 @@ function AbaBiblioteca() {
                 React.createElement("div", { style: { fontSize: 13.5, color: T.ink2 } }, ehAdm ? "Nenhum módulo neste filtro." : "Ainda não há módulos publicados para este filtro. Assim que o Rafael publicar, eles aparecem aqui.")),
             React.createElement("div", { className: "bibgrid", style: { marginTop: 14 } }, modsView.map(moduloCard))),
         React.createElement(BibDrive, { busca: busca, fUni: fUni, fFun: fFun }),
-        vePerfisTodos && React.createElement(Secao, { n: 5, titulo: "Progresso do time", nota: "Percentual de aulas concluídas por pessoa e módulo, com a melhor nota da prova quando já fez. Aparece quem já concluiu pelo menos uma aula." },
+        vePerfisTodos && React.createElement(Secao, { n: 3, titulo: "Progresso do time", nota: "Percentual de aulas concluídas por pessoa e módulo, com a melhor nota da prova quando já fez. Aparece quem já concluiu pelo menos uma aula." },
             React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
                 React.createElement("div", { className: "rolagem" },
                     React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 520 } },
@@ -4064,8 +4064,6 @@ function AbaBiblioteca() {
 
 function BibDrive(_p) {
     var busca = _p.busca, fUni = _p.fUni, fFun = _p.fFun;
-    var q = busca.trim().toLowerCase();
-    /* v93: dois filtros. Frente de unidade (Car Service…) só responde ao filtro de unidade; frente de função (SDR, BDR, Closer) só ao de função. */
     var ROT_UNI = BIB_UNIDADES.map(function (x) { return x[1]; }), ROT_FUN = BIB_FUNCOES.map(function (x) { return x[1]; });
     var lista = BIB_DOCS.filter(function (d) {
         var f = d.frente, ehUni = ROT_UNI.indexOf(f) >= 0, ehFun = ROT_FUN.indexOf(f) >= 0;
@@ -4076,56 +4074,54 @@ function BibDrive(_p) {
     });
     var corFrente = function (f) { return (f === "a classificar" ? T.warn : f === "Todas" ? T.ink : T.good); };
     return (React.createElement("div", null,
-        React.createElement("div", { className: "duo2", style: { display: "grid", gap: 24, alignItems: "start" } },
-            React.createElement("div", { style: { minWidth: 0 } },
-                React.createElement(Secao, { n: 2, titulo: "Documentos no Drive", nota: "Espelho dos Drives do comercial: o que existe, de que frente \u00E9 e quando foi atualizado. Os arquivos ficam no Drive da conta thewoperation@gmail.com: se o Drive pedir permiss\u00E3o, pe\u00E7a acesso ao Rafael." },
-                    React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden", marginTop: 0 } },
-                        React.createElement("div", { className: "rolagem" },
-                            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 600 } },
-                                React.createElement("thead", null,
-                                    React.createElement("tr", null,
-                                        React.createElement(Th, null, "Documento"),
-                                        React.createElement(Th, null, "Tipo"),
-                                        React.createElement(Th, null, "Frente"),
-                                        React.createElement(Th, { right: true }, "Atualizado"),
-                                        React.createElement(Th, null, " "))),
-                                React.createElement("tbody", null,
-                                    lista.map(function (d) { return (React.createElement("tr", { key: d.doc },
-                                        React.createElement(Td, { bold: true, style: { whiteSpace: "normal", minWidth: 220 } }, d.doc),
-                                        React.createElement(Td, { color: T.ink2 }, d.tipo),
-                                        React.createElement(Td, null,
-                                            React.createElement(Tag, { cor: corFrente(d.frente) }, d.frente)),
-                                        React.createElement(Td, { right: true, color: T.muted }, d.em),
-                                        React.createElement(Td, null,
-                                            React.createElement("a", { href: d.url, target: "_blank", rel: "noopener noreferrer", style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "6px 11px", borderRadius: 6, background: T.marca,
-                                                    color: T.preto, textDecoration: "none", whiteSpace: "nowrap", border: "1px solid ".concat(T.marca) } }, "Abrir")))); }),
-                                    !lista.length && React.createElement("tr", null,
-                                        React.createElement(Td, { style: { whiteSpace: "normal" } }, "Nenhum documento classificado nessa frente ainda.")))))),
-                    React.createElement(Card, { className: "p16", style: { marginTop: 12, borderColor: "#F0C3C6", background: "#FDF3F3" } },
-                        React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: T.bad, marginBottom: 6 } }, "O que falta para o SDR de Car Service"),
-                        React.createElement("ul", { style: { margin: 0, paddingLeft: 20, fontSize: 13, lineHeight: 1.7, color: T.ink } }, BIB_FALTA.map(function (f) { return React.createElement("li", { key: f }, f); }))))),
-            React.createElement("div", { style: { minWidth: 0 } },
-                React.createElement(Secao, { n: 3, titulo: "Pesquisa de mercado", nota: "Levantamento de 10/09/2026, S\u00E3o Paulo capital." },
-                    React.createElement("div", { className: "grid-kpi", style: { gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" } },
-                        React.createElement(Kpi, { label: "Concorrentes mapeados", value: "30", sub: "5 por frente" }),
-                        React.createElement(Kpi, { label: "Credenciados 3M", value: "8", sub: "pelo que cada loja declara no site" })),
-                    React.createElement(Card, { className: "p16", style: { marginTop: 12, borderLeft: "4px solid ".concat(T.marca) } },
-                        React.createElement(Label, null, "Concorrente mais direto"),
-                        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 20, fontWeight: 700, marginTop: 4 } }, "An\u00E1lia Film"),
-                        React.createElement("div", { style: { fontSize: 13, color: T.ink2, marginTop: 6, lineHeight: 1.6 } },
-                            "3M Pro Shop nas duas unidades:",
-                            React.createElement("br", null),
-                            "\u00B7 ",
-                            React.createElement("b", null, "Tatuap\u00E9"),
-                            " (Av. Regente Feij\u00F3, 1111) \u2014 disputa com a The W Tatuap\u00E9.",
-                            React.createElement("br", null),
-                            "\u00B7 ",
-                            React.createElement("b", null, "Campo Belo"),
-                            " (R. Xavier de Gouveia, 286) \u2014 disputa com a The W Bandeirantes."),
-                        React.createElement("div", { style: { fontSize: 12.5, marginTop: 10, background: "#FFF8E1", border: "1px solid #F0DDA0", borderRadius: 8, padding: "9px 11px", lineHeight: 1.5 } },
-                            React.createElement("b", null, "Dica para a conversa:"),
-                            " o selo 3M de pel\u00EDcula de vidro n\u00E3o cobre PPF. Pergunte se a loja \u00E9 credenciada em prote\u00E7\u00E3o de pintura."))))),
-        React.createElement(Secao, { n: 4, titulo: "O cliente diz \u2192 o concorrente \u2192 como a gente conduz" },
+        React.createElement(Secao, { n: 2, titulo: "Documentos no Drive", nota: "Espelho dos Drives do comercial: o que existe, de que frente é e quando foi atualizado. Se o Drive pedir permissão, peça acesso ao Rafael." },
+            React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden", marginTop: 0 } },
+                React.createElement("div", { className: "rolagem" },
+                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 600 } },
+                        React.createElement("thead", null,
+                            React.createElement("tr", null,
+                                React.createElement(Th, null, "Documento"),
+                                React.createElement(Th, null, "Tipo"),
+                                React.createElement(Th, null, "Frente"),
+                                React.createElement(Th, { right: true }, "Atualizado"),
+                                React.createElement(Th, null, " "))),
+                        React.createElement("tbody", null,
+                            lista.map(function (d) { return (React.createElement("tr", { key: d.doc },
+                                React.createElement(Td, { bold: true, style: { whiteSpace: "normal", minWidth: 220 } }, d.doc),
+                                React.createElement(Td, { color: T.ink2 }, d.tipo),
+                                React.createElement(Td, null,
+                                    React.createElement(Tag, { cor: corFrente(d.frente) }, d.frente)),
+                                React.createElement(Td, { right: true, color: T.muted }, d.em),
+                                React.createElement(Td, null,
+                                    React.createElement("a", { href: d.url, target: "_blank", rel: "noopener noreferrer", style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "6px 11px", borderRadius: 6, background: T.marca,
+                                            color: T.preto, textDecoration: "none", whiteSpace: "nowrap", border: "1px solid ".concat(T.marca) } }, "Abrir")))); }),
+                            !lista.length && React.createElement("tr", null,
+                                React.createElement(Td, { style: { whiteSpace: "normal" } }, "Nenhum documento do Drive nesta frente. Os materiais do Car Service estão na trilha, acima.")))))))));
+}
+/* v96: aba própria de Benchmark (pesquisa de mercado), tirada da Biblioteca */
+function AbaBenchmark() {
+    return (React.createElement("div", null,
+        React.createElement(Secao, { n: 1, titulo: "Pesquisa de mercado", nota: "Levantamento de 10/09/2026, São Paulo capital. Concorrentes do Car Service." },
+            React.createElement("div", { className: "grid-kpi", style: { gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", maxWidth: 720 } },
+                React.createElement(Kpi, { label: "Concorrentes mapeados", value: "30", sub: "5 por frente" }),
+                React.createElement(Kpi, { label: "Credenciados 3M", value: "8", sub: "pelo que cada loja declara no site" })),
+            React.createElement(Card, { className: "p16", style: { marginTop: 12, borderLeft: "4px solid ".concat(T.marca), maxWidth: 720 } },
+                React.createElement(Label, null, "Concorrente mais direto"),
+                React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 20, fontWeight: 700, marginTop: 4 } }, "Anália Film"),
+                React.createElement("div", { style: { fontSize: 13, color: T.ink2, marginTop: 6, lineHeight: 1.6 } },
+                    "3M Pro Shop nas duas unidades:",
+                    React.createElement("br", null),
+                    "· ",
+                    React.createElement("b", null, "Tatuapé"),
+                    " (Av. Regente Feijó, 1111) — disputa com a The W Tatuapé.",
+                    React.createElement("br", null),
+                    "· ",
+                    React.createElement("b", null, "Campo Belo"),
+                    " (R. Xavier de Gouveia, 286) — disputa com a The W Bandeirantes."),
+                React.createElement("div", { style: { fontSize: 12.5, marginTop: 10, background: "#FFF8E1", border: "1px solid #F0DDA0", borderRadius: 8, padding: "9px 11px", lineHeight: 1.5 } },
+                    React.createElement("b", null, "Dica para a conversa:"),
+                    " o selo 3M de película de vidro não cobre PPF. Pergunte se a loja é credenciada em proteção de pintura."))),
+        React.createElement(Secao, { n: 2, titulo: "O cliente diz → o concorrente → como a gente conduz" },
             React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
                 React.createElement("div", { className: "rolagem" },
                     React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 680 } },
@@ -4145,7 +4141,8 @@ function HubConteudo(_a) {
     return (React.createElement("div", null,
         aba === "precos" && React.createElement(AbaPrecos, null),
         aba === "treinador" && React.createElement(AbaTreinador, { nome: nome, semPlacar: semPlacar }),
-        aba === "biblioteca" && React.createElement(AbaBiblioteca, null)));
+        aba === "biblioteca" && React.createElement(AbaBiblioteca, null),
+        aba === "benchmark" && React.createElement(AbaBenchmark, null)));
 }
 /* ===================== app ===================== */
 function Painel(_a) {
