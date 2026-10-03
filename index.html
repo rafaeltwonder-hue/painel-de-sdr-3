@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v97 — CAR SERVICE</title>
-<meta name="painel-versao" content="v97">
+<title>Painel de SDR v99 — CAR SERVICE</title>
+<meta name="painel-versao" content="v99">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -3197,19 +3197,19 @@ function AbaTreinador(_a) {
 /* ---------------- BIBLIOTECA + PESQUISA DE MERCADO ---------------- */
 var BIB_AREAS = ["Todas", "SDR", "BDR", "Closer", "Car Service", "Car Store", "Academy", "House Service"];
 var BIB_DOCS = [
-    ["Manual de Elite em Objeções, Persuasão e Conversão", "Treinamento", "Todas", "30/04/2026", "1sF76SSkiwoNu8oC9pPrD6MRpdnCVtVRI"],
-    ["Script de Elite — Leads de Tráfego Pago", "Script", "a classificar", "30/04/2026", "1jOHK6_pRvcNCRV_S7u2kdpk1vHgIKWiD"],
-    ["Script de Elite — Reativação de Base", "Script", "BDR", "12/05/2026", "1pwSYS57a2hWoye2VeBA9ViV6_uCjiBRQ"],
-    ["Ativação de Base", "Treinamento", "BDR", "20/08/2026", "1OK2v8uQ2qH4KoWFyByYaXu3TPYwnY0_s"],
-    ["The Wonder STI", "Treinamento", "a classificar", "24/08/2026", "1zGUvC_Eqtw9F0je4s-OwmOGBZPLsFaTN"],
-    ["Consultoria Premium", "Treinamento", "Car Store", "20/08/2026", "1yNP-hru7DQW2Vniu2Y-0bNnTKdB-MW7W"],
-    ["SDR Challenger — CarStore", "Treinamento", "Car Store", "07/08/2026", "1MEl7DFIpp_57w4FoZBMID1xidyI1BXkZ"],
-    ["WONDERCARS SDR PLAYBOOK", "Treinamento", "Car Store", "07/07/2026", "1k2193LDRozcN3JEtaSV9Ywx-Lahpp4sq"],
-    ["ROTINA SDR CARS", "Rotina", "Car Store", "16/09/2026", "12j7wADZcVjI1XbYLHCs1JdMwgg8sIuf0"],
-    ["Playbook SDR/BDR Car Store — Processo e Rotina V2", "POP", "Car Store", "10/07/2026", "1wHsFGtOvqBBHvnoG4GJpO0naaGBeXCvk"],
-    ["CARS — Diretrizes Comerciais SDR", "Política", "Car Store", "07/07/2026", "1Lf1qtdTC_fHIwHHfudN73rOjxN702G77"],
-    ["TREINAMENTO-CARS", "Vídeo", "Car Store", "07/07/2026", "1oqSmEMJWyq-6FkY2gVe9e4uqsLM45WLB"],
-].map(function (d) { return ({ doc: d[0], tipo: d[1], frente: d[2], em: d[3], url: "https://drive.google.com/file/d/" + d[4] + "/view" }); });
+    ["Manual de objeções e persuasão", "Treinamento", "Todas", "30/04/2026", "1sF76SSkiwoNu8oC9pPrD6MRpdnCVtVRI"],
+    ["Script: leads de tráfego pago", "Script", "Car Store", "30/04/2026", "1jOHK6_pRvcNCRV_S7u2kdpk1vHgIKWiD"],
+    ["Script: reativação de base (versão anterior)", "Script", "BDR", "12/05/2026", "1pwSYS57a2hWoye2VeBA9ViV6_uCjiBRQ", "admin"],
+    ["Reativação de base: estratégia e scripts", "Treinamento", "BDR", "20/08/2026", "1OK2v8uQ2qH4KoWFyByYaXu3TPYwnY0_s"],
+    ["Follow-up com figurinhas (proposta STI)", "Treinamento", ["Car Service", "Car Store"], "24/08/2026", "1zGUvC_Eqtw9F0je4s-OwmOGBZPLsFaTN"],
+    ["Apresentação institucional Car Store", "Treinamento", "Car Store", "20/08/2026", "1yNP-hru7DQW2Vniu2Y-0bNnTKdB-MW7W"],
+    ["SDR Challenger: atendimento consultivo", "Treinamento", "Car Store", "07/08/2026", "1MEl7DFIpp_57w4FoZBMID1xidyI1BXkZ"],
+    ["Playbook SDR (versão 1)", "Treinamento", "Car Store", "07/07/2026", "1k2193LDRozcN3JEtaSV9Ywx-Lahpp4sq", "admin"],
+    ["Rotina diária do SDR", "Rotina", "Car Store", "16/09/2026", "12j7wADZcVjI1XbYLHCs1JdMwgg8sIuf0"],
+    ["Playbook SDR/BDR: processo e rotina", "POP", "Car Store", "10/07/2026", "1wHsFGtOvqBBHvnoG4GJpO0naaGBeXCvk"],
+    ["Diretrizes comerciais do SDR", "Política", "Car Store", "07/07/2026", "1Lf1qtdTC_fHIwHHfudN73rOjxN702G77", "admin"],
+    ["Treinamento Car Store (vídeo)", "Vídeo", "Car Store", "07/07/2026", "1oqSmEMJWyq-6FkY2gVe9e4uqsLM45WLB"],
+].map(function (d) { var fr = typeof d[2] === "string" ? [d[2]] : d[2]; return ({ doc: d[0], tipo: d[1], frs: fr, frente: fr.join(" e "), em: d[3], url: "https://drive.google.com/file/d/" + d[4] + "/view", soAdm: d[5] === "admin" }); });
 var BIB_FALTA = [
     "Prazos por serviço.",
     "Confirmar os módulos do Car Service (hoje em rascunho na Biblioteca).",
@@ -4046,7 +4046,7 @@ function AbaBiblioteca() {
             !dados.carregando && !dados.erro && !modsView.length && React.createElement(Card, { className: "p16", style: { marginTop: 12 } },
                 React.createElement("div", { style: { fontSize: 13.5, color: T.ink2 } }, ehAdm ? "Nenhum módulo neste filtro." : "Ainda não há módulos publicados para este filtro. Assim que o Rafael publicar, eles aparecem aqui.")),
             React.createElement("div", { className: "bibgrid", style: { marginTop: 14 } }, modsView.map(moduloCard))),
-        React.createElement(BibDrive, { busca: busca, fUni: fUni, fFun: fFun }),
+        React.createElement(BibDrive, { busca: busca, fUni: fUni, fFun: fFun, ehAdm: ehAdm }),
         vePerfisTodos && React.createElement(Secao, { n: 3, titulo: "Progresso do time", nota: "Percentual de aulas concluídas por pessoa e módulo, com a melhor nota da prova quando já fez. Aparece quem já concluiu pelo menos uma aula." },
             React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
                 React.createElement("div", { className: "rolagem" },
@@ -4063,12 +4063,14 @@ function AbaBiblioteca() {
 }
 
 function BibDrive(_p) {
-    var busca = _p.busca, fUni = _p.fUni, fFun = _p.fFun;
+    var busca = _p.busca, fUni = _p.fUni, fFun = _p.fFun, ehAdm = !!_p.ehAdm;
     var ROT_UNI = BIB_UNIDADES.map(function (x) { return x[1]; }), ROT_FUN = BIB_FUNCOES.map(function (x) { return x[1]; });
     var lista = BIB_DOCS.filter(function (d) {
-        var f = d.frente, ehUni = ROT_UNI.indexOf(f) >= 0, ehFun = ROT_FUN.indexOf(f) >= 0;
-        var okUni = fUni === "todas" || f === "Todas" || ehFun || f === bibRotulo(BIB_UNIDADES, fUni);
-        var okFun = fFun === "todas" || f === "Todas" || ehUni || f === bibRotulo(BIB_FUNCOES, fFun);
+        if (d.soAdm && !ehAdm) return false;
+        var fs = d.frs, tem = function (x) { return fs.indexOf(x) >= 0; };
+        var ehUni = fs.some(function (x) { return ROT_UNI.indexOf(x) >= 0; }), ehFun = fs.some(function (x) { return ROT_FUN.indexOf(x) >= 0; });
+        var okUni = fUni === "todas" || tem("Todas") || ehFun || tem(bibRotulo(BIB_UNIDADES, fUni));
+        var okFun = fFun === "todas" || tem("Todas") || ehUni || tem(bibRotulo(BIB_FUNCOES, fFun));
         var q = busca.trim().toLowerCase();
         return okUni && okFun && (!q || [d.doc, d.tipo, d.frente].join(" ").toLowerCase().indexOf(q) >= 0);
     });
@@ -4087,10 +4089,10 @@ function BibDrive(_p) {
                                 React.createElement(Th, null, " "))),
                         React.createElement("tbody", null,
                             lista.map(function (d) { return (React.createElement("tr", { key: d.doc },
-                                React.createElement(Td, { bold: true, style: { whiteSpace: "normal", minWidth: 220 } }, d.doc),
+                                React.createElement(Td, { bold: true, style: { whiteSpace: "normal", minWidth: 220 } }, d.doc, d.soAdm && React.createElement("span", { style: { marginLeft: 8 } }, React.createElement(Tag, { cor: T.muted }, "Só admin"))),
                                 React.createElement(Td, { color: T.ink2 }, d.tipo),
                                 React.createElement(Td, null,
-                                    React.createElement(Tag, { cor: corFrente(d.frente) }, d.frente)),
+                                    d.frs.map(function (f) { return React.createElement("span", { key: f, style: { marginRight: 4 } }, React.createElement(Tag, { cor: corFrente(f) }, f)); })),
                                 React.createElement(Td, { right: true, color: T.muted }, d.em),
                                 React.createElement(Td, null,
                                     React.createElement("a", { href: d.url, target: "_blank", rel: "noopener noreferrer", style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "6px 11px", borderRadius: 6, background: T.marca,
