@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v101 — CAR SERVICE</title>
-<meta name="painel-versao" content="v101">
+<title>Painel de SDR v102 — CAR SERVICE</title>
+<meta name="painel-versao" content="v102">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -3295,7 +3295,7 @@ function bibMd(src) {
             i += 2;
             while (i < L.length && /^\|/.test(L[i])) {
                 html += "<tr>";
-                celulas(L[i]).forEach(function (c) { html += "<td>" + bibInline(c) + "</td>"; });
+                celulas(L[i]).forEach(function (c, k) { html += "<td data-label=\"" + String(cab[k] || "").replace(/[*_`<>&\"]/g, "") + "\">" + bibInline(c) + "</td>"; });
                 html += "</tr>";
                 i++;
             }
@@ -3358,18 +3358,23 @@ var BIB_CSS = ".bibcol{max-width:1000px}" +
     ".bibrow:hover{background:#FAFAFA}.bibrow:focus-visible{outline:2px solid #1A1A1A;outline-offset:-2px}" +
     "@media (max-width:760px){.bibgrid{grid-template-columns:1fr;gap:10px}.bibhead{min-height:0!important;padding:10px 14px!important;align-items:center!important}" +
     ".bibtit,.bibres{min-height:0!important}.bibbtns>button{flex:1 1 auto}.bibhead>div:first-child{display:flex;align-items:baseline;gap:10px}.bibhead>div:first-child>div:last-child{font-size:30px!important}.bibrow{padding-right:12px!important}}" +
-    ".bibmd{font-size:14px;line-height:1.65;color:#1A1A1A;max-width:80ch}" +
+    ".bibmd{font-size:14px;line-height:1.65;color:#1A1A1A;max-width:100%;min-width:0;overflow-wrap:anywhere}" +
+    ".bibmd>p,.bibmd>ul,.bibmd>ol,.bibmd>blockquote{max-width:80ch}" +
+    ".bibsr,.bibsr *{min-width:0}.bibsr{max-width:100%;overflow-x:hidden}.bibsr .cel-rola{overflow:visible!important;flex-wrap:wrap!important;display:flex!important}.bibsr .cel-rola>*{flex:0 1 auto!important}.bibsr .cel-tabela{overflow-x:visible!important}" + +
     ".bibmd h3{font-family:" + F_MARCA + ";font-size:19px;margin:30px 0 8px;padding-top:16px;border-top:1px solid #E2E2E2}" +
     ".bibmd h3:first-child{border-top:0;margin-top:0;padding-top:0}" +
     ".bibmd h4{font-family:" + F_MARCA + ";font-size:15.5px;margin:22px 0 6px}" +
     ".bibmd h5{font-size:14px;margin:16px 0 4px}" +
     ".bibmd p{margin:0 0 10px}.bibmd blockquote{margin:10px 0;padding:8px 14px;border-left:4px solid #FFBF00;background:#FFF8E1;border-radius:0 8px 8px 0}" +
     ".bibmd blockquote p{margin:0 0 6px}.bibmd blockquote p:last-child{margin:0}" +
-    ".bibtab{overflow-x:auto;margin:10px 0}.bibmd table{border-collapse:collapse;width:100%;font-size:13px}" +
-    ".bibmd th,.bibmd td{border:1px solid #E2E2E2;padding:7px 9px;text-align:left;vertical-align:top;min-width:90px}" +
+    ".bibtab{overflow-x:clip;margin:10px 0;max-width:100%}.bibmd table{border-collapse:collapse;width:100%;max-width:100%;table-layout:auto;font-size:13px}" +
+    ".bibmd th,.bibmd td{border:1px solid #E2E2E2;padding:7px 9px!important;text-align:left;vertical-align:top;min-width:0;white-space:normal!important;overflow-wrap:normal}.bibmd td a,.bibmd td code,.bibmd th a{word-break:break-all}" +
+    "@media (max-width:760px){.bibmd th,.bibmd td{overflow-wrap:anywhere}.bibtab{overflow:visible}.bibmd table,.bibmd tbody,.bibmd tr,.bibmd td{display:block;width:100%;box-sizing:border-box}.bibmd thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}.bibmd tr{border:1px solid #E2E2E2;border-radius:8px;margin:0 0 10px;background:#fff;overflow:hidden}.bibmd td{border:0;border-bottom:1px solid #EEE}.bibmd td:last-child{border-bottom:0}.bibmd td:before{content:attr(data-label);display:block;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#6B6B6B;margin-bottom:2px}.bibmd td[data-label=\"\"]:before{display:none}}" +
     ".bibmd th{background:#F5F5F5;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em}" +
     ".bibmd ul,.bibmd ol{padding-left:22px;margin:6px 0 12px}.bibmd li{margin-bottom:3px}" +
-    ".bibmd code{background:#F0F0F0;padding:1px 5px;border-radius:4px;font-size:12.5px}" +
+    ".bibmd code{background:#F0F0F0;padding:1px 5px;border-radius:4px;font-size:12.5px;white-space:pre-wrap;overflow-wrap:anywhere}.bibmd pre{white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%}.bibmd img{max-width:100%;height:auto}.bibmd a{overflow-wrap:anywhere}" +
+    ".bibdoc{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:11px 14px;border-top:1px solid #EEE}.bibdoc:first-child{border-top:0}.bibdoc>.n{flex:1 1 240px;min-width:0;font-weight:700;font-size:13.5px;overflow-wrap:anywhere}.bibdoc>.m{flex:0 1 auto;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:12.5px;color:#6B6B6B}" +
+    ".bibprog{display:grid;grid-template-columns:repeat(auto-fill,minmax(66px,1fr));gap:6px;margin-top:8px}.bibprog>div{border:1px solid #EEE;border-radius:6px;padding:4px 6px;text-align:center;font-size:12px}.bibprog>div>b{display:block;font-size:10px;color:#6B6B6B;letter-spacing:.05em}" + +
     ".bibmd hr{border:0;border-top:1px solid #E2E2E2;margin:18px 0}.bibmd a{color:#1652C4}";
 function bibBtnG() { return __assign(__assign({}, bibBtn("marca")), { fontSize: 14, padding: "11px 20px", minHeight: 44, borderRadius: 8 }); }
 function bibBtn(tipo) {
@@ -3931,7 +3936,7 @@ function AbaBiblioteca() {
                 React.createElement("div", { style: { fontSize: 10.5, letterSpacing: ".08em", fontWeight: 700, color: T.muted, textTransform: "uppercase" } }, lado === "ant" ? "← Anterior" : "Próxima →"),
                 React.createElement("div", { style: { fontSize: 13.5, fontWeight: 700, marginTop: 2 } }, "Aula " + bibPad2(i + 1) + " – " + a.titulo));
         };
-        return (React.createElement("div", { className: "bibcol" },
+        return (React.createElement("div", { className: "bibcol bibsr" },
             React.createElement("style", null, BIB_CSS),
             React.createElement("div", { className: "bibnav", style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 } },
                 React.createElement("button", { type: "button", onClick: irInicio, style: bibBtn() }, "← Início"),
@@ -3986,7 +3991,7 @@ function AbaBiblioteca() {
         } return false; });
         var stProva = provaStatus(modAtual, null);
         var pillM = function (txt, fundo, cor) { return React.createElement("span", { key: txt, style: { display: "inline-block", fontSize: 10.5, fontWeight: 700, letterSpacing: ".07em", textTransform: "uppercase", padding: "3px 9px", borderRadius: 99, background: fundo, color: cor } }, txt); };
-        return (React.createElement("div", { className: "bibcol" },
+        return (React.createElement("div", { className: "bibcol bibsr" },
             React.createElement("style", null, BIB_CSS),
             React.createElement("div", { className: "bibnav", style: { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 12 } },
                 React.createElement("button", { type: "button", onClick: irInicio, style: bibBtn() }, "← Início"),
@@ -4119,7 +4124,7 @@ function AbaBiblioteca() {
     });
     var listaTime = Object.keys(timePessoas).map(function (k) { return timePessoas[k]; }).sort(function (a, b) { return String(a.nome).localeCompare(String(b.nome)); });
     var numerosMods = dados.mods.map(function (x) { return x.numero; });
-    return (React.createElement("div", null,
+    return (React.createElement("div", { className: "bibsr" },
         React.createElement("style", null, BIB_CSS),
         React.createElement(Card, { className: "p12" },
             React.createElement(Inp, { type: "search", value: busca, onChange: function (e) { return setBusca(e.target.value); }, placeholder: "Buscar aula, módulo ou documento", style: { marginBottom: 10 } }),
@@ -4145,16 +4150,11 @@ function AbaBiblioteca() {
         React.createElement(BibDrive, { busca: busca, fUni: fUni, fFun: fFun, ehAdm: ehAdm }),
         vePerfisTodos && React.createElement(Secao, { n: 3, titulo: "Progresso do time", nota: "Percentual de aulas concluídas por pessoa e módulo, com a melhor nota da prova quando já fez. Aparece quem já concluiu pelo menos uma aula." },
             React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
-                React.createElement("div", { className: "rolagem" },
-                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 520 } },
-                        React.createElement("thead", null, React.createElement("tr", null,
-                            React.createElement(Th, null, "Pessoa"),
-                            numerosMods.map(function (n) { return React.createElement(Th, { key: n, right: true }, "M" + n); }))),
-                        React.createElement("tbody", null,
-                            listaTime.map(function (p) { return (React.createElement("tr", { key: p.nome },
-                                React.createElement(Td, { bold: true }, p.nome),
-                                numerosMods.map(function (n) { return React.createElement(Td, { key: n, right: true, color: p.mods[n] >= 100 ? T.good : p.mods[n] ? T.ink : T.muted }, p.mods[n] != null ? p.mods[n] + "%" + (p.notas[n] != null ? " · prova " + p.notas[n] : "") : "—"); }))); }),
-                            !listaTime.length && React.createElement("tr", null, React.createElement(Td, { style: { whiteSpace: "normal" } }, "Ninguém concluiu aula ainda."))))))),
+                listaTime.map(function (p) { return (React.createElement("div", { key: p.nome, style: { padding: "11px 14px", borderTop: "1px solid #EEE" } },
+                    React.createElement("div", { style: { fontWeight: 700, fontSize: 13.5, overflowWrap: "anywhere" } }, p.nome),
+                    React.createElement("div", { className: "bibprog" }, numerosMods.map(function (n) { return React.createElement("div", { key: n, style: { color: p.mods[n] >= 100 ? T.good : p.mods[n] ? T.ink : T.muted } },
+                        React.createElement("b", null, "M" + n), p.mods[n] != null ? p.mods[n] + "%" + (p.notas && p.notas[n] != null ? " · prova " + p.notas[n] : "") : "—"); })))); }),
+                !listaTime.length && React.createElement("div", { style: { padding: "12px 14px", fontSize: 13, color: T.ink2 } }, "Ninguém concluiu aula ainda."))),
         editorEl, pergEl));
 }
 
@@ -4174,31 +4174,19 @@ function BibDrive(_p) {
     return (React.createElement("div", null,
         React.createElement(Secao, { n: 2, titulo: "Documentos no Drive", nota: "Espelho dos Drives do comercial: o que existe, de que frente é e quando foi atualizado. Se o Drive pedir permissão, peça acesso ao Rafael." },
             React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden", marginTop: 0 } },
-                React.createElement("div", { className: "rolagem" },
-                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 600 } },
-                        React.createElement("thead", null,
-                            React.createElement("tr", null,
-                                React.createElement(Th, null, "Documento"),
-                                React.createElement(Th, null, "Tipo"),
-                                React.createElement(Th, null, "Frente"),
-                                React.createElement(Th, { right: true }, "Atualizado"),
-                                React.createElement(Th, null, " "))),
-                        React.createElement("tbody", null,
-                            lista.map(function (d) { return (React.createElement("tr", { key: d.doc },
-                                React.createElement(Td, { bold: true, style: { whiteSpace: "normal", minWidth: 220 } }, d.doc, d.soAdm && React.createElement("span", { style: { marginLeft: 8 } }, React.createElement(Tag, { cor: T.muted }, "Só admin"))),
-                                React.createElement(Td, { color: T.ink2 }, d.tipo),
-                                React.createElement(Td, null,
-                                    d.frs.map(function (f) { return React.createElement("span", { key: f, style: { marginRight: 4 } }, React.createElement(Tag, { cor: corFrente(f) }, f)); })),
-                                React.createElement(Td, { right: true, color: T.muted }, d.em),
-                                React.createElement(Td, null,
-                                    React.createElement("a", { href: d.url, target: "_blank", rel: "noopener noreferrer", style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "6px 11px", borderRadius: 6, background: T.marca,
-                                            color: T.preto, textDecoration: "none", whiteSpace: "nowrap", border: "1px solid ".concat(T.marca) } }, "Abrir")))); }),
-                            !lista.length && React.createElement("tr", null,
-                                React.createElement(Td, { style: { whiteSpace: "normal" } }, "Nenhum documento do Drive nesta frente. Os materiais do Car Service estão na trilha, acima.")))))))));
+                lista.map(function (d) { return (React.createElement("div", { key: d.doc, className: "bibdoc" },
+                    React.createElement("div", { className: "n" }, d.doc, d.soAdm && React.createElement("span", { style: { marginLeft: 8 } }, React.createElement(Tag, { cor: T.muted }, "Só admin"))),
+                    React.createElement("div", { className: "m" },
+                        React.createElement("span", null, d.tipo),
+                        d.frs.map(function (f) { return React.createElement("span", { key: f }, React.createElement(Tag, { cor: corFrente(f) }, f)); }),
+                        React.createElement("span", null, d.em)),
+                    React.createElement("a", { href: d.url, target: "_blank", rel: "noopener noreferrer", style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "6px 11px", borderRadius: 6, background: T.marca,
+                                            color: T.preto, textDecoration: "none", whiteSpace: "nowrap", border: "1px solid ".concat(T.marca) } }, "Abrir"))); }),
+                !lista.length && React.createElement("div", { style: { padding: "12px 14px", fontSize: 13, color: T.ink2 } }, "Nenhum documento do Drive nesta frente. Os materiais do Car Service estão na trilha, acima.")))));
 }
 /* v96: aba própria de Benchmark (pesquisa de mercado), tirada da Biblioteca */
 function AbaBenchmark() {
-    return (React.createElement("div", null,
+    return (React.createElement("div", { className: "bibsr" },
         React.createElement(Secao, { n: 1, titulo: "Pesquisa de mercado", nota: "Levantamento de 10/09/2026, São Paulo capital. Concorrentes do Car Service." },
             React.createElement("div", { className: "grid-kpi", style: { gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", maxWidth: 720 } },
                 React.createElement(Kpi, { label: "Concorrentes mapeados", value: "30", sub: "5 por frente" }),
@@ -4220,18 +4208,13 @@ function AbaBenchmark() {
                     React.createElement("b", null, "Dica para a conversa:"),
                     " o selo 3M de película de vidro não cobre PPF. Pergunte se a loja é credenciada em proteção de pintura."))),
         React.createElement(Secao, { n: 2, titulo: "O cliente diz → o concorrente → como a gente conduz" },
-            React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
-                React.createElement("div", { className: "rolagem" },
-                    React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 680 } },
-                        React.createElement("thead", null,
-                            React.createElement("tr", null,
-                                React.createElement(Th, null, "O cliente diz"),
-                                React.createElement(Th, null, "O concorrente"),
-                                React.createElement(Th, null, "Como a gente conduz"))),
-                        React.createElement("tbody", null, PESQ_OBJECOES.map(function (r) { return (React.createElement("tr", { key: r[0] },
-                            React.createElement(Td, { bold: true, style: { whiteSpace: "normal", minWidth: 180 } }, r[0]),
-                            React.createElement(Td, { color: T.ink2, style: { whiteSpace: "normal", minWidth: 200 } }, r[1]),
-                            React.createElement(Td, { style: { whiteSpace: "normal", minWidth: 240 } }, r[2]))); }))))))));
+            React.createElement("div", { style: { display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 300px), 1fr))" } },
+                PESQ_OBJECOES.map(function (r) { return (React.createElement(Card, { key: r[0], className: "p16" },
+                    React.createElement("div", { style: { fontWeight: 700, fontSize: 13.5, overflowWrap: "anywhere" } }, r[0]),
+                    React.createElement(Label, null, "O concorrente"),
+                    React.createElement("div", { style: { fontSize: 13, color: T.ink2, lineHeight: 1.5, overflowWrap: "anywhere" } }, r[1]),
+                    React.createElement(Label, null, "Como a gente conduz"),
+                    React.createElement("div", { style: { fontSize: 13, lineHeight: 1.5, overflowWrap: "anywhere" } }, r[2]))); })))));
 }
 /* faixa de abas do Hub (usada na casca do closer). Painel principal usa o próprio menu. */
 function HubConteudo(_a) {
