@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v102 — CAR SERVICE</title>
-<meta name="painel-versao" content="v102">
+<title>Painel de SDR v104 — CAR SERVICE</title>
+<meta name="painel-versao" content="v104">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -2863,7 +2863,7 @@ var FATOR_PICKUP = 1.15;
 var PRECOS_PLANILHA = "https://drive.google.com/file/d/1v8skCKiy1XF2gLQ3hD6S2EKgyQuI3lQw/view";
 var REGRAS_PRECO = [
     "Cobrir orçamento de concorrente só com print ou PDF.",
-    "Condição especial: falar com o Rafael ou com o closer.",
+    "Condição especial: falar com o supervisor comercial ou com o closer.",
     "Parcelamento até 6x sem juros (nunca 10x).",
     "Funilaria bloqueada no Tatuapé.",
     "Itens NÃO COTAR: qualificar e agendar avaliação.",
@@ -3247,6 +3247,16 @@ function bibRotulo(lista, v) {
 /* vazio herda de cima / vale para todos */
 function bibCasa(arr, sel) { return sel === "todas" || !arr || !arr.length || arr.indexOf(sel) >= 0; }
 function bibEsc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+/* v104: vídeo dentro da aula. Aceita link de arquivo do Drive e de YouTube. Outro link continua como botão. */
+function bibLinks(txt) { return String(txt || "").split(/[\s,]+/).filter(function (x) { return /^https?:\/\//.test(x); }); }
+function bibVideo(url) {
+    var u = String(url || ""), m;
+    if ((m = u.match(/drive\.google\.com\/file\/d\/([\w-]+)/)))
+        return "https://drive.google.com/file/d/" + m[1] + "/preview";
+    if ((m = u.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/))([\w-]{6,})/)))
+        return "https://www.youtube-nocookie.com/embed/" + m[1];
+    return null;
+}
 function bibInline(s) {
     s = bibEsc(s);
     s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
@@ -3373,6 +3383,7 @@ var BIB_CSS = ".bibcol{max-width:1000px}" +
     ".bibmd th{background:#F5F5F5;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em}" +
     ".bibmd ul,.bibmd ol{padding-left:22px;margin:6px 0 12px}.bibmd li{margin-bottom:3px}" +
     ".bibmd code{background:#F0F0F0;padding:1px 5px;border-radius:4px;font-size:12.5px;white-space:pre-wrap;overflow-wrap:anywhere}.bibmd pre{white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%}.bibmd img{max-width:100%;height:auto}.bibmd a{overflow-wrap:anywhere}" +
+    ".bibvideo{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:10px;overflow:hidden;margin-bottom:6px}.bibvideo iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:0}" +
     ".bibdoc{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:11px 14px;border-top:1px solid #EEE}.bibdoc:first-child{border-top:0}.bibdoc>.n{flex:1 1 240px;min-width:0;font-weight:700;font-size:13.5px;overflow-wrap:anywhere}.bibdoc>.m{flex:0 1 auto;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:12.5px;color:#6B6B6B}" +
     ".bibprog{display:grid;grid-template-columns:repeat(auto-fill,minmax(66px,1fr));gap:6px;margin-top:8px}.bibprog>div{border:1px solid #EEE;border-radius:6px;padding:4px 6px;text-align:center;font-size:12px}.bibprog>div>b{display:block;font-size:10px;color:#6B6B6B;letter-spacing:.05em}" + +
     ".bibmd hr{border:0;border-top:1px solid #E2E2E2;margin:18px 0}.bibmd a{color:#1652C4}";
@@ -3485,7 +3496,7 @@ function BibEditor(_a) {
                 React.createElement("div", { style: { display: "grid", gridTemplateColumns: "180px 110px 1fr", gap: 12 } },
                     React.createElement(BibCampo, { rotulo: "Tipo" }, React.createElement("select", { value: f.tipo || "texto", onChange: function (e) { return mudar("tipo", e.target.value); }, style: inputStyle }, BIB_TIPOS.map(function (t) { return React.createElement("option", { key: t[0], value: t[0] }, t[1]); }))),
                     React.createElement(BibCampo, { rotulo: "Minutos" }, React.createElement(Inp, { type: "number", value: f.minutos == null ? "" : f.minutos, onChange: function (e) { return mudar("minutos", e.target.value); } })),
-                    React.createElement(BibCampo, { rotulo: "Link (Drive, vídeo ou arquivo)", dica: "Opcional. Aparece como botão “Abrir” na aula." }, React.createElement(Inp, { value: f.link || "", onChange: function (e) { return mudar("link", e.target.value); }, placeholder: "https://" }))),
+                    React.createElement(BibCampo, { rotulo: "Link (Drive, vídeo ou arquivo)", dica: "Opcional. Vídeo do Drive ou do YouTube toca dentro da aula (mais de um link: separe com espaço). Outro link aparece como botão." }, React.createElement(Inp, { value: f.link || "", onChange: function (e) { return mudar("link", e.target.value); }, placeholder: "https://" }))),
                 React.createElement(BibCampo, { rotulo: "Unidade de negócio", dica: "Nada marcado = herda do módulo." }, React.createElement(BibMulti, { valor: f.unidades, opcoes: BIB_UNIDADES, onChange: function (v) { return mudar("unidades", v); } })),
                 React.createElement(BibCampo, { rotulo: "Função", dica: "Nada marcado = herda do módulo." }, React.createElement(BibMulti, { valor: f.funcoes, opcoes: BIB_FUNCOES, onChange: function (v) { return mudar("funcoes", v); } })),
                 React.createElement(BibCampo, { rotulo: "Texto da aula", dica: "Use ## para título, **negrito**, - para lista, > para citação e | para tabela." },
@@ -3964,7 +3975,12 @@ function AbaBiblioteca() {
                 vvA.pub > 0 && React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 16 } },
                     React.createElement("div", { style: { flex: 1 } }, React.createElement(Barra, { pct: vvA.pct, cor: vvA.ok === vvA.pub ? T.good : T.ink, alt: 5 })),
                     React.createElement("span", { style: { fontFamily: F_NUM, fontSize: 11.5, fontWeight: 700, color: T.muted, whiteSpace: "nowrap" } }, vvA.ok + "/" + vvA.pub + " do módulo")),
-                aberta.link && React.createElement("div", { style: { marginBottom: 14 } }, React.createElement("a", { href: aberta.link, target: "_blank", rel: "noopener noreferrer", style: bibBtn("marca") }, "Abrir material")),
+                aberta.link && bibLinks(aberta.link).map(function (lk, i, todos) { return (bibVideo(lk)
+                    ? React.createElement("div", { key: i, style: { marginBottom: 16 } },
+                        todos.length > 1 && React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: T.muted, letterSpacing: ".05em", textTransform: "uppercase", marginBottom: 6 } }, "Vídeo " + (i + 1) + " de " + todos.length),
+                        React.createElement("div", { className: "bibvideo" }, React.createElement("iframe", { src: bibVideo(lk), title: "Vídeo da aula", allow: "autoplay, fullscreen, picture-in-picture", allowFullScreen: true, loading: "lazy" })),
+                        React.createElement("a", { href: lk, target: "_blank", rel: "noopener noreferrer", style: { fontSize: 12, color: T.muted } }, "O vídeo não abriu? Abrir em outra aba"))
+                    : React.createElement("div", { key: i, style: { marginBottom: 14 } }, React.createElement("a", { href: lk, target: "_blank", rel: "noopener noreferrer", style: bibBtn("marca") }, "Abrir material"))); }),
                 React.createElement("div", { className: "bibmd", dangerouslySetInnerHTML: { __html: bibMd(aberta.conteudo) } }),
                 ehProva && React.createElement(BibProva, { key: aberta.id, aula: aberta, mod: modAtual, liberada: provaStatus(modAtual, aberta).liberada, faltam: provaStatus(modAtual, aberta).faltam, melhor: notas[aberta.id] != null ? notas[aberta.id] : null, ehAdm: ehAdm, onFim: recarregar, onVoltar: irModulo, onInicio: irInicio }),
                 aviso && React.createElement("div", { style: { color: T.bad, fontSize: 13, marginTop: 14 } }, aviso),
@@ -4145,7 +4161,7 @@ function AbaBiblioteca() {
             dados.erro && React.createElement("div", { style: { color: T.bad, fontSize: 13, marginTop: 10 } }, "Não consegui ler a trilha: " + dados.erro),
             dados.carregando && React.createElement("div", { style: { fontSize: 13, color: T.muted, marginTop: 14 } }, "Carregando…"),
             !dados.carregando && !dados.erro && !modsView.length && React.createElement(Card, { className: "p16", style: { marginTop: 12 } },
-                React.createElement("div", { style: { fontSize: 13.5, color: T.ink2 } }, ehAdm ? "Nenhum módulo neste filtro." : "Ainda não há módulos publicados para este filtro. Assim que o Rafael publicar, eles aparecem aqui.")),
+                React.createElement("div", { style: { fontSize: 13.5, color: T.ink2 } }, ehAdm ? "Nenhum módulo neste filtro." : "Ainda não há módulos publicados para este filtro. Assim que o supervisor comercial publicar, eles aparecem aqui.")),
             React.createElement("div", { className: "bibgrid", style: { marginTop: 14 } }, modsView.map(moduloCard))),
         React.createElement(BibDrive, { busca: busca, fUni: fUni, fFun: fFun, ehAdm: ehAdm }),
         vePerfisTodos && React.createElement(Secao, { n: 3, titulo: "Progresso do time", nota: "Percentual de aulas concluídas por pessoa e módulo, com a melhor nota da prova quando já fez. Aparece quem já concluiu pelo menos uma aula." },
@@ -4172,7 +4188,7 @@ function BibDrive(_p) {
     });
     var corFrente = function (f) { return (f === "a classificar" ? T.warn : f === "Todas" ? T.ink : T.good); };
     return (React.createElement("div", null,
-        React.createElement(Secao, { n: 2, titulo: "Documentos no Drive", nota: "Espelho dos Drives do comercial: o que existe, de que frente é e quando foi atualizado. Se o Drive pedir permissão, peça acesso ao Rafael." },
+        React.createElement(Secao, { n: 2, titulo: "Documentos no Drive", nota: "Espelho dos Drives do comercial: o que existe, de que frente é e quando foi atualizado. Se o Drive pedir permissão, peça acesso ao supervisor comercial." },
             React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden", marginTop: 0 } },
                 lista.map(function (d) { return (React.createElement("div", { key: d.doc, className: "bibdoc" },
                     React.createElement("div", { className: "n" }, d.doc, d.soAdm && React.createElement("span", { style: { marginLeft: 8 } }, React.createElement(Tag, { cor: T.muted }, "Só admin"))),
@@ -5521,7 +5537,7 @@ function ChecklistImport(_a) {
                 dobradas.join(" · "),
                 " \u2014 h\u00E1 mais de um arquivo v\u00E1lido do mesmo m\u00EAs, quase sempre porque a data final da exporta\u00E7\u00E3o foi diferente (por exemplo \"01 a 16\" em vez de \"01 a 30\"). ",
                 React.createElement("b", null, "Exporte de novo com o m\u00EAs inteiro"),
-                ", do dia 1 ao \u00FAltimo dia, e avise o Rafael.")))));
+                ", do dia 1 ao \u00FAltimo dia, e avise o supervisor comercial.")))));
 }
 /* Conferência da integração com a API do Oficina (17/09/2026).
    Os tokens das 4 empresas vivem nos Secrets do Supabase e são lidos só
@@ -10016,7 +10032,7 @@ function SecaoPedirAvaliacao(_a) {
             }
         });
     }); };
-    return (React.createElement(Secao, { n: n, titulo: "Pedir avalia\u00E7\u00E3o no Google", nota: "Carros que voc\u00EA entregou nos \u00FAltimos 15 dias e ainda n\u00E3o t\u00EAm avalia\u00E7\u00E3o registrada. O melhor momento de pedir \u00E9 logo depois da entrega.".concat(semLink ? " O link de avaliação da loja ainda não está cadastrado — a mensagem sai sem o link até o Rafael cadastrar." : "") },
+    return (React.createElement(Secao, { n: n, titulo: "Pedir avalia\u00E7\u00E3o no Google", nota: "Carros que voc\u00EA entregou nos \u00FAltimos 15 dias e ainda n\u00E3o t\u00EAm avalia\u00E7\u00E3o registrada. O melhor momento de pedir \u00E9 logo depois da entrega.".concat(semLink ? " O link de avaliação da loja ainda não está cadastrado — a mensagem sai sem o link até o supervisor comercial cadastrar." : "") },
         React.createElement(Card, { className: "p0 rolagem" },
             React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
                 React.createElement("thead", null,
@@ -12423,7 +12439,7 @@ function Piloto(_a) {
         return (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.ink2, lineHeight: 1.6 } },
             React.createElement("b", null, "Seu login ainda n\u00E3o est\u00E1 ligado a um cadastro de closer."),
             React.createElement("br", null),
-            "Fala com o Rafael: \u00E9 ele quem liga o e-mail ",
+            "Fala com o supervisor comercial: \u00E9 ele quem liga o e-mail ",
             sessao.user.email,
             " ao seu nome no sistema. Sem isso a tela fica vazia \u2014 n\u00E3o \u00E9 erro seu."));
     }
