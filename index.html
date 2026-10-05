@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v100 — CAR SERVICE</title>
-<meta name="painel-versao" content="v100">
+<title>Painel de SDR v101 — CAR SERVICE</title>
+<meta name="painel-versao" content="v101">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -9746,6 +9746,42 @@ function PrazoOsBase(_a) {
         React.createElement(BtnMini, { onClick: function () { return setModo("pronto"); } }, "Carro pronto"),
         React.createElement(EntregaOs, { o: o, aoSalvar: aoSalvar })));
 }
+/* v101: incluir no acompanhamento uma O.S. já fechada no Oficina (ex.: cliente pagou antes de o carro entrar) */
+var LOJAS_OS = ["Itaim", "Ipiranga", "Bandeirantes", "Tatuapé"];
+function IncluirOsFechada(_a) {
+    var aoIncluir = _a.aoIncluir, lojaPadrao = _a.lojaPadrao;
+    var s0 = useState(false), aberto = s0[0], setAberto = s0[1];
+    var s1 = useState(lojaPadrao || "Itaim"), loja = s1[0], setLoja = s1[1];
+    var s2 = useState(""), num = s2[0], setNum = s2[1];
+    var s3 = useState(null), st = s3[0], setSt = s3[1];
+    var incluir = function () {
+        var n = String(num || "").replace(/\D/g, "");
+        if (!n) { setSt({ erro: "Digite o número da O.S." }); return; }
+        setSt({ carregando: true });
+        db.rpc("os_acompanhar_incluir", { p_loja: loja, p_os: n }).then(function (r) {
+            if (r.error) { setSt({ erro: r.error.message }); return; }
+            var d = r.data || {};
+            setSt({ ok: "O.S. " + n + (d.placa ? " · " + d.placa : "") + " incluída na sua lista." });
+            setNum("");
+            aoIncluir();
+        }, function (e) { setSt({ erro: String((e && e.message) || e) }); });
+    };
+    var btn = { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "8px 13px", minHeight: 36, borderRadius: 6, cursor: "pointer", boxSizing: "border-box" };
+    return (React.createElement("div", { style: { margin: "0 0 12px" } },
+        !aberto && React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
+            React.createElement("button", { type: "button", onClick: function () { setAberto(true); setSt(null); }, style: __assign(__assign({}, btn), { background: T.marca, color: T.preto, border: "1px solid " + T.marca }) }, "+ Incluir O.S. fechada"),
+            React.createElement("span", { style: { fontSize: 12, color: T.muted } }, "Cliente pagou antes de o carro entrar e a O.S. já está fechada no Oficina? Inclua aqui para acompanhar o carro.")),
+        aberto && React.createElement(Card, { className: "p16" },
+            React.createElement("div", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 14, marginBottom: 4 } }, "Incluir O.S. fechada no meu acompanhamento"),
+            React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginBottom: 10, lineHeight: 1.5 } }, "Só vale para O.S. do seu nome que já foi fechada no Oficina. O Oficina entra no painel com algumas horas de atraso. Depois de incluir, use os mesmos botões: carro na loja, prazo, pronto e entregue. Marcou \"Carro entregue\", ela sai da lista."),
+            React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" } },
+                React.createElement("select", { value: loja, onChange: function (e) { return setLoja(e.target.value); }, style: __assign(__assign({}, inputStyle), { width: "auto", minWidth: 140 }), "aria-label": "Loja" }, LOJAS_OS.map(function (l) { return React.createElement("option", { key: l, value: l }, l); })),
+                React.createElement("input", { type: "text", inputMode: "numeric", value: num, onChange: function (e) { setNum(e.target.value); setSt(null); }, onKeyDown: function (e) { if (e.key === "Enter") incluir(); }, placeholder: "Número da O.S. (ex.: 13722)", style: __assign(__assign({}, inputStyle), { width: 220 }), "aria-label": "Número da O.S." }),
+                React.createElement("button", { type: "button", disabled: !!(st && st.carregando), onClick: incluir, style: __assign(__assign({}, btn), { background: T.marca, color: T.preto, border: "1px solid " + T.marca }) }, st && st.carregando ? "Incluindo…" : "Incluir"),
+                React.createElement("button", { type: "button", onClick: function () { setAberto(false); setSt(null); }, style: __assign(__assign({}, btn), { background: T.surface, color: T.ink, border: "1px solid " + T.hair }) }, "Fechar")),
+            st && st.erro && React.createElement("div", { style: { color: T.bad, fontSize: 13, marginTop: 8 } }, st.erro),
+            st && st.ok && React.createElement("div", { style: { color: T.good, fontSize: 13, marginTop: 8, fontWeight: 700 } }, st.ok))));
+}
 /* v87: "Carro pago". O cliente já pagou — com a data de entrada se o carro ainda não chegou.
    A O.S. ganha a etiqueta PAGO e o closer não é mais cobrado pelo pagamento. Fica em os_prazo (pago_em). */
 function PrazoOs(_a) {
@@ -11282,6 +11318,7 @@ function MeuPainel(_a) {
                             React.createElement(Td, { color: T.muted }, "Nenhum lead do CRM esperando or\u00E7amento.")))))),
         React.createElement("div", { id: "sec-os-abertas" }),
         React.createElement(Secao, { n: 7, titulo: "Minhas O.S. em aberto", nota: "Direto do Oficina. O.S. aberta h\u00E1 mais de 7 dias em vermelho. Primeiro diga se o carro est\u00E1 na loja. Na loja: lance o prazo de entrega e, quando sair, marque \"Carro entregue\" (a O.S. vai para o fim da lista at\u00E9 o financeiro dar a baixa). Carro terminado e o cliente ainda n\u00E3o veio: \"Carro pronto\" e a data em que ele retira; no dia, \"Cliente retirou\" ou reagende.".concat(prontos.length ? " ".concat(prontos.length, " pronto").concat(prontos.length > 1 ? "s" : "", " esperando o cliente.") : "", " Ainda vai entrar: lance a data de entrada; no dia, confirme que chegou ou reagende.").concat(aguardando.length ? " ".concat(aguardando.length, " carro").concat(aguardando.length > 1 ? "s" : "", " ainda por entrar").concat(entradaAmanha.length ? " (".concat(entradaAmanha.length, " amanh\u00E3)") : "", ".") : "").concat(entregues.length ? " Hoje: ".concat(entregues.length, " entregue").concat(entregues.length > 1 ? "s" : "", " esperando a baixa (").concat(nReal(entregues.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0)), ").") : "") },
+            React.createElement(IncluirOsFechada, { aoIncluir: recarregar, lojaPadrao: (d.osAbertas[0] && d.osAbertas[0].loja) || undefined }),
             React.createElement(LegendaBarraOs, null),
             React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
@@ -11298,7 +11335,7 @@ function MeuPainel(_a) {
                             React.createElement(Th, { right: true }, "Carro na loja? \u00B7 prazo de entrega \u00B7 pronto \u00B7 entregue"))),
                     React.createElement("tbody", null,
                         osOrdenadas.map(function (o) { return (React.createElement("tr", { key: o.os_numero, style: o.carro_entregue ? { background: "#F3F8F5" } : o.pronto_em && !(o.retirada_prevista && String(o.retirada_prevista).slice(0, 10) < h) ? { background: T.prontoFundo } : !o.situacao ? { background: "#FFFBEA" } : (o.entrada_a_confirmar || (o.pronto_em && o.retirada_prevista && String(o.retirada_prevista).slice(0, 10) < h)) ? { background: "#FDF1F2" } : null },
-                            React.createElement(Td, { bold: true, style: { boxShadow: "inset 5px 0 0 ".concat(corBarraOs(o, h)) } }, o.os_numero),
+                            React.createElement(Td, { bold: true, style: { boxShadow: "inset 5px 0 0 ".concat(corBarraOs(o, h)) } }, o.os_numero, o.os_fechada && React.createElement("span", { style: { marginLeft: 8, fontSize: 10.5, fontWeight: 700, letterSpacing: ".05em", padding: "2px 6px", borderRadius: 4, background: T.canvas, color: T.ink2, border: "1px solid " + T.hair, verticalAlign: "middle" } }, "FECHADA")),
                             React.createElement(Td, null, o.placa || "—"),
                             React.createElement(Td, null, o.veiculo || "—"),
                             React.createElement(Td, null, o.pesquisa || "—"),
