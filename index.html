@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v104 — CAR SERVICE</title>
-<meta name="painel-versao" content="v104">
+<title>Painel de SDR v105 — CAR SERVICE</title>
+<meta name="painel-versao" content="v105">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -3278,7 +3278,7 @@ function bibMd(src) {
         return ln.split("|").map(function (c) { return c.trim(); });
     };
     var ehBloco = function (ln) {
-        return /^#{1,4}\s/.test(ln) || /^>/.test(ln) || /^\s*[-*]\s+/.test(ln) || /^\s*\d+[.)]\s+/.test(ln) || /^\|/.test(ln) || /^---+\s*$/.test(ln);
+        return /^!\[[^\]]*\]\(/.test(ln) || /^#{1,4}\s/.test(ln) || /^>/.test(ln) || /^\s*[-*]\s+/.test(ln) || /^\s*\d+[.)]\s+/.test(ln) || /^\|/.test(ln) || /^---+\s*$/.test(ln);
     };
     while (i < L.length) {
         var ln = L[i];
@@ -3295,6 +3295,12 @@ function bibMd(src) {
         }
         if (/^---+\s*$/.test(ln)) {
             out.push("<hr>");
+            i++;
+            continue;
+        }
+        var im = /^!\[([^\]]*)\]\(((?:https?:\/\/|\/)[^)\s]+)\)\s*$/.exec(ln.trim());
+        if (im) {
+            out.push("<figure class=\"bibimg\"><img src=\"" + bibEsc(im[2]).replace(/"/g, "%22") + "\" alt=\"" + bibEsc(im[1]).replace(/"/g, "&quot;") + "\" loading=\"lazy\"></figure>");
             i++;
             continue;
         }
@@ -3375,6 +3381,7 @@ var BIB_CSS = ".bibcol{max-width:1000px}" +
     ".bibmd h3:first-child{border-top:0;margin-top:0;padding-top:0}" +
     ".bibmd h4{font-family:" + F_MARCA + ";font-size:15.5px;margin:22px 0 6px}" +
     ".bibmd h5{font-size:14px;margin:16px 0 4px}" +
+    ".bibmd .bibimg{margin:12px 0;max-width:100%}.bibmd .bibimg img{display:block;max-width:100%;height:auto;border-radius:8px}" +
     ".bibmd p{margin:0 0 10px}.bibmd blockquote{margin:10px 0;padding:8px 14px;border-left:4px solid #FFBF00;background:#FFF8E1;border-radius:0 8px 8px 0}" +
     ".bibmd blockquote p{margin:0 0 6px}.bibmd blockquote p:last-child{margin:0}" +
     ".bibtab{overflow-x:clip;margin:10px 0;max-width:100%}.bibmd table{border-collapse:collapse;width:100%;max-width:100%;table-layout:auto;font-size:13px}" +
