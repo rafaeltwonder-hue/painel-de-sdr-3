@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v108 — CAR SERVICE</title>
-<meta name="painel-versao" content="v108">
+<title>Painel de SDR v109 — CAR SERVICE</title>
+<meta name="painel-versao" content="v109">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -4479,10 +4479,10 @@ function Painel(_a) {
     /* v67: lista de vendas lead a lead — admin, SDR e gerente */
     var podeListarVendas = ["admin", "sdr", "gerente"].indexOf(perfil) >= 0;
     var _g = __read(useState(false), 2), verVendas = _g[0], setVerVendas = _g[1];
-    var ABAS = [["painel", "SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["marketing", "Marketing"], ["closers", "Closers"], ["piloto", "Piloto"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]].concat(HUB_ABAS);
+    var ABAS = [["painel", "SDR"], ["piloto_sdr", "Piloto SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["marketing", "Marketing"], ["closers", "Closers"], ["piloto", "Piloto Closer"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]].concat(HUB_ABAS);
     /* v89: o Hub (Preços, Treinador, Biblioteca) é de todo mundo do time comercial.
        Importador e agência não veem: preço interno e regras de alçada não são deles. */
-    var ABAS_SDR = ["painel", "coordenador", "tv"].concat(HUB_IDS);
+    var ABAS_SDR = ["painel", "piloto_sdr", "coordenador", "tv"].concat(HUB_IDS);
     // 16/09: o importador também monta e envia os resumos do dia, então vê
     // Importar + Resumo (e nada além disso).
     var ABAS_IMPORTADOR = ["importar", "resumo"];
@@ -5058,7 +5058,7 @@ function Painel(_a) {
                             background: aba === v ? T.ink : "transparent",
                             color: aba === v ? "#fff" : T.ink2 } }, l)));
             })),
-            aba !== "painel" && aba !== "importar" && aba !== "resumo" && aba !== "closers" && aba !== "piloto" && aba !== "lojas" && aba !== "origem" && aba !== "marketing" && HUB_IDS.indexOf(aba) < 0 && !(aba === "coordenador" && mesAba !== mesAtualISO) && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
+            aba !== "painel" && aba !== "importar" && aba !== "resumo" && aba !== "closers" && aba !== "piloto" && aba !== "piloto_sdr" && aba !== "lojas" && aba !== "origem" && aba !== "marketing" && HUB_IDS.indexOf(aba) < 0 && !(aba === "coordenador" && mesAba !== mesAtualISO) && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
             (ehAdmin || ehImportador) && aba === "importar" && React.createElement(AbaImportar, { sessao: sessao }),
             ((aba === "resumo" && (ehAdmin || ehImportador)) || (ehAdmin && (aba === "closers" || aba === "lojas" || aba === "origem")) || aba === "coordenador") && (React.createElement(SeletorMes, { mes: mesAba, aoTrocar: trocarMesAba, nota: aba === "resumo" ? "Mês fechado: os cartões mostram o fechamento no último dia do mês."
                     : aba === "coordenador" ? "Mês fechado: a aba mostra o fechamento. Ranking do dia, tarefas e funil são ao vivo — volte para o mês atual."
@@ -5066,6 +5066,7 @@ function Painel(_a) {
             (ehAdmin || ehImportador) && aba === "resumo" && React.createElement(AbaResumo, { sessao: sessao, mes: mesAba }),
             ehAdmin && aba === "closers" && React.createElement(AbaClosers, { mes: mesAba }),
             ehAdmin && aba === "piloto" && React.createElement(Piloto, { sessao: sessao, todos: true, embutido: true }),
+            aba === "piloto_sdr" && podeVer("piloto_sdr") && React.createElement(PilotoSDR, { sessao: sessao, negocio: negocio, perfil: perfil, sq: sq }),
             ehAdmin && aba === "lojas" && React.createElement(AbaLojas, { mes: mesAba }),
             ehAdmin && aba === "origem" && React.createElement(AbaOrigem, { mes: mesAba }),
             (ehAdmin || ehAgencia) && aba === "marketing" && React.createElement(AbaMarketing, { negocio: negocio }),
@@ -9105,6 +9106,488 @@ function AbaMarketing(_a) {
             React.createElement("b", null, "De onde vem cada n\u00FAmero."),
             " Investimento: Meta pela API (por dia, desde 24/09/2026) e Google/Meta anterior lan\u00E7ados do Reportei. Or\u00E7amento: planilha da BREV. Leads, agendamentos, comparecimentos e vendas: Kommo, pelo mesmo crit\u00E9rio da aba SDR \u2014 nunca as convers\u00F5es da plataforma, que contam clique no WhatsApp e liga\u00E7\u00E3o. Google \u00E9 identificado por UTM; Meta, pelo nome da campanha do Lead Ads e, antes de 23/09/2026, pela frase padr\u00E3o do an\u00FAncio.")));
 }
+/* ===================== v109: Piloto do SDR =====================
+
+   A tela que o SDR abre de manhã. Responde, nesta ordem: como está o meu mês,
+   o que eu preciso fazer agora, o que não bate entre Kommo e Oficina, como foi
+   o meu dia, a que velocidade eu respondo, como está o meu funil, quem eu
+   agendei para hoje e amanhã, quem veio e não fechou, onde estou no ranking e
+   qual o foco combinado com o coordenador.
+
+   Quem vê o quê (Rafael, 06/10/2026):
+     · SDR: só o próprio painel;
+     · coordenador (Paulo, Milena): qualquer SDR do squad dele, pelo seletor;
+     · admin e gerente: todos.
+   Isto é o recorte da TELA, igual ao dos squads: as tabelas continuam abertas
+   a quem está logado.
+
+   O ranking é por CONVERSÃO EM O.S. (O.S. ÷ leads do mês), não por volume —
+   o coordenador recebe bem menos lead e, por volume, ficaria sempre no fim.
+   Só entra quem recebeu pelo menos 30 leads no mês; o resto aparece embaixo.
+
+   O.S. no Car Service vem do Oficina (campo Pesquisa da O.S., a mesma fonte da
+   aba SDR). Car Store não tem O.S.: lá a unidade é o carro, e vem do Kommo.
+
+   Meta individual: a meta do mês do negócio × peso do squad ÷ nº de pessoas do
+   squad naquele negócio. Quando houver meta própria por SDR, troca só aqui. */
+var PSDR_MIN_LEADS = 30;
+var PSDR_PAGINA = 1000;
+function psdrTudo(montar) {
+    var todas = [];
+    var volta = function (i) {
+        return montar().range(i * PSDR_PAGINA, (i + 1) * PSDR_PAGINA - 1).then(function (r) {
+            if (r.error)
+                throw new Error(r.error.message);
+            var lote = r.data || [];
+            todas = todas.concat(lote);
+            if (lote.length < PSDR_PAGINA || i >= 30)
+                return todas;
+            return volta(i + 1);
+        });
+    };
+    return volta(0);
+}
+/* consulta que pode faltar sem derrubar a tela */
+function psdrOpc(q) {
+    return Promise.resolve(q).then(function (r) { return (r && !r.error ? (r.data || []) : []); }, function () { return []; });
+}
+var psdrSoma = function (linhas, campo) { return (linhas || []).reduce(function (s, x) { return s + (Number(x[campo]) || 0); }, 0); };
+/* um SDR, num intervalo: Kommo (fato_dia) + Oficina (O.S. e faturado) */
+function psdrAgrega(fato, ofic, sdr, ini, fim, negocio) {
+    var k = chaveNome(sdr);
+    var f = (fato || []).filter(function (r) { return chaveNome(r.sdr) === k && r.data >= ini && r.data <= fim; });
+    var o = (ofic || []).filter(function (r) { return chaveNome(r.sdr) === k && r.dia >= ini && r.dia <= fim; });
+    var a = {
+        leads: psdrSoma(f, "leads_recebidos"), trab: psdrSoma(f, "leads_trabalhados"),
+        agend: psdrSoma(f, "agendamentos_marcados"), comp: psdrSoma(f, "comparecimentos"),
+        vendas: psdrSoma(f, "vendas"), receita: psdrSoma(f, "receita"),
+        osOf: psdrSoma(o, "os_qtd"), fatOf: psdrSoma(o, "faturado"),
+    };
+    a.os = negocio === "car_service" ? a.osOf : a.vendas;
+    a.fat = negocio === "car_service" ? a.fatOf : a.receita;
+    a.conv = div(a.os, a.leads);
+    return a;
+}
+function psdrHoraSP(iso) {
+    try {
+        return new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    }
+    catch (e) {
+        return String(iso || "").slice(0, 16);
+    }
+}
+function psdrDiaSP(iso) {
+    try {
+        return new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+    }
+    catch (e) {
+        return String(iso || "").slice(0, 10);
+    }
+}
+function usePilotoSdr(nome, negocio, mes, versao) {
+    var _a = __read(useState({ carregando: true, erro: null }), 2), d = _a[0], setD = _a[1];
+    useEffect(function () {
+        if (!nome)
+            return undefined;
+        var vivo = true;
+        setD(function (x) { return (__assign(__assign({}, x), { carregando: true, erro: null })); });
+        var h0 = hoje(), mFim = ultimoDiaMes(mes) > h0 ? h0 : ultimoDiaMes(mes);
+        var pIni = mesAnteriorDe(mes);
+        var amanha = addDays(h0, 1);
+        var carsv = negocio === "car_service";
+        Promise.all([
+            psdrTudo(function () { return db.from("fato_dia").select("data,sdr,leads_recebidos,leads_trabalhados,agendamentos_marcados,comparecimentos,vendas,receita").eq("negocio", negocio).gte("data", pIni).lte("data", mFim); }),
+            carsv ? psdrTudo(function () { return db.from("sdr_oficina_dia_v").select("*").gte("dia", pIni).lte("dia", mFim); }) : Promise.resolve([]),
+            psdrTudo(function () { return db.from("tempo_resposta_dia").select("data,sdr,com_medida,minutos_medio,nunca_ligaram,ate_5min,ate_15min,leads").eq("negocio", negocio).gte("data", mes).lte("data", mFim); }),
+            psdrOpc(db.from("esforco_dia").select("*").eq("sdr", nome).eq("data", h0)),
+            psdrOpc(db.from("tarefas_sdr").select("*").eq("negocio", negocio).eq("sdr", nome)),
+            psdrOpc(db.from("leads_sem_tarefa").select("*").eq("negocio", negocio).eq("sdr", nome)),
+            psdrOpc(db.from("sem_ligacao_v").select("*").eq("negocio", negocio).eq("sdr", nome).eq("data", h0)),
+            psdrOpc(db.from("leads").select("kommo_id,titulo,servico,unidade,visita_agendada_em,status_visita,etapa,etapa_grupo").eq("sdr", nome).gte("visita_agendada_em", h0 + "T00:00:00-03:00").lte("visita_agendada_em", amanha + "T23:59:59-03:00").order("visita_agendada_em")),
+            psdrOpc(db.from("leads").select("kommo_id,titulo,servico,unidade,visita_agendada_em,etapa,etapa_grupo,motivo_perda,atualizado_em").eq("sdr", nome).eq("status_visita", "Compareceu").in("etapa_grupo", ["negociando", "perdido"]).gte("visita_agendada_em", addDays(h0, -45) + "T00:00:00-03:00").order("visita_agendada_em", { ascending: false }).limit(40)),
+            psdrOpc(db.from("leads").select("kommo_id").eq("sdr", nome).eq("etapa_grupo", "agendado").is("status_visita", null).gte("visita_agendada_em", addDays(h0, -14) + "T00:00:00-03:00").lt("visita_agendada_em", h0 + "T00:00:00-03:00")),
+            psdrOpc(db.from("meta_do_mes").select("*").eq("negocio", negocio).lte("mes", mes).order("mes", { ascending: false }).limit(1)),
+            psdrOpc(db.from("sdr_foco").select("*").eq("sdr", nome)),
+            carsv ? Promise.resolve(db.rpc("divergencia_os", { p_ini: mes, p_fim: mFim })).then(function (r) { return (r && !r.error ? r.data : null); }, function () { return null; }) : Promise.resolve(null),
+        ]).then(function (r) {
+            var naoFechou = r[8];
+            var ids = naoFechou.map(function (x) { return x.kommo_id; });
+            return (ids.length ? psdrOpc(db.from("orcamento_v").select("lead_kommo_id,total,status,motivo_perda,closer").in("lead_kommo_id", ids)) : Promise.resolve([])).then(function (orc) {
+                return { r: r, orc: orc };
+            });
+        }).then(function (x) {
+            if (!vivo)
+                return;
+            var r = x.r;
+            var div_ = r[12];
+            var pend = 0;
+            if (div_ && div_.itens) {
+                pend = div_.itens.filter(function (i) { return !i.aguardando && !i.conferida && membroBate([nome], i.sdr); }).length;
+            }
+            setD({ carregando: false, erro: null, fato: r[0], ofic: r[1], tempo: r[2], esf: r[3], tarefa: r[4][0] || null, semTar: r[5], semLig: r[6],
+                visitas: r[7], naoFechou: r[8], orc: x.orc, semDesfecho: r[9].length, meta: r[10][0] || null, foco: r[11][0] || null, divPend: pend, em: new Date() });
+        }).catch(function (e) { if (vivo)
+            setD({ carregando: false, erro: (e && e.message) || String(e) }); });
+        return function () { vivo = false; };
+    }, [nome, negocio, mes, versao]);
+    return d;
+}
+/* barra com meta: quanto fez, quanto precisa */
+function PsdrMeta(_a) {
+    var label = _a.label, feito = _a.feito, meta = _a.meta, sub = _a.sub, fmt = _a.fmt;
+    var f = fmt || nInt;
+    var p = meta ? feito / meta : 0;
+    return (React.createElement(Card, { className: "p16" },
+        React.createElement(Label, null, label),
+        React.createElement("div", { style: { marginTop: 8, display: "flex", alignItems: "baseline", gap: 8 } },
+            React.createElement(Metric, { value: f(feito), color: meta && feito >= meta ? T.good : T.ink }),
+            meta ? React.createElement("span", { style: { fontSize: 13, color: T.muted } }, "/ " + f(meta)) : null),
+        React.createElement("div", { style: { marginTop: 9 } },
+            React.createElement(Barra, { pct: p, cor: meta && feito >= meta ? T.good : T.marca, alt: 7 })),
+        sub && React.createElement("div", { style: { fontSize: 12, color: T.ink2, marginTop: 6 } }, sub)));
+}
+function PsdrLinhaFazer(_a) {
+    var n = _a.n, titulo = _a.titulo, desc = _a.desc, tom = _a.tom, href = _a.href, rotulo = _a.rotulo, onClick = _a.onClick;
+    var cor = tom === "r" ? T.bad : tom === "y" ? T.warn : T.ink2;
+    var fundo = tom === "r" ? "#C1121F14" : tom === "y" ? "#FFBF0033" : "#EEEEEE";
+    return (React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "11px 0", borderBottom: "1px solid #E4E4E4" } },
+        React.createElement("div", { style: { display: "flex", gap: 12, alignItems: "center" } },
+            React.createElement("div", { style: { minWidth: 36, height: 36, borderRadius: 8, display: "grid", placeItems: "center", background: fundo, color: cor, fontFamily: F_NUM, fontWeight: 700, fontSize: 16 } }, nInt(n)),
+            React.createElement("div", null,
+                React.createElement("div", { style: { fontWeight: 600, fontSize: 13.5 } }, titulo),
+                desc && React.createElement("div", { style: { fontSize: 12, color: T.muted } }, desc))),
+        href ? React.createElement("a", { href: href, target: "_blank", rel: "noopener", style: { fontSize: 12.5, fontWeight: 600, color: T.ink, textDecoration: "none", border: "1px solid " + T.hair, borderRadius: 6, padding: "7px 11px", whiteSpace: "nowrap", background: tom === "r" ? T.marca : T.surface } }, rotulo || "Abrir no Kommo ↗")
+            : onClick ? React.createElement(Btn, { onClick: onClick, style: { padding: "7px 11px", fontSize: 12.5 } }, rotulo || "Ver") : null));
+}
+function PilotoSDR(_a) {
+    var _this = this;
+    var sessao = _a.sessao, negocio = _a.negocio, perfil = _a.perfil, sq = _a.sq;
+    var meuNome = nomeDoLogin(sessao);
+    var minhaLinha = sq.linhas.filter(function (l) { return chaveNome(l.sdr) === chaveNome(meuNome); })[0] || null;
+    var vejoTodos = perfil === "admin" || perfil === "gerente";
+    var ehCoord = !!(minhaLinha && minhaLinha.funcao === "coordenador");
+    var doNegocio = sq.linhas.filter(function (l) { return l.ativo !== false && l.negocio === negocio; });
+    var candidatos = vejoTodos ? doNegocio
+        : ehCoord ? doNegocio.filter(function (l) { return l.squad && l.squad === minhaLinha.squad; })
+            : doNegocio.filter(function (l) { return minhaLinha && chaveNome(l.sdr) === chaveNome(minhaLinha.sdr); });
+    var _b = __read(useState(null), 2), sel = _b[0], setSel = _b[1];
+    var _c = __read(useState(primeiroDia(hoje())), 2), mes = _c[0], setMes = _c[1];
+    var _d = __read(useState("squad"), 2), rankVer = _d[0], setRankVer = _d[1];
+    var _e = __read(useState(0), 2), versao = _e[0], setVersao = _e[1];
+    var _f = __read(useState(null), 2), focoTxt = _f[0], setFocoTxt = _f[1];
+    var _g = __read(useState(null), 2), focoMsg = _g[0], setFocoMsg = _g[1];
+    var efetivo = candidatos.filter(function (l) { return l.sdr === sel; })[0]
+        || candidatos.filter(function (l) { return minhaLinha && l.sdr === minhaLinha.sdr; })[0]
+        || candidatos[0] || null;
+    var nome = efetivo ? efetivo.sdr : null;
+    var d = usePilotoSdr(nome, negocio, mes, versao);
+    var h0 = hoje();
+    var mesAtual = primeiroDia(h0);
+    var ehAtual = mes === mesAtual;
+    var mFim = ultimoDiaMes(mes) > h0 ? h0 : ultimoDiaMes(mes);
+    var pIni = mesAnteriorDe(mes), pFim = addDays(mes, -1);
+    var carsv = negocio === "car_service";
+    var hrefKommo = "https://thewcars.kommo.com/leads/pipeline/";
+    var lista = useMemo(function () {
+        if (!d || d.carregando || d.erro || !nome)
+            return null;
+        var squadInfo = sq.squads.filter(function (x) { return efetivo && x.squad === efetivo.squad; })[0];
+        var peso = squadInfo ? (Number(squadInfo.peso_meta) || 0.5) : 1;
+        var gente = efetivo && efetivo.squad ? doNegocio.filter(function (l) { return l.squad === efetivo.squad; }) : [efetivo];
+        var pessoas = Math.max(1, gente.length);
+        var eu = psdrAgrega(d.fato, d.ofic, nome, mes, mFim, negocio);
+        var euAnt = psdrAgrega(d.fato, d.ofic, nome, pIni, pFim, negocio);
+        var squadSoma = { leads: 0, trab: 0, agend: 0, comp: 0, os: 0, fat: 0 };
+        gente.forEach(function (l) {
+            var a = psdrAgrega(d.fato, d.ofic, l.sdr, mes, mFim, negocio);
+            Object.keys(squadSoma).forEach(function (k) { squadSoma[k] += a[k]; });
+        });
+        var rank = doNegocio.map(function (l) {
+            var a = psdrAgrega(d.fato, d.ofic, l.sdr, mes, mFim, negocio);
+            return { sdr: l.sdr, squad: l.squad, leads: a.leads, agend: a.agend, comp: a.comp, os: a.os, conv: a.conv, ok: a.leads >= PSDR_MIN_LEADS };
+        });
+        var m = d.meta || {};
+        var osMeta = (Number(m.os) || 0) * peso / pessoas;
+        var fatMeta = (Number(m.faturamento) || 0) * peso / pessoas;
+        var duTotal = diasUteisDoMes(ehAtual ? h0 : ultimoDiaMes(mes));
+        var dias = ehAtual ? duTotal.passados + duTotal.restantes : duTotal.passados;
+        return { eu: eu, euAnt: euAnt, squadSoma: squadSoma, rank: rank, gente: gente, pessoas: pessoas, peso: peso, osMeta: osMeta, fatMeta: fatMeta, du: duTotal, diasMes: dias,
+            squadNome: squadInfo ? squadInfo.nome : null, m: m };
+    }, [d, nome, mes, negocio, sq.linhas, sq.squads]);
+    if (!sq.carregou)
+        return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando…");
+    if (negocio === "bdr")
+        return React.createElement(Card, { className: "p20", style: { borderLeft: "4px solid " + T.marca } },
+            React.createElement(Label, null, "BDR · em preparo"),
+            React.createElement("div", { style: { fontSize: 13.5, color: T.ink2, marginTop: 6 } }, "O piloto do BDR entra quando a fonte de dados do BDR for ligada."));
+    if (!nome)
+        return React.createElement(Card, { className: "p20", style: { borderLeft: "4px solid " + T.marca } },
+            React.createElement(Label, null, "Piloto SDR"),
+            React.createElement("h2", { style: { fontFamily: F_MARCA, fontSize: 17, margin: "6px 0 8px" } }, "Seu login ainda não está ligado a um SDR de " + nomeNegocio(negocio)),
+            React.createElement("div", { style: { fontSize: 13.5, color: T.ink2, maxWidth: 620 } }, "O piloto abre pelo seu nome no cadastro do time. Se você trabalha em outro negócio, troque no topo da tela. Se o nome não aparece, peça para cadastrarem."));
+    var meses = listaMeses();
+    var primeiroNome = String(nome).split(" ")[0];
+    var pendCount = d && d.divPend ? d.divPend : 0;
+    var podeEditarFoco = vejoTodos || (ehCoord && minhaLinha && efetivo && minhaLinha.squad === efetivo.squad);
+    var salvarFoco = function () {
+        var txt = (focoTxt != null ? focoTxt : (d.foco && d.foco.texto) || "").trim();
+        setFocoMsg("salvando…");
+        Promise.resolve(db.from("sdr_foco").upsert({ sdr: nome, texto: txt, autor: meuNome, atualizado_em: new Date().toISOString() })).then(function (r) {
+            if (r && r.error) {
+                setFocoMsg("Não consegui salvar: " + r.error.message);
+            }
+            else {
+                setFocoMsg("Salvo.");
+                setFocoTxt(null);
+                setVersao(function (n) { return n + 1; });
+            }
+        }, function (e) { setFocoMsg("Não consegui salvar: " + ((e && e.message) || e)); });
+    };
+    var cab = React.createElement(Card, { className: "p12", style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
+        candidatos.length > 1 && React.createElement(React.Fragment, null,
+            React.createElement(Label, null, "Ver como"),
+            React.createElement(Select, { value: nome, onChange: setSel, options: candidatos.map(function (l) { return { v: l.sdr, l: l.sdr + (l.funcao === "coordenador" ? " (coord.)" : "") }; }), style: { fontWeight: 600, minWidth: 200 } })),
+        React.createElement(Label, null, "Mês"),
+        React.createElement(Select, { value: mes, onChange: setMes, options: meses.map(function (m) { return { v: m, l: rotuloMes(m) + (m === mesAtual ? " (atual)" : "") }; }), style: { fontWeight: 600 } }),
+        React.createElement("span", { style: { fontSize: 12, color: T.muted } }, nome + (lista && lista.squadNome ? " · " + lista.squadNome : "") + " · " + nomeNegocio(negocio)),
+        pendCount > 0 && React.createElement("span", { style: { marginLeft: "auto", background: T.bad, color: "#fff", borderRadius: 99, padding: "3px 10px", fontSize: 12, fontWeight: 700 } }, pendCount + (pendCount === 1 ? " alerta" : " alertas")),
+        d.carregando && React.createElement("span", { style: { fontSize: 12, color: T.muted, marginLeft: pendCount > 0 ? 0 : "auto" } }, "carregando…"));
+    if (d.erro)
+        return React.createElement("div", null, cab, React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.bad, marginTop: 12 } }, "Não consegui ler os dados: " + d.erro));
+    if (!lista)
+        return React.createElement("div", null, cab, React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted, marginTop: 12 } }, "Carregando…"));
+    var eu = lista.eu, ant = lista.euAnt, sqd = lista.squadSoma, m = lista.m;
+    var unid = carsv ? "O.S." : "carros";
+    var duTot = lista.diasMes;
+    var p = lista.osMeta ? eu.os / lista.osMeta : 0;
+    var frac = ehAtual ? Math.max(1, lista.du.passados - (new Date().getDay() !== 0 ? 1 : 0)) / Math.max(1, lista.du.passados + lista.du.restantes) : 1;
+    var est = lista.osMeta ? estadoMeta(p, frac) : null;
+    var restantesUteis = ehAtual ? Math.max(1, lista.du.restantes + (new Date().getDay() !== 0 ? 1 : 0)) : 0;
+    var faltaOs = Math.max(0, lista.osMeta - eu.os);
+    var passAteOntem = Math.max(1, lista.du.passados - (new Date().getDay() !== 0 ? 1 : 0));
+    var projecao = ehAtual ? eu.os / passAteOntem * (passAteOntem + restantesUteis) : eu.os;
+    /* hoje */
+    var esf = d.esf || [];
+    var ligHoje = psdrSoma(esf, "ligacoes_tentadas"), falouHoje = psdrSoma(esf, "pessoas_com_quem_falou"), segHoje = psdrSoma(esf, "segundos_ao_telefone");
+    var fHoje = (d.fato || []).filter(function (r) { return chaveNome(r.sdr) === chaveNome(nome) && r.data === h0; });
+    var agHoje = psdrSoma(fHoje, "agendamentos_marcados"), compHoje = psdrSoma(fHoje, "comparecimentos");
+    /* velocidade */
+    var tempoEu = (d.tempo || []).filter(function (r) { return chaveNome(r.sdr) === chaveNome(nome); });
+    var tempoSq = (d.tempo || []).filter(function (r) { return lista.gente.some(function (g) { return chaveNome(g.sdr) === chaveNome(r.sdr); }); });
+    var vel = function (rows) {
+        var base = psdrSoma(rows, "com_medida");
+        var soma = rows.reduce(function (s, r) { return s + (r.minutos_medio != null ? Number(r.minutos_medio) * (Number(r.com_medida) || 0) : 0); }, 0);
+        return { medio: base ? soma / base : null, p5: div(psdrSoma(rows, "ate_5min"), base), p15: div(psdrSoma(rows, "ate_15min"), base), nunca: psdrSoma(rows, "nunca_ligaram"), base: base };
+    };
+    var vEu = vel(tempoEu), vSq = vel(tempoSq);
+    var fmtMin = function (x) { return x == null ? "—" : (x < 1 ? "<1 min" : Math.round(x) + " min"); };
+    /* tarefas */
+    var tf = d.tarefa || {};
+    var vencidas = Number(tf.vencidas) || 0, venceHoje = Number(tf.vence_hoje) || 0;
+    var semTarN = (d.semTar || []).filter(function (x) { return x.ainda_dele !== false; }).reduce(function (s, x) { return s + (Number(x.leads) || 0); }, 0);
+    var semTarParado = (d.semTar || []).reduce(function (mx, x) { return Math.max(mx, Number(x.parado_ha_dias) || 0); }, 0);
+    var semLigN = (d.semLig || []).filter(function (x) { return x.balde !== "justificado"; }).length;
+    var fazerTotal = vencidas + venceHoje + semTarN + semLigN + (d.semDesfecho || 0) + pendCount;
+    /* funil */
+    var funilLinha = function (rot, n, base, cor) {
+        return (React.createElement("div", { style: { marginBottom: 11 } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 3 } },
+                React.createElement("span", { style: { color: T.ink2 } }, rot),
+                React.createElement("span", { style: { fontWeight: 700, fontVariantNumeric: "tabular-nums" } }, nInt(n),
+                    base ? React.createElement("span", { style: { color: T.muted, fontWeight: 400 } }, " · " + nPct(div(n, base), 1)) : null)),
+            React.createElement(Barra, { pct: div(n, eu.leads), cor: cor, alt: 8 })));
+    };
+    var taxa = function (a, b) { return b ? a / b : null; };
+    var rowsCmp = [
+        ["Lead → agendou", taxa(eu.agend, eu.leads), taxa(sqd.agend, sqd.leads), taxa(ant.agend, ant.leads)],
+        ["Agendou → compareceu", taxa(eu.comp, eu.agend), taxa(sqd.comp, sqd.agend), taxa(ant.comp, ant.agend)],
+        ["Compareceu → " + unid, taxa(eu.os, eu.comp), taxa(sqd.os, sqd.comp), taxa(ant.os, ant.comp)],
+        ["Lead → " + unid, taxa(eu.os, eu.leads), taxa(sqd.os, sqd.leads), taxa(ant.os, ant.leads)],
+    ];
+    var cel = function (v, ref) {
+        if (v == null)
+            return "—";
+        var seta = ref == null || Math.abs(v - ref) < 0.0005 ? null : v > ref ? React.createElement("span", { style: { color: T.good } }, " ▲") : React.createElement("span", { style: { color: T.bad } }, " ▼");
+        return React.createElement("span", null, nPct(v, 1), seta);
+    };
+    /* ranking */
+    var rkBase = lista.rank.filter(function (r) { return rankVer === "geral" || (efetivo && r.squad === efetivo.squad); });
+    var rkOk = rkBase.filter(function (r) { return r.ok; }).sort(function (a, b) { return b.conv - a.conv || b.os - a.os; });
+    var rkPoucos = rkBase.filter(function (r) { return !r.ok; }).sort(function (a, b) { return b.leads - a.leads; });
+    var rkTodos = rkOk.concat(rkPoucos);
+    /* o que veio e não fechou */
+    var orcPor = {};
+    (d.orc || []).forEach(function (o) { orcPor[o.lead_kommo_id] = o; });
+    var diasParado = function (iso) { return iso ? Math.max(0, Math.round((parseISO(h0) - parseISO(psdrDiaSP(iso))) / 86400000)) : null; };
+    var kommoA = function (id, txt) { return React.createElement("a", { href: KOMMO_LEAD(id), target: "_blank", rel: "noopener", style: { fontSize: 12, fontWeight: 600, color: T.ink, textDecoration: "none", border: "1px solid " + T.hair, borderRadius: 6, padding: "5px 9px", whiteSpace: "nowrap" } }, txt || "Kommo ↗"); };
+    var visitasOk = (d.visitas || []).filter(function (v) { return v.status_visita !== "Cancelou" && v.etapa_grupo !== "perdido" && v.etapa_grupo !== "ganho"; });
+    var foco = d.foco;
+    var focoEdit = focoTxt != null ? focoTxt : (foco && foco.texto) || "";
+    var tipoPill = function (cor, txt) { return React.createElement(Pill, { cor: cor }, txt); };
+    return (React.createElement("div", null,
+        cab,
+        /* 01 */
+        React.createElement(Secao, { n: 1, titulo: "Como estou no mês", nota: "A meta individual é a meta do mês do " + nomeNegocio(negocio) + " no peso do squad, dividida pelas " + lista.pessoas + " pessoas do squad. " + (carsv ? "O.S. vêm do Oficina; faturado é o valor final da O.S., com o upsell do closer." : "No Car Store a unidade é o carro.") },
+            React.createElement(Card, { className: "p16", style: { display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" } },
+                React.createElement("div", { style: { flex: 1, minWidth: 280 } },
+                    React.createElement(Label, null, unid + " · " + rotuloMes(mes)),
+                    React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 10, marginTop: 4, flexWrap: "wrap" } },
+                        React.createElement(Metric, { value: nInt(eu.os) }),
+                        lista.osMeta > 0 && React.createElement("span", { style: { fontSize: 14, color: T.muted } }, "de " + nInt(Math.round(lista.osMeta)) + " · " + nPct(p, 0)),
+                        est && ehAtual && React.createElement(Pill, { cor: est.cor }, est.nome)),
+                    React.createElement("div", { style: { marginTop: 10 } }, React.createElement(Barra, { pct: p, cor: T.marca, alt: 11 })),
+                    React.createElement("div", { style: { fontSize: 12, color: T.ink2, marginTop: 7 } },
+                        !lista.osMeta ? "Sem meta cadastrada para este mês — fala com a gestão."
+                            : !ehAtual ? (faltaOs <= 0 ? "Mês fechado: meta batida." : "Mês fechado: ficou " + nInt(Math.ceil(faltaOs)) + " " + unid + " abaixo da meta.")
+                                : faltaOs <= 0 ? "Meta batida. Tudo daqui em diante é acima da meta."
+                                    : React.createElement("span", null, "Faltam ", React.createElement("b", null, nInt(Math.ceil(faltaOs)) + " " + unid), " em " + restantesUteis + " dia" + (restantesUteis === 1 ? "" : "s") + " úte" + (restantesUteis === 1 ? "l" : "is") + " — ", React.createElement("b", null, (Math.ceil(faltaOs / restantesUteis * 10) / 10).toString().replace(".", ",") + " por dia"), ". No ritmo atual fecha o mês em ~" + nInt(Math.round(projecao)) + ".")),
+                    eu.fat > 0 && React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 6 } }, "Faturado: ", React.createElement("b", null, nReal(eu.fat)), lista.fatMeta > 0 ? " de " + nReal(lista.fatMeta) + " (" + nPct(div(eu.fat, lista.fatMeta), 0) + ")" : "")),
+                React.createElement("div", { style: { flex: 1, minWidth: 260 } },
+                    React.createElement(Label, null, "O que mais pesa na meta"),
+                    [["Agendamentos", eu.agend, (Number(m.agendamentos_dia) || 0) * duTot], ["Compareceram", eu.comp, (Number(m.comparecimentos_dia) || 0) * duTot], [carsv ? "O.S." : "Carros", eu.os, lista.osMeta]].map(function (x) {
+                        return React.createElement("div", { key: x[0], style: { marginTop: 10 } },
+                            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 3 } },
+                                React.createElement("span", { style: { color: T.ink2 } }, x[0]),
+                                React.createElement("b", { style: { fontVariantNumeric: "tabular-nums" } }, nInt(x[1]), React.createElement("span", { style: { color: T.muted, fontWeight: 400 } }, x[2] ? " de " + nInt(Math.round(x[2])) : ""))),
+                            React.createElement(Barra, { pct: x[2] ? x[1] / x[2] : 0, cor: T.ink, alt: 7 }));
+                    })))),
+        /* 02 */
+        React.createElement(Secao, { n: 2, titulo: "O que preciso fazer agora", nota: "A fila do dia, do que mais perde dinheiro se ficar parado. Os números são dos leads de " + primeiroNome + "." },
+            React.createElement(Card, { className: "p16" },
+                fazerTotal === 0 && React.createElement("div", { style: { fontSize: 13.5, color: T.good, fontWeight: 600 } }, "Nada pendente agora. Dia em dia."),
+                vencidas > 0 && React.createElement(PsdrLinhaFazer, { n: vencidas, titulo: "Tarefas vencidas", desc: tf.atraso_maximo_dias ? "a mais antiga está há " + tf.atraso_maximo_dias + " dias" : "", tom: "r", href: hrefKommo }),
+                semLigN > 0 && React.createElement(PsdrLinhaFazer, { n: semLigN, titulo: "Lead de hoje sem ligação", desc: "entrou hoje e ainda não foi discado", tom: "r", href: hrefKommo }),
+                pendCount > 0 && React.createElement(PsdrLinhaFazer, { n: pendCount, titulo: "Divergências Kommo × Oficina", desc: "venda que existe de um lado e não do outro · veja a seção 3", tom: "r", onClick: function () { var el = document.getElementById("psdr-alertas"); if (el)
+                        el.scrollIntoView({ behavior: "smooth", block: "start" }); }, rotulo: "Ver alertas" }),
+                venceHoje > 0 && React.createElement(PsdrLinhaFazer, { n: venceHoje, titulo: "Tarefas que vencem hoje", desc: "", tom: "y", href: hrefKommo }),
+                semTarN > 0 && React.createElement(PsdrLinhaFazer, { n: semTarN, titulo: "Leads sem nenhuma tarefa", desc: semTarParado ? "o mais parado está há " + semTarParado + " dias" : "", tom: "y", href: hrefKommo }),
+                (d.semDesfecho || 0) > 0 && React.createElement(PsdrLinhaFazer, { n: d.semDesfecho, titulo: "Visitas passadas sem desfecho", desc: "o closer ainda não disse se o cliente veio", tom: "k", href: hrefKommo }))),
+        /* 03 */
+        React.createElement("div", { id: "psdr-alertas" }),
+        React.createElement(Secao, { n: 3, titulo: "Alertas: Kommo × Oficina", nota: "O mesmo cruzamento que o coordenador vê, só com as vendas de " + primeiroNome + ". Mostra apenas o que não bate entre o Kommo e o Oficina. Resolveu? Marca como conferido e a linha some." },
+            carsv ? React.createElement(BlocoDivergenciaOS, { sessao: sessao, mesFixo: mes, membros: [nome] })
+                : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "A conferência com o Oficina vale só para o Car Service.")),
+        /* 04 */
+        React.createElement(Secao, { n: 4, titulo: "Meu dia", nota: "Esforço de hoje contra a meta diária do " + nomeNegocio(negocio) + ". A barra enche até a meta; passou dela, fica verde." },
+            React.createElement("div", { className: "grid-kpi-4" },
+                React.createElement(PsdrMeta, { label: "Ligações", feito: ligHoje, meta: Number(m.ligacoes_dia) || 0, sub: segHoje ? Math.round(segHoje / 60) + " min ao telefone" : "sem registro hoje" }),
+                React.createElement(PsdrMeta, { label: "Pessoas com quem falei", feito: falouHoje, meta: Number(m.falou_dia) || 0 }),
+                React.createElement(PsdrMeta, { label: "Agendamentos", feito: agHoje, meta: Number(m.agendamentos_dia) || 0 }),
+                React.createElement(PsdrMeta, { label: "Compareceram hoje", feito: compHoje, meta: Number(m.comparecimentos_dia) || 0 }))),
+        /* 05 */
+        React.createElement(Secao, { n: 5, titulo: "Velocidade de resposta", nota: "Quanto o lead espera pela primeira ligação. É o número que mais mexe na taxa de agendamento. Meta: responder em até 15 minutos." },
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 14 } },
+                React.createElement(Card, { className: "p16" },
+                    React.createElement(Label, null, "Tempo médio até a primeira ligação · " + rotuloMes(mes)),
+                    React.createElement("div", { style: { marginTop: 6 } }, React.createElement(Metric, { value: fmtMin(vEu.medio), color: vEu.medio != null && vEu.medio <= 15 ? T.good : vEu.medio != null ? T.bad : T.ink })),
+                    React.createElement("div", { style: { fontSize: 12, color: T.ink2, marginTop: 3 } }, "média do squad: " + fmtMin(vSq.medio)),
+                    React.createElement("div", { style: { marginTop: 14 } },
+                        [["Ligados em até 5 min", vEu.p5, vSq.p5], ["Ligados em até 15 min", vEu.p15, vSq.p15]].map(function (x) {
+                            return React.createElement("div", { key: x[0], style: { marginBottom: 10 } },
+                                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 12.5, marginBottom: 3 } },
+                                    React.createElement("span", { style: { color: T.ink2 } }, x[0]),
+                                    React.createElement("b", null, nPct(x[1], 0), React.createElement("span", { style: { color: T.muted, fontWeight: 400 } }, " · squad " + nPct(x[2], 0)))),
+                                React.createElement(Barra, { pct: x[1], cor: T.ink, alt: 7 }));
+                        })),
+                    React.createElement("div", { style: { fontSize: 12.5, color: vEu.nunca ? T.bad : T.muted, fontWeight: vEu.nunca ? 700 : 400 } }, "Nunca ligados no mês: " + nInt(vEu.nunca))),
+                React.createElement(Card, { className: "p16" },
+                    React.createElement(Label, null, "Leads de hoje sem ligação"),
+                    (d.semLig || []).length === 0 ? React.createElement("div", { style: { fontSize: 13, color: T.good, marginTop: 8, fontWeight: 600 } }, "Nenhum. Todo lead de hoje já foi discado.")
+                        : React.createElement("div", { style: { marginTop: 6 } }, (d.semLig || []).slice(0, 8).map(function (x) {
+                            return React.createElement("div", { key: x.kommo_id, style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "7px 0", borderBottom: "1px solid #E4E4E4", fontSize: 13 } },
+                                React.createElement("span", null, React.createElement("b", null, x.titulo || "Lead"), React.createElement("span", { style: { color: T.muted } }, " · " + (x.hora != null ? x.hora + "h" : "") + " · " + (x.etapa || ""))),
+                                kommoA(x.kommo_id));
+                        }))))),
+        /* 06 */
+        React.createElement(Secao, { n: 6, titulo: "Meu funil do mês", nota: "A mesma cadeia da aba SDR, só com os leads de " + primeiroNome + ". Ao lado, o squad e o mês passado, para saber se está melhorando." },
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 14 } },
+                React.createElement(Card, { className: "p16" },
+                    funilLinha("Leads recebidos", eu.leads, 0, T.ink),
+                    funilLinha("↳ trabalhados", eu.trab, eu.leads, T.ink2),
+                    funilLinha("↳ agendaram", eu.agend, eu.leads, T.ink2),
+                    funilLinha("↳ compareceram", eu.comp, eu.leads, T.marca),
+                    funilLinha("↳ " + (carsv ? "geraram O.S." : "fecharam carro"), eu.os, eu.leads, T.good),
+                    carsv && eu.os > 0 && React.createElement("div", { style: { fontSize: 11.5, color: T.muted, borderTop: "1px solid " + T.hair, paddingTop: 8, marginTop: 4 } }, "Ticket médio: " + nReal(div(eu.fat, eu.os)))),
+                React.createElement(Card, { className: "p0 rolagem" },
+                    React.createElement("table", { style: { minWidth: 380 } },
+                        React.createElement("thead", null, React.createElement("tr", null, React.createElement(Th, null, "Taxa"), React.createElement(Th, { right: true }, "Eu"), React.createElement(Th, { right: true }, "Squad"), React.createElement(Th, { right: true }, "Mês passado"))),
+                        React.createElement("tbody", null, rowsCmp.map(function (x) {
+                            return React.createElement("tr", { key: x[0] },
+                                React.createElement(Td, null, x[0]),
+                                React.createElement(Td, { right: true, bold: true }, cel(x[1], x[3])),
+                                React.createElement(Td, { right: true }, x[2] == null ? "—" : nPct(x[2], 1)),
+                                React.createElement(Td, { right: true }, x[3] == null ? "—" : nPct(x[3], 1)));
+                        })))))),
+        /* 07 */
+        React.createElement(Secao, { n: 7, titulo: "Minhas visitas", nota: "Clientes que " + primeiroNome + " agendou para hoje e amanhã. Cancelada, perdida e ganha não aparecem." },
+            visitasOk.length ? React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { minWidth: 640 } },
+                    React.createElement("thead", null, React.createElement("tr", null, React.createElement(Th, null, "Quando"), React.createElement(Th, null, "Cliente"), React.createElement(Th, null, "Serviço"), React.createElement(Th, null, "Loja"), React.createElement(Th, null, "Etapa"), React.createElement(Th, null, ""))),
+                    React.createElement("tbody", null, visitasOk.map(function (v) {
+                        var hojeV = psdrDiaSP(v.visita_agendada_em) === h0;
+                        return React.createElement("tr", { key: v.kommo_id },
+                            React.createElement(Td, { bold: true }, (hojeV ? "Hoje " : "Amanhã ") + psdrHoraSP(v.visita_agendada_em).split(", ").pop().split(" ").pop()),
+                            React.createElement(Td, null, v.titulo || "—"),
+                            React.createElement(Td, null, v.servico || "—"),
+                            React.createElement(Td, null, v.unidade || "—"),
+                            React.createElement(Td, null, v.etapa || "—"),
+                            React.createElement(Td, { right: true }, kommoA(v.kommo_id)));
+                    }))))
+                : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhuma visita agendada para hoje ou amanhã.")),
+        /* 08 */
+        React.createElement(Secao, { n: 8, titulo: "Quem veio e não fechou", nota: "Cliente que foi à loja e saiu sem comprar (últimos 45 dias). É a lista de reativação: o closer já atendeu, falta alguém voltar a falar com ele." },
+            (d.naoFechou || []).length ? React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { minWidth: 700 } },
+                    React.createElement("thead", null, React.createElement("tr", null, React.createElement(Th, null, "Cliente"), React.createElement(Th, null, "Visitou"), React.createElement(Th, { right: true }, "Orçamento"), React.createElement(Th, null, "Motivo / situação"), React.createElement(Th, { right: true }, "Dias parado"), React.createElement(Th, null, ""))),
+                    React.createElement("tbody", null, d.naoFechou.map(function (l) {
+                        var o = orcPor[l.kommo_id];
+                        var dp = diasParado(l.atualizado_em);
+                        return React.createElement("tr", { key: l.kommo_id },
+                            React.createElement(Td, { bold: true }, l.titulo || "—"),
+                            React.createElement(Td, null, l.visita_agendada_em ? br(psdrDiaSP(l.visita_agendada_em)) : "—"),
+                            React.createElement(Td, { right: true }, o && o.total ? nReal(o.total) : "—"),
+                            React.createElement(Td, { style: { whiteSpace: "normal", minWidth: 180 } }, (o && o.motivo_perda) || l.motivo_perda || (o && o.status) || l.etapa || "—"),
+                            React.createElement(Td, { right: true, bold: true, color: dp != null && dp >= 10 ? T.bad : dp != null && dp >= 5 ? T.warn : T.ink }, dp == null ? "—" : String(dp)),
+                            React.createElement(Td, { right: true }, kommoA(l.kommo_id, "Retomar ↗")));
+                    }))))
+                : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Ninguém nessa situação nos últimos 45 dias.")),
+        /* 09 */
+        React.createElement(Secao, { n: 9, titulo: "Meu lugar no ranking", nota: "Ordenado pela conversão em " + unid + ": " + unid + " ÷ leads recebidos no mês. Assim quem recebe menos lead, como os coordenadores, compete de forma justa. Só entra quem recebeu pelo menos " + PSDR_MIN_LEADS + " leads no mês; quem não chegou fica embaixo." },
+            React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10 } },
+                React.createElement(Chips, { value: rankVer, onChange: setRankVer, options: [["squad", "Meu squad"], ["geral", "Geral"]] })),
+            React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { minWidth: 560 } },
+                    React.createElement("thead", null, React.createElement("tr", null, React.createElement(Th, null, "#"), React.createElement(Th, null, "SDR"), rankVer === "geral" && React.createElement(Th, null, "Squad"), React.createElement(Th, { right: true }, "Leads"), React.createElement(Th, { right: true }, "Agendou"), React.createElement(Th, { right: true }, "Compareceu"), React.createElement(Th, { right: true }, unid), React.createElement(Th, { right: true }, "Conversão"))),
+                    React.createElement("tbody", null, rkTodos.map(function (r, i) {
+                        var eMeu = chaveNome(r.sdr) === chaveNome(nome);
+                        var sty = eMeu ? { background: "#FFBF0022" } : {};
+                        var nomeSquad = (sq.squads.filter(function (x) { return x.squad === r.squad; })[0] || {}).sala || r.squad || "—";
+                        return React.createElement("tr", { key: r.sdr },
+                            React.createElement(Td, { style: sty, bold: eMeu }, r.ok ? String(i + 1) : "—"),
+                            React.createElement(Td, { style: sty, bold: eMeu }, r.sdr + (eMeu ? " (eu)" : "")),
+                            rankVer === "geral" && React.createElement(Td, { style: sty }, nomeSquad),
+                            React.createElement(Td, { right: true, style: sty }, nInt(r.leads)),
+                            React.createElement(Td, { right: true, style: sty }, nInt(r.agend)),
+                            React.createElement(Td, { right: true, style: sty }, nInt(r.comp)),
+                            React.createElement(Td, { right: true, style: sty, bold: eMeu }, nInt(r.os)),
+                            React.createElement(Td, { right: true, bold: true, style: sty }, r.ok ? nPct(r.conv, 1) : React.createElement("span", { style: { color: T.muted, fontWeight: 400 } }, "poucos leads")));
+                    }))))),
+        /* 10 */
+        React.createElement(Secao, { n: 10, titulo: "Combinado com o coordenador", nota: "Um espaço curto, escrito pelo coordenador, para o SDR abrir o painel e saber o que foi pedido na última conversa." },
+            React.createElement(Card, { className: "p16" },
+                React.createElement(Label, null, "Foco da semana" + (foco && foco.autor ? " · " + foco.autor + (foco.atualizado_em ? ", " + br(psdrDiaSP(foco.atualizado_em)) : "") : "")),
+                podeEditarFoco
+                    ? React.createElement("div", { style: { marginTop: 8 } },
+                        React.createElement("textarea", { value: focoEdit, onChange: function (e) { setFocoTxt(e.target.value); setFocoMsg(null); }, rows: 4, placeholder: "Ex.: 1) confirmar toda visita na véspera até as 17h. 2) zerar tarefa vencida antes do almoço.", style: { fontFamily: F_UI, fontSize: 13.5, color: T.ink, background: T.surface, border: "1px solid " + T.hair, borderRadius: 6, padding: "9px 11px", width: "100%", boxSizing: "border-box", outline: "none" } }),
+                        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginTop: 8 } },
+                            React.createElement(Btn, { kind: "accent", onClick: salvarFoco, style: { padding: "7px 12px", fontSize: 12.5 } }, "Salvar foco"),
+                            focoMsg && React.createElement("span", { style: { fontSize: 12, color: /Não consegui/.test(focoMsg) ? T.bad : T.muted } }, focoMsg)))
+                    : React.createElement("div", { style: { marginTop: 6, fontSize: 14, whiteSpace: "pre-wrap", color: foco && foco.texto ? T.ink : T.muted } }, foco && foco.texto ? foco.texto : "Seu coordenador ainda não escreveu o foco desta semana."))),
+        React.createElement("p", { style: { fontSize: 11.5, color: T.muted, marginTop: 26, maxWidth: "90ch" } },
+            React.createElement("b", null, "De onde vem cada número."),
+            " Leads, agendamentos, comparecimentos, tarefas e visitas: Kommo. " + (carsv ? "O.S. e faturado: Oficina, pelo campo Pesquisa da O.S. (depende da importação na aba Importar). " : "Carros fechados: Kommo. ") + "Metas: tabela de metas do mês. O SDR vê só o próprio painel; coordenador vê o squad dele; admin vê todos.")));
+}
+
 /* ===================== piloto do closer (v57, 25/09/2026) =====================
 
    A tela que o closer abre ao chegar na loja. Responde três perguntas,
