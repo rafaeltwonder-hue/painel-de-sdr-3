@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v107 — CAR SERVICE</title>
-<meta name="painel-versao" content="v107">
+<title>Painel de SDR v108 — CAR SERVICE</title>
+<meta name="painel-versao" content="v108">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -8894,6 +8894,25 @@ function AbaMarketing(_a) {
     var _d = __read(useState([]), 2), verba = _d[0], setVerba = _d[1];
     var _f = __read(useState([]), 2), orcamento = _f[0], setOrcamento = _f[1];
     var _g = __read(useState(null), 2), erro = _g[0], setErro = _g[1];
+    /* v108: botão que puxa o gasto do Meta (função meta-ads-sync) e recarrega a aba */
+    var _h1 = __read(useState(0), 2), recarga = _h1[0], setRecarga = _h1[1];
+    var _h2 = __read(useState(false), 2), atualizando = _h2[0], setAtualizando = _h2[1];
+    var _h3 = __read(useState(null), 2), avisoMeta = _h3[0], setAvisoMeta = _h3[1];
+    var atualizarMeta = function () {
+        setAtualizando(true);
+        setAvisoMeta(null);
+        db.functions.invoke("meta-ads-sync", { body: {} }).then(function (r) {
+            var d = r && r.data, e = r && r.error;
+            if (e || !d || !d.ok) {
+                setAvisoMeta({ ruim: true, txt: "N\u00E3o consegui atualizar: " + ((d && (d.mensagem || d.erro)) || (e && e.message) || "erro desconhecido") });
+            } else {
+                setAvisoMeta({ ruim: false, txt: "Meta atualizado at\u00E9 " + d.ate.split("-").reverse().join("/") + " \u00B7 Car Service " + nReal(d.car_service) + " \u00B7 Car Store " + nReal(d.car_store) + " (desde 24/09)" });
+                setRecarga(function (n) { return n + 1; });
+            }
+        }).catch(function (e) {
+            setAvisoMeta({ ruim: true, txt: "N\u00E3o consegui atualizar: " + (e && e.message) });
+        }).then(function () { setAtualizando(false); });
+    };
     var faixa = useMemo(function () { return mktFaixa(periodo); }, [periodo]);
     /* 24/09: a aba lia comercial.campanha_v, que já vinha com o dinheiro
        colado no resultado. Ficou bonito e estourou o tempo do banco: a view
@@ -8929,7 +8948,7 @@ function AbaMarketing(_a) {
             .catch(function (e) { if (vivo)
             setErro(e.message); });
         return function () { vivo = false; };
-    }, [negocio, faixa.de, faixa.ate]);
+    }, [negocio, faixa.de, faixa.ate, recarga]);
     if (erro)
         return React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.bad } },
             "N\u00E3o consegui ler os dados: ",
@@ -8995,6 +9014,8 @@ function AbaMarketing(_a) {
                 faixa.de.split("-").reverse().join("/"),
                 " a ",
                 faixa.ate.split("-").reverse().join("/")),
+            React.createElement(Btn, { kind: "accent", onClick: atualizarMeta, style: { padding: "7px 12px", fontSize: 12.5, opacity: atualizando ? .6 : 1 } }, atualizando ? "Atualizando\u2026" : "Atualizar gasto do Meta"),
+            avisoMeta && React.createElement("span", { style: { fontSize: 12, color: avisoMeta.ruim ? T.bad : T.good, flexBasis: "100%" } }, avisoMeta.txt),
             React.createElement("span", { style: { marginLeft: "auto", fontSize: 12, color: T.muted } }, ehStore ? "Car Store" : "Car Service")),
         React.createElement(Secao, { n: 1, titulo: "Resultado do tr\u00E1fego pago, por canal", nota: "Google e Meta nunca somados no mesmo cart\u00E3o: s\u00E3o leil\u00F5es diferentes, custos diferentes e comportamentos de lead diferentes. Cada canal tem a mesma fileira de n\u00FAmeros, um em cima do outro, para a compara\u00E7\u00E3o ser de bater o olho. O total fecha embaixo." },
             MKT_CANAIS.map(function (c) { return (React.createElement(React.Fragment, { key: c },
@@ -9066,7 +9087,7 @@ function AbaMarketing(_a) {
                 React.createElement("ul", { style: { margin: 0, paddingLeft: 18 } },
                     React.createElement("li", null,
                         React.createElement("b", null, "Investimento por dia"),
-                        " \u2014 hoje o n\u00FAmero do Reportei \u00E9 do per\u00EDodo inteiro e entra \u00E0 m\u00E3o. Com a API do Google e do Meta ligadas, o gasto entra sozinho por dia e a aba passa a mostrar pico de verba sem retorno."),
+                        " \u2014 o Meta j\u00E1 entra por dia, direto da API, a partir de 24/09/2026 (bot\u00E3o \u201CAtualizar gasto do Meta\u201D). At\u00E9 23/09 o n\u00FAmero \u00E9 do Reportei, do per\u00EDodo inteiro. O Google ainda entra \u00E0 m\u00E3o, at\u00E9 a API dele ser ligada."),
                     React.createElement("li", null,
                         React.createElement("b", null, "Meta antes de 23/09/2026"),
                         " \u2014 a integra\u00E7\u00E3o de Lead Ads s\u00F3 come\u00E7ou nessa data. Os leads anteriores t\u00EAm produto, n\u00E3o campanha, e aparecem com o nome \"Wpp (at\u00E9 22/09)\"."),
@@ -9082,7 +9103,7 @@ function AbaMarketing(_a) {
                         " \u2014 a aba SDR j\u00E1 mede isso por SDR; falta cruzar com campanha para separar o que \u00E9 problema de an\u00FAncio do que \u00E9 problema de atendimento.")))),
         React.createElement("p", { style: { fontSize: 11.5, color: T.muted, marginTop: 26, maxWidth: "90ch" } },
             React.createElement("b", null, "De onde vem cada n\u00FAmero."),
-            " Investimento e or\u00E7amento: tabela de verba, lan\u00E7ada a partir do Reportei e da planilha da BREV. Leads, agendamentos, comparecimentos e vendas: Kommo, pelo mesmo crit\u00E9rio da aba SDR \u2014 nunca as convers\u00F5es da plataforma, que contam clique no WhatsApp e liga\u00E7\u00E3o. Google \u00E9 identificado por UTM; Meta, pelo nome da campanha do Lead Ads e, antes de 23/09/2026, pela frase padr\u00E3o do an\u00FAncio.")));
+            " Investimento: Meta pela API (por dia, desde 24/09/2026) e Google/Meta anterior lan\u00E7ados do Reportei. Or\u00E7amento: planilha da BREV. Leads, agendamentos, comparecimentos e vendas: Kommo, pelo mesmo crit\u00E9rio da aba SDR \u2014 nunca as convers\u00F5es da plataforma, que contam clique no WhatsApp e liga\u00E7\u00E3o. Google \u00E9 identificado por UTM; Meta, pelo nome da campanha do Lead Ads e, antes de 23/09/2026, pela frase padr\u00E3o do an\u00FAncio.")));
 }
 /* ===================== piloto do closer (v57, 25/09/2026) =====================
 
