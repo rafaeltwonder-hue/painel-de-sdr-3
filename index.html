@@ -5073,8 +5073,11 @@ function Painel(_a) {
             HUB_IDS.indexOf(aba) >= 0 && podeVer(aba) && React.createElement(HubConteudo, { aba: aba, nome: nomeDoLogin(sessao), membros: escopo.membros }),
             bdrVazio && (aba === "painel" || aba === "coordenador" || aba === "tv") && React.createElement(PainelBDR, { sessao: sessao, perfil: perfil, sq: sq }),
             aba === "coordenador" && mesAba !== mesAtualISO && !bdrVazio && React.createElement(CoordenadorMesFechado, { mes: mesAba, negocio: negocio, sessao: sessao, membros: escopo.membros, peso: escopo.peso }),
-            aba === "coordenador" && mesAba === mesAtualISO && rot && !bdrVazio && React.createElement(AbaCoordenador, { sessao: sessao, c: rot, funil: d.funilAgora, qualidade: d.qualidade, tarefas: d.tarefas, semTarefa: d.semTarefa }),
-            aba === "coordenador" && mesAba === mesAtualISO && rot && !bdrVazio && React.createElement(BdrNoCoordenador, { sessao: sessao, perfil: perfil, sq: sq, squad: escopo.squad }),
+            aba === "coordenador" && mesAba === mesAtualISO && rot && !bdrVazio && React.createElement("div", { id: "coord-topo" },
+                React.createElement(CoordNav, { negocio: negocio, temBdr: true }),
+                React.createElement(AbaCoordenador, { sessao: sessao, c: rot, funil: d.funilAgora, qualidade: d.qualidade, tarefas: d.tarefas, semTarefa: d.semTarefa })),
+            aba === "coordenador" && mesAba === mesAtualISO && rot && !bdrVazio && !escopo.pendente && React.createElement(CoordOutroNegocio, { key: "outro-" + negocio, negocio: negocio === "car_store" ? "car_service" : "car_store", escopo: escopo }),
+            aba === "coordenador" && mesAba === mesAtualISO && rot && !bdrVazio && React.createElement("div", { id: "coord-bdr" }, React.createElement(BdrNoCoordenador, { sessao: sessao, perfil: perfil, sq: sq, squad: escopo.squad })),
             aba === "painel" && !bdrVazio && (React.createElement(React.Fragment, null,
                 React.createElement(Card, { className: "p12", style: { position: "sticky", top: 54, zIndex: 20 } },
                     React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
@@ -9494,6 +9497,7 @@ function BdrMes(_a) {
     var du = diasUteisDoMes(h0);
     var cm = bdrCalc(d, nomes, mes, h0);
     var m = bdrMetas(eqLista, du.passados);
+    var mTot = bdrMetas(eqLista, du.passados + du.restantes);
     var osMeta = m.osMes;
     var faltam = Math.max(0, osMeta - cm.os);
     var porDia = faltam / Math.max(1, du.restantes);
@@ -9509,11 +9513,9 @@ function BdrMes(_a) {
     return React.createElement("div", null,
         React.createElement(BdrGrade, { min: 240 },
             linha("O.S. fechadas no mês", cm.os, osMeta, faltam > 0 ? "Faltam " + nInt(faltam) + " em " + nInt(du.restantes) + " dias úteis (" + nNum(porDia, 1) + " por dia)" : "Meta do mês batida"),
-            linha("Agendamentos no mês", cm.agend, m.agend, "Ritmo esperado até hoje: " + nInt(m.agend)),
-            linha("Ligações atendidas no mês", cm.atend, m.lig, "Ritmo esperado até hoje: " + nInt(m.lig)),
-            linha("Conversas no mês", cm.conv, m.conv, "Ritmo esperado até hoje: " + nInt(m.conv))),
-        cm.os === 0 && React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 10, maxWidth: "78ch", lineHeight: 1.55 } },
-            "As O.S. do BDR vêm do Oficina, pelo campo Pesquisa da O.S. (igual ao SDR). Para contar, a Pesquisa precisa citar o BDR junto de \"agendamento\" — por exemplo \"Biscuola agendamento\" ou \"Gabrielly agendamento\"."));
+            linha("Agendamentos no mês", cm.agend, mTot.agend, "Ritmo esperado até hoje: " + nInt(m.agend)),
+            linha("Ligações atendidas no mês", cm.atend, mTot.lig, "Ritmo esperado até hoje: " + nInt(m.lig)),
+            linha("Conversas no mês", cm.conv, mTot.conv, "Ritmo esperado até hoje: " + nInt(m.conv))));
 }
 
 /* 03 · Ligações: do discador até a visita */
@@ -9788,6 +9790,78 @@ function BdrNoCoordenador(_a) {
                 linhas: linhas
             })),
         alertas.length > 0 && React.createElement("div", { style: { marginTop: 12 } }, alertas.slice(0, 3).map(function (a, i) { return React.createElement(BdrAviso, { key: i, titulo: a.titulo, texto: a.texto, tom: a.tom }); })));
+}
+
+/* ===================== v111: coordenador com tudo junto =====================
+   Rafael (07/10): "juntar TUDO (car service, store e bdr) para a visibilidade
+   ficar mais fácil, em vez de andar de aba em aba". A rotina completa continua
+   sendo a do negócio escolhido no topo; os outros entram logo abaixo, no mesmo
+   squad, com os números de HOJE e do mês. */
+function CoordIrPara(id) {
+    try { var el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) { }
+}
+function CoordNav(_a) {
+    var negocio = _a.negocio, temBdr = _a.temBdr;
+    var outro = negocio === "car_store" ? "car_service" : "car_store";
+    var itens = [["coord-topo", negocio === "car_store" ? "Car Store" : "Car Service"], ["coord-" + outro, outro === "car_store" ? "Car Store" : "Car Service"]];
+    if (temBdr) itens.push(["coord-bdr", "BDR"]);
+    return React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "0 0 14px" } },
+        React.createElement("span", { style: { fontSize: 12, color: T.muted } }, "Seu squad, tudo nesta aba:"),
+        itens.map(function (x) {
+            return React.createElement("button", { key: x[0], onClick: function () { CoordIrPara(x[0]); }, style: { border: "1px solid " + T.hair, background: T.surface, borderRadius: 99, padding: "4px 12px", fontFamily: F_UI, fontSize: 12.5, fontWeight: 600, cursor: "pointer", color: T.ink } }, x[1]);
+        }));
+}
+function CoordOutroNegocio(_a) {
+    var negocio = _a.negocio, escopo = _a.escopo;
+    var h0 = hoje();
+    var d = usarDados(h0, h0, addDays(h0, -1), negocio, escopo);
+    var c = useMemo(function () { return contasDaRotina(d.rotina, d.tarefas, d.semTarefa); }, [d.rotina, d.tarefas, d.semTarefa]);
+    var ehStore = negocio === "car_store";
+    var nome = ehStore ? "Car Store" : "Car Service";
+    var un = ehStore ? "carros" : "O.S.";
+    var cab = React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 11, marginBottom: 5, flexWrap: "wrap" } },
+        React.createElement("span", { style: { fontFamily: F_MARCA, background: T.preto, color: T.marca, fontSize: 11.5, fontWeight: 700, borderRadius: 6, padding: "3px 7px", lineHeight: 1.2 } }, ehStore ? "STORE" : "SERVICE"),
+        React.createElement("h2", { style: { fontFamily: F_MARCA, color: T.ink, fontSize: 18.5, fontWeight: 700, margin: 0 } }, nome + (escopo && escopo.nome ? " do squad · " + escopo.nome : " do squad")));
+    if (!c) return React.createElement("section", { id: "coord-" + negocio, style: { marginTop: 40 } }, cab, React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, d.estado && d.estado.erro ? "Não consegui ler o " + nome + ": " + d.estado.erro : "Carregando o " + nome + "…"));
+    if (!c.equipe.length) return React.createElement("section", { id: "coord-" + negocio, style: { marginTop: 40 } }, cab, React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhum SDR de " + nome + " neste squad."));
+    var duMes = diasUteisDoMes(h0);
+    var metaMes = Number((c.meta || {}).os) || 0;
+    var metasI = c.metasIntencao || [];
+    var metaUn = ehStore ? metasI.reduce(function (s, m) { return s + (m.meta || 0); }, 0) : metaMes;
+    var pl = c.pessoasLista.slice().sort(function (a, b) { return b.osMes - a.osMes; });
+    var tot = pl.reduce(function (s, p) { s.ligou += p.ligou; s.falou += p.falou; s.agend += p.agendou; s.compar += p.compareceu; s.vend += p.vendeu; s.semD += p.semDesfecho; return s; }, { ligou: 0, falou: 0, agend: 0, compar: 0, vend: 0, semD: 0 });
+    var cols = [
+        { t: "SDR", f: function (p) { return p.sdr; }, b: true },
+        { t: "Leads hoje", r: true, f: function (p) { return nInt(p.leadsHoje); } },
+        { t: "Ligações", r: true, f: function (p) { return nInt(p.ligou); } },
+        { t: "Falou com", r: true, f: function (p) { return nInt(p.falou); } },
+        { t: "Agendou hoje", r: true, f: function (p) { return nInt(p.agendou); } },
+        { t: "Compareceram", r: true, f: function (p) { return nInt(p.compareceu); } },
+        { t: "Vendas hoje", r: true, f: function (p) { return nInt(p.vendeu); } },
+        { t: un + " no mês", r: true, b: true, f: function (p) { return nInt(p.osMes); } },
+        { t: "Visita sem desfecho", r: true, f: function (p) { return p.semDesfecho ? nInt(p.semDesfecho) : "—"; } },
+    ];
+    return React.createElement("section", { id: "coord-" + negocio, style: { marginTop: 40 } },
+        cab,
+        React.createElement("p", { style: { fontSize: 12.5, color: T.muted, margin: "0 0 14px", maxWidth: "72ch" } }, "Hoje e o mês do mesmo squad. A rotina completa deste negócio abre trocando " + nome + " no topo da tela."),
+        React.createElement(BdrGrade, { min: 190 },
+            React.createElement(Kpi, { label: "Leads recebidos hoje", value: nInt(c.doDia.leads), sub: "Sem ligação ainda: " + nInt(c.semLigar) }),
+            React.createElement(Kpi, { label: "Agendamentos hoje", value: nInt(c.doDia.agend), sub: "Visitas do dia: " + nInt(c.doDia.visitas) }),
+            React.createElement(Kpi, { label: "Compareceram hoje", value: nInt(c.doDia.compar) }),
+            React.createElement(Kpi, { label: ehStore ? "Carros vendidos no mês" : "O.S. fechadas no mês", value: nInt(c.mes.os), sub: metaUn ? "Meta do mês: " + nInt(metaUn) + " · faltam " + nInt(Math.max(0, metaUn - c.mes.os)) : null, tone: metaUn ? bdrTone(c.mes.os, metaUn * (duMes.passados / Math.max(1, duMes.passados + duMes.restantes))) : undefined }),
+            !ehStore && React.createElement(Kpi, { label: "Faturamento no mês", value: nReal(c.mes.receita), sub: c.meta && c.meta.faturamento ? "Meta do mês: " + nReal(Number(c.meta.faturamento)) : null }),
+            React.createElement(Kpi, { label: "Tarefas vencidas", value: nInt(c.tarefasVencidas), sub: "Leads sem tarefa: " + nInt(c.leadsSemTarefa), tone: c.tarefasVencidas > 0 ? "bad" : "good" })),
+        ehStore && metasI.length > 0 && React.createElement("div", { style: { marginTop: 12 } },
+            React.createElement(BdrGrade, { min: 240 }, metasI.map(function (m) {
+                return React.createElement(Card, { key: m.intencao, className: "p16" },
+                    React.createElement(Label, null, m.rotulo),
+                    React.createElement("div", { style: { marginTop: 8, display: "flex", alignItems: "baseline", gap: 8 } },
+                        React.createElement(Metric, { value: nInt(m.feito) }),
+                        React.createElement("span", { style: { fontSize: 13, color: T.muted } }, "/ " + nInt(m.meta))),
+                    React.createElement("div", { style: { marginTop: 9 } }, React.createElement(Barra, { pct: m.pct, cor: m.pct >= 1 ? T.good : T.marca, alt: 7 })));
+            }))),
+        React.createElement(Card, { className: "p16", style: { marginTop: 12 } },
+            React.createElement(BdrTabela, { cols: cols, linhas: pl.concat([{ sdr: "Squad", leadsHoje: c.doDia.leads, ligou: tot.ligou, falou: tot.falou, agendou: tot.agend, compareceu: tot.compar, vendeu: tot.vend, osMes: c.mes.os, semDesfecho: tot.semD }]), destaque: function (p) { return p.sdr === "Squad"; } })));
 }
 
 function PilotoSDR(_a) {
