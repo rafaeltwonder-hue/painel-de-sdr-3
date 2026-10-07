@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v115 — CAR SERVICE</title>
-<meta name="painel-versao" content="v115">
+<title>Painel de SDR v118 — CAR SERVICE</title>
+<meta name="painel-versao" content="v118">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -3219,8 +3219,23 @@ function parsePontos(t) {
         return { disse: m1 ? m1[1].trim() : "", melhor: m2 ? m2[1].trim() : "", porque: m3 ? m3[1].trim() : "", raw: x };
     }).slice(0, 3);
 }
+/* v116: chama uma função do Supabase e devolve {ok, data, erro, falta} sem estourar exceção */
+function chamaTreino(nome, corpo) {
+    return db.functions.invoke(nome, { body: corpo || {} }).then(function (r) {
+        if (!r.error)
+            return { ok: true, data: r.data };
+        var e = r.error;
+        if (e.context && typeof e.context.json === "function")
+            return e.context.json().then(function (j) { return { ok: false, erro: (j && (j.mensagem || j.erro)) || e.message, falta: !!(j && j.erro === "falta_chave") }; }, function () { return { ok: false, erro: e.message }; });
+        return { ok: false, erro: e.message };
+    }, function (e) { return { ok: false, erro: String((e && e.message) || e) }; });
+}
 function TreinoFeedback(_a) {
-    var todos = _a.todos;
+    var todos = _a.todos, tick = _a.tick, aoAtualizar = _a.aoAtualizar;
+    var _bz = __read(useState(false), 2), ocupado = _bz[0], setOcupado = _bz[1];
+    var _mz = __read(useState(""), 2), aviso = _mz[0], setAviso = _mz[1];
+    var _gz = __read(useState({}), 2), gerando = _gz[0], setGerando = _gz[1];
+    var _ez = __read(useState({}), 2), errosG = _ez[0], setErrosG = _ez[1];
     var _b = __read(useState({ carregando: true, erro: null, rows: [] }), 2), st = _b[0], setSt = _b[1];
     var _c = __read(useState({}), 2), ab = _c[0], setAb = _c[1];
     var _d = __read(useState(""), 2), quem = _d[0], setQuem = _d[1];
@@ -3232,7 +3247,55 @@ function TreinoFeedback(_a) {
             setSt({ carregando: false, erro: r.error ? r.error.message : null, rows: r.data || [] }); }, function (e) { if (vivo)
             setSt({ carregando: false, erro: String((e && e.message) || e), rows: [] }); });
         return function () { vivo = false; };
-    }, []);
+    }, [tick]);
+    var atualizarAgora = function () {
+        setOcupado(true);
+        setAviso("");
+        chamaTreino("treino-puxar", {}).then(function (r) {
+            setOcupado(false);
+            if (!r.ok) {
+                setAviso("Não consegui atualizar agora: " + r.erro);
+                return;
+            }
+            var d = r.data || {};
+            var an = d.analise_3_pontos || {};
+            var t = (d.gravadas || 0) > 0 ? d.gravadas + " ligação(ões) nova(s) trazida(s)." : "Nenhuma ligação nova no ElevenLabs.";
+            if (an.geradas)
+                t += " " + an.geradas + " análise(s) dos 3 pontos gerada(s).";
+            if (an.sem_chave)
+                t += " Há ligação sem os 3 pontos, mas a chave da análise ainda não foi configurada.";
+            if (d.aguardando_analise)
+                t += " " + d.aguardando_analise + " ligação(ões) ainda sendo analisada(s) pelo ElevenLabs: tente de novo em alguns minutos.";
+            setAviso(t);
+            if (aoAtualizar)
+                aoAtualizar();
+        });
+    };
+    var gerarAnalise = function (id) {
+        var g = {};
+        Object.keys(gerando).forEach(function (k) { g[k] = gerando[k]; });
+        g[id] = true;
+        setGerando(g);
+        var e0 = {};
+        Object.keys(errosG).forEach(function (k) { if (k !== id)
+            e0[k] = errosG[k]; });
+        setErrosG(e0);
+        chamaTreino("treino-analisar", { conversation_id: id }).then(function (r) {
+            var g2 = {};
+            Object.keys(gerando).forEach(function (k) { if (k !== id)
+                g2[k] = gerando[k]; });
+            setGerando(g2);
+            if (r.ok && r.data && r.data.pontos_melhoria) {
+                setSt(function (ant) { return { carregando: false, erro: ant.erro, rows: ant.rows.map(function (u) { return u.conversation_id === id ? __assign(__assign({}, u), { pontos_melhoria: r.data.pontos_melhoria }) : u; }) }; });
+            }
+            else {
+                var e1 = {};
+                Object.keys(errosG).forEach(function (k) { e1[k] = errosG[k]; });
+                e1[id] = r.falta ? "A chave da análise ainda não foi configurada (avise o Rafael)." : ("Não consegui gerar: " + (r.erro || "tente de novo"));
+                setErrosG(e1);
+            }
+        });
+    };
     var nomes = [];
     var minus = function (v) { return String(v || "").toLowerCase().trim(); };
     st.rows.forEach(function (u) { if (u.sdr_nome && !nomes.some(function (n) { return minus(n) === minus(u.sdr_nome); }))
@@ -3245,6 +3308,9 @@ function TreinoFeedback(_a) {
     if (todos)
         sub = "Feedback de cada ligação: nota, critérios e os 3 pontos para melhorar. Você vê o de todos; cada pessoa vê só o próprio.";
     return (React.createElement(Secao, { n: 2, titulo: todos ? "Feedback das ligações" : "Meu feedback", nota: sub + (st.erro ? " Não consegui ler: " + st.erro : "") },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 10 } },
+            React.createElement(Btn, { kind: "accent", onClick: ocupado ? undefined : atualizarAgora, style: { opacity: ocupado ? 0.6 : 1 } }, ocupado ? "Atualizando…" : "\u21BB Atualizar agora"),
+            aviso && React.createElement("span", { style: { fontSize: 12.5, color: T.ink2, lineHeight: 1.4, flex: 1, minWidth: 200 } }, aviso)),
         todos && nomes.length > 1 && React.createElement("div", { style: { marginBottom: 10 } },
             React.createElement("select", { value: quem, onChange: function (e) { return setQuem(e.target.value); }, style: inputStyle },
                 React.createElement("option", { value: "" }, "Todos (" + st.rows.length + " ligações)"),
@@ -3286,11 +3352,16 @@ function TreinoFeedback(_a) {
                                     p.melhor && React.createElement("div", { key: "m", style: { color: T.good } }, React.createElement("b", null, "Melhor: "), p.melhor),
                                     p.porque && React.createElement("div", { key: "p", style: { color: T.muted } }, React.createElement("b", null, "Por quê: "), p.porque)
                                 ] : React.createElement("div", null, React.createElement("b", null, k + 1 + ". "), p.raw)));
-                        }) : React.createElement("div", { style: { fontSize: 13, color: T.muted, lineHeight: 1.5 } }, u.ponto_de_treino ? "Ponto de treino: " + u.ponto_de_treino : "Sem os 3 pontos nesta ligação (ela é anterior ao novo formato, ou ainda está sendo analisada)."))))); })));
+                        }) : React.createElement("div", null,
+                            React.createElement("div", { style: { fontSize: 13, color: T.muted, lineHeight: 1.5 } }, u.ponto_de_treino ? "Ponto de treino: " + u.ponto_de_treino : "O ElevenLabs não mandou os 3 pontos desta ligação."),
+                            u.conta && React.createElement("div", { style: { marginTop: 10 } },
+                                React.createElement(Btn, { kind: "accent", onClick: gerando[u.conversation_id] ? undefined : function () { return gerarAnalise(u.conversation_id); }, style: { opacity: gerando[u.conversation_id] ? 0.6 : 1 } }, gerando[u.conversation_id] ? "Analisando a transcrição…" : "Gerar os 3 pontos agora"),
+                                errosG[u.conversation_id] && React.createElement("div", { style: { fontSize: 12.5, color: T.bad, marginTop: 6, lineHeight: 1.4 } }, errosG[u.conversation_id]))))))); })));
 }
 function AbaTreinador(_a) {
     var nome = _a.nome, semPlacar = _a.semPlacar, membros = _a.membros, todos = _a.todos;
     var _b = __read(useState({ carregando: true, erro: null, sem: [], eq: [], ult: [], cl: [], sem_l: [] }), 2), pl = _b[0], setPl = _b[1];
+    var _tk = __read(useState(0), 2), tick = _tk[0], setTick = _tk[1];
     useEffect(function () {
         if (semPlacar)
             return undefined;
@@ -3311,7 +3382,7 @@ function AbaTreinador(_a) {
         }, function (e) { if (vivo)
             setPl({ carregando: false, erro: String((e && e.message) || e), sem: [], eq: [], ult: [], cl: [], sem_l: [] }); });
         return function () { vivo = false; };
-    }, [semPlacar]);
+    }, [semPlacar, tick]);
     var porSdr = {};
     var semSq = membros ? pl.sem.filter(function (x) { return membroBate(membros, x.sdr); }) : pl.sem;
     var eqSq = membros ? pl.eq.filter(function (e) { return membroBate(membros, e.sdr); }) : pl.eq;
@@ -3367,7 +3438,7 @@ function AbaTreinador(_a) {
                         React.createElement("div", { style: { fontSize: 12, color: T.muted, lineHeight: 1.4, marginTop: 2 } }, p.gancho)),
                     React.createElement("a", { href: TREINO_LINK + p.id + (nome ? "&var_sdr_nome=" + encodeURIComponent(nome) : ""), target: "_blank", rel: "noopener noreferrer", style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "7px 11px", borderRadius: 6, background: T.marca,
                             color: T.preto, textDecoration: "none", whiteSpace: "nowrap", border: "1px solid ".concat(T.marca) } }, "\uD83D\uDCDE Ligar"))); }))); }))),
-        React.createElement(TreinoFeedback, { todos: todos }),
+        React.createElement(TreinoFeedback, { todos: todos, tick: tick, aoAtualizar: function () { return setTick(function (t) { return t + 1; }); } }),
         !semPlacar && React.createElement(Secao, { n: 3, titulo: "Placar da semana", nota: "Meta: " + TREINO_META + " treinos por pessoa por semana. Só contam ligações de 60 segundos ou mais. A nota é a soma dos critérios cumpridos (não a nota solta da IA). \"Agendou\" é em quantas dessas ligações a pessoa conseguiu marcar a visita." + (pl.erro ? " Não consegui ler o placar: " + pl.erro : "") },
             React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
                 React.createElement("div", { className: "rolagem" },
@@ -9020,6 +9091,140 @@ function MktFunil(_a) {
             nPct(div(t.vendas, t.leads), 1),
             t.investido ? " \u00B7 CAC ".concat(t.vendas ? nReal(div(t.investido, t.vendas)) : "sem venda") : "")));
 }
+/* v117: conversão por criativo (anúncio) do Meta. Lead, agendamento e venda vêm do Kommo
+   (só o lead de formulário traz o nome/ID do anúncio); o gasto vem do Meta, por anúncio. */
+function MktCriativos(_a) {
+    var linhas = _a.linhas, leadsMeta = _a.leadsMeta;
+    var por = {};
+    linhas.forEach(function (l) {
+        var a = por[l.ad_key] || (por[l.ad_key] = { chave: l.ad_key, criativo: null, campanha: null, leads: 0, agendados: 0, compareceram: 0, vendas: 0, receita: 0, investido: 0, impressoes: 0, cliques: 0 });
+        if (l.criativo && !a.criativo)
+            a.criativo = l.criativo;
+        if (l.campanha && !a.campanha)
+            a.campanha = l.campanha;
+        ["leads", "agendados", "compareceram", "vendas", "receita", "investido", "impressoes", "cliques"].forEach(function (k) { a[k] += Number(l[k]) || 0; });
+    });
+    var lista = Object.keys(por).map(function (k) { return por[k]; })
+        .sort(function (a, b) { return (b.investido - a.investido) || (b.leads - a.leads); });
+    var t = lista.reduce(function (s, l) { return ({ leads: s.leads + l.leads, agendados: s.agendados + l.agendados, compareceram: s.compareceram + l.compareceram, vendas: s.vendas + l.vendas, investido: s.investido + l.investido }); }, { leads: 0, agendados: 0, compareceram: 0, vendas: 0, investido: 0 });
+    if (!lista.length)
+        return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhum criativo do Meta no período. Se o gasto ainda não chegou, use o botão \"Atualizar gasto (Meta e Google)\".");
+    return (React.createElement("div", null,
+        React.createElement(Card, { className: "p0 rolagem" },
+            React.createElement("table", { style: { minWidth: 960 } },
+                React.createElement("thead", null,
+                    React.createElement("tr", null,
+                        React.createElement(Th, null, "Criativo"),
+                        React.createElement(Th, { right: true }, "Investido"),
+                        React.createElement(Th, { right: true }, "Leads"),
+                        React.createElement(Th, { right: true }, "CPL"),
+                        React.createElement(Th, { right: true }, "Agendou"),
+                        React.createElement(Th, { right: true }, "Taxa"),
+                        React.createElement(Th, { right: true }, "Custo/agend."),
+                        React.createElement(Th, { right: true }, "Compareceu"),
+                        React.createElement(Th, { right: true }, "Vendas"))),
+                React.createElement("tbody", null,
+                    lista.map(function (l) {
+                        var cpl = div(l.investido, l.leads);
+                        var cag = div(l.investido, l.agendados);
+                        return (React.createElement("tr", { key: l.chave },
+                            React.createElement(Td, { bold: true },
+                                l.criativo || ("Anúncio " + String(l.chave).replace(/^nome:/, "")),
+                                l.campanha && React.createElement("div", { style: { fontSize: 11, color: T.muted, fontWeight: 400 } }, l.campanha)),
+                            React.createElement(Td, { right: true }, l.investido ? nReal(l.investido) : React.createElement("span", { style: { color: T.muted } }, "—")),
+                            React.createElement(Td, { right: true }, nInt(l.leads)),
+                            React.createElement(Td, { right: true, color: !l.investido || !l.leads ? T.muted : T.ink }, l.investido && l.leads ? nReal(cpl) : "—"),
+                            React.createElement(Td, { right: true }, nInt(l.agendados)),
+                            React.createElement(Td, { right: true, color: l.leads && div(l.agendados, l.leads) >= 0.2 ? T.good : T.ink }, l.leads ? nPct(div(l.agendados, l.leads), 1) : "—"),
+                            React.createElement(Td, { right: true, color: !l.investido || !l.agendados ? T.muted : T.ink }, l.investido && l.agendados ? nReal(cag) : "—"),
+                            React.createElement(Td, { right: true }, nInt(l.compareceram)),
+                            React.createElement(Td, { right: true, bold: true }, nInt(l.vendas))));
+                    }),
+                    React.createElement("tr", { style: { background: T.canvas } },
+                        React.createElement(Td, { bold: true }, "Total dos criativos"),
+                        React.createElement(Td, { right: true, bold: true }, nReal(t.investido)),
+                        React.createElement(Td, { right: true, bold: true }, nInt(t.leads)),
+                        React.createElement(Td, { right: true, bold: true }, t.investido && t.leads ? nReal(div(t.investido, t.leads)) : "—"),
+                        React.createElement(Td, { right: true, bold: true }, nInt(t.agendados)),
+                        React.createElement(Td, { right: true, bold: true }, t.leads ? nPct(div(t.agendados, t.leads), 1) : "—"),
+                        React.createElement(Td, { right: true, bold: true }, t.investido && t.agendados ? nReal(div(t.investido, t.agendados)) : "—"),
+                        React.createElement(Td, { right: true, bold: true }, nInt(t.compareceram)),
+                        React.createElement(Td, { right: true, bold: true }, nInt(t.vendas)))))),
+        React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 10, maxWidth: "90ch", lineHeight: 1.5 } },
+            React.createElement("b", null, "Leia com cuidado. "),
+            "O Kommo só traz o criativo do lead que vem pelo formulário do Meta (" + nInt(t.leads) + " de " + nInt(Math.max(leadsMeta, t.leads)) + " leads do Meta no período, " + nPct(div(t.leads, Math.max(leadsMeta, t.leads)), 0) + "). O lead que chega pelo botão de WhatsApp não diz de qual criativo veio, mas o gasto dele está na linha do anúncio: por isso o CPL e o custo por agendamento de anúncio que também leva ao WhatsApp ficam maiores do que o real. Compare criativos do mesmo tipo.")));
+}
+/* v118: conversão por palavra-chave do Google. Lead, agendamento e venda vêm do Kommo (utm_term do lead);
+   o gasto vem do Google Ads, por palavra-chave. */
+function MktPalavras(_a) {
+    var linhas = _a.linhas;
+    var _m = __read(useState(false), 2), todas = _m[0], setTodas = _m[1];
+    var por = {};
+    linhas.forEach(function (l) {
+        var a = por[l.chave] || (por[l.chave] = { chave: l.chave, palavra: null, campanha: null, leads: 0, agendados: 0, compareceram: 0, vendas: 0, receita: 0, investido: 0, impressoes: 0, cliques: 0 });
+        if (l.palavra && !a.palavra)
+            a.palavra = l.palavra;
+        if (l.campanha && !a.campanha)
+            a.campanha = l.campanha;
+        ["leads", "agendados", "compareceram", "vendas", "receita", "investido", "impressoes", "cliques"].forEach(function (k) { a[k] += Number(l[k]) || 0; });
+    });
+    var lista = Object.keys(por).map(function (k) { return por[k]; })
+        .sort(function (a, b) { return (b.investido - a.investido) || (b.leads - a.leads); });
+    var t = lista.reduce(function (s, l) { return ({ leads: s.leads + l.leads, agendados: s.agendados + l.agendados, vendas: s.vendas + l.vendas, investido: s.investido + l.investido, cliques: s.cliques + l.cliques }); }, { leads: 0, agendados: 0, vendas: 0, investido: 0, cliques: 0 });
+    if (!lista.length)
+        return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhuma palavra-chave do Google no período. Se o gasto ainda não chegou, use o botão \"Atualizar gasto (Meta e Google)\".");
+    var semLead = lista.filter(function (l) { return l.investido > 0 && l.leads === 0; });
+    var gastoSemLead = semLead.reduce(function (s, l) { return s + l.investido; }, 0);
+    var vis = todas ? lista : lista.slice(0, 25);
+    return (React.createElement("div", null,
+        React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.ink2, marginBottom: 10, lineHeight: 1.5 } },
+            React.createElement("b", { style: { color: T.ink } }, nInt(semLead.length) + " palavra" + (semLead.length === 1 ? "" : "s") + " gastou" + (semLead.length === 1 ? "" : "ram") + " e não trouxe" + (semLead.length === 1 ? "" : "ram") + " nenhum lead"),
+            " · " + nReal(gastoSemLead) + " (" + nPct(div(gastoSemLead, t.investido), 0) + " do gasto em palavras-chave)"),
+        React.createElement(Card, { className: "p0 rolagem" },
+            React.createElement("table", { style: { minWidth: 960 } },
+                React.createElement("thead", null,
+                    React.createElement("tr", null,
+                        React.createElement(Th, null, "Palavra-chave"),
+                        React.createElement(Th, { right: true }, "Investido"),
+                        React.createElement(Th, { right: true }, "Cliques"),
+                        React.createElement(Th, { right: true }, "Leads"),
+                        React.createElement(Th, { right: true }, "CPL"),
+                        React.createElement(Th, { right: true }, "Agendou"),
+                        React.createElement(Th, { right: true }, "Taxa"),
+                        React.createElement(Th, { right: true }, "Custo/agend."),
+                        React.createElement(Th, { right: true }, "Vendas"))),
+                React.createElement("tbody", null,
+                    vis.map(function (l) {
+                        var semLeadL = l.investido > 0 && l.leads === 0;
+                        return (React.createElement("tr", { key: l.chave },
+                            React.createElement(Td, { bold: true },
+                                l.palavra || l.chave,
+                                l.campanha && React.createElement("div", { style: { fontSize: 11, color: T.muted, fontWeight: 400 } }, l.campanha)),
+                            React.createElement(Td, { right: true }, l.investido ? nReal(l.investido) : React.createElement("span", { style: { color: T.muted } }, "—")),
+                            React.createElement(Td, { right: true, color: l.cliques ? T.ink : T.muted }, l.cliques ? nInt(l.cliques) : "—"),
+                            React.createElement(Td, { right: true, bold: l.leads > 0, color: semLeadL ? T.bad : T.ink }, nInt(l.leads)),
+                            React.createElement(Td, { right: true, color: !l.investido || !l.leads ? T.muted : T.ink }, l.investido && l.leads ? nReal(div(l.investido, l.leads)) : "—"),
+                            React.createElement(Td, { right: true }, nInt(l.agendados)),
+                            React.createElement(Td, { right: true, color: l.leads && div(l.agendados, l.leads) >= 0.2 ? T.good : T.ink }, l.leads ? nPct(div(l.agendados, l.leads), 1) : "—"),
+                            React.createElement(Td, { right: true, color: !l.investido || !l.agendados ? T.muted : T.ink }, l.investido && l.agendados ? nReal(div(l.investido, l.agendados)) : "—"),
+                            React.createElement(Td, { right: true, bold: true }, nInt(l.vendas))));
+                    }),
+                    React.createElement("tr", { style: { background: T.canvas } },
+                        React.createElement(Td, { bold: true }, "Total das palavras-chave"),
+                        React.createElement(Td, { right: true, bold: true }, nReal(t.investido)),
+                        React.createElement(Td, { right: true, bold: true }, nInt(t.cliques)),
+                        React.createElement(Td, { right: true, bold: true }, nInt(t.leads)),
+                        React.createElement(Td, { right: true, bold: true }, t.investido && t.leads ? nReal(div(t.investido, t.leads)) : "—"),
+                        React.createElement(Td, { right: true, bold: true }, nInt(t.agendados)),
+                        React.createElement(Td, { right: true, bold: true }, t.leads ? nPct(div(t.agendados, t.leads), 1) : "—"),
+                        React.createElement(Td, { right: true, bold: true }, t.investido && t.agendados ? nReal(div(t.investido, t.agendados)) : "—"),
+                        React.createElement(Td, { right: true, bold: true }, nInt(t.vendas)))))),
+        lista.length > 25 && React.createElement("div", { style: { marginTop: 10 } },
+            React.createElement(Btn, { onClick: function () { return setTodas(!todas); } }, todas ? "Mostrar só as 25 que mais gastaram" : "Mostrar todas (" + lista.length + ")")),
+        React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 10, maxWidth: "90ch", lineHeight: 1.5 } },
+            React.createElement("b", null, "Leia com cuidado. "),
+            "Cada palavra é casada com o lead pela palavra que o anúncio mandou no link (UTM). Palavra com poucos cliques ainda não diz nada: espere ter volume antes de cortar. O mesmo texto em campanhas diferentes aparece somado.")));
+}
 function AbaMarketing(_a) {
     var _this = this;
     var negocio = _a.negocio;
@@ -9028,6 +9233,8 @@ function AbaMarketing(_a) {
     var _d = __read(useState([]), 2), verba = _d[0], setVerba = _d[1];
     var _f = __read(useState([]), 2), orcamento = _f[0], setOrcamento = _f[1];
     var _g = __read(useState(null), 2), erro = _g[0], setErro = _g[1];
+    var _cr = __read(useState([]), 2), criativos = _cr[0], setCriativos = _cr[1];
+    var _pw = __read(useState([]), 2), palavras = _pw[0], setPalavras = _pw[1];
     /* v108: botão que puxa o gasto do Meta (função meta-ads-sync) e recarrega a aba */
     var _h1 = __read(useState(0), 2), recarga = _h1[0], setRecarga = _h1[1];
     var _h2 = __read(useState(false), 2), atualizando = _h2[0], setAtualizando = _h2[1];
@@ -9076,14 +9283,17 @@ function AbaMarketing(_a) {
             }
         }); }); };
         var naFaixa = function (t) { return db.from(t).select("*").eq("negocio", negocio).gte("data", faixa.de).lte("data", faixa.ate); };
-        Promise.all([pega(naFaixa("campanha_dia")), pega(naFaixa("verba_dia")), pega(naFaixa("orcamento_dia"))])
+        /* v117: criativos vêm da view criativo_dia_v; se ela falhar, o resto da aba continua */
+        Promise.all([pega(naFaixa("campanha_dia")), pega(naFaixa("verba_dia")), pega(naFaixa("orcamento_dia")), pega(naFaixa("criativo_dia_v")).catch(function () { return []; }), pega(naFaixa("google_palavra_v")).catch(function () { return []; })])
             .then(function (_a) {
-            var _b = __read(_a, 3), c = _b[0], v = _b[1], o = _b[2];
+            var _b = __read(_a, 5), c = _b[0], v = _b[1], o = _b[2], cr = _b[3], pw = _b[4];
             if (!vivo)
                 return;
             setLinhas(c);
             setVerba(v);
             setOrcamento(o);
+            setCriativos(cr);
+            setPalavras(pw);
         })
             .catch(function (e) { if (vivo)
             setErro(e.message); });
@@ -9173,9 +9383,13 @@ function AbaMarketing(_a) {
         React.createElement(Secao, { n: 3, titulo: "Campanhas do Meta", nota: "Mesma tabela, mesma r\u00E9gua. Desde 23/09/2026 o nome da campanha chega exato do Lead Ads; antes disso a identifica\u00E7\u00E3o era pela frase do an\u00FAncio, ent\u00E3o campanha sem frase pr\u00F3pria aparece junto de outra." }, doCanal("Meta").length
             ? React.createElement(MktTabela, { canal: "Meta", linhas: doCanal("Meta") })
             : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhum lead de Meta no per\u00EDodo.")),
-        React.createElement(Secao, { n: 4, titulo: "O funil de cada canal", nota: "A mesma cadeia da aba SDR, lado a lado. \u00C9 aqui que aparece a diferen\u00E7a de qualidade: um canal pode trazer mais lead pelo mesmo dinheiro e ainda assim agendar menos." },
+        React.createElement(Secao, { n: 4, titulo: "Criativos do Meta", nota: "Convers\u00E3o por an\u00FAncio (criativo): quanto gastou, quantos leads, agendamentos, comparecimentos e vendas de cada um. O gasto vem do Meta, por an\u00FAncio; lead e venda v\u00EAm do Kommo." },
+            React.createElement(MktCriativos, { linhas: criativos, leadsMeta: tot.Meta.leads })),
+        React.createElement(Secao, { n: 5, titulo: "Palavras-chave do Google", nota: "Convers\u00E3o por palavra pesquisada: quanto gastou, cliques, leads, agendamentos e vendas de cada palavra-chave. O gasto vem do Google Ads; lead e venda v\u00EAm do Kommo." },
+            React.createElement(MktPalavras, { linhas: palavras })),
+        React.createElement(Secao, { n: 6, titulo: "O funil de cada canal", nota: "A mesma cadeia da aba SDR, lado a lado. \u00C9 aqui que aparece a diferen\u00E7a de qualidade: um canal pode trazer mais lead pelo mesmo dinheiro e ainda assim agendar menos." },
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(380px, 1fr))", gap: 14 } }, MKT_CANAIS.map(function (c) { return React.createElement(MktFunil, { key: c, canal: c, t: tot[c] }); }))),
-        React.createElement(Secao, { n: 5, titulo: "Planejado \u00D7 gasto", nota: "O or\u00E7amento \u00E9 o que a ag\u00EAncia planejou na planilha; o gasto \u00E9 o que saiu da conta. Guardamos os dois separados de prop\u00F3sito \u2014 plano n\u00E3o \u00E9 gasto, e usar o plano como se fosse gasto estraga CPL, CAC e ROAS." }, planoVsGasto.length ? (React.createElement(Card, { className: "p0 rolagem" },
+        React.createElement(Secao, { n: 7, titulo: "Planejado \u00D7 gasto", nota: "O or\u00E7amento \u00E9 o que a ag\u00EAncia planejou na planilha; o gasto \u00E9 o que saiu da conta. Guardamos os dois separados de prop\u00F3sito \u2014 plano n\u00E3o \u00E9 gasto, e usar o plano como se fosse gasto estraga CPL, CAC e ROAS." }, planoVsGasto.length ? (React.createElement(Card, { className: "p0 rolagem" },
             React.createElement("table", { style: { minWidth: 700 } },
                 React.createElement("thead", null,
                     React.createElement("tr", null,
@@ -9203,7 +9417,7 @@ function AbaMarketing(_a) {
                         React.createElement(Td, { right: true, bold: true }, nReal(totGasto)),
                         React.createElement(Td, { right: true, bold: true }, totGasto ? "".concat(totGasto - totOrc >= 0 ? "+" : "−").concat(nReal(Math.abs(totGasto - totOrc))) : "—"),
                         React.createElement(Td, { right: true })))))) : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhum or\u00E7amento lan\u00E7ado para este per\u00EDodo.")),
-        React.createElement(Secao, { n: 6, titulo: "De onde vem a identifica\u00E7\u00E3o", nota: "Quanto do que entrou a gente consegue nomear, e por qual caminho. Esta se\u00E7\u00E3o existe para o n\u00FAmero l\u00E1 de cima nunca ser lido como se fosse o total de leads da casa." },
+        React.createElement(Secao, { n: 8, titulo: "De onde vem a identifica\u00E7\u00E3o", nota: "Quanto do que entrou a gente consegue nomear, e por qual caminho. Esta se\u00E7\u00E3o existe para o n\u00FAmero l\u00E1 de cima nunca ser lido como se fosse o total de leads da casa." },
             React.createElement(Card, { className: "p16" },
                 ordemIdent.map(function (k) {
                     var l = ident.filter(function (x) { return x.chave === k; })[0] || { leads: 0 };
@@ -9222,7 +9436,7 @@ function AbaMarketing(_a) {
                 React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 12, borderTop: "1px solid ".concat(T.hair), paddingTop: 9 } },
                     nPct(div(totalLeads - (ident.filter(function (x) { return x.chave === "Sem identificação"; })[0] || { leads: 0 }).leads, totalLeads), 0),
                     " do per\u00EDodo tem origem conhecida. O resto entra sem UTM e sem frase reconhecida \u2014 parte \u00E9 org\u00E2nico de verdade, parte \u00E9 an\u00FAncio de Meta sem par\u00E2metro. Encolher essa barra \u00E9 a meta do trimestre."))),
-        React.createElement(Secao, { n: 7, titulo: "O que esta aba ainda depende", nota: "O que falta para os n\u00FAmeros pararem de ter ressalva. Fica na tela de prop\u00F3sito: ressalva escondida vira n\u00FAmero errado na reuni\u00E3o seguinte." },
+        React.createElement(Secao, { n: 9, titulo: "O que esta aba ainda depende", nota: "O que falta para os n\u00FAmeros pararem de ter ressalva. Fica na tela de prop\u00F3sito: ressalva escondida vira n\u00FAmero errado na reuni\u00E3o seguinte." },
             React.createElement(Card, { className: "p16", style: { fontSize: 13, lineHeight: 1.7 } },
                 React.createElement("ul", { style: { margin: 0, paddingLeft: 18 } },
                     React.createElement("li", null,
