@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v109 — CAR SERVICE</title>
-<meta name="painel-versao" content="v109">
+<title>Painel de SDR v111 — CAR SERVICE</title>
+<meta name="painel-versao" content="v111">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -2337,7 +2337,7 @@ function useSquads() {
     useEffect(function () {
         var vivo = true;
         Promise.all([
-            db.from("equipe_sdr").select("sdr,ativo,negocio,squad,funcao"),
+            db.from("equipe_sdr").select("sdr,ativo,negocio,squad,funcao,meta_individual"),
             db.from("squad").select("squad,nome,sala,peso_meta").order("squad"),
         ]).then(function (r) {
             if (!vivo)
@@ -4965,7 +4965,7 @@ function Painel(_a) {
     var q = d.qualidade;
     /* v107: o BDR ainda não tem funil nem discador ligados ao banco. Em vez de
        mostrar zeros (e a meta do Car Service no lugar da dele), a aba avisa. */
-    var bdrVazio = negocio === "bdr" && !d.estado.carregando && !(d.fato || []).length;
+    var bdrVazio = negocio === "bdr";
     /* O Modo TV sai do layout normal por completo: sem cabeçalho, sem abas,
        sem margem. Numa TV cada pixel de altura é placar que aparece. */
     if (aba === "tv" && !bdrVazio) {
@@ -5071,13 +5071,10 @@ function Painel(_a) {
             ehAdmin && aba === "origem" && React.createElement(AbaOrigem, { mes: mesAba }),
             (ehAdmin || ehAgencia) && aba === "marketing" && React.createElement(AbaMarketing, { negocio: negocio }),
             HUB_IDS.indexOf(aba) >= 0 && podeVer(aba) && React.createElement(HubConteudo, { aba: aba, nome: nomeDoLogin(sessao), membros: escopo.membros }),
-            bdrVazio && (aba === "painel" || aba === "coordenador" || aba === "tv") && (React.createElement(Card, { className: "p20", style: { borderLeft: "4px solid ".concat(T.marca) } },
-                React.createElement(Label, null, "BDR \u00B7 em preparo"),
-                React.createElement("h2", { style: { fontFamily: F_MARCA, fontSize: 18, fontWeight: 700, margin: "6px 0 8px" } }, "A aba do BDR est\u00E1 pronta, mas ainda n\u00E3o chega dado"),
-                React.createElement("div", { style: { fontSize: 13.5, color: T.ink2, lineHeight: 1.65, maxWidth: 680 } },
-                    "O Car Service e o Car Store s\u00E3o lidos do Kommo (cada um tem o seu funil). O BDR trabalha a base de clientes, e hoje nenhum funil nem discador dele alimenta o banco. Quando a fonte for ligada, esta aba passa a mostrar liga\u00E7\u00F5es, conversas, agendamentos e O.S. fechadas da base, por squad."))),
+            bdrVazio && (aba === "painel" || aba === "coordenador" || aba === "tv") && React.createElement(PainelBDR, { sessao: sessao, perfil: perfil, sq: sq }),
             aba === "coordenador" && mesAba !== mesAtualISO && !bdrVazio && React.createElement(CoordenadorMesFechado, { mes: mesAba, negocio: negocio, sessao: sessao, membros: escopo.membros, peso: escopo.peso }),
             aba === "coordenador" && mesAba === mesAtualISO && rot && !bdrVazio && React.createElement(AbaCoordenador, { sessao: sessao, c: rot, funil: d.funilAgora, qualidade: d.qualidade, tarefas: d.tarefas, semTarefa: d.semTarefa }),
+            aba === "coordenador" && mesAba === mesAtualISO && rot && !bdrVazio && React.createElement(BdrNoCoordenador, { sessao: sessao, perfil: perfil, sq: sq, squad: escopo.squad }),
             aba === "painel" && !bdrVazio && (React.createElement(React.Fragment, null,
                 React.createElement(Card, { className: "p12", style: { position: "sticky", top: 54, zIndex: 20 } },
                     React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
@@ -9259,6 +9256,540 @@ function PsdrLinhaFazer(_a) {
         href ? React.createElement("a", { href: href, target: "_blank", rel: "noopener", style: { fontSize: 12.5, fontWeight: 600, color: T.ink, textDecoration: "none", border: "1px solid " + T.hair, borderRadius: 6, padding: "7px 11px", whiteSpace: "nowrap", background: tom === "r" ? T.marca : T.surface } }, rotulo || "Abrir no Kommo ↗")
             : onClick ? React.createElement(Btn, { onClick: onClick, style: { padding: "7px 11px", fontSize: 12.5 } }, rotulo || "Ver") : null));
 }
+/* ===================== v111 · BDR =====================
+   O BDR liga para a base de clientes (3C Plus) e marca visita. Tem três
+   telas, todas montadas com os mesmos blocos:
+
+     · Piloto BDR   — o BDR vê só os números dele (admin/coordenador "veem como")
+     · Painel BDR   — gestão: todos os BDRs, os dois squads, ranking
+     · Coordenador  — o BDR do squad entra na aba do coordenador, junto do SDR,
+                      para ele não ficar trocando de aba
+
+   Fontes (tudo lido de views próprias do BDR, nenhuma mistura com o SDR):
+     3C Plus  -> bdr_ligacao_dia_v, bdr_tabulacao_dia_v, bdr_discador_dia_v
+     Kommo    -> bdr_kommo_dia_v (funil Cristal Sales), bdr_funil_agora_v
+     Oficina  -> bdr_os_dia_v (campo Pesquisa da O.S., igual ao SDR)
+
+   Três conceitos que NÃO se misturam (Rafael, 07/10):
+     tentativas do discador = tudo que o 3C discou (inclui caixa postal e falha)
+     atendidas por pessoa   = um agente falou com alguém
+     conversas              = atendida com pelo menos 30 s de fala
+   A meta de 70 é de ligações ATENDIDAS, não de tentativas.
+
+   Atribuição no Kommo: o card é do BDR por (1) campo "BDR" quando existir,
+   senão (2) responsável do card. Cards importados em lote em 24/09 não contam
+   como agendamento do dia (entram só no funil). */
+var BDR_SEG_CONVERSA = 30;
+var BDR_META_PADRAO = { lig: 70, conv: 20, agend: 4, osDia: 2, osMes: 40 };
+function bdrNomeCurto(n) {
+    return String(n || "").split(/\s+/).filter(function (p) { return !/^[A-Za-zÀ-ú]\.$/.test(p); }).join(" ");
+}
+function bdrPrimeiro(n) { return String(n || "").trim().split(/\s+/)[0]; }
+function bdrDomingo(iso_) { return parseISO(iso_).getDay() === 0; }
+function bdrDiaUtilAnterior(iso_) {
+    var d = addDays(iso_, -1);
+    while (bdrDomingo(d)) d = addDays(d, -1);
+    return d;
+}
+/* janelas de tempo: atual e a anterior de mesmo tamanho */
+function bdrJanela(periodo) {
+    var h0 = hoje();
+    if (periodo === "ontem") {
+        var o = bdrDiaUtilAnterior(h0);
+        var oo = bdrDiaUtilAnterior(o);
+        return { ini: o, fim: o, pIni: oo, pFim: oo, rotulo: "Ontem", ant: "dia anterior" };
+    }
+    if (periodo === "semana") {
+        var ini = addDays(h0, -6);
+        return { ini: ini, fim: h0, pIni: addDays(ini, -7), pFim: addDays(ini, -1), rotulo: "Últimos 7 dias", ant: "7 dias anteriores" };
+    }
+    if (periodo === "mes") {
+        var m = primeiroDia(h0);
+        var pm = mesAnteriorDe(m);
+        return { ini: m, fim: h0, pIni: pm, pFim: addDays(m, -1), rotulo: "Mês até hoje", ant: "mês anterior" };
+    }
+    var ontem = bdrDiaUtilAnterior(h0);
+    return { ini: h0, fim: h0, pIni: ontem, pFim: ontem, rotulo: "Hoje", ant: "dia útil anterior" };
+}
+function bdrDiasUteisJanela(j) { return Math.max(1, diasUteis(j.ini, j.fim)); }
+
+/* ---------- leitura ---------- */
+function bdrLer(montar, nome, falhas) {
+    return psdrTudo(montar).then(null, function (e) {
+        falhas.push({ nome: nome, erro: (e && e.message) || String(e) });
+        return [];
+    });
+}
+function useBdrDados(versao) {
+    var _a = __read(useState({ carregando: true, erro: null, falhas: [] }), 2), d = _a[0], setD = _a[1];
+    useEffect(function () {
+        var vivo = true;
+        var falhas = [];
+        var ini = mesAnteriorDe(primeiroDia(hoje()));
+        setD(function (x) { return __assign(__assign({}, x), { carregando: true }); });
+        Promise.all([
+            bdrLer(function () { return db.from("bdr_equipe_v").select("*"); }, "equipe do BDR", falhas),
+            bdrLer(function () { return db.from("bdr_ligacao_dia_v").select("*").gte("dia", ini); }, "ligações do 3C", falhas),
+            bdrLer(function () { return db.from("bdr_tabulacao_dia_v").select("*").gte("dia", ini); }, "tabulações do 3C", falhas),
+            bdrLer(function () { return db.from("bdr_discador_dia_v").select("*").gte("dia", ini); }, "discador do 3C", falhas),
+            bdrLer(function () { return db.from("bdr_kommo_dia_v").select("*").gte("dia", ini); }, "funil do BDR no Kommo", falhas),
+            bdrLer(function () { return db.from("bdr_os_dia_v").select("*").gte("dia", ini); }, "O.S. do BDR (Oficina)", falhas),
+            bdrLer(function () { return db.from("bdr_funil_agora_v").select("*"); }, "colunas do funil BDR", falhas),
+            psdrOpc(db.from("bdr_frescor_v").select("*")),
+        ]).then(function (r) {
+            if (!vivo) return;
+            setD({ carregando: false, erro: null, falhas: falhas, eq: r[0], lig: r[1], tab: r[2], disc: r[3], kom: r[4], os: r[5], funil: r[6], fresc: r[7][0] || null, em: new Date() });
+        }).catch(function (e) { if (vivo) setD({ carregando: false, erro: (e && e.message) || String(e), falhas: falhas }); });
+        return function () { vivo = false; };
+    }, [versao]);
+    return d;
+}
+
+/* ---------- quem enxerga quem ---------- */
+function bdrEscopo(perfil, sessao, sq, eq) {
+    var meu = nomeDoLogin(sessao);
+    var ativos = (eq || []).filter(function (e) { return e.ativo !== false; });
+    var souBdr = ativos.filter(function (e) { return membroBate([e.bdr], meu); })[0] || null;
+    var minhaLinha = (sq.linhas || []).filter(function (l) { return chaveNome(l.sdr) === chaveNome(meu); })[0] || null;
+    if (perfil === "admin" || perfil === "gerente") return { lista: ativos, todos: true, sou: souBdr, papel: "gestao" };
+    if (minhaLinha && minhaLinha.funcao === "coordenador") {
+        return { lista: ativos.filter(function (e) { return e.squad === minhaLinha.squad; }), todos: false, sou: null, papel: "coordenador", squad: minhaLinha.squad };
+    }
+    if (souBdr) return { lista: [souBdr], todos: false, sou: souBdr, papel: "bdr" };
+    return { lista: [], todos: false, sou: null, papel: "sem" };
+}
+
+/* ---------- contas ---------- */
+function bdrCalc(d, nomes, ini, fim) {
+    var ok = function (r) { return r.dia >= ini && r.dia <= fim && (!nomes || nomes.indexOf(r.bdr) >= 0); };
+    var lig = (d.lig || []).filter(ok);
+    var kom = (d.kom || []).filter(ok);
+    var os = (d.os || []).filter(ok);
+    var evento = function (nome, campo) {
+        return kom.filter(function (r) { return r.evento === nome; }).reduce(function (s, r) { return s + (Number(r[campo || "leads"]) || 0); }, 0);
+    };
+    var disc = (d.disc || []).filter(function (r) { return r.dia >= ini && r.dia <= fim; });
+    var c = {
+        atend: psdrSoma(lig, "atendidas"), conv: psdrSoma(lig, "conversas"), falada: psdrSoma(lig, "falada_s"),
+        visTab: psdrSoma(lig, "visitas_tabuladas"),
+        agend: evento("agendamento"), reag: evento("reagendamento"), comp: evento("compareceu"),
+        ganho: evento("ganho"), valor: evento("ganho", "valor"), perd: evento("perdido"),
+        os: psdrSoma(os, "os_qtd"), fat: psdrSoma(os, "faturado"),
+        tent: psdrSoma(disc, "tentativas"), tentAt: psdrSoma(disc, "atendidas"), cx: psdrSoma(disc, "caixa_postal"), falha: psdrSoma(disc, "falha"),
+    };
+    c.txAgend = div(c.agend, c.conv);
+    c.txShow = div(c.comp, c.comp + c.reag);
+    c.txAtend = div(c.tentAt, c.tent);
+    return c;
+}
+function bdrMetas(eqLista, dias) {
+    var s = function (campo, padrao) {
+        var tot = 0;
+        eqLista.forEach(function (e) { tot += Number(e[campo]) > 0 ? Number(e[campo]) : padrao; });
+        return tot;
+    };
+    return {
+        lig: s("meta_ligacoes_dia", BDR_META_PADRAO.lig) * dias, conv: s("meta_conversas_dia", BDR_META_PADRAO.conv) * dias,
+        agend: s("meta_agend_dia", BDR_META_PADRAO.agend) * dias, os: s("meta_os_dia", BDR_META_PADRAO.osDia) * dias,
+        osMes: s("meta_os_mes", BDR_META_PADRAO.osMes), pessoas: eqLista.length,
+        txAgend: div(s("meta_agend_dia", BDR_META_PADRAO.agend), s("meta_conversas_dia", BDR_META_PADRAO.conv)),
+    };
+}
+function bdrMin(s) { return nInt(Math.round((Number(s) || 0) / 60)) + " min"; }
+function bdrIdade(iso_) {
+    if (!iso_) return null;
+    var min = Math.max(0, Math.round((Date.now() - new Date(iso_).getTime()) / 60000));
+    return min < 90 ? min + " min" : min < 60 * 36 ? Math.round(min / 60) + " h" : Math.round(min / 1440) + " dias";
+}
+function bdrHora(iso_) {
+    try { return new Date(iso_).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" }); }
+    catch (e) { return ""; }
+}
+function bdrTone(feito, meta) {
+    if (!meta) return undefined;
+    var p = feito / meta;
+    return p >= 1 ? "good" : p < 0.5 ? "bad" : undefined;
+}
+
+/* ---------- peças de tela ---------- */
+function BdrGrade(_a) {
+    var children = _a.children, min = _a.min;
+    return React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(" + (min || 190) + "px, 1fr))", gap: 12 } }, children);
+}
+function BdrTabela(_a) {
+    var cols = _a.cols, linhas = _a.linhas, vazio = _a.vazio, destaque = _a.destaque;
+    if (!linhas.length) return React.createElement("div", { style: { fontSize: 13, color: T.muted, padding: "6px 0" } }, vazio || "Sem dados no período.");
+    return React.createElement("div", { style: { overflowX: "auto" } },
+        React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+            React.createElement("thead", null, React.createElement("tr", null, cols.map(function (c, i) { return React.createElement(Th, { key: i, right: c.r }, c.t); }))),
+            React.createElement("tbody", null, linhas.map(function (l, i) {
+                var dest = destaque && destaque(l);
+                return React.createElement("tr", { key: i, style: dest ? { background: "#FFBF0022" } : {} }, cols.map(function (c, j) {
+                    return React.createElement(Td, { key: j, right: c.r, bold: c.b }, c.f(l));
+                }));
+            }))));
+}
+/* barra de funil: rótulo, número, barra proporcional ao topo */
+function BdrFunilLinha(_a) {
+    var rotulo = _a.rotulo, valor = _a.valor, topo = _a.topo, nota = _a.nota, cor = _a.cor;
+    return React.createElement("div", { style: { display: "grid", gridTemplateColumns: "minmax(130px, 210px) 1fr 70px", gap: 12, alignItems: "center", padding: "7px 0" } },
+        React.createElement("div", { style: { fontSize: 13, fontWeight: 600 } }, rotulo,
+            nota && React.createElement("div", { style: { fontSize: 11.5, color: T.muted, fontWeight: 400 } }, nota)),
+        React.createElement(Barra, { pct: topo ? valor / topo : 0, cor: cor || T.marca, alt: 12 }),
+        React.createElement("div", { style: { fontFamily: F_NUM, fontWeight: 700, fontSize: 15, textAlign: "right", fontVariantNumeric: "tabular-nums" } }, nInt(valor)));
+}
+function BdrAviso(_a) {
+    var titulo = _a.titulo, texto = _a.texto, tom = _a.tom;
+    var cor = tom === "bad" ? T.bad : tom === "warn" ? T.warn : T.ink2;
+    return React.createElement(Card, { className: "p16", style: { borderLeft: "4px solid " + (tom === "bad" ? T.bad : T.marca), marginBottom: 10 } },
+        React.createElement("div", { style: { fontSize: 13.5, fontWeight: 700, color: cor } }, titulo),
+        texto && React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 4, lineHeight: 1.55 } }, texto));
+}
+function BdrControles(_a) {
+    var periodo = _a.periodo, setPeriodo = _a.setPeriodo, extra = _a.extra, fresc = _a.fresc, onAtualizar = _a.onAtualizar, carregando = _a.carregando;
+    var botoes = [["hoje", "Hoje"], ["ontem", "Ontem"], ["semana", "7 dias"], ["mes", "Mês"]];
+    var idade3c = fresc && fresc.threec_ate ? bdrIdade(fresc.threec_ate) : null;
+    return React.createElement(Card, { className: "p12", style: { marginBottom: 6 } },
+        React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+            React.createElement("div", { style: { display: "flex", gap: 3, background: T.canvas, borderRadius: 8, padding: 3 } }, botoes.map(function (b) {
+                return React.createElement("button", { key: b[0], onClick: function () { setPeriodo(b[0]); }, style: {
+                        border: 0, cursor: "pointer", borderRadius: 6, padding: "6px 12px", fontFamily: F_UI, fontSize: 12.5, fontWeight: periodo === b[0] ? 700 : 500,
+                        background: periodo === b[0] ? T.preto : "transparent", color: periodo === b[0] ? "#fff" : T.ink2 } }, b[1]);
+            })),
+            extra,
+            React.createElement(Btn, { onClick: onAtualizar, style: { padding: "6px 11px" } }, carregando ? "Atualizando…" : "Atualizar"),
+            React.createElement("div", { style: { marginLeft: "auto", fontSize: 12, color: T.muted } },
+                idade3c ? "3C: última ligação às " + bdrHora(fresc.threec_ate) + " (há " + idade3c + ")" : "")));
+}
+
+/* 01 · Resultado do período — os cartões do SDR, versão BDR */
+function BdrCartoes(_a) {
+    var c = _a.c, p = _a.p, m = _a.m, j = _a.j, equipe = _a.equipe;
+    var anterior = function (a, b) { return React.createElement(Delta, { atual: a, anterior: b }); };
+    var divergente = c.visTab > c.agend;
+    return React.createElement("div", null,
+        React.createElement(BdrGrade, null,
+            React.createElement(Kpi, { label: "Ligações atendidas", value: nInt(c.atend), sub: "Meta: " + nInt(m.lig) + " (pessoa falou)", tone: bdrTone(c.atend, m.lig), foot: anterior(c.atend, p.atend) }),
+            React.createElement(Kpi, { label: "Conversas", value: nInt(c.conv), sub: "Meta: " + nInt(m.conv) + " · " + BDR_SEG_CONVERSA + " s ou mais", tone: bdrTone(c.conv, m.conv), foot: anterior(c.conv, p.conv) }),
+            React.createElement(Kpi, { label: "Agendamentos marcados", value: nInt(c.agend), sub: "Meta: " + nInt(m.agend) + " · entrada em Visita marcada", tone: bdrTone(c.agend, m.agend), foot: anterior(c.agend, p.agend) }),
+            React.createElement(Kpi, { label: "Taxa de agendamento", value: nPct(c.txAgend), sub: "Agendamentos ÷ conversas · meta " + nPct(m.txAgend, 0), tone: c.conv >= 10 && c.txAgend < m.txAgend * 0.5 ? "bad" : undefined }),
+            React.createElement(Kpi, { label: "Visitas tabuladas no 3C", value: nInt(c.visTab), sub: divergente ? "O Kommo registrou só " + nInt(c.agend) : "Confere com o Kommo (" + nInt(c.agend) + ")", tone: divergente ? "bad" : undefined }),
+            React.createElement(Kpi, { label: "Tempo falado", value: bdrMin(c.falada), sub: c.atend ? "Média " + nInt(Math.round(c.falada / c.atend)) + " s por atendida" : "" }),
+            React.createElement(Kpi, { label: equipe ? "Tentativas do discador" : "Tentativas do discador (time)", value: nInt(c.tent), sub: c.tent ? nPct(c.txAtend) + " atendidas por pessoa · " + nPct(div(c.cx, c.tent), 0) + " caixa postal" : "Todas as campanhas do 3C", foot: anterior(c.tent, p.tent) })),
+        React.createElement("div", { style: { height: 12 } }),
+        React.createElement(BdrGrade, null,
+            React.createElement(Kpi, { label: "Reagendamentos", value: nInt(c.reag), sub: "Foram para Reagendamento", foot: anterior(c.reag, p.reag) }),
+            React.createElement(Kpi, { label: "Compareceram", value: nInt(c.comp), sub: "Entraram em Compareceram", foot: anterior(c.comp, p.comp) }),
+            React.createElement(Kpi, { label: "Taxa de show", value: nPct(c.txShow), sub: "Compareceram ÷ (compareceram + reagendados)" }),
+            React.createElement(Kpi, { label: "Vendas (Kommo)", value: nInt(c.ganho), sub: "Cards em Venda ganha", foot: anterior(c.ganho, p.ganho) }),
+            React.createElement(Kpi, { label: "Receita (CRM)", value: nReal(c.valor), sub: c.ganho ? "Ticket médio " + nReal(c.valor / c.ganho) : "Ticket médio R$ 0" }),
+            React.createElement(Kpi, { label: "O.S. fechadas (Oficina)", value: nInt(c.os), sub: "Meta: " + nInt(m.os) + " · campo Pesquisa" + (c.fat ? " · " + nReal(c.fat) : ""), tone: bdrTone(c.os, m.os) }),
+            React.createElement(Kpi, { label: "Perdidos", value: nInt(c.perd), sub: "Cards em Venda perdida" })));
+}
+
+/* 02 · Mês: quanto fez, quanto falta */
+function BdrMes(_a) {
+    var d = _a.d, nomes = _a.nomes, eqLista = _a.eqLista;
+    var h0 = hoje(), mes = primeiroDia(h0);
+    var du = diasUteisDoMes(h0);
+    var cm = bdrCalc(d, nomes, mes, h0);
+    var m = bdrMetas(eqLista, du.passados);
+    var osMeta = m.osMes;
+    var faltam = Math.max(0, osMeta - cm.os);
+    var porDia = faltam / Math.max(1, du.restantes);
+    var linha = function (rotulo, feito, meta, sub) {
+        return React.createElement(Card, { className: "p16" },
+            React.createElement(Label, null, rotulo),
+            React.createElement("div", { style: { marginTop: 8, display: "flex", alignItems: "baseline", gap: 8 } },
+                React.createElement(Metric, { value: nInt(feito), color: meta && feito >= meta ? T.good : T.ink }),
+                meta ? React.createElement("span", { style: { fontSize: 13, color: T.muted } }, "/ " + nInt(meta)) : null),
+            React.createElement("div", { style: { marginTop: 9 } }, React.createElement(Barra, { pct: meta ? feito / meta : 0, cor: meta && feito >= meta ? T.good : T.marca, alt: 7 })),
+            sub && React.createElement("div", { style: { fontSize: 12, color: T.ink2, marginTop: 6 } }, sub));
+    };
+    return React.createElement("div", null,
+        React.createElement(BdrGrade, { min: 240 },
+            linha("O.S. fechadas no mês", cm.os, osMeta, faltam > 0 ? "Faltam " + nInt(faltam) + " em " + nInt(du.restantes) + " dias úteis (" + nNum(porDia, 1) + " por dia)" : "Meta do mês batida"),
+            linha("Agendamentos no mês", cm.agend, m.agend, "Ritmo esperado até hoje: " + nInt(m.agend)),
+            linha("Ligações atendidas no mês", cm.atend, m.lig, "Ritmo esperado até hoje: " + nInt(m.lig)),
+            linha("Conversas no mês", cm.conv, m.conv, "Ritmo esperado até hoje: " + nInt(m.conv))),
+        cm.os === 0 && React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 10, maxWidth: "78ch", lineHeight: 1.55 } },
+            "As O.S. do BDR vêm do Oficina, pelo campo Pesquisa da O.S. (igual ao SDR). Para contar, a Pesquisa precisa citar o BDR junto de \"agendamento\" — por exemplo \"Biscuola agendamento\" ou \"Gabrielly agendamento\"."));
+}
+
+/* 03 · Ligações: do discador até a visita */
+function BdrLigacoes(_a) {
+    var d = _a.d, nomes = _a.nomes, c = _a.c, j = _a.j;
+    var topo = Math.max(c.tent, c.atend, 1);
+    var tabs = {};
+    (d.tab || []).filter(function (r) { return r.dia >= j.ini && r.dia <= j.fim && (!nomes || nomes.indexOf(r.bdr) >= 0); }).forEach(function (r) {
+        tabs[r.qualificacao] = (tabs[r.qualificacao] || 0) + (Number(r.n) || 0);
+    });
+    var linhasTab = Object.keys(tabs).map(function (k) { return { q: k, n: tabs[k] }; }).sort(function (a, b) { return b.n - a.n; });
+    var totalTab = linhasTab.reduce(function (s, x) { return s + x.n; }, 0);
+    return React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(380px, 1fr))", gap: 16 } },
+        React.createElement(Card, { className: "p16" },
+            React.createElement(Label, null, "Do discador à visita"),
+            React.createElement("div", { style: { marginTop: 8 } },
+                React.createElement(BdrFunilLinha, { rotulo: "Tentativas do discador", valor: c.tent, topo: topo, nota: "time todo · inclui caixa postal e falha", cor: "#BDBDBD" }),
+                React.createElement(BdrFunilLinha, { rotulo: "Atendidas por pessoa", valor: c.atend, topo: topo, nota: c.tent ? nPct(div(c.atend, c.tent)) + " das tentativas" : "" }),
+                React.createElement(BdrFunilLinha, { rotulo: "Conversas", valor: c.conv, topo: topo, nota: BDR_SEG_CONVERSA + " s ou mais de fala" }),
+                React.createElement(BdrFunilLinha, { rotulo: "Visita tabulada no 3C", valor: c.visTab, topo: topo }),
+                React.createElement(BdrFunilLinha, { rotulo: "Visita marcada no Kommo", valor: c.agend, topo: topo, cor: T.good }))),
+        React.createElement(Card, { className: "p16" },
+            React.createElement(Label, null, "Como terminaram as ligações atendidas"),
+            React.createElement("div", { style: { marginTop: 8 } },
+                React.createElement(BdrTabela, {
+                    cols: [{ t: "Tabulação", f: function (l) { return l.q; } }, { t: "Ligações", r: true, b: true, f: function (l) { return nInt(l.n); } }, { t: "% das atendidas", r: true, f: function (l) { return nPct(div(l.n, totalTab), 0); } }],
+                    linhas: linhasTab, vazio: "Nenhuma ligação atendida no período."
+                }))));
+}
+
+/* 04 · Funil no Kommo (foto de agora) */
+var BDR_ORDEM_GRUPO = ["nutricao", "agendado", "reagendar", "compareceu", "ganho", "perdido"];
+function BdrFunil(_a) {
+    var d = _a.d, nomes = _a.nomes;
+    var por = {};
+    (d.funil || []).filter(function (r) { return !nomes || nomes.indexOf(r.bdr) >= 0; }).forEach(function (r) {
+        var k = r.etapa_grupo;
+        var a = por[k] || (por[k] = { etapa: r.etapa, leads: 0, imp: 0 });
+        a.leads += Number(r.leads) || 0; a.imp += Number(r.importados) || 0;
+    });
+    var itens = BDR_ORDEM_GRUPO.filter(function (g) { return por[g]; });
+    var topo = Math.max.apply(null, itens.map(function (g) { return por[g].leads; }).concat([1]));
+    if (!itens.length) return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "O funil do BDR ainda não trouxe cards.");
+    return React.createElement(Card, { className: "p16" },
+        itens.map(function (g) {
+            var a = por[g];
+            return React.createElement(BdrFunilLinha, { key: g, rotulo: a.etapa, valor: a.leads, topo: topo, nota: a.imp ? a.imp + " vieram da importação de 24/09" : "", cor: g === "ganho" ? T.good : g === "perdido" ? "#BDBDBD" : T.marca });
+        }));
+}
+
+/* dia a dia + alertas */
+function bdrDiaADia(d, nomes, dias) {
+    var h0 = hoje(), saida = [];
+    for (var i = 0; i < dias; i++) {
+        var dia = addDays(h0, -i);
+        if (bdrDomingo(dia)) continue;
+        var c = bdrCalc(d, nomes, dia, dia);
+        saida.push({ dia: dia, c: c });
+    }
+    return saida;
+}
+function bdrAlertas(d, eqLista, nomes) {
+    var al = [];
+    var h0 = hoje();
+    (eqLista || []).forEach(function (e) {
+        for (var i = 0; i < 10; i++) {
+            var dia = addDays(h0, -i);
+            var c = bdrCalc(d, [e.bdr], dia, dia);
+            if (c.visTab > c.agend) {
+                al.push({ tom: "bad", titulo: br(dia) + " · " + bdrNomeCurto(e.bdr) + ": " + c.visTab + " visita" + (c.visTab > 1 ? "s" : "") + " tabulada" + (c.visTab > 1 ? "s" : "") + " no 3C, " + c.agend + " no Kommo",
+                    texto: "A ligação foi tabulada como Visita Agendada, mas o card não entrou em Visita marcada no Kommo. Sem o card, o agendamento não conta e o closer não recebe a visita." });
+            }
+        }
+    });
+    var f = d.fresc;
+    if (f && f.threec_ate) {
+        var min = Math.round((Date.now() - new Date(f.threec_ate).getTime()) / 60000);
+        var hora = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" })).getHours();
+        var util = !bdrDomingo(h0) && hora >= 9 && hora < 19;
+        if (util && min > 90) al.push({ tom: "warn", titulo: "3C sem carga nova há " + bdrIdade(f.threec_ate), texto: "As ligações do painel vêm de uma carga do 3C. Se ela não estiver agendada, os números de hoje ficam menores que a realidade." });
+    }
+    return al;
+}
+function BdrDiaADia(_a) {
+    var d = _a.d, nomes = _a.nomes, m1 = _a.m1;
+    var linhas = bdrDiaADia(d, nomes, 10);
+    return React.createElement(Card, { className: "p16" },
+        React.createElement(BdrTabela, {
+            cols: [
+                { t: "Dia", f: function (l) { return br(l.dia); }, b: true },
+                { t: "Atendidas", r: true, f: function (l) { return nInt(l.c.atend); } },
+                { t: "Conversas", r: true, f: function (l) { return nInt(l.c.conv); } },
+                { t: "Tempo falado", r: true, f: function (l) { return bdrMin(l.c.falada); } },
+                { t: "Visita no 3C", r: true, f: function (l) { return nInt(l.c.visTab); } },
+                { t: "Visita no Kommo", r: true, b: true, f: function (l) { return nInt(l.c.agend); } },
+                { t: "Compareceram", r: true, f: function (l) { return nInt(l.c.comp); } },
+                { t: "O.S.", r: true, f: function (l) { return nInt(l.c.os); } },
+            ],
+            linhas: linhas, destaque: function (l) { return l.dia === hoje(); }
+        }));
+}
+
+/* 06 · Ranking do mês — por conversão em O.S. (O.S. ÷ conversas) */
+function BdrRanking(_a) {
+    var d = _a.d, eqLista = _a.eqLista, squads = _a.squads, minhaChave = _a.minhaChave;
+    var h0 = hoje(), mes = primeiroDia(h0);
+    var nomeSquad = function (k) { var s = (squads || []).filter(function (x) { return x.squad === k; })[0]; return s ? s.nome : (k || "—"); };
+    var linhas = eqLista.map(function (e) {
+        var c = bdrCalc(d, [e.bdr], mes, h0);
+        return { bdr: e.bdr, squad: e.squad, c: c, conv: div(c.os, c.conv), meta: Number(e.meta_os_mes) || BDR_META_PADRAO.osMes };
+    }).sort(function (a, b) { return b.c.os - a.c.os || b.c.agend - a.c.agend; });
+    return React.createElement(Card, { className: "p16" },
+        React.createElement(BdrTabela, {
+            cols: [
+                { t: "#", f: function (l) { return linhas.indexOf(l) + 1; } },
+                { t: "BDR", b: true, f: function (l) { return bdrNomeCurto(l.bdr); } },
+                { t: "Squad", f: function (l) { return nomeSquad(l.squad); } },
+                { t: "Atendidas", r: true, f: function (l) { return nInt(l.c.atend); } },
+                { t: "Conversas", r: true, f: function (l) { return nInt(l.c.conv); } },
+                { t: "Agendamentos", r: true, f: function (l) { return nInt(l.c.agend); } },
+                { t: "Compareceram", r: true, f: function (l) { return nInt(l.c.comp); } },
+                { t: "O.S.", r: true, b: true, f: function (l) { return nInt(l.c.os) + " / " + nInt(l.meta); } },
+                { t: "O.S. ÷ conversas", r: true, f: function (l) { return l.c.conv ? nPct(l.conv) : "—"; } },
+            ],
+            linhas: linhas, destaque: function (l) { return minhaChave && chaveNome(l.bdr) === minhaChave; }
+        }));
+}
+/* squads lado a lado: meta de 40 O.S. por squad */
+function BdrSquads(_a) {
+    var d = _a.d, eq = _a.eq, squads = _a.squads;
+    var h0 = hoje(), mes = primeiroDia(h0);
+    var du = diasUteisDoMes(h0);
+    var grupos = {};
+    eq.forEach(function (e) { (grupos[e.squad || "—"] = grupos[e.squad || "—"] || []).push(e); });
+    return React.createElement(BdrGrade, { min: 300 }, Object.keys(grupos).map(function (k) {
+        var s = (squads || []).filter(function (x) { return x.squad === k; })[0];
+        var nomes = grupos[k].map(function (e) { return e.bdr; });
+        var c = bdrCalc(d, nomes, mes, h0);
+        var meta = bdrMetas(grupos[k], du.passados).osMes;
+        var faltam = Math.max(0, meta - c.os);
+        return React.createElement(Card, { key: k, className: "p16" },
+            React.createElement(Label, null, (s ? s.nome : k) + " · " + nomes.map(bdrNomeCurto).join(", ")),
+            React.createElement("div", { style: { marginTop: 8, display: "flex", alignItems: "baseline", gap: 8 } },
+                React.createElement(Metric, { value: nInt(c.os), color: c.os >= meta && meta ? T.good : T.ink }),
+                React.createElement("span", { style: { fontSize: 13, color: T.muted } }, "/ " + nInt(meta) + " O.S.")),
+            React.createElement("div", { style: { marginTop: 9 } }, React.createElement(Barra, { pct: meta ? c.os / meta : 0, cor: c.os >= meta && meta ? T.good : T.marca, alt: 7 })),
+            React.createElement("div", { style: { fontSize: 12, color: T.ink2, marginTop: 6 } }, faltam > 0 ? "Faltam " + nInt(faltam) + " em " + nInt(du.restantes) + " dias úteis" : "Meta do squad batida"),
+            React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 4 } }, nInt(c.atend) + " atendidas · " + nInt(c.conv) + " conversas · " + nInt(c.agend) + " agendamentos no mês"));
+    }));
+}
+
+/* ---------- o corpo comum às três telas ---------- */
+function BdrCorpo(_a) {
+    var d = _a.d, eqLista = _a.eqLista, nomes = _a.nomes, periodo = _a.periodo, squads = _a.squads, modo = _a.modo, minhaChave = _a.minhaChave;
+    var j = bdrJanela(periodo);
+    var dias = bdrDiasUteisJanela(j);
+    var c = bdrCalc(d, nomes, j.ini, j.fim);
+    var p = bdrCalc(d, nomes, j.pIni, j.pFim);
+    var m = bdrMetas(eqLista, dias);
+    var eqSel = eqLista.filter(function (e) { return nomes.indexOf(e.bdr) >= 0; });
+    var alertas = bdrAlertas(d, eqSel, nomes);
+    var n = 0;
+    var sec = function (titulo, nota, filho) { n++; return React.createElement(Secao, { key: n, n: n, titulo: titulo, nota: nota }, filho); };
+    return React.createElement("div", null,
+        sec("Resultado — " + j.rotulo, "Cartões iguais aos do SDR. Comparação com o " + j.ant + ".", React.createElement(BdrCartoes, { c: c, p: p, m: m, j: j, equipe: nomes.length > 1 })),
+        sec("Como estou no mês", "Quanto já fiz da meta e quanto falta, em dias úteis (segunda a sábado).", React.createElement(BdrMes, { d: d, nomes: nomes, eqLista: eqSel })),
+        modo === "gestao" && sec("Os squads", "A meta é de 40 O.S. por mês por squad (soma do BDR de cada squad).", React.createElement(BdrSquads, { d: d, eq: eqSel, squads: squads })),
+        sec("Ligações", "Quatro números que não se misturam: o discador disca tudo; só as atendidas contam como ligação do BDR.", React.createElement(BdrLigacoes, { d: d, nomes: nomes, c: c, j: j })),
+        sec("Funil do BDR no Kommo", "Foto de agora: onde estão os cards do BDR (funil Cristal Sales).", React.createElement(BdrFunil, { d: d, nomes: nomes })),
+        sec("Dia a dia", "Últimos 10 dias úteis. A visita do 3C e a do Kommo deveriam ser iguais.", React.createElement(BdrDiaADia, { d: d, nomes: nomes })),
+        sec("Alertas e divergências", "O que precisa de ajuste no processo.",
+            alertas.length ? alertas.map(function (a, i) { return React.createElement(BdrAviso, { key: i, titulo: a.titulo, texto: a.texto, tom: a.tom }); })
+                : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.good, fontWeight: 600 } }, "Sem divergências nos últimos 10 dias.")),
+        eqLista.length > 1 && sec("Ranking do BDR", "Mês até hoje. Conversão = O.S. ÷ conversas.", React.createElement(BdrRanking, { d: d, eqLista: eqLista, squads: squads, minhaChave: minhaChave })));
+}
+function BdrCabecalhoEstado(_a) {
+    var d = _a.d;
+    return React.createElement("div", null,
+        d.erro && React.createElement(Card, { className: "p16", style: { borderColor: "#F0C3C6", background: "#FDF3F3", marginBottom: 12 } },
+            React.createElement("div", { style: { fontSize: 13, color: T.bad, fontWeight: 600 } }, "Não consegui ler os dados do BDR: " + d.erro)),
+        (d.falhas || []).length > 0 && React.createElement(Card, { className: "p16", style: { borderColor: "#F0C3C6", background: "#FDF3F3", marginBottom: 12 } },
+            React.createElement("div", { style: { fontSize: 13, color: T.bad, fontWeight: 600 } }, d.falhas.length === 1 ? "Uma seção não carregou" : d.falhas.length + " seções não carregaram"),
+            React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 6 } }, d.falhas.map(function (x) { return x.nome; }).join(", ") + " — os números dessas seções estão incompletos por falha de leitura.")));
+}
+
+/* ---------- Painel BDR (gestão) e Piloto BDR ---------- */
+function BdrTela(_a) {
+    var sessao = _a.sessao, perfil = _a.perfil, sq = _a.sq, modo = _a.modo;
+    var _b = __read(useState(0), 2), versao = _b[0], setVersao = _b[1];
+    var _c = __read(useState("hoje"), 2), periodo = _c[0], setPeriodo = _c[1];
+    var _e = __read(useState("__todos"), 2), selBdr = _e[0], setSelBdr = _e[1];
+    var _f = __read(useState("__todos"), 2), selSquad = _f[0], setSelSquad = _f[1];
+    var d = useBdrDados(versao);
+    if (!sq.carregou || (d.carregando && !d.eq)) return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando o BDR…");
+    var esc = bdrEscopo(perfil, sessao, sq, d.eq || []);
+    if (!esc.lista.length) {
+        return React.createElement(Card, { className: "p20", style: { borderLeft: "4px solid " + T.marca } },
+            React.createElement(Label, null, modo === "piloto" ? "Piloto BDR" : "Painel BDR"),
+            React.createElement("h2", { style: { fontFamily: F_MARCA, fontSize: 17, margin: "6px 0 8px" } }, "Seu login ainda não está ligado a um BDR"),
+            React.createElement("div", { style: { fontSize: 13.5, color: T.ink2, maxWidth: 620, lineHeight: 1.6 } }, "O BDR abre pelo nome no cadastro do time (Alexandre Biscuola, Gabrielly Tadiotto). Coordenadores veem os BDRs do próprio squad. Se o nome não aparece, peça ao administrador para conferir o cadastro."));
+    }
+    var lista = esc.lista;
+    if (selSquad !== "__todos") lista = lista.filter(function (e) { return e.squad === selSquad; });
+    var nomesVisiveis = lista.map(function (e) { return e.bdr; });
+    var alvo = selBdr !== "__todos" && nomesVisiveis.indexOf(selBdr) >= 0 ? [selBdr] : (modo === "piloto" && esc.sou && selBdr === "__todos" && esc.papel === "bdr" ? [esc.sou.bdr] : nomesVisiveis);
+    var podeTodos = modo !== "piloto" || esc.papel !== "bdr";
+    var squadsDoEsc = [];
+    esc.lista.forEach(function (e) { if (e.squad && squadsDoEsc.indexOf(e.squad) < 0) squadsDoEsc.push(e.squad); });
+    var nomeSquad = function (k) { var s = (sq.squads || []).filter(function (x) { return x.squad === k; })[0]; return s ? s.nome : k; };
+    var opcoesBdr = (podeTodos ? [{ v: "__todos", l: "Todos os BDRs" }] : []).concat(lista.map(function (e) { return { v: e.bdr, l: bdrNomeCurto(e.bdr) }; }));
+    var extra = React.createElement(React.Fragment, null,
+        squadsDoEsc.length > 1 && React.createElement(Select, { value: selSquad, onChange: function (v) { setSelSquad(v); setSelBdr("__todos"); }, options: [{ v: "__todos", l: "Todos os squads" }].concat(squadsDoEsc.map(function (k) { return { v: k, l: nomeSquad(k) }; })) }),
+        (lista.length > 1 || esc.todos) && React.createElement(Select, { value: alvo.length === 1 ? alvo[0] : "__todos", onChange: setSelBdr, options: opcoesBdr }));
+    return React.createElement("div", null,
+        modo === "piloto" && React.createElement("div", { style: { marginBottom: 14 } },
+            React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 20, fontWeight: 700 } }, "Piloto BDR" + (alvo.length === 1 ? " · " + bdrNomeCurto(alvo[0]) : "")),
+            React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 2 } }, "Seus números do dia, do mês e o que falta para a meta.")),
+        React.createElement(BdrControles, { periodo: periodo, setPeriodo: setPeriodo, extra: extra, fresc: d.fresc, onAtualizar: function () { setVersao(versao + 1); }, carregando: d.carregando }),
+        React.createElement(BdrCabecalhoEstado, { d: d }),
+        React.createElement(BdrCorpo, { d: d, eqLista: lista, nomes: alvo, periodo: periodo, squads: sq.squads, modo: alvo.length > 1 || modo === "gestao" ? "gestao" : "piloto", minhaChave: esc.sou ? chaveNome(esc.sou.bdr) : null }));
+}
+function PainelBDR(_a) { return React.createElement(BdrTela, { sessao: _a.sessao, perfil: _a.perfil, sq: _a.sq, modo: "gestao" }); }
+function PilotoBDR(_a) { return React.createElement(BdrTela, { sessao: _a.sessao, perfil: _a.perfil, sq: _a.sq, modo: "piloto" }); }
+
+/* ---------- dentro da aba do coordenador: o BDR do squad, junto do SDR ---------- */
+function BdrNoCoordenador(_a) {
+    var sessao = _a.sessao, perfil = _a.perfil, sq = _a.sq, squad = _a.squad;
+    var _b = __read(useState(0), 2), versao = _b[0], setVersao = _b[1];
+    var d = useBdrDados(versao);
+    if (!sq.carregou || !d.eq) return null;
+    var esc = bdrEscopo(perfil, sessao, sq, d.eq);
+    var lista = esc.lista.filter(function (e) { return !squad || e.squad === squad; });
+    if (!lista.length || esc.papel === "bdr") return null;
+    var h0 = hoje(), mes = primeiroDia(h0), du = diasUteisDoMes(h0);
+    var nomes = lista.map(function (e) { return e.bdr; });
+    var nomeSquad = function (k) { var s = (sq.squads || []).filter(function (x) { return x.squad === k; })[0]; return s ? s.nome : k; };
+    var alertas = bdrAlertas(d, lista, nomes);
+    var cH = bdrCalc(d, nomes, h0, h0), pH = bdrCalc(d, nomes, bdrDiaUtilAnterior(h0), bdrDiaUtilAnterior(h0));
+    var mH = bdrMetas(lista, 1);
+    var cM = bdrCalc(d, nomes, mes, h0);
+    var mM = bdrMetas(lista, du.passados);
+    var linhas = lista.map(function (e) {
+        var ch = bdrCalc(d, [e.bdr], h0, h0), cm = bdrCalc(d, [e.bdr], mes, h0);
+        return { e: e, ch: ch, cm: cm };
+    });
+    return React.createElement("section", { style: { marginTop: 40 } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 11, marginBottom: 5, flexWrap: "wrap" } },
+            React.createElement("span", { style: { fontFamily: F_MARCA, background: T.preto, color: T.marca, fontSize: 11.5, fontWeight: 700, borderRadius: 6, padding: "3px 7px", lineHeight: 1.2 } }, "BDR"),
+            React.createElement("h2", { style: { fontFamily: F_MARCA, color: T.ink, fontSize: 18.5, fontWeight: 700, margin: 0 } }, "BDR do squad" + (squad ? " · " + nomeSquad(squad) : "")),
+            React.createElement(Btn, { onClick: function () { setVersao(versao + 1); }, style: { padding: "4px 10px", fontSize: 12 } }, d.carregando ? "Atualizando…" : "Atualizar")),
+        React.createElement("p", { style: { fontSize: 12.5, color: T.muted, margin: "0 0 14px", maxWidth: "72ch" } }, "O mesmo squad, a mesma tela: o SDR está acima e o BDR logo abaixo. Hoje, com meta do dia."),
+        React.createElement(BdrCabecalhoEstado, { d: d }),
+        React.createElement(BdrGrade, { min: 200 },
+            React.createElement(Kpi, { label: "Ligações atendidas hoje", value: nInt(cH.atend), sub: "Meta: " + nInt(mH.lig), tone: bdrTone(cH.atend, mH.lig), foot: React.createElement(Delta, { atual: cH.atend, anterior: pH.atend }) }),
+            React.createElement(Kpi, { label: "Conversas hoje", value: nInt(cH.conv), sub: "Meta: " + nInt(mH.conv), tone: bdrTone(cH.conv, mH.conv) }),
+            React.createElement(Kpi, { label: "Agendamentos hoje", value: nInt(cH.agend), sub: "Meta: " + nInt(mH.agend) + " · visita no 3C: " + nInt(cH.visTab), tone: cH.visTab > cH.agend ? "bad" : bdrTone(cH.agend, mH.agend) }),
+            React.createElement(Kpi, { label: "O.S. do BDR no mês", value: nInt(cM.os), sub: "Meta: " + nInt(mM.osMes), tone: undefined }),
+            React.createElement(Kpi, { label: "Agendamentos no mês", value: nInt(cM.agend), sub: "Ritmo esperado: " + nInt(mM.agend) })),
+        React.createElement("div", { style: { height: 12 } }),
+        React.createElement(Card, { className: "p16" },
+            React.createElement(BdrTabela, {
+                cols: [
+                    { t: "BDR", b: true, f: function (l) { return bdrNomeCurto(l.e.bdr); } },
+                    { t: "Atendidas hoje", r: true, f: function (l) { return nInt(l.ch.atend); } },
+                    { t: "Conversas hoje", r: true, f: function (l) { return nInt(l.ch.conv); } },
+                    { t: "Agendou hoje", r: true, b: true, f: function (l) { return nInt(l.ch.agend); } },
+                    { t: "Visita no 3C", r: true, f: function (l) { return nInt(l.ch.visTab); } },
+                    { t: "Agend. no mês", r: true, f: function (l) { return nInt(l.cm.agend); } },
+                    { t: "Compareceram", r: true, f: function (l) { return nInt(l.cm.comp); } },
+                    { t: "O.S. no mês", r: true, f: function (l) { return nInt(l.cm.os) + " / " + nInt(Number(l.e.meta_os_mes) || BDR_META_PADRAO.osMes); } },
+                ],
+                linhas: linhas
+            })),
+        alertas.length > 0 && React.createElement("div", { style: { marginTop: 12 } }, alertas.slice(0, 3).map(function (a, i) { return React.createElement(BdrAviso, { key: i, titulo: a.titulo, texto: a.texto, tom: a.tom }); })));
+}
+
 function PilotoSDR(_a) {
     var _this = this;
     var sessao = _a.sessao, negocio = _a.negocio, perfil = _a.perfil, sq = _a.sq;
@@ -9309,17 +9840,23 @@ function PilotoSDR(_a) {
         var m = d.meta || {};
         var osMeta = (Number(m.os) || 0) * peso / pessoas;
         var fatMeta = (Number(m.faturamento) || 0) * peso / pessoas;
+        /* v110: meta própria do SDR (equipe_sdr.meta_individual, em O.S./mês).
+           O faturamento esperado segue o ticket da meta do grupo (faturamento ÷ O.S.).
+           Sem meta própria cadastrada, vale a divisão do squad pelas pessoas. */
+        var metaPropria = efetivo && efetivo.meta_individual != null && Number(efetivo.meta_individual) > 0 ? Number(efetivo.meta_individual) : null;
+        if (metaPropria != null) {
+            osMeta = metaPropria;
+            fatMeta = (Number(m.os) || 0) > 0 ? metaPropria * (Number(m.faturamento) || 0) / Number(m.os) : 0;
+        }
         var duTotal = diasUteisDoMes(ehAtual ? h0 : ultimoDiaMes(mes));
         var dias = ehAtual ? duTotal.passados + duTotal.restantes : duTotal.passados;
-        return { eu: eu, euAnt: euAnt, squadSoma: squadSoma, rank: rank, gente: gente, pessoas: pessoas, peso: peso, osMeta: osMeta, fatMeta: fatMeta, du: duTotal, diasMes: dias,
+        return { eu: eu, euAnt: euAnt, squadSoma: squadSoma, rank: rank, gente: gente, pessoas: pessoas, peso: peso, osMeta: osMeta, fatMeta: fatMeta, metaPropria: metaPropria, du: duTotal, diasMes: dias,
             squadNome: squadInfo ? squadInfo.nome : null, m: m };
     }, [d, nome, mes, negocio, sq.linhas, sq.squads]);
     if (!sq.carregou)
         return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando…");
     if (negocio === "bdr")
-        return React.createElement(Card, { className: "p20", style: { borderLeft: "4px solid " + T.marca } },
-            React.createElement(Label, null, "BDR · em preparo"),
-            React.createElement("div", { style: { fontSize: 13.5, color: T.ink2, marginTop: 6 } }, "O piloto do BDR entra quando a fonte de dados do BDR for ligada."));
+        return React.createElement(PilotoBDR, { sessao: sessao, perfil: perfil, sq: sq });
     if (!nome)
         return React.createElement(Card, { className: "p20", style: { borderLeft: "4px solid " + T.marca } },
             React.createElement(Label, null, "Piloto SDR"),
@@ -9427,7 +9964,7 @@ function PilotoSDR(_a) {
     return (React.createElement("div", null,
         cab,
         /* 01 */
-        React.createElement(Secao, { n: 1, titulo: "Como estou no mês", nota: "A meta individual é a meta do mês do " + nomeNegocio(negocio) + " no peso do squad, dividida pelas " + lista.pessoas + " pessoas do squad. " + (carsv ? "O.S. vêm do Oficina; faturado é o valor final da O.S., com o upsell do closer." : "No Car Store a unidade é o carro.") },
+        React.createElement(Secao, { n: 1, titulo: "Como estou no mês", nota: (lista.metaPropria != null ? "A meta individual é de " + nInt(lista.metaPropria) + (carsv ? " O.S." : " carros") + " por mês, definida pela gestão. " : "A meta individual é a meta do mês do " + nomeNegocio(negocio) + " no peso do squad, dividida pelas " + lista.pessoas + " pessoas do squad. ") + (carsv ? "O.S. vêm do Oficina; faturado é o valor final da O.S., com o upsell do closer." : "No Car Store a unidade é o carro.") },
             React.createElement(Card, { className: "p16", style: { display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" } },
                 React.createElement("div", { style: { flex: 1, minWidth: 280 } },
                     React.createElement(Label, null, unid + " · " + rotuloMes(mes)),
