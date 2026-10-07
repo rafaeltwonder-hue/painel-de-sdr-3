@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v112 — CAR SERVICE</title>
-<meta name="painel-versao" content="v112">
+<title>Painel de SDR v113 — CAR SERVICE</title>
+<meta name="painel-versao" content="v113">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -3241,10 +3241,16 @@ function AbaTreinador(_a) {
         var curto = (pl.cl.find(function (c) { return c.nome_oficial === nm; }) || {}).erp_curto;
         var mine = (pl.sem_l || []).filter(function (u) { return u.conta && (chaveN(u.sdr_nome) === chaveN(nm) || (curto && chaveN(u.sdr_nome) === chaveN(curto))); });
         var notas = mine.map(function (u) { return u.nota || 0; });
-        return { sdr: nm, n: mine.length, media: notas.length ? Math.round(notas.reduce(function (a, b) { return a + b; }, 0) / notas.length) : null,
+        return { sdr: nm, n: mine.length, ag: mine.filter(function (u) { return u.agendou; }).length, media: notas.length ? Math.round(notas.reduce(function (a, b) { return a + b; }, 0) / notas.length) : null,
             melhor: notas.length ? Math.max.apply(null, notas) : null, ponto: mine.length ? mine[0].ponto_de_treino : null };
     }).sort(function (a, b) { return (b.n - a.n) || String(a.sdr).localeCompare(String(b.sdr)); });
     var closersTreinaram = linhasCl.filter(function (l) { return l.n > 0; }).length;
+    /* v113: conversão no treino = ligações (60 s ou mais) em que a pessoa conseguiu agendar. */
+    var convTxt = function (ag, n) { return n > 0 ? (ag || 0) + "/" + n + " (" + Math.round(100 * (ag || 0) / n) + "%)" : "\u2014"; };
+    var agSdr = semSq.reduce(function (t, x) { return t + (x.agendou || 0); }, 0);
+    var agCl = linhasCl.reduce(function (t, l) { return t + l.ag; }, 0);
+    var nCl = linhasCl.reduce(function (t, l) { return t + l.n; }, 0);
+    var agTodos = agSdr + agCl, nTodos = totalTreinos + nCl;
     var fmtQuando = function (iso) {
         var d = new Date(iso);
         var dd = new Date(d.getTime() - 3 * 3600 * 1000);
@@ -3255,8 +3261,8 @@ function AbaTreinador(_a) {
     return (React.createElement("div", null,
         React.createElement("div", { className: "grid-kpi" },
             React.createElement(Kpi, { label: "Personas no ar", value: nInt(nPersonas), sub: "Car Service \u00B7 3 por n\u00EDvel" }),
-            React.createElement(Kpi, { label: "Meta da semana", value: "3", sub: "treinos por pessoa" }),
-            React.createElement(Kpi, { label: "Treinos do time", value: semPlacar ? "—" : nInt(totalTreinos), sub: "SDRs nesta semana (liga\u00E7\u00F5es de 60 s ou mais)" }),
+            React.createElement(Kpi, { label: "Agendaram no treino", value: semPlacar ? "\u2014" : (nTodos > 0 ? Math.round(100 * agTodos / nTodos) + "%" : "\u2014"), sub: semPlacar ? "" : agTodos + " de " + nTodos + " ligações (SDRs e closers)" }),
+            React.createElement(Kpi, { label: "Treinos do time", value: semPlacar ? "—" : nInt(totalTreinos), sub: "SDRs nesta semana (liga\u00E7\u00F5es de 60 s ou mais). Meta: 3 por pessoa" }),
             membros ? null : React.createElement(Kpi, { label: "Closers treinando", value: semPlacar ? "—" : closersTreinaram + "/" + linhasCl.length, sub: "com ao menos 1 treino nesta semana" })),
         React.createElement(Secao, { n: 1, titulo: "Treinar agora", nota: "Escolha o cliente e ligue pelo navegador, com o microfone. " + (nome ? "O seu nome já vai junto no link: é assim que o treino é identificado. A nota sai sozinha ao final." : "Diga o seu nome no começo da ligação: é assim que o treino é identificado. A nota sai sozinha ao final.") },
             React.createElement("div", { className: "grid-kpi", style: { gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" } }, TREINO_NIVEIS.map(function (nv) { return (React.createElement(Card, { key: nv.id, className: "p16", style: { borderTop: "4px solid ".concat(nv.cor) } },
@@ -3272,7 +3278,7 @@ function AbaTreinador(_a) {
                         React.createElement("div", { style: { fontSize: 12, color: T.muted, lineHeight: 1.4 } }, p.gancho)),
                     React.createElement("a", { href: TREINO_LINK + p.id + (nome ? "&var_sdr_nome=" + encodeURIComponent(nome) : ""), target: "_blank", rel: "noopener noreferrer", style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "7px 11px", borderRadius: 6, background: T.marca,
                             color: T.preto, textDecoration: "none", whiteSpace: "nowrap", border: "1px solid ".concat(T.marca) } }, "\uD83D\uDCDE Ligar"))); }))); }))),
-        !semPlacar && React.createElement(Secao, { n: 2, titulo: "Placar da semana", nota: "Meta: " + TREINO_META + " treinos por pessoa por semana. Só contam ligações de 60 segundos ou mais. A nota é a soma dos critérios cumpridos (não a nota solta da IA)." + (pl.erro ? " Não consegui ler o placar: " + pl.erro : "") },
+        !semPlacar && React.createElement(Secao, { n: 2, titulo: "Placar da semana", nota: "Meta: " + TREINO_META + " treinos por pessoa por semana. Só contam ligações de 60 segundos ou mais. A nota é a soma dos critérios cumpridos (não a nota solta da IA). \"Agendou\" é em quantas dessas ligações a pessoa conseguiu marcar a visita." + (pl.erro ? " Não consegui ler o placar: " + pl.erro : "") },
             React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
                 React.createElement("div", { className: "rolagem" },
                     React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 640 } },
@@ -3285,6 +3291,7 @@ function AbaTreinador(_a) {
                                     ")"),
                                 React.createElement(Th, { right: true }, "Nota m\u00E9dia"),
                                 React.createElement(Th, { right: true }, "Melhor nota"),
+                                React.createElement(Th, { right: true }, "Agendou"),
                                 React.createElement(Th, null, "\u00DAltimo ponto de treino"))),
                         React.createElement("tbody", null, linhas.map(function (l) {
                             var x = l.x;
@@ -3294,6 +3301,7 @@ function AbaTreinador(_a) {
                                 React.createElement(Td, { right: true, bold: true, color: n >= TREINO_META ? T.good : (n > 0 ? T.warn : T.muted) }, pl.carregando ? "…" : n + "/" + TREINO_META),
                                 React.createElement(Td, { right: true, color: x && n > 0 ? T.ink : T.muted }, x && n > 0 ? x.media_nota : "—"),
                                 React.createElement(Td, { right: true, color: x && n > 0 ? T.ink : T.muted }, x && n > 0 ? x.melhor_nota : "—"),
+                                React.createElement(Td, { right: true, color: x && n > 0 ? T.ink : T.muted }, x && n > 0 ? convTxt(x.agendou, n) : "\u2014"),
                                 React.createElement(Td, { color: x && x.ultimo_ponto ? T.ink : T.muted }, x && x.ultimo_ponto ? x.ultimo_ponto : "—")));
                         }))))),
                 linhasCl.length > 0 && React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden", marginTop: 14 } },
@@ -3305,6 +3313,7 @@ function AbaTreinador(_a) {
                                     React.createElement(Th, { right: true }, "Treinos (meta " + TREINO_META + ")"),
                                     React.createElement(Th, { right: true }, "Nota m\u00E9dia"),
                                     React.createElement(Th, { right: true }, "Melhor nota"),
+                                    React.createElement(Th, { right: true }, "Agendou"),
                                     React.createElement(Th, null, "\u00DAltimo ponto de treino"))),
                             React.createElement("tbody", null, linhasCl.map(function (l) {
                                 return (React.createElement("tr", { key: l.sdr },
@@ -3312,6 +3321,7 @@ function AbaTreinador(_a) {
                                     React.createElement(Td, { right: true, bold: true, color: l.n >= TREINO_META ? T.good : (l.n > 0 ? T.warn : T.muted) }, pl.carregando ? "\u2026" : l.n + "/" + TREINO_META),
                                     React.createElement(Td, { right: true, color: l.n > 0 ? T.ink : T.muted }, l.n > 0 ? l.media : "\u2014"),
                                     React.createElement(Td, { right: true, color: l.n > 0 ? T.ink : T.muted }, l.n > 0 ? l.melhor : "\u2014"),
+                                    React.createElement(Td, { right: true, color: l.n > 0 ? T.ink : T.muted }, l.n > 0 ? convTxt(l.ag, l.n) : "\u2014"),
                                     React.createElement(Td, { color: l.ponto ? T.ink : T.muted }, l.ponto || "\u2014")));
                             })))))),
         !semPlacar && React.createElement(Secao, { n: 3, titulo: "\u00DAltimas liga\u00E7\u00F5es", nota: "As 15 mais recentes do time. A liga\u00E7\u00E3o curta (menos de 60 s) aparece, mas n\u00E3o conta no placar." },
