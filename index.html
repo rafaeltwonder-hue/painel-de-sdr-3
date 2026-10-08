@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v123 — CAR SERVICE</title>
-<meta name="painel-versao" content="v123">
+<title>Painel de SDR v124 — CAR SERVICE</title>
+<meta name="painel-versao" content="v124">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -5192,6 +5192,9 @@ function Painel(_a) {
     var bdrVazio = negocio === "bdr";
     /* O Modo TV sai do layout normal por completo: sem cabeçalho, sem abas,
        sem margem. Numa TV cada pixel de altura é placar que aparece. */
+    // v124: o perfil RH só enxerga a conferência das avaliações do Google
+    if (perfil === "rh")
+        return React.createElement(TelaRH, { sessao: sessao });
     if (aba === "tv" && !bdrVazio) {
         return React.createElement(TelaTVCheia, { c: rot, carregando: d.estado.carregando, estado: d.estado, falhas: d.falhas, dadoVelho: dadoVelho, frescor: frescor, idade: idade, onSair: function () { setAba("painel"); } });
     }
@@ -12832,6 +12835,128 @@ function SecaoControlePiloto(_a) {
                 selDoBloco && detalhe));
         }),
         React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 8 } }, "\"Tend\u00EAncia\" \u00E9 a linha das pend\u00EAncias nos \u00FAltimos 14 dias (foto tirada toda noite \u00E0s 23:40) \u2014 descendo \u00E9 bom; a seta compara com 7 dias atr\u00E1s. \"\u00DAltima atividade\" \u00E9 o \u00FAltimo or\u00E7amento, avalia\u00E7\u00E3o, contato com cliente da casa ou carro entregue marcado no piloto. Tr\u00EAs dias ou mais sem nada, fica em vermelho.")));
+}
+/* v124 (08/10/2026): tela da RH. O login de perfil "rh" vê SÓ as avaliações do Google que os
+   closers sobem (print + nota) e valida ou recusa todo dia. O banco só libera para ela a
+   leitura dessas avaliações e a troca do status (trigger recusa qualquer outra coluna). */
+function TelaRH(_a) {
+    var sessao = _a.sessao;
+    var _b = __read(useState({ carregando: true, erro: null, lista: [] }), 2), st = _b[0], setSt = _b[1];
+    var _c = __read(useState({}), 2), urls = _c[0], setUrls = _c[1];
+    var _d = __read(useState(0), 2), versao = _d[0], setVersao = _d[1];
+    var _f = __read(useState(null), 2), zoom = _f[0], setZoom = _f[1];
+    var _g = __read(useState("enviada"), 2), vista = _g[0], setVista = _g[1];
+    var _h = __read(useState(null), 2), aviso = _h[0], setAviso = _h[1];
+    var _j = __read(useState(null), 2), salvando = _j[0], setSalvando = _j[1];
+    var m0 = primeiroDia(hoje());
+    useEffect(function () {
+        var vivo = true;
+        Promise.all([
+            db.from("closer_avaliacao_rh_v").select("*").eq("status", "enviada").order("criado_em", { ascending: false }).limit(300),
+            db.from("closer_avaliacao_rh_v").select("*").gte("avaliado_em", addDays(m0, -62)).order("criado_em", { ascending: false }).limit(500),
+        ]).then(function (_a) {
+            var _b = __read(_a, 2), a = _b[0], b = _b[1];
+            if (!vivo)
+                return;
+            if (a.error || b.error) {
+                setSt({ carregando: false, erro: (a.error || b.error).message, lista: [] });
+                return;
+            }
+            var vistos = {}, todas = [];
+            (a.data || []).concat(b.data || []).forEach(function (x) { if (!vistos[x.id]) {
+                vistos[x.id] = 1;
+                todas.push(x);
+            } });
+            setSt({ carregando: false, erro: null, lista: todas });
+        }).catch(function (e) { if (vivo)
+            setSt({ carregando: false, erro: String(e && e.message || e), lista: [] }); });
+        return function () { vivo = false; };
+    }, [versao]);
+    var pend = st.lista.filter(function (a) { return a.status === "enviada"; });
+    var validadas = st.lista.filter(function (a) { return a.status === "validada"; });
+    var recusadas = st.lista.filter(function (a) { return a.status === "recusada"; });
+    var doMes = function (l) { return l.filter(function (a) { return String(a.mes).slice(0, 10) === m0; }); };
+    var visiveis = (vista === "enviada" ? pend : vista === "validada" ? validadas : recusadas).slice(0, vista === "enviada" ? 100 : 60);
+    var chave = visiveis.map(function (a) { return a.print_path; }).join(",");
+    useEffect(function () {
+        var paths = visiveis.map(function (a) { return a.print_path; }).filter(Boolean);
+        if (!paths.length || !db.storage || !db.storage.from("avaliacoes").createSignedUrls)
+            return;
+        db.storage.from("avaliacoes").createSignedUrls(paths, 3600).then(function (_a) {
+            var data = _a.data;
+            var m = {};
+            (data || []).forEach(function (x) { if (x && x.signedUrl)
+                m[x.path] = x.signedUrl; });
+            setUrls(function (o) { return Object.assign({}, o, m); });
+        }).catch(function () { });
+    }, [chave]);
+    var mudar = function (a, status) {
+        setSalvando(a.id);
+        setAviso(null);
+        db.auth.getSession().then(function (r) {
+            var uid = r && r.data && r.data.session && r.data.session.user ? r.data.session.user.id : null;
+            var campos = status === "enviada" ? { status: status, validado_por: null, validado_em: null } : { status: status, validado_por: uid, validado_em: new Date().toISOString() };
+            return db.from("closer_avaliacao").update(campos).eq("id", a.id).select("id");
+        }).then(function (res) {
+            if (res && res.error)
+                throw new Error(res.error.message);
+            if (!res || !res.data || !res.data.length)
+                throw new Error("o banco não aceitou a mudança — avise o supervisor comercial");
+            setVersao(function (v) { return v + 1; });
+        }).catch(function (e) { setAviso("Não consegui salvar: " + String(e && e.message || e)); }).then(function () { setSalvando(null); });
+    };
+    var estrelas = function (k) { return "★★★★★".slice(0, k) + "☆☆☆☆☆".slice(0, 5 - k); };
+    var Kpi = function (_a) {
+        var rot = _a.rot, val = _a.val, cor = _a.cor;
+        return React.createElement(Card, { className: "p16", style: { flex: "1 1 140px" } },
+            React.createElement(Label, null, rot),
+            React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 30, fontWeight: 800, color: cor || T.ink, marginTop: 4 } }, nInt(val)));
+    };
+    var abas = [["enviada", "Para conferir", pend.length], ["validada", "Validadas", validadas.length], ["recusada", "Recusadas", recusadas.length]];
+    return (React.createElement("div", { style: { background: T.canvas, minHeight: "100vh", fontFamily: F_UI, color: T.ink } },
+        React.createElement("header", { style: { background: T.preto, position: "sticky", top: 0, zIndex: 30 } },
+            React.createElement("div", { className: "wrap", style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, padding: "11px 24px" } },
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 13 } },
+                    React.createElement(Selo, { tam: 32 }),
+                    React.createElement("div", { style: { lineHeight: 1.2 } },
+                        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 15, fontWeight: 700, color: "#fff" } }, "The W · Avaliações no Google"),
+                        React.createElement("div", { style: { fontSize: 11.5, color: "rgba(255,255,255,.6)" } }, "Conferência diária da RH"))),
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+                    React.createElement("span", { style: { fontSize: 12, color: "rgba(255,255,255,.55)" } }, sessao.user.email),
+                    React.createElement("button", { onClick: function () { return db.auth.signOut(); }, style: { background: "transparent", border: "1px solid rgba(255,255,255,.28)", color: "rgba(255,255,255,.85)", borderRadius: 7, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: F_UI } }, "Sair")))),
+        React.createElement("main", { className: "wrap", style: { padding: "24px 24px 80px" } },
+            st.erro && React.createElement(Card, { className: "p16", style: { borderColor: "#F0C3C6", background: "#FDF3F3", marginBottom: 16, fontSize: 13, color: T.bad } }, "Não consegui ler as avaliações: " + st.erro),
+            aviso && React.createElement(Card, { className: "p16", style: { borderColor: "#F0C3C6", background: "#FDF3F3", marginBottom: 16, fontSize: 13, color: T.bad } }, aviso),
+            React.createElement(Secao, { n: 1, titulo: "Resumo do mês", nota: "O closer sobe o print da avaliação que recebeu. Conta no mês na hora; aqui você confere o print e valida ou recusa o que não for da pessoa." },
+                React.createElement("div", { style: { display: "flex", gap: 12, flexWrap: "wrap" } },
+                    React.createElement(Kpi, { rot: "Para conferir (todas)", val: pend.length, cor: pend.length ? T.warn : T.good }),
+                    React.createElement(Kpi, { rot: "Validadas no mês", val: doMes(validadas).length, cor: T.good }),
+                    React.createElement(Kpi, { rot: "Recusadas no mês", val: doMes(recusadas).length, cor: doMes(recusadas).length ? T.bad : T.ink }))),
+            React.createElement(Secao, { n: 2, titulo: "Avaliações" },
+                React.createElement("div", { style: { display: "flex", gap: 4, background: T.surface, border: "1px solid " + T.hair, borderRadius: 8, padding: 4, marginBottom: 14, width: "fit-content", maxWidth: "100%", flexWrap: "wrap" } }, abas.map(function (x) { return (React.createElement("button", { key: x[0], onClick: function () { return setVista(x[0]); }, style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700, padding: "8px 12px", border: 0, borderRadius: 5, cursor: "pointer", background: vista === x[0] ? T.ink : "transparent", color: vista === x[0] ? "#fff" : T.ink2 } }, x[1] + " (" + x[2] + ")")); })),
+                st.carregando && React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando…"),
+                !st.carregando && !visiveis.length && React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, vista === "enviada" ? "Nada para conferir. Tudo em dia. 👏" : "Nenhuma avaliação aqui ainda."),
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14 } }, visiveis.map(function (a) { return (React.createElement(Card, { key: a.id, className: "p0", style: { overflow: "hidden" } },
+                    urls[a.print_path]
+                        ? React.createElement("img", { src: urls[a.print_path], alt: "Print da avaliação", onClick: function () { return setZoom(urls[a.print_path]); }, style: { width: "100%", height: 200, objectFit: "cover", display: "block", cursor: "zoom-in", background: T.canvas } })
+                        : React.createElement("div", { style: { height: 200, display: "flex", alignItems: "center", justifyContent: "center", color: T.muted, fontSize: 12.5, background: T.canvas } }, a.print_path ? "carregando o print…" : "sem print"),
+                    React.createElement("div", { style: { padding: "12px 14px" } },
+                        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 } },
+                            React.createElement("b", { style: { fontSize: 14 } }, a.closer),
+                            React.createElement("span", { style: { color: "#C99700", fontSize: 14, whiteSpace: "nowrap" } }, a.nota ? estrelas(Number(a.nota)) : "—")),
+                        React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 3 } }, [a.loja, a.os_numero ? "OS " + a.os_numero : null, "avaliada em " + brData(a.avaliado_em)].filter(Boolean).join(" · ")),
+                        React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 2 } }, "enviada em " + brData(a.criado_em)),
+                        a.observacao && React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 6, lineHeight: 1.4 } }, a.observacao),
+                        React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 12 } },
+                            a.status === "enviada" ? [
+                                React.createElement(Btn, { key: "v", kind: "accent", onClick: function () { return mudar(a, "validada"); }, style: { flex: 1, padding: "9px 10px", fontSize: 13 } }, salvando === a.id ? "…" : "Validar"),
+                                React.createElement(Btn, { key: "r", onClick: function () { return mudar(a, "recusada"); }, style: { flex: 1, padding: "9px 10px", fontSize: 13 } }, "Recusar")
+                            ] : [
+                                React.createElement("span", { key: "s", style: { flex: 1, fontSize: 12.5, fontWeight: 700, color: a.status === "validada" ? T.good : T.bad, alignSelf: "center" } }, (a.status === "validada" ? "Validada" : "Recusada") + (a.validado_em ? " em " + brData(a.validado_em) : "")),
+                                React.createElement(Btn, { key: "d", onClick: function () { return mudar(a, "enviada"); }, style: { padding: "7px 10px", fontSize: 12 } }, "Voltar p/ conferir")
+                            ])))); }))),
+            zoom && React.createElement("div", { onClick: function () { return setZoom(null); }, style: { position: "fixed", inset: 0, background: "rgba(0,0,0,.85)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, cursor: "zoom-out" } },
+                React.createElement("img", { src: zoom, alt: "", style: { maxWidth: "100%", maxHeight: "100%", borderRadius: 8 } })))));
 }
 /* v69 — visão geral das avaliações, na aba Closers (admin/gerente) */
 function SecaoAvaliacoesGeral(_a) {
