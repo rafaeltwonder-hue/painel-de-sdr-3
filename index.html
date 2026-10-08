@@ -15,8 +15,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Painel de SDR v122 — CAR SERVICE</title>
-<meta name="painel-versao" content="v122">
+<title>Painel de SDR v123 — CAR SERVICE</title>
+<meta name="painel-versao" content="v123">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -5896,7 +5896,12 @@ function ChecklistImport(_a) {
     var doTipo = function (t) { return (lista || []).filter(function (a) { return ok(a) && a.tipo === t; }); };
     // v41: o arquivo diário cobre 3 meses (por Data da OS) — o que importa é
     // ele terminar no mês corrente e ter sido importado hoje.
-    var listagemHoje = doTipo("listagem_itens").filter(function (a) { return a.periodo_fim >= inicioMes && diaDe(a) === hojeISO; });
+    var porFat = function (a) { return /fatur/i.test(a.filtro_data || ""); };
+    var listagemHoje = doTipo("listagem_itens").filter(function (a) { return !porFat(a) && a.periodo_fim >= inicioMes && diaDe(a) === hojeISO; });
+    // v123 (08/10/2026): o fechamento dos SDRs é por Data do Faturamento. A Listagem por
+    // Data da OS não enxerga O.S. aberta antes do período e faturada dentro dele, e não
+    // pega a data de faturamento que o supervisor corrige no ERP. Este arquivo cobre isso.
+    var listagemFatHoje = doTipo("listagem_itens").filter(function (a) { return porFat(a) && a.periodo_fim >= inicioMes && diaDe(a) === hojeISO; });
     var listagemTrimestre = listagemHoje.filter(function (a) { return a.periodo_ini < inicioMes; });
     // 16/09: o Vendas por Empresa do MÊS ATUAL entrou na rotina diária — é a
     // conferência do faturamento com o Mapa de Metas do Oficina (aba Lojas).
@@ -5915,6 +5920,8 @@ function ChecklistImport(_a) {
             det: !listagemHoje.length ? "não foi importada hoje — é o arquivo que move todo o painel"
                 : !listagemTrimestre.length ? "veio só com o mês atual — exporte de 3 meses, senão faltam as O.S. antigas em aberto"
                     : "importada hoje, com os 3 meses" },
+        { t: "Listagem de OS's c/ Itens (Rede) · por Data do Faturamento", quando: "todo dia, junto da outra", falta: !listagemFatHoje.length,
+            det: listagemFatHoje.length ? "importada hoje — fechamento dos SDRs em dia" : "não foi importada hoje — sem ela o fechamento por faturamento pode ficar defasado" },
         { t: "Vendas por Responsável", quando: "1 por loja, toda semana", falta: !!faltamVR.length,
             det: faltamVR.length ? "faltando desta semana: ".concat(faltamVR.join(", ")) : "as 4 lojas em dia" },
         { t: "Vendas por Empresa do mês atual", quando: "1 vez por mês", falta: !empresaHoje.length,
@@ -5932,7 +5939,7 @@ function ChecklistImport(_a) {
        e mesmo mês é sinal de recorte diferente. */
     var cargas = {};
     (lista || []).filter(ok).forEach(function (a) {
-        var k = [a.tipo, a.loja, a.periodo_ini].join(" · ");
+        var k = [a.tipo, a.loja, a.periodo_ini, a.tipo === "listagem_itens" ? (porFat(a) ? "por faturamento" : "por data da OS") : ""].join(" · ");
         (cargas[k] || (cargas[k] = [])).push(a);
     });
     var dobradas = Object.keys(cargas).filter(function (k) { return cargas[k].length > 1; });
