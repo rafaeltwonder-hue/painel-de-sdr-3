@@ -9945,7 +9945,7 @@ function BdrAviso(_a) {
         texto && React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 4, lineHeight: 1.55 } }, texto));
 }
 function BdrControles(_a) {
-    var periodo = _a.periodo, setPeriodo = _a.setPeriodo, extra = _a.extra, fresc = _a.fresc, onAtualizar = _a.onAtualizar, carregando = _a.carregando;
+    var periodo = _a.periodo, setPeriodo = _a.setPeriodo, extra = _a.extra, fresc = _a.fresc, onAtualizar = _a.onAtualizar, carregando = _a.carregando, onPuxar3c = _a.onPuxar3c, puxando = _a.puxando, avisoPuxa = _a.avisoPuxa;
     var botoes = [["hoje", "Hoje"], ["ontem", "Ontem"], ["semana", "7 dias"], ["mes", "Mês"]];
     var idade3c = fresc && fresc.threec_ate ? bdrIdade(fresc.threec_ate) : null;
     return React.createElement(Card, { className: "p12", style: { marginBottom: 6 } },
@@ -9957,8 +9957,11 @@ function BdrControles(_a) {
             })),
             extra,
             React.createElement(Btn, { onClick: onAtualizar, style: { padding: "6px 11px" } }, carregando ? "Atualizando…" : "Atualizar"),
-            React.createElement("div", { style: { marginLeft: "auto", fontSize: 12, color: T.muted } },
-                idade3c ? "3C: última ligação às " + bdrHora(fresc.threec_ate) + " (há " + idade3c + ")" : "")));
+            /* v125: puxa as ligações do 3C agora (o cron faz o mesmo de 15 em 15 min) */
+            onPuxar3c && React.createElement(Btn, { onClick: onPuxar3c, style: { padding: "6px 11px" } }, puxando ? "Puxando do 3C…" : "Puxar ligações do 3C agora"),
+            React.createElement("div", { style: { marginLeft: "auto", fontSize: 12, color: T.muted, textAlign: "right" } },
+                idade3c ? "3C: última ligação às " + bdrHora(fresc.threec_ate) + " (há " + idade3c + ") · atualiza sozinho a cada 15 min" : "",
+                avisoPuxa && React.createElement("div", { style: { color: avisoPuxa.ruim ? T.bad : T.ink2, marginTop: 2 } }, avisoPuxa.txt))));
 }
 
 /* 01 · Resultado do período — os cartões do SDR, versão BDR */
@@ -10205,6 +10208,23 @@ function BdrTela(_a) {
     var _e = __read(useState("__todos"), 2), selBdr = _e[0], setSelBdr = _e[1];
     var _f = __read(useState("__todos"), 2), selSquad = _f[0], setSelSquad = _f[1];
     var d = useBdrDados(versao);
+    /* v125: botão "Puxar ligações do 3C agora" (função threec-sync, com o login do usuário) */
+    var _p1 = __read(useState(false), 2), puxando = _p1[0], setPuxando = _p1[1];
+    var _p2 = __read(useState(null), 2), avisoPuxa = _p2[0], setAvisoPuxa = _p2[1];
+    var puxar3c = function () {
+        setPuxando(true);
+        setAvisoPuxa(null);
+        db.functions.invoke("threec-sync", { body: {} }).then(function (r) {
+            var x = r && r.data, e = r && r.error;
+            if (e || !x || !x.ok) {
+                setAvisoPuxa({ ruim: true, txt: "Não consegui puxar do 3C: " + ((x && (x.erro || x.mensagem)) || (e && e.message) || "erro desconhecido") });
+            } else {
+                var dd = (x.dias || [])[0] || {};
+                setAvisoPuxa({ ruim: false, txt: "3C atualizado: " + nInt(dd.ligacoes || 0) + " discagens hoje, " + nInt(dd.atendidas || 0) + " atendidas" });
+                setVersao(function (n) { return n + 1; });
+            }
+        }, function (e) { setAvisoPuxa({ ruim: true, txt: "Não consegui puxar do 3C: " + ((e && e.message) || "erro") }); }).then(function () { setPuxando(false); });
+    };
     if (!sq.carregou || (d.carregando && !d.eq)) return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando o BDR…");
     var esc = bdrEscopo(perfil, sessao, sq, d.eq || []);
     if (!esc.lista.length) {
@@ -10229,7 +10249,7 @@ function BdrTela(_a) {
         modo === "piloto" && React.createElement("div", { style: { marginBottom: 14 } },
             React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 20, fontWeight: 700 } }, "Piloto BDR" + (alvo.length === 1 ? " · " + bdrNomeCurto(alvo[0]) : "")),
             React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 2 } }, "Seus números do dia, do mês e o que falta para a meta.")),
-        React.createElement(BdrControles, { periodo: periodo, setPeriodo: setPeriodo, extra: extra, fresc: d.fresc, onAtualizar: function () { setVersao(versao + 1); }, carregando: d.carregando }),
+        React.createElement(BdrControles, { periodo: periodo, setPeriodo: setPeriodo, extra: extra, fresc: d.fresc, onAtualizar: function () { setVersao(versao + 1); }, carregando: d.carregando, onPuxar3c: puxar3c, puxando: puxando, avisoPuxa: avisoPuxa }),
         React.createElement(BdrCabecalhoEstado, { d: d }),
         React.createElement(BdrCorpo, { d: d, eqLista: lista, nomes: alvo, periodo: periodo, squads: sq.squads, modo: alvo.length > 1 || modo === "gestao" ? "gestao" : "piloto", minhaChave: esc.sou ? chaveNome(esc.sou.bdr) : null }));
 }
