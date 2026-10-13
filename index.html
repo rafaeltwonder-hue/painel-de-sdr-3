@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v127">
+<meta name="painel-versao" content="v128">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -535,9 +535,9 @@ function Delta(_a) {
         React.createElement("span", { style: { color: T.muted, fontWeight: 400 } }, " vs. anterior")));
 }
 function Kpi(_a) {
-    var label = _a.label, value = _a.value, sub = _a.sub, foot = _a.foot, tone = _a.tone;
+    var label = _a.label, value = _a.value, sub = _a.sub, foot = _a.foot, tone = _a.tone, destaque = _a.destaque;
     var cor = tone === "bad" ? T.bad : tone === "good" ? T.good : T.ink;
-    return (React.createElement(Card, { className: "p16", style: tone === "bad" ? { borderColor: "#F0C3C6" } : {} },
+    return (React.createElement(Card, { className: "p16", style: destaque ? { border: "2px solid " + T.marca } : tone === "bad" ? { borderColor: "#F0C3C6" } : {} },
         React.createElement(Label, null, label),
         React.createElement("div", { style: { marginTop: 8 } },
             React.createElement(Metric, { value: value, color: cor })),
@@ -9001,7 +9001,8 @@ function mktAgrupar(linhas, chave) {
     (linhas || []).forEach(function (l) {
         var k = chave(l);
         var a = m[k] || (m[k] = { chave: k, canal: l.canal, campanha: l.campanha, via: l.via,
-            leads: 0, agendados: 0, compareceram: 0, vendas: 0, receita: 0, investido: 0 });
+            leads: 0, agendados: 0, compareceram: 0, vendas: 0, receita: 0, investido: 0, antigas: 0 });
+        a.antigas += Number(l.vendas_antigas) || 0;
         a.leads += Number(l.leads) || 0;
         a.agendados += Number(l.agendados) || 0;
         a.compareceram += Number(l.compareceram) || 0;
@@ -9028,9 +9029,10 @@ function MktFaixaCanal(_a) {
    de propósito: a comparação entre Google e Meta tem que ser de bater o
    olho, sem conta na cabeça. */
 function MktKpisCanal(_a) {
-    var t = _a.t;
+    var t = _a.t, venda = _a.venda, outra = _a.outra;
     var roas = div(t.receita, t.investido);
     var temVerba = t.investido > 0;
+    var outraTxt = function (v) { return React.createElement("span", { style: { fontSize: 11, color: T.muted } }, "na outra forma de contar: ", React.createElement("b", { style: { color: T.ink2 } }, v)); };
     return (React.createElement("div", { className: "grid-kpi-4" },
         React.createElement(Kpi, { label: "Investido", value: temVerba ? nReal(t.investido) : "—", sub: temVerba ? "no período" : "verba não lançada" }),
         React.createElement(Kpi, { label: "Leads", value: nInt(t.leads), sub: "entraram no Kommo" }),
@@ -9039,14 +9041,18 @@ function MktKpisCanal(_a) {
         React.createElement(Kpi, { label: "Compareceu", value: nInt(t.compareceram), sub: !t.agendados ? "sem agendamento no período"
                 : t.compareceram > t.agendados ? "inclui agendado antes"
                     : "".concat(nPct(div(t.compareceram, t.agendados), 0), " dos agendados") }),
-        React.createElement(Kpi, { label: "Vendas", value: nInt(t.vendas), sub: "".concat(nPct(div(t.vendas, t.leads), 1), " dos leads") }),
-        React.createElement(Kpi, { label: "CAC", value: temVerba && t.vendas ? nReal(div(t.investido, t.vendas)) : "—", sub: temVerba && t.vendas ? "custo ÷ vendas" : "sem venda no período" }),
-        React.createElement(Kpi, { label: "ROAS", value: temVerba ? "".concat(roas.toFixed(2).replace(".", ","), "x") : "—", sub: temVerba ? "".concat(nReal(t.receita), " de receita") : "depende da verba", tone: temVerba ? tomRoas(roas) : undefined })));
+        React.createElement(Kpi, { label: "Vendas", value: nInt(t.vendas), destaque: !!outra,
+            sub: venda ? "fechadas no período" + (t.antigas ? " (" + nInt(t.antigas) + " de leads antigos)" : "") : "".concat(nPct(div(t.vendas, t.leads), 1), " dos leads"),
+            foot: outra ? outraTxt(nInt(outra.vendas)) : null }),
+        React.createElement(Kpi, { label: "CAC", value: temVerba && t.vendas ? nReal(div(t.investido, t.vendas)) : "—", sub: temVerba && t.vendas ? "custo ÷ vendas" : "sem venda no período", destaque: !!outra,
+            foot: outra ? outraTxt(temVerba && outra.vendas ? nReal(div(t.investido, outra.vendas)) : "—") : null }),
+        React.createElement(Kpi, { label: "ROAS", value: temVerba ? "".concat(roas.toFixed(2).replace(".", ","), "x") : "—", sub: temVerba ? "".concat(nReal(t.receita), " de receita") : "depende da verba", tone: temVerba ? tomRoas(roas) : undefined, destaque: !!outra,
+            foot: outra ? outraTxt(temVerba ? "".concat(div(outra.receita, t.investido).toFixed(2).replace(".", ","), "x") : "—") : null })));
 }
 /* A tabela de campanhas de um canal. Ordenada por ROAS: quem devolve
    menos fica embaixo, que é onde a conversa costuma terminar. */
 function MktTabela(_a) {
-    var canal = _a.canal, linhas = _a.linhas;
+    var canal = _a.canal, linhas = _a.linhas, venda = _a.venda;
     var t = linhas.reduce(function (s, l) { return ({ leads: s.leads + l.leads, agendados: s.agendados + l.agendados, compareceram: s.compareceram + l.compareceram,
         vendas: s.vendas + l.vendas, receita: s.receita + l.receita, investido: s.investido + l.investido }); }, { leads: 0, agendados: 0, compareceram: 0, vendas: 0, receita: 0, investido: 0 });
     var ord = linhas.slice().sort(function (a, b) { return div(b.receita, b.investido) - div(a.receita, a.investido) || b.leads - a.leads; });
@@ -9079,7 +9085,7 @@ function MktTabela(_a) {
                         React.createElement(Td, { right: true, color: div(l.agendados, l.leads) >= 0.2 ? T.good : T.ink }, nPct(div(l.agendados, l.leads), 1)),
                         React.createElement(Td, { right: true }, nInt(l.compareceram)),
                         React.createElement(Td, { right: true, color: !l.investido || !l.compareceram ? T.muted : T.ink }, l.investido && l.compareceram ? nReal(div(l.investido, l.compareceram)) : "\u2014"),
-                        React.createElement(Td, { right: true, bold: true }, nInt(l.vendas)),
+                        React.createElement(Td, { right: true, bold: true }, nInt(l.vendas), venda && l.antigas > 0 && l.vendas > 0 ? React.createElement("span", { style: { color: T.muted, fontWeight: 400, fontSize: 11.5 } }, " (" + nInt(l.antigas) + (l.antigas === 1 ? " antiga)" : " antigas)")) : null),
                         React.createElement(Td, { right: true, color: !l.investido || !l.vendas ? T.muted : div(l.investido, l.vendas) > 3000 ? T.bad : T.ink }, l.investido && l.vendas ? nReal(div(l.investido, l.vendas)) : "—"),
                         React.createElement(Td, { right: true }, l.receita ? nReal(l.receita) : "—"),
                         React.createElement(Td, { right: true, bold: true, color: !l.investido ? T.muted : roas >= 2 ? T.good : roas < 1 ? T.bad : T.ink }, l.investido ? "".concat(roas.toFixed(2).replace(".", ","), "x") : "—")));
@@ -9468,6 +9474,9 @@ function AbaMarketing(_a) {
     var _pw = __read(useState([]), 2), palavras = _pw[0], setPalavras = _pw[1];
     /* v126: termos de pesquisa do Google (o que a pessoa digitou) */
     var _tm = __read(useState([]), 2), termos = _tm[0], setTermos = _tm[1];
+    /* v128: vendas por DATA DA VENDA (view campanha_venda_dia) e o seletor de como contar */
+    var _vd = __read(useState([]), 2), vendasDia = _vd[0], setVendasDia = _vd[1];
+    var _ct = __read(useState("entrada"), 2), contagem = _ct[0], setContagem = _ct[1];
     /* v108: botão que puxa o gasto do Meta (função meta-ads-sync) e recarrega a aba */
     var _h1 = __read(useState(0), 2), recarga = _h1[0], setRecarga = _h1[1];
     var _h2 = __read(useState(false), 2), atualizando = _h2[0], setAtualizando = _h2[1];
@@ -9517,9 +9526,9 @@ function AbaMarketing(_a) {
         }); }); };
         var naFaixa = function (t) { return db.from(t).select("*").eq("negocio", negocio).gte("data", faixa.de).lte("data", faixa.ate); };
         /* v117: criativos vêm da view criativo_dia_v; se ela falhar, o resto da aba continua */
-        Promise.all([pega(naFaixa("campanha_dia")), pega(naFaixa("verba_dia")), pega(naFaixa("orcamento_dia")), pega(naFaixa("criativo_dia_v")).catch(function () { return []; }), pega(naFaixa("google_palavra_v")).catch(function () { return []; }), pega(naFaixa("google_termo_v")).catch(function () { return []; })])
+        Promise.all([pega(naFaixa("campanha_dia")), pega(naFaixa("verba_dia")), pega(naFaixa("orcamento_dia")), pega(naFaixa("criativo_dia_v")).catch(function () { return []; }), pega(naFaixa("google_palavra_v")).catch(function () { return []; }), pega(naFaixa("google_termo_v")).catch(function () { return []; }), pega(naFaixa("campanha_venda_dia")).catch(function () { return []; })])
             .then(function (_a) {
-            var _b = __read(_a, 6), c = _b[0], v = _b[1], o = _b[2], cr = _b[3], pw = _b[4], tm = _b[5];
+            var _b = __read(_a, 7), c = _b[0], v = _b[1], o = _b[2], cr = _b[3], pw = _b[4], tm = _b[5], vd = _b[6];
             if (!vivo)
                 return;
             setLinhas(c);
@@ -9528,6 +9537,7 @@ function AbaMarketing(_a) {
             setCriativos(cr);
             setPalavras(pw);
             setTermos(tm);
+            setVendasDia(vd);
         })
             .catch(function (e) { if (vivo)
             setErro(e.message); });
@@ -9557,10 +9567,31 @@ function AbaMarketing(_a) {
     var somar = function (lista) { return lista.reduce(function (s, l) { return ({
         leads: s.leads + l.leads, agendados: s.agendados + l.agendados,
         compareceram: s.compareceram + l.compareceram, vendas: s.vendas + l.vendas,
-        receita: s.receita + l.receita, investido: s.investido + l.investido,
-    }); }, { leads: 0, agendados: 0, compareceram: 0, vendas: 0, receita: 0, investido: 0 }); };
+        receita: s.receita + l.receita, investido: s.investido + l.investido, antigas: s.antigas + (l.antigas || 0),
+    }); }, { leads: 0, agendados: 0, compareceram: 0, vendas: 0, receita: 0, investido: 0, antigas: 0 }); };
     var tot = { Google: somar(doCanal("Google")), Meta: somar(doCanal("Meta")) };
     var juntos = somar(pago);
+    /* v128: o mesmo quadro contando a venda pela data em que fechou (campanha_venda_dia). Leads, agendamentos e
+       comparecimentos seguem pelo dia de entrada; só vendas e receita trocam. */
+    var venda = contagem === "venda";
+    var linhasVenda = linhas.map(function (l) { return __assign(__assign({}, l), { vendas: 0, receita: 0 }); }).concat(vendasDia.map(function (v) { return ({ data: v.data, negocio: v.negocio, canal: v.canal, campanha: v.campanha, via: v.via,
+        leads: 0, agendados: 0, compareceram: 0, vendas: Number(v.vendas) || 0, receita: Number(v.receita) || 0, vendas_antigas: Number(v.vendas_leads_antigos) || 0 }); }));
+    var pagoV = (function () {
+        var m = {};
+        mktAgrupar(linhasVenda, chaveDe).forEach(function (l) { m[l.chave] = l; });
+        verba.forEach(function (v) {
+            var k = "".concat(v.canal, "\u0001").concat(v.campanha);
+            var a = m[k] || (m[k] = { chave: k, canal: v.canal, campanha: v.campanha, via: "verba", leads: 0, agendados: 0, compareceram: 0, vendas: 0, receita: 0, investido: 0, antigas: 0 });
+            a.investido += Number(v.investido) || 0;
+        });
+        return Object.keys(m).map(function (k) { return m[k]; }).filter(function (l) { return MKT_CANAIS.indexOf(l.canal) >= 0; });
+    })();
+    var totV = { Google: somar(pagoV.filter(function (l) { return l.canal === "Google"; })), Meta: somar(pagoV.filter(function (l) { return l.canal === "Meta"; })) };
+    var juntosV = somar(pagoV);
+    var pagoA = venda ? pagoV : pago;
+    var doCanalA = function (c) { return pagoA.filter(function (l) { return l.canal === c; }); };
+    var totA = venda ? totV : tot;
+    var juntosA = venda ? juntosV : juntos;
     /* Identificação: quanto do que entrou a gente consegue nomear. É a seção
        mais honesta da aba — existe para o número de cima nunca ser lido como
        se fosse o total de leads da casa. */
@@ -9600,24 +9631,31 @@ function AbaMarketing(_a) {
                 faixa.ate.split("-").reverse().join("/")),
             React.createElement(Btn, { kind: "accent", onClick: atualizarMeta, style: { padding: "7px 12px", fontSize: 12.5, opacity: atualizando ? .6 : 1 } }, atualizando ? "Atualizando\u2026" : "Atualizar gasto (Meta e Google)"),
             avisoMeta && React.createElement("span", { style: { fontSize: 12, color: avisoMeta.ruim ? T.bad : T.good, flexBasis: "100%" } }, avisoMeta.txt),
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", flexBasis: "100%", borderTop: "1px solid ".concat(T.hair), paddingTop: 10 } },
+                React.createElement("span", { style: { fontSize: 12.5, fontWeight: 600, color: T.ink2 } }, "Contar vendas por:"),
+                React.createElement(Chips, { value: contagem, onChange: setContagem, options: [["entrada", "Mês de entrada do lead"], ["venda", "Data da venda"]] }),
+                React.createElement("span", { style: { fontSize: 11.5, color: T.muted } }, "Só vendas, receita, CAC e ROAS mudam nas seções 1, 3 e 4.")),
             React.createElement("span", { style: { marginLeft: "auto", fontSize: 12, color: T.muted } }, ehStore ? "Car Store" : "Car Service")),
-        React.createElement(Secao, { n: 1, titulo: "Resultado do tr\u00E1fego pago, por canal", nota: "Google e Meta nunca somados no mesmo cart\u00E3o: s\u00E3o leil\u00F5es diferentes, custos diferentes e comportamentos de lead diferentes. Cada canal tem a mesma fileira de n\u00FAmeros, um em cima do outro, para a compara\u00E7\u00E3o ser de bater o olho. O total fecha embaixo. Cada lead conta no mês em que ENTROU: venda fechada neste mês de lead que entrou no mês passado aparece no mês passado, não neste." },
+        venda && React.createElement(Card, { className: "p12", style: { marginTop: 10, fontSize: 12.5, lineHeight: 1.55, background: "#FFF8CC", borderColor: "#E6C800", color: "#3A3200" } },
+            React.createElement("b", null, "Contando pela data da venda. "),
+            "Entra toda venda fechada no período, inclusive de lead que entrou em mês anterior (aparece como \"antigas\"). Parte dela foi gerada por gasto de meses passados, então compare com o gasto do período com cuidado. As decisões do dia e o funil continuam pelo mês de entrada do lead."),
+        React.createElement(Secao, { n: 1, titulo: "Resultado do tr\u00E1fego pago, por canal", nota: "Google e Meta nunca somados no mesmo cart\u00E3o: s\u00E3o leil\u00F5es diferentes, custos diferentes e comportamentos de lead diferentes. Cada canal tem a mesma fileira de n\u00FAmeros, um em cima do outro, para a compara\u00E7\u00E3o ser de bater o olho. O total fecha embaixo. Por padrão, cada lead conta no mês em que ENTROU: venda fechada neste mês de lead que entrou no mês passado aparece no mês passado. Para ver as vendas pela data em que fecharam, troque em \"Contar vendas por\"." },
             MKT_CANAIS.map(function (c) { return (React.createElement(React.Fragment, { key: c },
                 React.createElement(MktFaixaCanal, { canal: "".concat(c, " Ads"), direita: doCanal(c).length
                         ? "".concat(nInt(doCanal(c).length), " campanha").concat(doCanal(c).length > 1 ? "s" : "", " no per\u00EDodo")
                         : "nenhuma campanha no período" }),
-                React.createElement(MktKpisCanal, { t: tot[c] }))); }),
+                React.createElement(MktKpisCanal, { t: totA[c], venda: venda, outra: venda ? tot[c] : totV[c] }))); }),
             React.createElement(MktFaixaCanal, { canal: "Os dois juntos", direita: "s\u00F3 para a conta do m\u00EAs fechar" }),
-            React.createElement(MktKpisCanal, { t: juntos })),
+            React.createElement(MktKpisCanal, { t: juntosA, venda: venda, outra: venda ? juntos : juntosV })),
         React.createElement(Secao, { n: 2, titulo: "Decis\u00F5es do dia", nota: "O que fazer com cada campanha paga, por regras simples e vis\u00EDveis no fim da se\u00E7\u00E3o. Serve de ponto de partida para a conversa com a ag\u00EAncia: confirme sempre nas tabelas abaixo antes de mexer em verba." },
             React.createElement(MktDecisoes, { pago: pago })),
-        React.createElement(Secao, { n: 3, titulo: "Campanhas do Google", nota: "Ordenada por ROAS. O dinheiro vem do Reportei; lead, agendamento e venda v\u00EAm do Kommo, pelo mesmo crit\u00E9rio da aba SDR \u2014 nunca das convers\u00F5es da plataforma, que contam clique no WhatsApp." }, doCanal("Google").length
-            ? React.createElement(MktTabela, { canal: "Google", linhas: doCanal("Google") })
+        React.createElement(Secao, { n: 3, titulo: "Campanhas do Google", nota: "Ordenada por ROAS. O dinheiro vem do Reportei; lead, agendamento e venda v\u00EAm do Kommo, pelo mesmo crit\u00E9rio da aba SDR \u2014 nunca das convers\u00F5es da plataforma, que contam clique no WhatsApp." }, doCanalA("Google").length
+            ? React.createElement(MktTabela, { canal: "Google", linhas: doCanalA("Google"), venda: venda })
             : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } },
                 "Nenhum lead de Google no per\u00EDodo. ",
                 ehStore ? "O Car Store não anuncia no Google hoje." : "")),
-        React.createElement(Secao, { n: 4, titulo: "Campanhas do Meta", nota: "Mesma tabela, mesma r\u00E9gua. Desde 23/09/2026 o nome da campanha chega exato do Lead Ads; antes disso a identifica\u00E7\u00E3o era pela frase do an\u00FAncio, ent\u00E3o campanha sem frase pr\u00F3pria aparece junto de outra." }, doCanal("Meta").length
-            ? React.createElement(MktTabela, { canal: "Meta", linhas: doCanal("Meta") })
+        React.createElement(Secao, { n: 4, titulo: "Campanhas do Meta", nota: "Mesma tabela, mesma r\u00E9gua. Desde 23/09/2026 o nome da campanha chega exato do Lead Ads; antes disso a identifica\u00E7\u00E3o era pela frase do an\u00FAncio, ent\u00E3o campanha sem frase pr\u00F3pria aparece junto de outra." }, doCanalA("Meta").length
+            ? React.createElement(MktTabela, { canal: "Meta", linhas: doCanalA("Meta"), venda: venda })
             : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhum lead de Meta no per\u00EDodo.")),
         React.createElement(Secao, { n: 5, titulo: "Criativos do Meta", nota: "Convers\u00E3o por an\u00FAncio (criativo): quanto gastou, quantos leads, agendamentos, comparecimentos e vendas de cada um. O gasto vem do Meta, por an\u00FAncio; lead e venda v\u00EAm do Kommo." },
             React.createElement(MktCriativos, { linhas: criativos, leadsMeta: tot.Meta.leads })),
