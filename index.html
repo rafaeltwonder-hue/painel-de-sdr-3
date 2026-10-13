@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v124">
+<meta name="painel-versao" content="v126">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -9288,6 +9288,75 @@ function MktPalavras(_a) {
             React.createElement("b", null, "Leia com cuidado. "),
             "Cada palavra é casada com o lead pela palavra que o anúncio mandou no link (UTM). Receita = valor das vendas ganhas no Kommo; ROAS = receita ÷ investido; CAC = investido ÷ vendas. Palavra com poucos cliques ainda não diz nada: espere ter volume antes de cortar. O mesmo texto em campanhas diferentes aparece somado.")));
 }
+/* v126: termos de pesquisa do Google. O que a pessoa digitou (search_term_view). O gasto e as conversões vêm do Google Ads;
+   o Kommo não guarda o termo digitado, só a palavra comprada, então aqui não há lead nem venda. */
+function MktTermos(_a) {
+    var linhas = _a.linhas, gastoGoogle = _a.gastoGoogle;
+    var _m = __read(useState(false), 2), todas = _m[0], setTodas = _m[1];
+    var _s = __read(useState(false), 2), soSem = _s[0], setSoSem = _s[1];
+    var por = {};
+    linhas.forEach(function (l) {
+        var k = l.campanha + "\u0001" + l.chave;
+        var a = por[k] || (por[k] = { k: k, termo: l.termo, campanha: l.campanha, status: l.status, investido: 0, cliques: 0, impressoes: 0, conversoes: 0 });
+        ["investido", "cliques", "impressoes", "conversoes"].forEach(function (c) { a[c] += Number(l[c]) || 0; });
+        if (l.status && l.status !== "NONE")
+            a.status = l.status;
+    });
+    var lista = Object.keys(por).map(function (k) { return por[k]; })
+        .sort(function (a, b) { return (b.investido - a.investido) || (b.cliques - a.cliques); });
+    if (!lista.length)
+        return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhum termo de pesquisa no período. Os termos chegam junto com o gasto do Google, de 2 em 2 horas, a partir de 01/09/2026.");
+    var soma = function (arr, c) { return arr.reduce(function (s, l) { return s + l[c]; }, 0); };
+    var totInv = soma(lista, "investido");
+    var semConv = lista.filter(function (l) { return l.investido > 0 && l.conversoes === 0; });
+    var gastoSem = soma(semConv, "investido");
+    var base = soNaoConv(soSem, lista);
+    function soNaoConv(f, arr) { return f ? arr.filter(function (l) { return l.investido > 0 && l.conversoes === 0; }) : arr; }
+    var vis = todas ? base : base.slice(0, 25);
+    var rotuloStatus = function (st) {
+        return st === "EXCLUDED" ? "Negativado" : st === "ADDED" ? "Já é palavra-chave" : st === "ADDED_EXCLUDED" ? "Adicionado e negativado" : "\u2014";
+    };
+    return (React.createElement("div", null,
+        React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.ink2, marginBottom: 10, lineHeight: 1.6 } },
+            React.createElement("b", { style: { color: T.ink } }, nInt(lista.length) + (lista.length === 1 ? " termo listado soma " : " termos listados somam ") + nReal(totInv)),
+            gastoGoogle ? " (" + nPct(div(totInv, gastoGoogle), 0) + " dos " + nReal(gastoGoogle) + " gastos no Google no período; o resto o Google não detalha)." : ".",
+            React.createElement("br", null),
+            React.createElement("b", { style: { color: T.bad } }, nInt(semConv.length) + (semConv.length === 1 ? " termo gastou " : " termos gastaram ") + nReal(gastoSem) + " e não teve" + (semConv.length === 1 ? "" : "ram") + " nenhuma conversão no Google"),
+            " (" + nPct(div(gastoSem, totInv), 0) + " do gasto listado). Verifique antes de negativar: termo parecido com o que vende pode só ter tido azar.")
+        ,
+        React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" } },
+            React.createElement(Btn, { onClick: function () { return setSoSem(!soSem); } }, soSem ? "Mostrar todos os termos" : "Mostrar só os que gastaram sem converter (" + semConv.length + ")")),
+        React.createElement(Card, { className: "p0 rolagem" },
+            React.createElement("table", { style: { minWidth: 860 } },
+                React.createElement("thead", null,
+                    React.createElement("tr", null,
+                        React.createElement(Th, null, "Termo pesquisado"),
+                        React.createElement(Th, { right: true }, "Investido"),
+                        React.createElement(Th, { right: true }, "Cliques"),
+                        React.createElement(Th, { right: true }, "CPC"),
+                        React.createElement(Th, { right: true }, "Conv. Google"),
+                        React.createElement(Th, { right: true }, "Custo/conv."),
+                        React.createElement(Th, null, "Situação"))),
+                React.createElement("tbody", null,
+                    vis.map(function (l) {
+                        var sem = l.investido > 0 && l.conversoes === 0;
+                        return (React.createElement("tr", { key: l.k },
+                            React.createElement(Td, { bold: true },
+                                l.termo,
+                                React.createElement("div", { style: { fontSize: 11, color: T.muted, fontWeight: 400 } }, l.campanha)),
+                            React.createElement(Td, { right: true }, l.investido ? nReal(l.investido) : "\u2014"),
+                            React.createElement(Td, { right: true, color: l.cliques ? T.ink : T.muted }, l.cliques ? nInt(l.cliques) : "\u2014"),
+                            React.createElement(Td, { right: true, color: l.cliques ? T.ink : T.muted }, l.investido && l.cliques ? nReal(div(l.investido, l.cliques)) : "\u2014"),
+                            React.createElement(Td, { right: true, bold: l.conversoes > 0, color: sem ? T.bad : T.ink }, l.conversoes ? l.conversoes.toFixed(1).replace(".", ",") : "0"),
+                            React.createElement(Td, { right: true, color: l.conversoes ? T.ink : T.muted }, l.investido && l.conversoes ? nReal(div(l.investido, l.conversoes)) : "\u2014"),
+                            React.createElement(Td, { color: T.muted }, rotuloStatus(l.status))));
+                    })))),
+        base.length > 25 && React.createElement("div", { style: { marginTop: 10 } },
+            React.createElement(Btn, { onClick: function () { return setTodas(!todas); } }, todas ? "Mostrar só os 25 que mais gastaram" : "Mostrar todos (" + base.length + ")")),
+        React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 10, maxWidth: "90ch", lineHeight: 1.5 } },
+            React.createElement("b", null, "Leia com cuidado. "),
+            "Conversão do Google conta clique no WhatsApp e ligação; não é venda. Para ver lead, agendamento e venda de verdade, use a tabela de palavras-chave acima. Termo com poucos cliques ainda não diz nada.")));
+}
 /* v120: decisões do dia. Cada campanha paga recebe uma ação (escalar, manter, ajustar, reduzir, cortar...)
    por regras simples e visíveis. Amostra pequena nunca vira ordem: abaixo do gasto mínimo a ação é "Aguardar". */
 var MKT_REGRAS = { roasEscalar: 3, vendasMin: 2, gastoMin: 500, gastoSemLead: 250, comparecimentoMin: 0.3, agendMin: 5 };
@@ -9376,6 +9445,8 @@ function AbaMarketing(_a) {
     var _g = __read(useState(null), 2), erro = _g[0], setErro = _g[1];
     var _cr = __read(useState([]), 2), criativos = _cr[0], setCriativos = _cr[1];
     var _pw = __read(useState([]), 2), palavras = _pw[0], setPalavras = _pw[1];
+    /* v126: termos de pesquisa do Google (o que a pessoa digitou) */
+    var _tm = __read(useState([]), 2), termos = _tm[0], setTermos = _tm[1];
     /* v108: botão que puxa o gasto do Meta (função meta-ads-sync) e recarrega a aba */
     var _h1 = __read(useState(0), 2), recarga = _h1[0], setRecarga = _h1[1];
     var _h2 = __read(useState(false), 2), atualizando = _h2[0], setAtualizando = _h2[1];
@@ -9425,9 +9496,9 @@ function AbaMarketing(_a) {
         }); }); };
         var naFaixa = function (t) { return db.from(t).select("*").eq("negocio", negocio).gte("data", faixa.de).lte("data", faixa.ate); };
         /* v117: criativos vêm da view criativo_dia_v; se ela falhar, o resto da aba continua */
-        Promise.all([pega(naFaixa("campanha_dia")), pega(naFaixa("verba_dia")), pega(naFaixa("orcamento_dia")), pega(naFaixa("criativo_dia_v")).catch(function () { return []; }), pega(naFaixa("google_palavra_v")).catch(function () { return []; })])
+        Promise.all([pega(naFaixa("campanha_dia")), pega(naFaixa("verba_dia")), pega(naFaixa("orcamento_dia")), pega(naFaixa("criativo_dia_v")).catch(function () { return []; }), pega(naFaixa("google_palavra_v")).catch(function () { return []; }), pega(naFaixa("google_termo_v")).catch(function () { return []; })])
             .then(function (_a) {
-            var _b = __read(_a, 5), c = _b[0], v = _b[1], o = _b[2], cr = _b[3], pw = _b[4];
+            var _b = __read(_a, 6), c = _b[0], v = _b[1], o = _b[2], cr = _b[3], pw = _b[4], tm = _b[5];
             if (!vivo)
                 return;
             setLinhas(c);
@@ -9435,6 +9506,7 @@ function AbaMarketing(_a) {
             setOrcamento(o);
             setCriativos(cr);
             setPalavras(pw);
+            setTermos(tm);
         })
             .catch(function (e) { if (vivo)
             setErro(e.message); });
@@ -9530,9 +9602,11 @@ function AbaMarketing(_a) {
             React.createElement(MktCriativos, { linhas: criativos, leadsMeta: tot.Meta.leads })),
         React.createElement(Secao, { n: 6, titulo: "Palavras-chave do Google", nota: "Convers\u00E3o por palavra pesquisada: quanto gastou, cliques, leads, agendamentos e vendas de cada palavra-chave. O gasto vem do Google Ads; lead e venda v\u00EAm do Kommo." },
             React.createElement(MktPalavras, { linhas: palavras })),
-        React.createElement(Secao, { n: 7, titulo: "O funil de cada canal", nota: "A mesma cadeia da aba SDR, lado a lado. \u00C9 aqui que aparece a diferen\u00E7a de qualidade: um canal pode trazer mais lead pelo mesmo dinheiro e ainda assim agendar menos." },
+        React.createElement(Secao, { n: 7, titulo: "Termos pesquisados no Google", nota: "O que a pessoa digitou, não a palavra que compramos. Serve para achar o que negativar e o que virar palavra-chave. O Google esconde os termos de pouco volume, então a lista nunca fecha com o gasto total." },
+            React.createElement(MktTermos, { linhas: termos, gastoGoogle: tot.Google ? tot.Google.investido : 0 })),
+        React.createElement(Secao, { n: 8, titulo: "O funil de cada canal", nota: "A mesma cadeia da aba SDR, lado a lado. \u00C9 aqui que aparece a diferen\u00E7a de qualidade: um canal pode trazer mais lead pelo mesmo dinheiro e ainda assim agendar menos." },
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(380px, 1fr))", gap: 14 } }, MKT_CANAIS.map(function (c) { return React.createElement(MktFunil, { key: c, canal: c, t: tot[c] }); }))),
-        React.createElement(Secao, { n: 8, titulo: "Planejado \u00D7 gasto", nota: "O or\u00E7amento \u00E9 o que a ag\u00EAncia planejou na planilha; o gasto \u00E9 o que saiu da conta. Guardamos os dois separados de prop\u00F3sito \u2014 plano n\u00E3o \u00E9 gasto, e usar o plano como se fosse gasto estraga CPL, CAC e ROAS." }, planoVsGasto.length ? (React.createElement(Card, { className: "p0 rolagem" },
+        React.createElement(Secao, { n: 9, titulo: "Planejado \u00D7 gasto", nota: "O or\u00E7amento \u00E9 o que a ag\u00EAncia planejou na planilha; o gasto \u00E9 o que saiu da conta. Guardamos os dois separados de prop\u00F3sito \u2014 plano n\u00E3o \u00E9 gasto, e usar o plano como se fosse gasto estraga CPL, CAC e ROAS." }, planoVsGasto.length ? (React.createElement(Card, { className: "p0 rolagem" },
             React.createElement("table", { style: { minWidth: 700 } },
                 React.createElement("thead", null,
                     React.createElement("tr", null,
@@ -9560,7 +9634,7 @@ function AbaMarketing(_a) {
                         React.createElement(Td, { right: true, bold: true }, nReal(totGasto)),
                         React.createElement(Td, { right: true, bold: true }, totGasto ? "".concat(totGasto - totOrc >= 0 ? "+" : "−").concat(nReal(Math.abs(totGasto - totOrc))) : "—"),
                         React.createElement(Td, { right: true })))))) : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhum or\u00E7amento lan\u00E7ado para este per\u00EDodo.")),
-        React.createElement(Secao, { n: 9, titulo: "De onde vem a identifica\u00E7\u00E3o", nota: "Quanto do que entrou a gente consegue nomear, e por qual caminho. Esta se\u00E7\u00E3o existe para o n\u00FAmero l\u00E1 de cima nunca ser lido como se fosse o total de leads da casa." },
+        React.createElement(Secao, { n: 10, titulo: "De onde vem a identifica\u00E7\u00E3o", nota: "Quanto do que entrou a gente consegue nomear, e por qual caminho. Esta se\u00E7\u00E3o existe para o n\u00FAmero l\u00E1 de cima nunca ser lido como se fosse o total de leads da casa." },
             React.createElement(Card, { className: "p16" },
                 ordemIdent.map(function (k) {
                     var l = ident.filter(function (x) { return x.chave === k; })[0] || { leads: 0 };
@@ -9579,12 +9653,21 @@ function AbaMarketing(_a) {
                 React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 12, borderTop: "1px solid ".concat(T.hair), paddingTop: 9 } },
                     nPct(div(totalLeads - (ident.filter(function (x) { return x.chave === "Sem identificação"; })[0] || { leads: 0 }).leads, totalLeads), 0),
                     " do per\u00EDodo tem origem conhecida. O resto entra sem UTM e sem frase reconhecida \u2014 parte \u00E9 org\u00E2nico de verdade, parte \u00E9 an\u00FAncio de Meta sem par\u00E2metro. Encolher essa barra \u00E9 a meta do trimestre."))),
-        React.createElement(Secao, { n: 10, titulo: "O que esta aba ainda depende", nota: "O que falta para os n\u00FAmeros pararem de ter ressalva. Fica na tela de prop\u00F3sito: ressalva escondida vira n\u00FAmero errado na reuni\u00E3o seguinte." },
+        React.createElement(Secao, { n: 11, titulo: "O que esta aba ainda depende", nota: "O que falta para os n\u00FAmeros pararem de ter ressalva. Fica na tela de prop\u00F3sito: ressalva escondida vira n\u00FAmero errado na reuni\u00E3o seguinte." },
             React.createElement(Card, { className: "p16", style: { fontSize: 13, lineHeight: 1.7 } },
                 React.createElement("ul", { style: { margin: 0, paddingLeft: 18 } },
                     React.createElement("li", null,
                         React.createElement("b", null, "Investimento por dia"),
-                        " \u2014 o Meta j\u00E1 entra por dia, direto da API, a partir de 24/09/2026 (bot\u00E3o \u201CAtualizar gasto do Meta\u201D). At\u00E9 23/09 o n\u00FAmero \u00E9 do Reportei, do per\u00EDodo inteiro. O Google ainda entra \u00E0 m\u00E3o, at\u00E9 a API dele ser ligada."),
+                        " \u2014 Meta e Google entram por dia, direto da API, a partir de 24/09/2026 (o Google se atualiza sozinho de 2 em 2 horas; o Meta, pelo bot\u00E3o \u201CAtualizar gasto\u201D). At\u00E9 23/09 o n\u00FAmero \u00E9 do Reportei, do per\u00EDodo inteiro."),
+                    React.createElement("li", null,
+                        React.createElement("b", null, "MEF do Google"),
+                        " \u2014 a campanha se chama \u201CMEF\u201D no Google Ads, mas os leads chegam com a UTM \u201Chfm\u201D. O painel trata \u201Chfm\u201D como MEF. Quando a BREV trocar a UTM, o texto novo precisa entrar na lista de campanhas do painel."),
+                    React.createElement("li", null,
+                        React.createElement("b", null, "Or\u00E7amento de outubro"),
+                        " \u2014 a planilha da BREV s\u00F3 foi lan\u00E7ada at\u00E9 30/09. Sem ela, \u201CPlanejado \u00D7 gasto\u201D fica vazio em outubro."),
+                    React.createElement("li", null,
+                        React.createElement("b", null, "Termos de pesquisa"),
+                        " \u2014 o Google s\u00F3 entrega os termos com volume, e o termo digitado n\u00E3o chega ao Kommo (o lead guarda a palavra comprada). Por isso a tabela de termos mostra gasto, cliques e convers\u00F5es do Google, sem lead nem venda do Kommo."),
                     React.createElement("li", null,
                         React.createElement("b", null, "Meta antes de 23/09/2026"),
                         " \u2014 a integra\u00E7\u00E3o de Lead Ads s\u00F3 come\u00E7ou nessa data. Os leads anteriores t\u00EAm produto, n\u00E3o campanha, e aparecem com o nome \"Wpp (at\u00E9 22/09)\"."),
@@ -9600,7 +9683,7 @@ function AbaMarketing(_a) {
                         " \u2014 a aba SDR j\u00E1 mede isso por SDR; falta cruzar com campanha para separar o que \u00E9 problema de an\u00FAncio do que \u00E9 problema de atendimento.")))),
         React.createElement("p", { style: { fontSize: 11.5, color: T.muted, marginTop: 26, maxWidth: "90ch" } },
             React.createElement("b", null, "De onde vem cada n\u00FAmero."),
-            " Investimento: Meta pela API (por dia, desde 24/09/2026) e Google/Meta anterior lan\u00E7ados do Reportei. Or\u00E7amento: planilha da BREV. Leads, agendamentos, comparecimentos e vendas: Kommo, pelo mesmo crit\u00E9rio da aba SDR \u2014 nunca as convers\u00F5es da plataforma, que contam clique no WhatsApp e liga\u00E7\u00E3o. Google \u00E9 identificado por UTM; Meta, pelo nome da campanha do Lead Ads e, antes de 23/09/2026, pela frase padr\u00E3o do an\u00FAncio.")));
+            " Investimento: Meta e Google pela API (por dia, desde 24/09/2026); antes disso, lan\u00E7ados do Reportei. Or\u00E7amento: planilha da BREV. Leads, agendamentos, comparecimentos e vendas: Kommo, pelo mesmo crit\u00E9rio da aba SDR \u2014 nunca as convers\u00F5es da plataforma, que contam clique no WhatsApp e liga\u00E7\u00E3o. Google \u00E9 identificado por UTM; Meta, pelo nome da campanha do Lead Ads e, antes de 23/09/2026, pela frase padr\u00E3o do an\u00FAncio.")));
 }
 /* ===================== v109: Piloto do SDR =====================
 
