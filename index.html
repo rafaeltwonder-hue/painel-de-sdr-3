@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v126">
+<meta name="painel-versao" content="v127">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -9127,6 +9127,150 @@ function MktFunil(_a) {
             nPct(div(t.vendas, t.leads), 1),
             t.investido ? " \u00B7 CAC ".concat(t.vendas ? nReal(div(t.investido, t.vendas)) : "sem venda") : "")));
 }
+/* v127: filtros, busca e ordenação clicável nas tabelas de criativos, palavras-chave e termos.
+   Um componente só (MktTabelaFiltrada) cuida das três; cada tabela passa as colunas e os filtros rápidos. */
+function mktNorm(s) { return String(s == null ? "" : s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+function mktCsv(arquivo, cab, linhas) {
+    try {
+        var esc = function (v) { var s = v == null ? "" : (typeof v === "number" ? String(Number(v.toFixed(2))).replace(".", ",") : String(v)); return /[;"\n]/.test(s) ? "\"" + s.replace(/"/g, "\"\"") + "\"" : s; };
+        var txt = "﻿" + [cab].concat(linhas).map(function (r) { return r.map(esc).join(";"); }).join("\r\n");
+        var url = URL.createObjectURL(new Blob([txt], { type: "text/csv;charset=utf-8" }));
+        var a = document.createElement("a");
+        a.href = url;
+        a.download = arquivo;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    }
+    catch (e) { }
+}
+var MKT_MIN_INV = [{ v: "0", l: "Qualquer gasto" }, { v: "50", l: "Gasto de R$ 50 ou mais" }, { v: "100", l: "Gasto de R$ 100 ou mais" }, { v: "250", l: "Gasto de R$ 250 ou mais" }, { v: "500", l: "Gasto de R$ 500 ou mais" }];
+var MKT_SOMAR = ["leads", "agendados", "compareceram", "vendas", "receita", "investido", "cliques", "conversoes"];
+/* As colunas do funil (criativo e palavra-chave são iguais, palavra-chave tem a coluna de cliques). */
+function mktColsFunil(comCliques) {
+    var cor = function (ok) { return ok ? T.ink : T.muted; };
+    var cols = [
+        { k: "investido", rot: "Investido", v: function (l) { return l.investido; }, r: function (l) { return l.investido ? nReal(l.investido) : "—"; }, cor: function (l) { return cor(l.investido); } }
+    ];
+    if (comCliques)
+        cols.push({ k: "cliques", rot: "Cliques", v: function (l) { return l.cliques; }, r: function (l) { return l.cliques ? nInt(l.cliques) : "—"; }, cor: function (l) { return cor(l.cliques); } });
+    return cols.concat([
+        { k: "leads", rot: "Leads", v: function (l) { return l.leads; }, r: function (l) { return nInt(l.leads); }, bold: function (l) { return l.leads > 0; }, cor: function (l) { return l.investido > 0 && l.leads === 0 ? T.bad : T.ink; } },
+        { k: "cpl", rot: "CPL", menor: true, v: function (l) { return l.investido && l.leads ? div(l.investido, l.leads) : null; }, r: function (l) { return l.investido && l.leads ? nReal(div(l.investido, l.leads)) : "—"; }, cor: function (l) { return cor(l.investido && l.leads); } },
+        { k: "agendados", rot: "Agendou", v: function (l) { return l.agendados; }, r: function (l) { return nInt(l.agendados); } },
+        { k: "taxa", rot: "Taxa", v: function (l) { return l.leads ? div(l.agendados, l.leads) : null; }, r: function (l) { return l.leads ? nPct(div(l.agendados, l.leads), 1) : "—"; }, cor: function (l) { return l.leads && div(l.agendados, l.leads) >= 0.2 ? T.good : T.ink; } },
+        { k: "cag", rot: "Custo/agend.", menor: true, v: function (l) { return l.investido && l.agendados ? div(l.investido, l.agendados) : null; }, r: function (l) { return l.investido && l.agendados ? nReal(div(l.investido, l.agendados)) : "—"; }, cor: function (l) { return cor(l.investido && l.agendados); } },
+        { k: "compareceram", rot: "Compareceu", v: function (l) { return l.compareceram; }, r: function (l) { return nInt(l.compareceram); } },
+        { k: "ccomp", rot: "Custo/compar.", menor: true, v: function (l) { return l.investido && l.compareceram ? div(l.investido, l.compareceram) : null; }, r: function (l) { return l.investido && l.compareceram ? nReal(div(l.investido, l.compareceram)) : "—"; }, cor: function (l) { return cor(l.investido && l.compareceram); } },
+        { k: "vendas", rot: "Vendas", v: function (l) { return l.vendas; }, r: function (l) { return nInt(l.vendas); }, bold: function () { return true; } },
+        { k: "receita", rot: "Receita", v: function (l) { return l.receita; }, r: function (l) { return l.receita ? nReal(l.receita) : "—"; }, cor: function (l) { return cor(l.receita); } },
+        { k: "roas", rot: "ROAS", v: function (l) { return l.investido && l.receita ? div(l.receita, l.investido) : null; }, r: function (l) { return l.investido && l.receita ? div(l.receita, l.investido).toFixed(1).replace(".", ",") + "x" : "—"; }, cor: function (l) { return cor(l.investido && l.receita); }, bold: function (l) { return l.receita > 0 && l.investido > 0; } },
+        { k: "cac", rot: "CAC", menor: true, v: function (l) { return l.investido && l.vendas ? div(l.investido, l.vendas) : null; }, r: function (l) { return l.investido && l.vendas ? nReal(div(l.investido, l.vendas)) : "—"; }, cor: function (l) { return cor(l.investido && l.vendas); } }
+    ]);
+}
+function MktTabelaFiltrada(_a) {
+    var linhas = _a.linhas, cols = _a.cols, nomeRot = _a.nomeRot, nomeDe = _a.nomeDe, chips = _a.chips, totalRot = _a.totalRot, minW = _a.minW, csv = _a.csv, buscaDica = _a.buscaDica, aberto = _a.aberto;
+    var _b = __read(useState(""), 2), busca = _b[0], setBusca = _b[1];
+    var _c = __read(useState(""), 2), camp = _c[0], setCamp = _c[1];
+    var _d = __read(useState("0"), 2), minInv = _d[0], setMinInv = _d[1];
+    var _e = __read(useState("todos"), 2), chip = _e[0], setChip = _e[1];
+    var _f = __read(useState({ k: "investido", dir: -1 }), 2), ord = _f[0], setOrd = _f[1];
+    var _g = __read(useState(false), 2), todas = _g[0], setTodas = _g[1];
+    var _h = __read(useState(null), 2), foco = _h[0], setFoco = _h[1];
+    var campanhas = [];
+    linhas.forEach(function (l) { if (l.campanha && campanhas.indexOf(l.campanha) < 0)
+        campanhas.push(l.campanha); });
+    campanhas.sort();
+    var norm = mktNorm(busca.trim());
+    var chipAtual = chips.filter(function (c) { return c[0] === chip; })[0];
+    var filtroAtivo = !!(camp || Number(minInv) > 0 || chip !== "todos" || norm);
+    var filtradas = linhas.filter(function (l) {
+        if (camp && l.campanha !== camp)
+            return false;
+        if (Number(minInv) > 0 && !(l.investido >= Number(minInv)))
+            return false;
+        if (chipAtual && chipAtual[2] && !chipAtual[2](l))
+            return false;
+        if (norm && mktNorm(nomeDe(l) + " " + (l.campanha || "")).indexOf(norm) < 0)
+            return false;
+        return true;
+    });
+    var colOrd = cols.filter(function (c) { return c.k === ord.k; })[0];
+    var valor = function (l) { return ord.k === "nome" ? mktNorm(nomeDe(l)) : colOrd ? colOrd.v(l) : null; };
+    var ordenadas = filtradas.slice().sort(function (a, b) {
+        var va = valor(a), vb = valor(b);
+        if (va == null && vb == null)
+            return 0;
+        if (va == null)
+            return 1;
+        if (vb == null)
+            return -1;
+        return va < vb ? -ord.dir : va > vb ? ord.dir : 0;
+    });
+    var vis = todas || filtroAtivo ? ordenadas : ordenadas.slice(0, 25);
+    var t = { };
+    MKT_SOMAR.forEach(function (k) { t[k] = filtradas.reduce(function (s, l) { return s + (Number(l[k]) || 0); }, 0); });
+    var clicar = function (k, menor) { setOrd(ord.k === k ? { k: k, dir: -ord.dir } : { k: k, dir: k === "nome" || menor ? 1 : -1 }); };
+    var limpar = function () { setBusca(""); setCamp(""); setMinInv("0"); setChip("todos"); };
+    var cab = function (k, rot, menor, centro) {
+        var ativo = ord.k === k;
+        return (React.createElement("th", { key: k, onClick: function () { return clicar(k, menor); }, title: "Clique para ordenar", style: { textAlign: centro ? "center" : "left", padding: "9px 10px", fontSize: 10.5,
+                letterSpacing: ".06em", textTransform: "uppercase", color: ativo ? T.ink : T.muted, fontWeight: ativo ? 700 : 600, cursor: "pointer", userSelect: "none",
+                borderBottom: "1px solid ".concat(ativo ? T.ink : T.hair), whiteSpace: "nowrap", background: T.surface, position: "sticky", top: 0 } },
+            rot,
+            React.createElement("span", { style: { display: "inline-block", width: 12, color: ativo ? T.ink : T.hair } }, ativo ? (ord.dir > 0 ? "▲" : "▼") : "↕")));
+    };
+    var baixar = function () {
+        var cabecalho = [nomeRot, "Campanha"].concat(cols.map(function (c) { return c.rot; }));
+        mktCsv(csv + ".csv", cabecalho, ordenadas.map(function (l) { return [nomeDe(l), l.campanha || ""].concat(cols.map(function (c) { var v = c.csv ? c.csv(l) : c.v(l); return v == null ? "" : v; })); }));
+    };
+    return (React.createElement("div", null,
+        React.createElement(Card, { className: "p12", style: { marginBottom: 10 } },
+            React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                React.createElement("input", { type: "search", value: busca, onChange: function (e) { return setBusca(e.target.value); }, placeholder: buscaDica, style: __assign(__assign({}, inputStyle), { width: 280, maxWidth: "100%" }) }),
+                campanhas.length > 1 && React.createElement(Select, { value: camp, onChange: setCamp, options: [{ v: "", l: "Todas as campanhas" }].concat(campanhas.map(function (c) { return { v: c, l: c }; })) }),
+                React.createElement(Select, { value: minInv, onChange: setMinInv, options: MKT_MIN_INV })),
+            React.createElement("div", { style: { marginTop: 10 } },
+                React.createElement(Chips, { value: chip, onChange: setChip, options: chips.map(function (c) { return [c[0], c[1] + " (" + linhas.filter(function (l) { return !c[2] || c[2](l); }).length + ")"]; }) })),
+            React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 10, fontSize: 12.5, color: T.ink2 } },
+                React.createElement("span", null, "Mostrando ", React.createElement("b", { style: { color: T.ink } }, nInt(vis.length)), " de ", nInt(linhas.length), filtroAtivo ? " (filtro ligado)" : ""),
+                filtroAtivo && React.createElement(Btn, { onClick: limpar, style: { padding: "5px 10px", fontSize: 12 } }, "Limpar filtros"),
+                React.createElement(Btn, { onClick: baixar, style: { padding: "5px 10px", fontSize: 12 } }, "Baixar planilha (CSV)"),
+                React.createElement("span", { style: { color: T.muted } }, "Clique no título da coluna para ordenar."))),
+        !filtradas.length ? React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nada com esse filtro. Use \"Limpar filtros\".") :
+            React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { minWidth: minW } },
+                    React.createElement("thead", null,
+                        React.createElement("tr", null,
+                            cab("nome", nomeRot, false, false),
+                            cols.map(function (c) { return cab(c.k, c.rot, c.menor, !c.esq); }))),
+                    React.createElement("tbody", null,
+                        vis.map(function (l) {
+                            var kk = l.chave || l.k;
+                            return (React.createElement("tr", { key: kk, onMouseEnter: function () { return setFoco(kk); }, onMouseLeave: function () { return setFoco(null); }, style: { background: foco === kk ? "#F4F1E6" : undefined } },
+                                React.createElement(Td, { bold: true, style: { whiteSpace: "normal", minWidth: 190 } },
+                                    nomeDe(l),
+                                    l.campanha && React.createElement("div", { style: { fontSize: 11, color: T.muted, fontWeight: 400 } }, l.campanha)),
+                                cols.map(function (c) { return (React.createElement(Td, { key: c.k, right: !c.esq, bold: c.bold ? c.bold(l) : false, color: c.cor ? c.cor(l) : undefined }, c.r(l))); })));
+                        }),
+                        React.createElement("tr", { style: { background: T.canvas } },
+                            React.createElement(Td, { bold: true }, filtroAtivo ? totalRot + " (com o filtro)" : totalRot),
+                            cols.map(function (c) { return (React.createElement(Td, { key: c.k, right: !c.esq, bold: true }, c.semTotal ? "" : c.r(t))); }))))),
+        !filtroAtivo && ordenadas.length > 25 && React.createElement("div", { style: { marginTop: 10 } },
+            React.createElement(Btn, { onClick: function () { return setTodas(!todas); } }, todas ? "Mostrar só os 25 primeiros" : "Mostrar todos (" + ordenadas.length + ")")),
+        aberto));
+}
+/* Os filtros rápidos do funil (criativo e palavra-chave). */
+var MKT_CHIPS_FUNIL = [
+    ["todos", "Todos", null],
+    ["semlead", "Gastou e não trouxe lead", function (l) { return l.investido > 0 && l.leads === 0; }],
+    ["comlead", "Trouxe lead", function (l) { return l.leads > 0; }],
+    ["comagend", "Com agendamento", function (l) { return l.agendados > 0; }],
+    ["compar", "Com comparecimento", function (l) { return l.compareceram > 0; }],
+    ["comvenda", "Com venda", function (l) { return l.vendas > 0; }],
+    ["semvenda", "Tem lead e nenhuma venda", function (l) { return l.leads > 0 && l.vendas === 0; }]
+];
 /* v117: conversão por criativo (anúncio) do Meta. Lead, agendamento e venda vêm do Kommo
    (só o lead de formulário traz o nome/ID do anúncio); o gasto vem do Meta, por anúncio. */
 function MktCriativos(_a) {
@@ -9142,71 +9286,20 @@ function MktCriativos(_a) {
     });
     var lista = Object.keys(por).map(function (k) { return por[k]; })
         .sort(function (a, b) { return (b.investido - a.investido) || (b.leads - a.leads); });
-    var t = lista.reduce(function (s, l) { return ({ leads: s.leads + l.leads, agendados: s.agendados + l.agendados, compareceram: s.compareceram + l.compareceram, vendas: s.vendas + l.vendas, receita: s.receita + l.receita, investido: s.investido + l.investido }); }, { leads: 0, agendados: 0, compareceram: 0, vendas: 0, receita: 0, investido: 0 });
+    var tl = lista.reduce(function (s, l) { return s + l.leads; }, 0);
     if (!lista.length)
         return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhum criativo do Meta no período. Se o gasto ainda não chegou, use o botão \"Atualizar gasto (Meta e Google)\".");
-    return (React.createElement("div", null,
-        React.createElement(Card, { className: "p0 rolagem" },
-            React.createElement("table", { style: { minWidth: 1320 } },
-                React.createElement("thead", null,
-                    React.createElement("tr", null,
-                        React.createElement(Th, null, "Criativo"),
-                        React.createElement(Th, { right: true }, "Investido"),
-                        React.createElement(Th, { right: true }, "Leads"),
-                        React.createElement(Th, { right: true }, "CPL"),
-                        React.createElement(Th, { right: true }, "Agendou"),
-                        React.createElement(Th, { right: true }, "Taxa"),
-                        React.createElement(Th, { right: true }, "Custo/agend."),
-                        React.createElement(Th, { right: true }, "Compareceu"),
-                        React.createElement(Th, { right: true }, "Custo/compar."),
-                        React.createElement(Th, { right: true }, "Vendas"),
-                        React.createElement(Th, { right: true }, "Receita"),
-                        React.createElement(Th, { right: true }, "ROAS"),
-                        React.createElement(Th, { right: true }, "CAC"))),
-                React.createElement("tbody", null,
-                    lista.map(function (l) {
-                        var cpl = div(l.investido, l.leads);
-                        var cag = div(l.investido, l.agendados);
-                        return (React.createElement("tr", { key: l.chave },
-                            React.createElement(Td, { bold: true },
-                                l.criativo || ("Anúncio " + String(l.chave).replace(/^nome:/, "")),
-                                l.campanha && React.createElement("div", { style: { fontSize: 11, color: T.muted, fontWeight: 400 } }, l.campanha)),
-                            React.createElement(Td, { right: true }, l.investido ? nReal(l.investido) : React.createElement("span", { style: { color: T.muted } }, "—")),
-                            React.createElement(Td, { right: true }, nInt(l.leads)),
-                            React.createElement(Td, { right: true, color: !l.investido || !l.leads ? T.muted : T.ink }, l.investido && l.leads ? nReal(cpl) : "—"),
-                            React.createElement(Td, { right: true }, nInt(l.agendados)),
-                            React.createElement(Td, { right: true, color: l.leads && div(l.agendados, l.leads) >= 0.2 ? T.good : T.ink }, l.leads ? nPct(div(l.agendados, l.leads), 1) : "—"),
-                            React.createElement(Td, { right: true, color: !l.investido || !l.agendados ? T.muted : T.ink }, l.investido && l.agendados ? nReal(cag) : "—"),
-                            React.createElement(Td, { right: true }, nInt(l.compareceram)),
-                            React.createElement(Td, { right: true, color: !l.investido || !l.compareceram ? T.muted : T.ink }, l.investido && l.compareceram ? nReal(div(l.investido, l.compareceram)) : "\u2014"),
-                            React.createElement(Td, { right: true, bold: true }, nInt(l.vendas)),
-                            React.createElement(Td, { right: true, color: l.receita ? T.ink : T.muted }, l.receita ? nReal(l.receita) : "—"),
-                            React.createElement(Td, { right: true, bold: l.receita > 0 && l.investido > 0, color: !l.investido || !l.receita ? T.muted : T.ink }, l.investido && l.receita ? (div(l.receita, l.investido).toFixed(1).replace(".", ",") + "x") : "—"),
-                            React.createElement(Td, { right: true, color: !l.investido || !l.vendas ? T.muted : T.ink }, l.investido && l.vendas ? nReal(div(l.investido, l.vendas)) : "—")));
-                    }),
-                    React.createElement("tr", { style: { background: T.canvas } },
-                        React.createElement(Td, { bold: true }, "Total dos criativos"),
-                        React.createElement(Td, { right: true, bold: true }, nReal(t.investido)),
-                        React.createElement(Td, { right: true, bold: true }, nInt(t.leads)),
-                        React.createElement(Td, { right: true, bold: true }, t.investido && t.leads ? nReal(div(t.investido, t.leads)) : "—"),
-                        React.createElement(Td, { right: true, bold: true }, nInt(t.agendados)),
-                        React.createElement(Td, { right: true, bold: true }, t.leads ? nPct(div(t.agendados, t.leads), 1) : "—"),
-                        React.createElement(Td, { right: true, bold: true }, t.investido && t.agendados ? nReal(div(t.investido, t.agendados)) : "—"),
-                        React.createElement(Td, { right: true, bold: true }, nInt(t.compareceram)),
-                        React.createElement(Td, { right: true, bold: true }, t.investido && t.compareceram ? nReal(div(t.investido, t.compareceram)) : "\u2014"),
-                        React.createElement(Td, { right: true, bold: true }, nInt(t.vendas)),
-                        React.createElement(Td, { right: true, bold: true }, t.receita ? nReal(t.receita) : "—"),
-                        React.createElement(Td, { right: true, bold: true }, t.investido && t.receita ? (div(t.receita, t.investido).toFixed(1).replace(".", ",") + "x") : "—"),
-                        React.createElement(Td, { right: true, bold: true }, t.investido && t.vendas ? nReal(div(t.investido, t.vendas)) : "—"))))),
-        React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 10, maxWidth: "90ch", lineHeight: 1.5 } },
+    var nome = function (l) { return l.criativo || ("Anúncio " + String(l.chave).replace(/^nome:/, "")); };
+    return React.createElement(MktTabelaFiltrada, { linhas: lista, cols: mktColsFunil(false), nomeRot: "Criativo", nomeDe: nome, chips: MKT_CHIPS_FUNIL, totalRot: "Total dos criativos", minW: 1320,
+        csv: "criativos-meta", buscaDica: "Buscar criativo ou campanha (ex.: antivandalismo)",
+        aberto: React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 10, maxWidth: "90ch", lineHeight: 1.5 } },
             React.createElement("b", null, "Leia com cuidado. "),
-            "Receita = valor das vendas ganhas no Kommo; ROAS = receita ÷ investido; CAC = investido ÷ vendas. O Kommo só traz o criativo do lead que vem pelo formulário do Meta (" + nInt(t.leads) + " de " + nInt(Math.max(leadsMeta, t.leads)) + " leads do Meta no período, " + nPct(div(t.leads, Math.max(leadsMeta, t.leads)), 0) + "). O lead que chega pelo botão de WhatsApp não diz de qual criativo veio, mas o gasto dele está na linha do anúncio: por isso o CPL e o custo por agendamento de anúncio que também leva ao WhatsApp ficam maiores do que o real. Compare criativos do mesmo tipo.")));
+            "Receita = valor das vendas ganhas no Kommo; ROAS = receita ÷ investido; CAC = investido ÷ vendas. O Kommo só traz o criativo do lead que vem pelo formulário do Meta (" + nInt(tl) + " de " + nInt(Math.max(leadsMeta, tl)) + " leads do Meta no período, " + nPct(div(tl, Math.max(leadsMeta, tl)), 0) + "). O lead que chega pelo botão de WhatsApp não diz de qual criativo veio, mas o gasto dele está na linha do anúncio: por isso o CPL e o custo por agendamento de anúncio que também leva ao WhatsApp ficam maiores do que o real. Compare criativos do mesmo tipo. O mês do lead é o mês em que ele entrou: venda fechada hoje de lead que entrou antes aparece no mês da entrada.") });
 }
 /* v118: conversão por palavra-chave do Google. Lead, agendamento e venda vêm do Kommo (utm_term do lead);
    o gasto vem do Google Ads, por palavra-chave. */
 function MktPalavras(_a) {
     var linhas = _a.linhas;
-    var _m = __read(useState(false), 2), todas = _m[0], setTodas = _m[1];
     var por = {};
     linhas.forEach(function (l) {
         var a = por[l.chave] || (por[l.chave] = { chave: l.chave, palavra: null, campanha: null, leads: 0, agendados: 0, compareceram: 0, vendas: 0, receita: 0, investido: 0, impressoes: 0, cliques: 0 });
@@ -9218,82 +9311,25 @@ function MktPalavras(_a) {
     });
     var lista = Object.keys(por).map(function (k) { return por[k]; })
         .sort(function (a, b) { return (b.investido - a.investido) || (b.leads - a.leads); });
-    var t = lista.reduce(function (s, l) { return ({ leads: s.leads + l.leads, agendados: s.agendados + l.agendados, compareceram: s.compareceram + l.compareceram, vendas: s.vendas + l.vendas, receita: s.receita + l.receita, investido: s.investido + l.investido, cliques: s.cliques + l.cliques }); }, { leads: 0, agendados: 0, compareceram: 0, vendas: 0, receita: 0, investido: 0, cliques: 0 });
     if (!lista.length)
         return React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhuma palavra-chave do Google no período. Se o gasto ainda não chegou, use o botão \"Atualizar gasto (Meta e Google)\".");
+    var t = lista.reduce(function (s, l) { return s + l.investido; }, 0);
     var semLead = lista.filter(function (l) { return l.investido > 0 && l.leads === 0; });
     var gastoSemLead = semLead.reduce(function (s, l) { return s + l.investido; }, 0);
-    var vis = todas ? lista : lista.slice(0, 25);
     return (React.createElement("div", null,
         React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.ink2, marginBottom: 10, lineHeight: 1.5 } },
             React.createElement("b", { style: { color: T.ink } }, nInt(semLead.length) + " palavra" + (semLead.length === 1 ? "" : "s") + " gastou" + (semLead.length === 1 ? "" : "ram") + " e não trouxe" + (semLead.length === 1 ? "" : "ram") + " nenhum lead"),
-            " · " + nReal(gastoSemLead) + " (" + nPct(div(gastoSemLead, t.investido), 0) + " do gasto em palavras-chave)"),
-        React.createElement(Card, { className: "p0 rolagem" },
-            React.createElement("table", { style: { minWidth: 1320 } },
-                React.createElement("thead", null,
-                    React.createElement("tr", null,
-                        React.createElement(Th, null, "Palavra-chave"),
-                        React.createElement(Th, { right: true }, "Investido"),
-                        React.createElement(Th, { right: true }, "Cliques"),
-                        React.createElement(Th, { right: true }, "Leads"),
-                        React.createElement(Th, { right: true }, "CPL"),
-                        React.createElement(Th, { right: true }, "Agendou"),
-                        React.createElement(Th, { right: true }, "Taxa"),
-                        React.createElement(Th, { right: true }, "Custo/agend."),
-                        React.createElement(Th, { right: true }, "Compareceu"),
-                        React.createElement(Th, { right: true }, "Custo/compar."),
-                        React.createElement(Th, { right: true }, "Vendas"),
-                        React.createElement(Th, { right: true }, "Receita"),
-                        React.createElement(Th, { right: true }, "ROAS"),
-                        React.createElement(Th, { right: true }, "CAC"))),
-                React.createElement("tbody", null,
-                    vis.map(function (l) {
-                        var semLeadL = l.investido > 0 && l.leads === 0;
-                        return (React.createElement("tr", { key: l.chave },
-                            React.createElement(Td, { bold: true },
-                                l.palavra || l.chave,
-                                l.campanha && React.createElement("div", { style: { fontSize: 11, color: T.muted, fontWeight: 400 } }, l.campanha)),
-                            React.createElement(Td, { right: true }, l.investido ? nReal(l.investido) : React.createElement("span", { style: { color: T.muted } }, "—")),
-                            React.createElement(Td, { right: true, color: l.cliques ? T.ink : T.muted }, l.cliques ? nInt(l.cliques) : "—"),
-                            React.createElement(Td, { right: true, bold: l.leads > 0, color: semLeadL ? T.bad : T.ink }, nInt(l.leads)),
-                            React.createElement(Td, { right: true, color: !l.investido || !l.leads ? T.muted : T.ink }, l.investido && l.leads ? nReal(div(l.investido, l.leads)) : "—"),
-                            React.createElement(Td, { right: true }, nInt(l.agendados)),
-                            React.createElement(Td, { right: true, color: l.leads && div(l.agendados, l.leads) >= 0.2 ? T.good : T.ink }, l.leads ? nPct(div(l.agendados, l.leads), 1) : "—"),
-                            React.createElement(Td, { right: true, color: !l.investido || !l.agendados ? T.muted : T.ink }, l.investido && l.agendados ? nReal(div(l.investido, l.agendados)) : "\u2014"),
-                            React.createElement(Td, { right: true }, nInt(l.compareceram)),
-                            React.createElement(Td, { right: true, color: !l.investido || !l.compareceram ? T.muted : T.ink }, l.investido && l.compareceram ? nReal(div(l.investido, l.compareceram)) : "\u2014"),
-                            React.createElement(Td, { right: true, bold: true }, nInt(l.vendas)),
-                            React.createElement(Td, { right: true, color: l.receita ? T.ink : T.muted }, l.receita ? nReal(l.receita) : "—"),
-                            React.createElement(Td, { right: true, bold: l.receita > 0 && l.investido > 0, color: !l.investido || !l.receita ? T.muted : T.ink }, l.investido && l.receita ? (div(l.receita, l.investido).toFixed(1).replace(".", ",") + "x") : "—"),
-                            React.createElement(Td, { right: true, color: !l.investido || !l.vendas ? T.muted : T.ink }, l.investido && l.vendas ? nReal(div(l.investido, l.vendas)) : "—")));
-                    }),
-                    React.createElement("tr", { style: { background: T.canvas } },
-                        React.createElement(Td, { bold: true }, "Total das palavras-chave"),
-                        React.createElement(Td, { right: true, bold: true }, nReal(t.investido)),
-                        React.createElement(Td, { right: true, bold: true }, nInt(t.cliques)),
-                        React.createElement(Td, { right: true, bold: true }, nInt(t.leads)),
-                        React.createElement(Td, { right: true, bold: true }, t.investido && t.leads ? nReal(div(t.investido, t.leads)) : "—"),
-                        React.createElement(Td, { right: true, bold: true }, nInt(t.agendados)),
-                        React.createElement(Td, { right: true, bold: true }, t.leads ? nPct(div(t.agendados, t.leads), 1) : "—"),
-                        React.createElement(Td, { right: true, bold: true }, t.investido && t.agendados ? nReal(div(t.investido, t.agendados)) : "\u2014"),
-                        React.createElement(Td, { right: true, bold: true }, nInt(t.compareceram)),
-                        React.createElement(Td, { right: true, bold: true }, t.investido && t.compareceram ? nReal(div(t.investido, t.compareceram)) : "\u2014"),
-                        React.createElement(Td, { right: true, bold: true }, nInt(t.vendas)),
-                        React.createElement(Td, { right: true, bold: true }, t.receita ? nReal(t.receita) : "—"),
-                        React.createElement(Td, { right: true, bold: true }, t.investido && t.receita ? (div(t.receita, t.investido).toFixed(1).replace(".", ",") + "x") : "—"),
-                        React.createElement(Td, { right: true, bold: true }, t.investido && t.vendas ? nReal(div(t.investido, t.vendas)) : "—"))))),
-        lista.length > 25 && React.createElement("div", { style: { marginTop: 10 } },
-            React.createElement(Btn, { onClick: function () { return setTodas(!todas); } }, todas ? "Mostrar só as 25 que mais gastaram" : "Mostrar todas (" + lista.length + ")")),
-        React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 10, maxWidth: "90ch", lineHeight: 1.5 } },
-            React.createElement("b", null, "Leia com cuidado. "),
-            "Cada palavra é casada com o lead pela palavra que o anúncio mandou no link (UTM). Receita = valor das vendas ganhas no Kommo; ROAS = receita ÷ investido; CAC = investido ÷ vendas. Palavra com poucos cliques ainda não diz nada: espere ter volume antes de cortar. O mesmo texto em campanhas diferentes aparece somado.")));
+            " · " + nReal(gastoSemLead) + " (" + nPct(div(gastoSemLead, t), 0) + " do gasto em palavras-chave)"),
+        React.createElement(MktTabelaFiltrada, { linhas: lista, cols: mktColsFunil(true), nomeRot: "Palavra-chave", nomeDe: function (l) { return l.palavra || l.chave; }, chips: MKT_CHIPS_FUNIL, totalRot: "Total das palavras-chave", minW: 1320,
+            csv: "palavras-chave-google", buscaDica: "Buscar palavra-chave ou campanha (ex.: ppf)",
+            aberto: React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 10, maxWidth: "90ch", lineHeight: 1.5 } },
+                React.createElement("b", null, "Leia com cuidado. "),
+                "Cada palavra é casada com o lead pela palavra que o anúncio mandou no link (UTM). Receita = valor das vendas ganhas no Kommo; ROAS = receita ÷ investido; CAC = investido ÷ vendas. Palavra com poucos cliques ainda não diz nada: espere ter volume antes de cortar. O mesmo texto em campanhas diferentes aparece somado. O mês do lead é o mês em que ele entrou: venda fechada hoje de lead que entrou antes aparece no mês da entrada.") })));
 }
 /* v126: termos de pesquisa do Google. O que a pessoa digitou (search_term_view). O gasto e as conversões vêm do Google Ads;
    o Kommo não guarda o termo digitado, só a palavra comprada, então aqui não há lead nem venda. */
 function MktTermos(_a) {
     var linhas = _a.linhas, gastoGoogle = _a.gastoGoogle;
-    var _m = __read(useState(false), 2), todas = _m[0], setTodas = _m[1];
-    var _s = __read(useState(false), 2), soSem = _s[0], setSoSem = _s[1];
     var por = {};
     linhas.forEach(function (l) {
         var k = l.campanha + "\u0001" + l.chave;
@@ -9310,52 +9346,37 @@ function MktTermos(_a) {
     var totInv = soma(lista, "investido");
     var semConv = lista.filter(function (l) { return l.investido > 0 && l.conversoes === 0; });
     var gastoSem = soma(semConv, "investido");
-    var base = soNaoConv(soSem, lista);
-    function soNaoConv(f, arr) { return f ? arr.filter(function (l) { return l.investido > 0 && l.conversoes === 0; }) : arr; }
-    var vis = todas ? base : base.slice(0, 25);
     var rotuloStatus = function (st) {
-        return st === "EXCLUDED" ? "Negativado" : st === "ADDED" ? "Já é palavra-chave" : st === "ADDED_EXCLUDED" ? "Adicionado e negativado" : "\u2014";
+        return st === "EXCLUDED" ? "Negativado" : st === "ADDED" ? "Já é palavra-chave" : st === "ADDED_EXCLUDED" ? "Adicionado e negativado" : "—";
     };
+    var cols = [
+        { k: "investido", rot: "Investido", v: function (l) { return l.investido; }, r: function (l) { return l.investido ? nReal(l.investido) : "—"; } },
+        { k: "cliques", rot: "Cliques", v: function (l) { return l.cliques; }, r: function (l) { return l.cliques ? nInt(l.cliques) : "—"; }, cor: function (l) { return l.cliques ? T.ink : T.muted; } },
+        { k: "cpc", rot: "CPC", menor: true, v: function (l) { return l.investido && l.cliques ? div(l.investido, l.cliques) : null; }, r: function (l) { return l.investido && l.cliques ? nReal(div(l.investido, l.cliques)) : "—"; }, cor: function (l) { return l.cliques ? T.ink : T.muted; } },
+        { k: "conversoes", rot: "Conv. Google", v: function (l) { return l.conversoes; }, r: function (l) { return l.conversoes ? l.conversoes.toFixed(1).replace(".", ",") : "0"; }, bold: function (l) { return l.conversoes > 0; }, cor: function (l) { return l.investido > 0 && l.conversoes === 0 ? T.bad : T.ink; } },
+        { k: "cconv", rot: "Custo/conv.", menor: true, v: function (l) { return l.investido && l.conversoes ? div(l.investido, l.conversoes) : null; }, r: function (l) { return l.investido && l.conversoes ? nReal(div(l.investido, l.conversoes)) : "—"; }, cor: function (l) { return l.conversoes ? T.ink : T.muted; } },
+        { k: "situacao", rot: "Situação", esq: true, semTotal: true, v: function (l) { return l.status === "EXCLUDED" ? "c" : l.status === "ADDED" ? "a" : l.status === "ADDED_EXCLUDED" ? "b" : "z"; }, csv: function (l) { return rotuloStatus(l.status); }, r: function (l) { return rotuloStatus(l.status); }, cor: function () { return T.muted; } }
+    ];
+    var chips = [
+        ["todos", "Todos", null],
+        ["semconv", "Gastou sem converter", function (l) { return l.investido > 0 && l.conversoes === 0; }],
+        ["conv", "Converteu", function (l) { return l.conversoes > 0; }],
+        ["ja", "Já é palavra-chave", function (l) { return l.status === "ADDED" || l.status === "ADDED_EXCLUDED"; }],
+        ["neg", "Já negativado", function (l) { return l.status === "EXCLUDED" || l.status === "ADDED_EXCLUDED"; }],
+        ["novo", "Ainda sem situação", function (l) { return !l.status || l.status === "NONE"; }]
+    ];
     return (React.createElement("div", null,
         React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.ink2, marginBottom: 10, lineHeight: 1.6 } },
             React.createElement("b", { style: { color: T.ink } }, nInt(lista.length) + (lista.length === 1 ? " termo listado soma " : " termos listados somam ") + nReal(totInv)),
             gastoGoogle ? " (" + nPct(div(totInv, gastoGoogle), 0) + " dos " + nReal(gastoGoogle) + " gastos no Google no período; o resto o Google não detalha)." : ".",
             React.createElement("br", null),
             React.createElement("b", { style: { color: T.bad } }, nInt(semConv.length) + (semConv.length === 1 ? " termo gastou " : " termos gastaram ") + nReal(gastoSem) + " e não teve" + (semConv.length === 1 ? "" : "ram") + " nenhuma conversão no Google"),
-            " (" + nPct(div(gastoSem, totInv), 0) + " do gasto listado). Verifique antes de negativar: termo parecido com o que vende pode só ter tido azar.")
-        ,
-        React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap" } },
-            React.createElement(Btn, { onClick: function () { return setSoSem(!soSem); } }, soSem ? "Mostrar todos os termos" : "Mostrar só os que gastaram sem converter (" + semConv.length + ")")),
-        React.createElement(Card, { className: "p0 rolagem" },
-            React.createElement("table", { style: { minWidth: 860 } },
-                React.createElement("thead", null,
-                    React.createElement("tr", null,
-                        React.createElement(Th, null, "Termo pesquisado"),
-                        React.createElement(Th, { right: true }, "Investido"),
-                        React.createElement(Th, { right: true }, "Cliques"),
-                        React.createElement(Th, { right: true }, "CPC"),
-                        React.createElement(Th, { right: true }, "Conv. Google"),
-                        React.createElement(Th, { right: true }, "Custo/conv."),
-                        React.createElement(Th, null, "Situação"))),
-                React.createElement("tbody", null,
-                    vis.map(function (l) {
-                        var sem = l.investido > 0 && l.conversoes === 0;
-                        return (React.createElement("tr", { key: l.k },
-                            React.createElement(Td, { bold: true },
-                                l.termo,
-                                React.createElement("div", { style: { fontSize: 11, color: T.muted, fontWeight: 400 } }, l.campanha)),
-                            React.createElement(Td, { right: true }, l.investido ? nReal(l.investido) : "\u2014"),
-                            React.createElement(Td, { right: true, color: l.cliques ? T.ink : T.muted }, l.cliques ? nInt(l.cliques) : "\u2014"),
-                            React.createElement(Td, { right: true, color: l.cliques ? T.ink : T.muted }, l.investido && l.cliques ? nReal(div(l.investido, l.cliques)) : "\u2014"),
-                            React.createElement(Td, { right: true, bold: l.conversoes > 0, color: sem ? T.bad : T.ink }, l.conversoes ? l.conversoes.toFixed(1).replace(".", ",") : "0"),
-                            React.createElement(Td, { right: true, color: l.conversoes ? T.ink : T.muted }, l.investido && l.conversoes ? nReal(div(l.investido, l.conversoes)) : "\u2014"),
-                            React.createElement(Td, { color: T.muted }, rotuloStatus(l.status))));
-                    })))),
-        base.length > 25 && React.createElement("div", { style: { marginTop: 10 } },
-            React.createElement(Btn, { onClick: function () { return setTodas(!todas); } }, todas ? "Mostrar só os 25 que mais gastaram" : "Mostrar todos (" + base.length + ")")),
-        React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 10, maxWidth: "90ch", lineHeight: 1.5 } },
-            React.createElement("b", null, "Leia com cuidado. "),
-            "Conversão do Google conta clique no WhatsApp e ligação; não é venda. Para ver lead, agendamento e venda de verdade, use a tabela de palavras-chave acima. Termo com poucos cliques ainda não diz nada.")));
+            " (" + nPct(div(gastoSem, totInv), 0) + " do gasto listado). Verifique antes de negativar: termo parecido com o que vende pode só ter tido azar."),
+        React.createElement(MktTabelaFiltrada, { linhas: lista, cols: cols, nomeRot: "Termo pesquisado", nomeDe: function (l) { return l.termo; }, chips: chips, totalRot: "Total dos termos", minW: 860,
+            csv: "termos-google", buscaDica: "Buscar termo digitado (ex.: moto)",
+            aberto: React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 10, maxWidth: "90ch", lineHeight: 1.5 } },
+                React.createElement("b", null, "Leia com cuidado. "),
+                "Conversão do Google conta clique no WhatsApp e ligação; não é venda. Para ver lead, agendamento e venda de verdade, use a tabela de palavras-chave acima. Termo com poucos cliques ainda não diz nada. Para mandar à BREV a lista de negativação: filtre \"Gastou sem converter\" e baixe a planilha.") })));
 }
 /* v120: decisões do dia. Cada campanha paga recebe uma ação (escalar, manter, ajustar, reduzir, cortar...)
    por regras simples e visíveis. Amostra pequena nunca vira ordem: abaixo do gasto mínimo a ação é "Aguardar". */
@@ -9580,7 +9601,7 @@ function AbaMarketing(_a) {
             React.createElement(Btn, { kind: "accent", onClick: atualizarMeta, style: { padding: "7px 12px", fontSize: 12.5, opacity: atualizando ? .6 : 1 } }, atualizando ? "Atualizando\u2026" : "Atualizar gasto (Meta e Google)"),
             avisoMeta && React.createElement("span", { style: { fontSize: 12, color: avisoMeta.ruim ? T.bad : T.good, flexBasis: "100%" } }, avisoMeta.txt),
             React.createElement("span", { style: { marginLeft: "auto", fontSize: 12, color: T.muted } }, ehStore ? "Car Store" : "Car Service")),
-        React.createElement(Secao, { n: 1, titulo: "Resultado do tr\u00E1fego pago, por canal", nota: "Google e Meta nunca somados no mesmo cart\u00E3o: s\u00E3o leil\u00F5es diferentes, custos diferentes e comportamentos de lead diferentes. Cada canal tem a mesma fileira de n\u00FAmeros, um em cima do outro, para a compara\u00E7\u00E3o ser de bater o olho. O total fecha embaixo." },
+        React.createElement(Secao, { n: 1, titulo: "Resultado do tr\u00E1fego pago, por canal", nota: "Google e Meta nunca somados no mesmo cart\u00E3o: s\u00E3o leil\u00F5es diferentes, custos diferentes e comportamentos de lead diferentes. Cada canal tem a mesma fileira de n\u00FAmeros, um em cima do outro, para a compara\u00E7\u00E3o ser de bater o olho. O total fecha embaixo. Cada lead conta no mês em que ENTROU: venda fechada neste mês de lead que entrou no mês passado aparece no mês passado, não neste." },
             MKT_CANAIS.map(function (c) { return (React.createElement(React.Fragment, { key: c },
                 React.createElement(MktFaixaCanal, { canal: "".concat(c, " Ads"), direita: doCanal(c).length
                         ? "".concat(nInt(doCanal(c).length), " campanha").concat(doCanal(c).length > 1 ? "s" : "", " no per\u00EDodo")
