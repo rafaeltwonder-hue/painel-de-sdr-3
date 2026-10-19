@@ -9841,9 +9841,9 @@ function usePilotoSdr(nome, negocio, mes, versao) {
             psdrOpc(db.from("tarefas_sdr").select("*").eq("negocio", negocio).eq("sdr", nome)),
             psdrOpc(db.from("leads_sem_tarefa").select("*").eq("negocio", negocio).eq("sdr", nome)),
             psdrOpc(db.from("sem_ligacao_v").select("*").eq("negocio", negocio).eq("sdr", nome).eq("data", h0)),
-            psdrOpc(db.from("leads").select("kommo_id,titulo,servico,unidade,visita_agendada_em,status_visita,etapa,etapa_grupo").eq("sdr", nome).gte("visita_agendada_em", h0 + "T00:00:00-03:00").lte("visita_agendada_em", amanha + "T23:59:59-03:00").order("visita_agendada_em")),
-            psdrOpc(db.from("leads").select("kommo_id,titulo,servico,unidade,visita_agendada_em,etapa,etapa_grupo,motivo_perda,atualizado_em").eq("sdr", nome).eq("status_visita", "Compareceu").in("etapa_grupo", ["negociando", "perdido"]).gte("visita_agendada_em", addDays(h0, -45) + "T00:00:00-03:00").order("visita_agendada_em", { ascending: false }).limit(40)),
-            psdrOpc(db.from("leads").select("kommo_id").eq("sdr", nome).eq("etapa_grupo", "agendado").is("status_visita", null).gte("visita_agendada_em", addDays(h0, -14) + "T00:00:00-03:00").lt("visita_agendada_em", h0 + "T00:00:00-03:00")),
+            psdrOpc(db.from("sdr_minhas_visitas_v").select("kommo_id,titulo:cliente,servico,unidade,visita_agendada_em:visita_em,etapa").eq("sdr", nome).order("visita_em")),
+            psdrOpc(db.from("sdr_nao_fechou_v").select("kommo_id,titulo:cliente,servico:interesse,unidade,visita_agendada_em,etapa,etapa_grupo,motivo_perda,atualizado_em").eq("sdr", nome).order("visita_agendada_em", { ascending: false }).limit(40)),
+            psdrOpc(db.from("visitas_pendentes_dia").select("visitas_sem_desfecho").eq("sdr", nome).eq("negocio", negocio).gte("data", addDays(h0, -14)).lt("data", h0)),
             psdrOpc(db.from("meta_do_mes").select("*").eq("negocio", negocio).lte("mes", mes).order("mes", { ascending: false }).limit(1)),
             psdrOpc(db.from("sdr_foco").select("*").eq("sdr", nome)),
             carsv ? Promise.resolve(db.rpc("divergencia_os", { p_ini: mes, p_fim: mFim })).then(function (r) { return (r && !r.error ? r.data : null); }, function () { return null; }) : Promise.resolve(null),
@@ -9863,7 +9863,7 @@ function usePilotoSdr(nome, negocio, mes, versao) {
                 pend = div_.itens.filter(function (i) { return !i.aguardando && !i.conferida && membroBate([nome], i.sdr); }).length;
             }
             setD({ carregando: false, erro: null, fato: r[0], ofic: r[1], tempo: r[2], esf: r[3], tarefa: r[4][0] || null, semTar: r[5], semLig: r[6],
-                visitas: r[7], naoFechou: r[8], orc: x.orc, semDesfecho: r[9].length, meta: r[10][0] || null, foco: r[11][0] || null, divPend: pend, em: new Date() });
+                visitas: r[7], naoFechou: r[8], orc: x.orc, semDesfecho: r[9].reduce(function (s, x) { return s + (Number(x.visitas_sem_desfecho) || 0); }, 0), meta: r[10][0] || null, foco: r[11][0] || null, divPend: pend, em: new Date() });
         }).catch(function (e) { if (vivo)
             setD({ carregando: false, erro: (e && e.message) || String(e) }); });
         return function () { vivo = false; };
