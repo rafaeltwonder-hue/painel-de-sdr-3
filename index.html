@@ -9842,7 +9842,7 @@ function usePilotoSdr(nome, negocio, mes, versao) {
             psdrOpc(db.from("leads_sem_tarefa").select("*").eq("negocio", negocio).eq("sdr", nome)),
             psdrOpc(db.from("sem_ligacao_v").select("*").eq("negocio", negocio).eq("sdr", nome).eq("data", h0)),
             psdrOpc(db.from("sdr_minhas_visitas_v").select("kommo_id,titulo:cliente,servico,unidade,visita_agendada_em:visita_em,etapa").eq("sdr", nome).order("visita_em")),
-            psdrOpc(db.from("sdr_nao_fechou_v").select("kommo_id,titulo:cliente,servico:interesse,unidade,visita_agendada_em,etapa,etapa_grupo,motivo_perda,atualizado_em").eq("sdr", nome).order("visita_agendada_em", { ascending: false }).limit(40)),
+            psdrOpc(db.from("sdr_nao_fechou_v").select("kommo_id,titulo:cliente,servico:interesse,unidade,closer,visita_agendada_em,etapa,etapa_grupo,motivo_perda,atualizado_em").eq("sdr", nome).order("visita_agendada_em", { ascending: false }).limit(40)),
             psdrOpc(db.from("visitas_pendentes_dia").select("visitas_sem_desfecho").eq("sdr", nome).eq("negocio", negocio).gte("data", addDays(h0, -14)).lt("data", h0)),
             psdrOpc(db.from("meta_do_mes").select("*").eq("negocio", negocio).lte("mes", mes).order("mes", { ascending: false }).limit(1)),
             psdrOpc(db.from("sdr_foco").select("*").eq("sdr", nome)),
@@ -10539,6 +10539,11 @@ function PilotoSDR(_a) {
     var _e = __read(useState(0), 2), versao = _e[0], setVersao = _e[1];
     var _f = __read(useState(null), 2), focoTxt = _f[0], setFocoTxt = _f[1];
     var _g = __read(useState(null), 2), focoMsg = _g[0], setFocoMsg = _g[1];
+    var _nf1 = __read(useState("todas"), 2), nfLoja = _nf1[0], setNfLoja = _nf1[1];
+    var _nf2 = __read(useState("todos"), 2), nfCloser = _nf2[0], setNfCloser = _nf2[1];
+    var _nf3 = __read(useState("todos"), 2), nfParado = _nf3[0], setNfParado = _nf3[1];
+    var _nf4 = __read(useState("todos"), 2), nfOrc = _nf4[0], setNfOrc = _nf4[1];
+    var _nf5 = __read(useState("recentes"), 2), nfOrd = _nf5[0], setNfOrd = _nf5[1];
     var efetivo = candidatos.filter(function (l) { return l.sdr === sel; })[0]
         || candidatos.filter(function (l) { return minhaLinha && l.sdr === minhaLinha.sdr; })[0]
         || candidatos[0] || null;
@@ -10690,6 +10695,37 @@ function PilotoSDR(_a) {
     var diasParado = function (iso) { return iso ? Math.max(0, Math.round((parseISO(h0) - parseISO(psdrDiaSP(iso))) / 86400000)) : null; };
     var kommoA = function (id, txt) { return React.createElement("a", { href: KOMMO_LEAD(id), target: "_blank", rel: "noopener", style: { fontSize: 12, fontWeight: 600, color: T.ink, textDecoration: "none", border: "1px solid " + T.hair, borderRadius: 6, padding: "5px 9px", whiteSpace: "nowrap" } }, txt || "Kommo ↗"); };
     var visitasOk = (d.visitas || []).filter(function (v) { return v.status_visita !== "Cancelou" && v.etapa_grupo !== "perdido" && v.etapa_grupo !== "ganho"; });
+    /* quem veio e não fechou: filtros (loja, closer, dias parado, orçamento) e ordem */
+    var nfTodos = (d.naoFechou || []).map(function (l) { return { l: l, o: orcPor[l.kommo_id], dp: diasParado(l.atualizado_em) }; });
+    var nfContagem = function (campo) { var c = {}; nfTodos.forEach(function (x) { var v = x.l[campo]; if (v)
+        c[v] = (c[v] || 0) + 1; }); return c; };
+    var nfCLoja = nfContagem("unidade"), nfCCloser = nfContagem("closer");
+    var nfLojas = Object.keys(nfCLoja).sort(), nfClosers = Object.keys(nfCCloser).sort();
+    var nfLojaE = nfLoja === "todas" || nfLojas.indexOf(nfLoja) >= 0 ? nfLoja : "todas";
+    var nfCloserE = nfCloser === "todos" || nfClosers.indexOf(nfCloser) >= 0 ? nfCloser : "todos";
+    var nfLista = nfTodos.filter(function (x) {
+        if (nfLojaE !== "todas" && x.l.unidade !== nfLojaE)
+            return false;
+        if (nfCloserE !== "todos" && x.l.closer !== nfCloserE)
+            return false;
+        var dp = x.dp == null ? 0 : x.dp;
+        if (nfParado === "0-4" && dp > 4)
+            return false;
+        if (nfParado === "5-9" && (dp < 5 || dp > 9))
+            return false;
+        if (nfParado === "10+" && dp < 10)
+            return false;
+        var tem = !!(x.o && x.o.total);
+        if (nfOrc === "sem" && tem)
+            return false;
+        if (nfOrc === "com" && !tem)
+            return false;
+        return true;
+    });
+    if (nfOrd === "parados")
+        nfLista = nfLista.slice().sort(function (a, b) { return (b.dp || 0) - (a.dp || 0); });
+    var nfFiltrando = nfLojaE !== "todas" || nfCloserE !== "todos" || nfParado !== "todos" || nfOrc !== "todos";
+    var nfLimpar = function () { setNfLoja("todas"); setNfCloser("todos"); setNfParado("todos"); setNfOrc("todos"); };
     var foco = d.foco;
     var focoEdit = focoTxt != null ? focoTxt : (foco && foco.texto) || "";
     var tipoPill = function (cor, txt) { return React.createElement(Pill, { cor: cor }, txt); };
@@ -10804,22 +10840,40 @@ function PilotoSDR(_a) {
                     }))))
                 : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhuma visita agendada para hoje ou amanhã.")),
         /* 08 */
-        React.createElement(Secao, { n: 8, titulo: "Quem veio e não fechou", nota: "Cliente que foi à loja e saiu sem comprar (últimos 45 dias). É a lista de reativação: o closer já atendeu, falta alguém voltar a falar com ele." },
-            (d.naoFechou || []).length ? React.createElement(Card, { className: "p0 rolagem" },
-                React.createElement("table", { style: { minWidth: 700 } },
-                    React.createElement("thead", null, React.createElement("tr", null, React.createElement(Th, null, "Cliente"), React.createElement(Th, null, "Visitou"), React.createElement(Th, { right: true }, "Orçamento"), React.createElement(Th, null, "Motivo / situação"), React.createElement(Th, { right: true }, "Dias parado"), React.createElement(Th, null, ""))),
-                    React.createElement("tbody", null, d.naoFechou.map(function (l) {
-                        var o = orcPor[l.kommo_id];
-                        var dp = diasParado(l.atualizado_em);
+        React.createElement(Secao, { n: 8, titulo: "Quem veio e não fechou", nota: "Cliente que foi à loja e saiu sem comprar (últimos 45 dias), ainda em negociação pós visita. É a lista de reativação: o closer já atendeu, falta alguém voltar a falar com ele. Use os filtros para separar por loja, closer e tempo parado." },
+            (d.naoFechou || []).length > 0 && React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 } },
+                React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement(Label, null, "Loja"),
+                    React.createElement(Chips, { value: nfLojaE, onChange: setNfLoja, options: [["todas", "Todas (" + nfTodos.length + ")"]].concat(nfLojas.map(function (x) { return [x, x + " (" + nfCLoja[x] + ")"]; })) })),
+                React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement(Label, null, "Closer"),
+                    React.createElement(Chips, { value: nfCloserE, onChange: setNfCloser, options: [["todos", "Todos"]].concat(nfClosers.map(function (x) { return [x, x + " (" + nfCCloser[x] + ")"]; })) })),
+                React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement(Label, null, "Parado"),
+                    React.createElement(Chips, { value: nfParado, onChange: setNfParado, options: [["todos", "Todos"], ["0-4", "Até 4 dias"], ["5-9", "5 a 9 dias"], ["10+", "10 dias ou mais"]] }),
+                    React.createElement(Label, null, "Orçamento"),
+                    React.createElement(Chips, { value: nfOrc, onChange: setNfOrc, options: [["todos", "Todos"], ["sem", "Sem orçamento"], ["com", "Com orçamento"]] })),
+                React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement(Label, null, "Ordem"),
+                    React.createElement(Chips, { value: nfOrd, onChange: setNfOrd, options: [["recentes", "Visita mais recente"], ["parados", "Mais parados primeiro"]] }),
+                    React.createElement("span", { style: { fontSize: 12.5, color: T.muted } }, "Mostrando " + nfLista.length + " de " + nfTodos.length),
+                    nfFiltrando && React.createElement("button", { type: "button", onClick: nfLimpar, style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 600, padding: "5px 10px", borderRadius: 99, cursor: "pointer", border: "1px solid " + T.hair, background: T.surface, color: T.ink2 } }, "Limpar filtros"))),
+            nfLista.length ? React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { minWidth: 860 } },
+                    React.createElement("thead", null, React.createElement("tr", null, React.createElement(Th, null, "Cliente"), React.createElement(Th, null, "Closer"), React.createElement(Th, null, "Loja"), React.createElement(Th, null, "Visitou"), React.createElement(Th, { right: true }, "Orçamento"), React.createElement(Th, null, "Motivo / situação"), React.createElement(Th, { right: true }, "Dias parado"), React.createElement(Th, null, ""))),
+                    React.createElement("tbody", null, nfLista.map(function (x) {
+                        var l = x.l, o = x.o, dp = x.dp;
                         return React.createElement("tr", { key: l.kommo_id },
                             React.createElement(Td, { bold: true }, l.titulo || "—"),
+                            React.createElement(Td, null, l.closer || "—"),
+                            React.createElement(Td, null, l.unidade || "—"),
                             React.createElement(Td, null, l.visita_agendada_em ? br(psdrDiaSP(l.visita_agendada_em)) : "—"),
                             React.createElement(Td, { right: true }, o && o.total ? nReal(o.total) : "—"),
                             React.createElement(Td, { style: { whiteSpace: "normal", minWidth: 180 } }, (o && o.motivo_perda) || l.motivo_perda || (o && o.status) || l.etapa || "—"),
                             React.createElement(Td, { right: true, bold: true, color: dp != null && dp >= 10 ? T.bad : dp != null && dp >= 5 ? T.warn : T.ink }, dp == null ? "—" : String(dp)),
                             React.createElement(Td, { right: true }, kommoA(l.kommo_id, "Retomar ↗")));
                     }))))
-                : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Ninguém nessa situação nos últimos 45 dias.")),
+                : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, (d.naoFechou || []).length ? "Nenhum cliente com esses filtros." : "Ninguém nessa situação nos últimos 45 dias.")),
         /* 09 */
         React.createElement(Secao, { n: 9, titulo: "Meu lugar no ranking", nota: "Ordenado pela conversão em " + unid + ": " + unid + " ÷ leads recebidos no mês. Assim quem recebe menos lead, como os coordenadores, compete de forma justa. Só entra quem recebeu pelo menos " + PSDR_MIN_LEADS + " leads no mês; quem não chegou fica embaixo." },
             React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10 } },
