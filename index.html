@@ -9847,6 +9847,7 @@ function usePilotoSdr(nome, negocio, mes, versao) {
             psdrOpc(db.from("meta_do_mes").select("*").eq("negocio", negocio).lte("mes", mes).order("mes", { ascending: false }).limit(1)),
             psdrOpc(db.from("sdr_foco").select("*").eq("sdr", nome)),
             carsv ? Promise.resolve(db.rpc("divergencia_os", { p_ini: mes, p_fim: mFim })).then(function (r) { return (r && !r.error ? r.data : null); }, function () { return null; }) : Promise.resolve(null),
+            psdrOpc(db.from("sdr_passei_closer_v").select("*").eq("sdr", nome).order("atualizado_em", { ascending: false }).limit(300)),
         ]).then(function (r) {
             var naoFechou = r[8];
             var ids = naoFechou.map(function (x) { return x.kommo_id; });
@@ -9863,7 +9864,7 @@ function usePilotoSdr(nome, negocio, mes, versao) {
                 pend = div_.itens.filter(function (i) { return !i.aguardando && !i.conferida && membroBate([nome], i.sdr); }).length;
             }
             setD({ carregando: false, erro: null, fato: r[0], ofic: r[1], tempo: r[2], esf: r[3], tarefa: r[4][0] || null, semTar: r[5], semLig: r[6],
-                visitas: r[7], naoFechou: r[8], orc: x.orc, semDesfecho: r[9].reduce(function (s, x) { return s + (Number(x.visitas_sem_desfecho) || 0); }, 0), meta: r[10][0] || null, foco: r[11][0] || null, divPend: pend, em: new Date() });
+                visitas: r[7], naoFechou: r[8], orc: x.orc, semDesfecho: r[9].reduce(function (s, x) { return s + (Number(x.visitas_sem_desfecho) || 0); }, 0), meta: r[10][0] || null, foco: r[11][0] || null, divPend: pend, passei: r[13] || [], em: new Date() });
         }).catch(function (e) { if (vivo)
             setD({ carregando: false, erro: (e && e.message) || String(e) }); });
         return function () { vivo = false; };
@@ -10544,6 +10545,11 @@ function PilotoSDR(_a) {
     var _nf3 = __read(useState("todos"), 2), nfParado = _nf3[0], setNfParado = _nf3[1];
     var _nf4 = __read(useState("todos"), 2), nfOrc = _nf4[0], setNfOrc = _nf4[1];
     var _nf5 = __read(useState("recentes"), 2), nfOrd = _nf5[0], setNfOrd = _nf5[1];
+    var _pc1 = __read(useState("todos"), 2), pcSit = _pc1[0], setPcSit = _pc1[1];
+    var _pc2 = __read(useState("todas"), 2), pcLoja = _pc2[0], setPcLoja = _pc2[1];
+    var _pc3 = __read(useState("todos"), 2), pcCloser = _pc3[0], setPcCloser = _pc3[1];
+    var _pc4 = __read(useState("todos"), 2), pcParado = _pc4[0], setPcParado = _pc4[1];
+    var _pc5 = __read(useState("negociando"), 2), pcOrd = _pc5[0], setPcOrd = _pc5[1];
     var efetivo = candidatos.filter(function (l) { return l.sdr === sel; })[0]
         || candidatos.filter(function (l) { return minhaLinha && l.sdr === minhaLinha.sdr; })[0]
         || candidatos[0] || null;
@@ -10726,6 +10732,47 @@ function PilotoSDR(_a) {
         nfLista = nfLista.slice().sort(function (a, b) { return (b.dp || 0) - (a.dp || 0); });
     var nfFiltrando = nfLojaE !== "todas" || nfCloserE !== "todos" || nfParado !== "todos" || nfOrc !== "todos";
     var nfLimpar = function () { setNfLoja("todas"); setNfCloser("todos"); setNfParado("todos"); setNfOrc("todos"); };
+    /* leads que passei para o closer: situação, loja, closer, dias parado e ordem */
+    var pcTodos = (d.passei || []).map(function (l) { return { l: l, dp: diasParado(l.atualizado_em) }; });
+    var pcContar = function (campo) { var c = {}; pcTodos.forEach(function (x) { var v = x.l[campo]; if (v)
+        c[v] = (c[v] || 0) + 1; }); return c; };
+    var pcCSit = pcContar("situacao"), pcCLoja = pcContar("unidade"), pcCCloser = pcContar("closer");
+    var pcLojas = Object.keys(pcCLoja).sort(), pcClosers = Object.keys(pcCCloser).sort();
+    var pcLojaE = pcLoja === "todas" || pcLojas.indexOf(pcLoja) >= 0 ? pcLoja : "todas";
+    var pcCloserE = pcCloser === "todos" || pcClosers.indexOf(pcCloser) >= 0 ? pcCloser : "todos";
+    var pcRank = { negociando: 0, contatando: 1, fechou: 2, perdeu: 3 };
+    var pcLista = pcTodos.filter(function (x) {
+        if (pcSit !== "todos" && x.l.situacao !== pcSit)
+            return false;
+        if (pcLojaE !== "todas" && x.l.unidade !== pcLojaE)
+            return false;
+        if (pcCloserE !== "todos" && x.l.closer !== pcCloserE)
+            return false;
+        var dp = x.dp == null ? 0 : x.dp;
+        if (pcParado === "0-4" && dp > 4)
+            return false;
+        if (pcParado === "5-9" && (dp < 5 || dp > 9))
+            return false;
+        if (pcParado === "10+" && dp < 10)
+            return false;
+        return true;
+    }).sort(function (a, b) {
+        if (pcOrd === "recentes")
+            return (b.l.atualizado_em || "") < (a.l.atualizado_em || "") ? -1 : 1;
+        if (pcOrd === "parados")
+            return (b.dp || 0) - (a.dp || 0);
+        return (pcRank[a.l.situacao] - pcRank[b.l.situacao]) || ((b.dp || 0) - (a.dp || 0));
+    });
+    var pcNeg = pcTodos.filter(function (x) { return x.l.situacao === "negociando"; });
+    var pcNeg5 = pcNeg.filter(function (x) { return (x.dp || 0) >= 5; }).length;
+    var pcValorNeg = pcNeg.reduce(function (t, x) { return t + (Number(x.l.valor_lancado) || 0); }, 0);
+    var pcValorFec = pcTodos.filter(function (x) { return x.l.situacao === "fechou"; }).reduce(function (t, x) { return t + (Number(x.l.valor_lancado) || 0); }, 0);
+    var pcFiltrando = pcSit !== "todos" || pcLojaE !== "todas" || pcCloserE !== "todos" || pcParado !== "todos";
+    var pcLimpar = function () { setPcSit("todos"); setPcLoja("todas"); setPcCloser("todos"); setPcParado("todos"); };
+    var pcPill = function (sit) {
+        var m = { negociando: ["#fff1bf", "#7a5b00", "Negociando"], fechou: ["#dcf3e3", "#1a7f3c", "Fechou"], perdeu: ["#fbe0dd", "#b3261e", "Perdeu"], contatando: ["#ececec", "#555", "Contatando"] }[sit] || ["#ececec", "#555", sit];
+        return React.createElement("span", { style: { display: "inline-block", fontSize: 11.5, fontWeight: 700, borderRadius: 99, padding: "3px 10px", whiteSpace: "nowrap", background: m[0], color: m[1] } }, m[2]);
+    };
     var foco = d.foco;
     var focoEdit = focoTxt != null ? focoTxt : (foco && foco.texto) || "";
     var tipoPill = function (cor, txt) { return React.createElement(Pill, { cor: cor }, txt); };
@@ -10875,7 +10922,54 @@ function PilotoSDR(_a) {
                     }))))
                 : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, (d.naoFechou || []).length ? "Nenhum cliente com esses filtros." : "Ninguém nessa situação nos últimos 45 dias.")),
         /* 09 */
-        React.createElement(Secao, { n: 9, titulo: "Meu lugar no ranking", nota: "Ordenado pela conversão em " + unid + ": " + unid + " ÷ leads recebidos no mês. Assim quem recebe menos lead, como os coordenadores, compete de forma justa. Só entra quem recebeu pelo menos " + PSDR_MIN_LEADS + " leads no mês; quem não chegou fica embaixo." },
+        React.createElement(Secao, { n: 9, titulo: "Leads que passei para o closer", nota: "Leads seus que estão com o closer e não tiveram visita confirmada: o fechamento é por telefone ou WhatsApp. Aqui você vê se o closer já mexeu, o que está sendo vendido, se fechou ou perdeu e o motivo. Últimos 45 dias." },
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 14 } },
+                React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Passei para o closer"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nInt(pcTodos.length) })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, "últimos 45 dias")),
+                React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Em negociação"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nInt(pcNeg.length), color: T.warn })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, pcNeg5 + " parados há 5 dias ou mais")),
+                React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Fechou"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nInt(pcCSit.fechou || 0), color: T.good })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, pcValorFec > 0 ? nReal(pcValorFec) + " lançado" : "venda fechada no Kommo")),
+                React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Perdeu"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nInt(pcCSit.perdeu || 0), color: T.bad })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, "venda perdida / sem interesse")),
+                React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Valor em negociação"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nReal(pcValorNeg) })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, "soma do valor lançado no Kommo"))),
+            pcTodos.length > 0 && React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 } },
+                React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement(Label, null, "Situação"),
+                    React.createElement(Chips, { value: pcSit, onChange: setPcSit, options: [["todos", "Todos (" + pcTodos.length + ")"], ["negociando", "Em negociação (" + (pcCSit.negociando || 0) + ")"], ["fechou", "Fechou (" + (pcCSit.fechou || 0) + ")"], ["perdeu", "Perdeu (" + (pcCSit.perdeu || 0) + ")"], ["contatando", "Contatando (" + (pcCSit.contatando || 0) + ")"]] })),
+                React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement(Label, null, "Loja"),
+                    React.createElement(Chips, { value: pcLojaE, onChange: setPcLoja, options: [["todas", "Todas"]].concat(pcLojas.map(function (x) { return [x, x + " (" + pcCLoja[x] + ")"]; })) })),
+                React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement(Label, null, "Closer"),
+                    React.createElement(Chips, { value: pcCloserE, onChange: setPcCloser, options: [["todos", "Todos"]].concat(pcClosers.map(function (x) { return [x, x + " (" + pcCCloser[x] + ")"]; })) })),
+                React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement(Label, null, "Parado"),
+                    React.createElement(Chips, { value: pcParado, onChange: setPcParado, options: [["todos", "Todos"], ["0-4", "Até 4 dias"], ["5-9", "5 a 9 dias"], ["10+", "10 dias ou mais"]] }),
+                    React.createElement(Label, null, "Ordem"),
+                    React.createElement(Chips, { value: pcOrd, onChange: setPcOrd, options: [["negociando", "Em negociação primeiro"], ["parados", "Mais parados"], ["recentes", "Mais recentes"]] })),
+                React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement("span", { style: { fontSize: 12.5, color: T.muted } }, "Mostrando " + pcLista.length + " de " + pcTodos.length),
+                    pcFiltrando && React.createElement("button", { type: "button", onClick: pcLimpar, style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 600, padding: "5px 10px", borderRadius: 99, cursor: "pointer", border: "1px solid " + T.hair, background: T.surface, color: T.ink2 } }, "Limpar filtros"))),
+            pcLista.length ? React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { minWidth: 1000 } },
+                    React.createElement("thead", null, React.createElement("tr", null, React.createElement(Th, null, "Cliente"), React.createElement(Th, null, "Closer"), React.createElement(Th, null, "Loja"), React.createElement(Th, null, "Pack / serviço"), React.createElement(Th, null, "Situação"), React.createElement(Th, null, "Última mexida"), React.createElement(Th, { right: true }, "Dias parado"), React.createElement(Th, { right: true }, "Orçamento"), React.createElement(Th, null, ""))),
+                    React.createElement("tbody", null, pcLista.map(function (x) {
+                        var l = x.l, dp = x.dp;
+                        var aberto = l.situacao === "negociando" || l.situacao === "contatando";
+                        var valorTxt = l.valor_lancado ? nReal(l.valor_lancado) + " lançado" : "sem valor lançado";
+                        var detalhe = valorTxt + (l.situacao === "fechou" && l.os_numero ? " · O.S. " + l.os_numero : "");
+                        var motivo = l.situacao === "perdeu" ? (l.motivo_perda || "sem motivo") : l.situacao === "fechou" ? (l.venda_em ? "venda em " + br(l.venda_em) : "") : l.orcamento_status ? "orçamento " + l.orcamento_status : "";
+                        return React.createElement("tr", { key: l.kommo_id },
+                            React.createElement(Td, { bold: true, style: { whiteSpace: "normal", minWidth: 170 } }, l.cliente || "—"),
+                            React.createElement(Td, null, l.closer || "—"),
+                            React.createElement(Td, null, l.unidade || "—"),
+                            React.createElement(Td, { style: { whiteSpace: "normal", minWidth: 150 } }, React.createElement("b", { style: { fontWeight: 600 } }, l.servico || "—"), React.createElement("div", { style: { fontSize: 11.5, color: T.muted } }, detalhe)),
+                            React.createElement(Td, { style: { whiteSpace: "normal", minWidth: 120 } }, pcPill(l.situacao), motivo && React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 3 } }, motivo)),
+                            React.createElement(Td, null, l.atualizado_em ? br(psdrDiaSP(l.atualizado_em)) : "—"),
+                            React.createElement(Td, { right: true, bold: true, color: aberto && dp != null && dp >= 10 ? T.bad : aberto && dp != null && dp >= 5 ? T.warn : T.ink }, dp == null ? "—" : String(dp)),
+                            React.createElement(Td, { right: true }, l.orcamento_total ? nReal(l.orcamento_total) : "—"),
+                            React.createElement(Td, { right: true }, kommoA(l.kommo_id, aberto ? "Cobrar closer ↗" : "Ver no Kommo ↗")));
+                    }))))
+                : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, pcTodos.length ? "Nenhum lead com esses filtros." : "Nenhum lead seu está com o closer nos últimos 45 dias.")),
+        /* 09 */
+        React.createElement(Secao, { n: 10, titulo: "Meu lugar no ranking", nota: "Ordenado pela conversão em " + unid + ": " + unid + " ÷ leads recebidos no mês. Assim quem recebe menos lead, como os coordenadores, compete de forma justa. Só entra quem recebeu pelo menos " + PSDR_MIN_LEADS + " leads no mês; quem não chegou fica embaixo." },
             React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10 } },
                 React.createElement(Chips, { value: rankVer, onChange: setRankVer, options: [["squad", "Meu squad"], ["geral", "Geral"]] })),
             React.createElement(Card, { className: "p0 rolagem" },
