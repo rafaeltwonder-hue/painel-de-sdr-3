@@ -10550,6 +10550,9 @@ function PilotoSDR(_a) {
     var _pc3 = __read(useState("todos"), 2), pcCloser = _pc3[0], setPcCloser = _pc3[1];
     var _pc4 = __read(useState("todos"), 2), pcParado = _pc4[0], setPcParado = _pc4[1];
     var _pc5 = __read(useState("negociando"), 2), pcOrd = _pc5[0], setPcOrd = _pc5[1];
+    var _pc6 = __read(useState("ativos"), 2), pcVer = _pc6[0], setPcVer = _pc6[1];
+    var _pc7 = __read(useState(null), 2), pcBusy = _pc7[0], setPcBusy = _pc7[1];
+    var _pc8 = __read(useState(null), 2), pcMsg = _pc8[0], setPcMsg = _pc8[1];
     var efetivo = candidatos.filter(function (l) { return l.sdr === sel; })[0]
         || candidatos.filter(function (l) { return minhaLinha && l.sdr === minhaLinha.sdr; })[0]
         || candidatos[0] || null;
@@ -10733,7 +10736,11 @@ function PilotoSDR(_a) {
     var nfFiltrando = nfLojaE !== "todas" || nfCloserE !== "todos" || nfParado !== "todos" || nfOrc !== "todos";
     var nfLimpar = function () { setNfLoja("todas"); setNfCloser("todos"); setNfParado("todos"); setNfOrc("todos"); };
     /* leads que passei para o closer: situação, loja, closer, dias parado e ordem */
-    var pcTodos = (d.passei || []).map(function (l) { return { l: l, dp: diasParado(l.atualizado_em) }; });
+    var pcAll = (d.passei || []).map(function (l) { return { l: l, dp: diasParado(l.atualizado_em) }; });
+    var pcAtivos = pcAll.filter(function (x) { return !x.l.validado_em; });
+    var pcValidados = pcAll.filter(function (x) { return !!x.l.validado_em; });
+    var pcVerE = pcVer === "validados" && pcValidados.length ? "validados" : "ativos";
+    var pcTodos = pcVerE === "validados" ? pcValidados : pcAtivos;
     var pcContar = function (campo) { var c = {}; pcTodos.forEach(function (x) { var v = x.l[campo]; if (v)
         c[v] = (c[v] || 0) + 1; }); return c; };
     var pcCSit = pcContar("situacao"), pcCLoja = pcContar("unidade"), pcCCloser = pcContar("closer");
@@ -10763,12 +10770,44 @@ function PilotoSDR(_a) {
             return (b.dp || 0) - (a.dp || 0);
         return (pcRank[a.l.situacao] - pcRank[b.l.situacao]) || ((b.dp || 0) - (a.dp || 0));
     });
-    var pcNeg = pcTodos.filter(function (x) { return x.l.situacao === "negociando"; });
+    var pcKSit = {};
+    pcAtivos.forEach(function (x) { pcKSit[x.l.situacao] = (pcKSit[x.l.situacao] || 0) + 1; });
+    var pcNeg = pcAtivos.filter(function (x) { return x.l.situacao === "negociando"; });
     var pcNeg5 = pcNeg.filter(function (x) { return (x.dp || 0) >= 5; }).length;
     var pcValorNeg = pcNeg.reduce(function (t, x) { return t + (Number(x.l.valor_lancado) || 0); }, 0);
-    var pcValorFec = pcTodos.filter(function (x) { return x.l.situacao === "fechou"; }).reduce(function (t, x) { return t + (Number(x.l.valor_lancado) || 0); }, 0);
+    var pcValorFec = pcAtivos.filter(function (x) { return x.l.situacao === "fechou"; }).reduce(function (t, x) { return t + (Number(x.l.valor_lancado) || 0); }, 0);
     var pcFiltrando = pcSit !== "todos" || pcLojaE !== "todas" || pcCloserE !== "todos" || pcParado !== "todos";
     var pcLimpar = function () { setPcSit("todos"); setPcLoja("todas"); setPcCloser("todos"); setPcParado("todos"); };
+    var pcValidar = function (l) {
+        setPcBusy(l.kommo_id);
+        setPcMsg(null);
+        Promise.resolve(db.from("sdr_lead_validado").insert({ kommo_id: l.kommo_id, sdr: nome, situacao: l.situacao, validado_por: meuNome })).then(function (r) {
+            setPcBusy(null);
+            if (r && r.error) {
+                setPcMsg("Não consegui validar: " + r.error.message);
+            }
+            else {
+                setVersao(function (n) { return n + 1; });
+            }
+        }, function (e) { setPcBusy(null); setPcMsg("Não consegui validar: " + ((e && e.message) || e)); });
+    };
+    var pcDesfazer = function (l) {
+        setPcBusy(l.kommo_id);
+        setPcMsg(null);
+        Promise.resolve(db.from("sdr_lead_validado").delete().eq("kommo_id", l.kommo_id)).then(function (r) {
+            setPcBusy(null);
+            if (r && r.error) {
+                setPcMsg("Não consegui desfazer: " + r.error.message);
+            }
+            else {
+                setVersao(function (n) { return n + 1; });
+            }
+        }, function (e) { setPcBusy(null); setPcMsg("Não consegui desfazer: " + ((e && e.message) || e)); });
+    };
+    var nfAtrasados = nfTodos.filter(function (x) { return (x.dp || 0) >= 5; }).length;
+    var nfMuito = nfTodos.filter(function (x) { return (x.dp || 0) >= 10; }).length;
+    var nfSemOrc = nfTodos.filter(function (x) { return !(x.o && x.o.total); }).length;
+    var nfValorOrc = nfTodos.reduce(function (t, x) { return t + (x.o && x.o.total ? Number(x.o.total) || 0 : 0); }, 0);
     var pcPill = function (sit) {
         var m = { negociando: ["#fff1bf", "#7a5b00", "Negociando"], fechou: ["#dcf3e3", "#1a7f3c", "Fechou"], perdeu: ["#fbe0dd", "#b3261e", "Perdeu"], contatando: ["#ececec", "#555", "Contatando"] }[sit] || ["#ececec", "#555", sit];
         return React.createElement("span", { style: { display: "inline-block", fontSize: 11.5, fontWeight: 700, borderRadius: 99, padding: "3px 10px", whiteSpace: "nowrap", background: m[0], color: m[1] } }, m[2]);
@@ -10888,6 +10927,12 @@ function PilotoSDR(_a) {
                 : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhuma visita agendada para hoje ou amanhã.")),
         /* 08 */
         React.createElement(Secao, { n: 8, titulo: "Quem veio e não fechou", nota: "Cliente que foi à loja e saiu sem comprar (últimos 45 dias), ainda em negociação pós visita. É a lista de reativação: o closer já atendeu, falta alguém voltar a falar com ele. Use os filtros para separar por loja, closer e tempo parado." },
+            (d.naoFechou || []).length > 0 && React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 14 } },
+                React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Vieram e não fecharam"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nInt(nfTodos.length) })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, "em negociação, últimos 45 dias")),
+                React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Parados há 5 dias ou mais"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nInt(nfAtrasados), color: T.warn })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, nfMuito + " parados há 10 dias ou mais")),
+                React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Sem orçamento"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nInt(nfSemOrc), color: T.bad })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, "ainda sem preço no sistema")),
+                React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Com orçamento"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nInt(nfTodos.length - nfSemOrc), color: T.good })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, "já receberam preço")),
+                React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Valor em orçamento"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nReal(nfValorOrc) })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, "soma dos orçamentos abertos"))),
             (d.naoFechou || []).length > 0 && React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 } },
                 React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
                     React.createElement(Label, null, "Loja"),
@@ -10922,14 +10967,18 @@ function PilotoSDR(_a) {
                     }))))
                 : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, (d.naoFechou || []).length ? "Nenhum cliente com esses filtros." : "Ninguém nessa situação nos últimos 45 dias.")),
         /* 09 */
-        React.createElement(Secao, { n: 9, titulo: "Leads que passei para o closer", nota: "Leads seus que estão com o closer e não tiveram visita confirmada: o fechamento é por telefone ou WhatsApp. Aqui você vê se o closer já mexeu, o que está sendo vendido, se fechou ou perdeu e o motivo. Últimos 45 dias." },
+        React.createElement(Secao, { n: 9, titulo: "Leads que passei para o closer", nota: "Leads seus que estão com o closer e não tiveram visita confirmada: o fechamento é por telefone ou WhatsApp. Aqui você vê se o closer já mexeu, o que está sendo vendido, se fechou ou perdeu e o motivo. Últimos 45 dias. Quando o lead fechou ou perdeu e você já viu, use o botão Validar e tirar para ele sair do painel (dá para desfazer em Já validados)." },
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 14 } },
-                React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Passei para o closer"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nInt(pcTodos.length) })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, "últimos 45 dias")),
+                React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Passei para o closer"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nInt(pcAtivos.length) })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, "últimos 45 dias" + (pcValidados.length ? " · " + pcValidados.length + " validados" : ""))),
                 React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Em negociação"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nInt(pcNeg.length), color: T.warn })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, pcNeg5 + " parados há 5 dias ou mais")),
-                React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Fechou"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nInt(pcCSit.fechou || 0), color: T.good })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, pcValorFec > 0 ? nReal(pcValorFec) + " lançado" : "venda fechada no Kommo")),
-                React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Perdeu"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nInt(pcCSit.perdeu || 0), color: T.bad })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, "venda perdida / sem interesse")),
+                React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Fechou"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nInt(pcKSit.fechou || 0), color: T.good })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, pcValorFec > 0 ? nReal(pcValorFec) + " lançado" : "venda fechada no Kommo")),
+                React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Perdeu"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nInt(pcKSit.perdeu || 0), color: T.bad })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, "venda perdida / sem interesse")),
                 React.createElement(Card, { className: "p16" }, React.createElement(Label, null, "Valor em negociação"), React.createElement("div", { style: { marginTop: 4 } }, React.createElement(Metric, { value: nReal(pcValorNeg) })), React.createElement("div", { style: { fontSize: 12, color: T.ink2 } }, "soma do valor lançado no Kommo"))),
-            pcTodos.length > 0 && React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 } },
+            (pcAll.length > 0) && React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 } },
+                pcValidados.length > 0 && React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement(Label, null, "Lista"),
+                    React.createElement(Chips, { value: pcVerE, onChange: setPcVer, options: [["ativos", "No painel (" + pcAtivos.length + ")"], ["validados", "Já validados (" + pcValidados.length + ")"]] })),
+                pcMsg && React.createElement("div", { style: { fontSize: 12.5, color: T.bad, fontWeight: 600 } }, pcMsg),
                 React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
                     React.createElement(Label, null, "Situação"),
                     React.createElement(Chips, { value: pcSit, onChange: setPcSit, options: [["todos", "Todos (" + pcTodos.length + ")"], ["negociando", "Em negociação (" + (pcCSit.negociando || 0) + ")"], ["fechou", "Fechou (" + (pcCSit.fechou || 0) + ")"], ["perdeu", "Perdeu (" + (pcCSit.perdeu || 0) + ")"], ["contatando", "Contatando (" + (pcCSit.contatando || 0) + ")"]] })),
@@ -10949,7 +10998,7 @@ function PilotoSDR(_a) {
                     pcFiltrando && React.createElement("button", { type: "button", onClick: pcLimpar, style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 600, padding: "5px 10px", borderRadius: 99, cursor: "pointer", border: "1px solid " + T.hair, background: T.surface, color: T.ink2 } }, "Limpar filtros"))),
             pcLista.length ? React.createElement(Card, { className: "p0 rolagem" },
                 React.createElement("table", { style: { minWidth: 1000 } },
-                    React.createElement("thead", null, React.createElement("tr", null, React.createElement(Th, null, "Cliente"), React.createElement(Th, null, "Closer"), React.createElement(Th, null, "Loja"), React.createElement(Th, null, "Pack / serviço"), React.createElement(Th, null, "Situação"), React.createElement(Th, null, "Última mexida"), React.createElement(Th, { right: true }, "Dias parado"), React.createElement(Th, { right: true }, "Orçamento"), React.createElement(Th, null, ""))),
+                    React.createElement("thead", null, React.createElement("tr", null, React.createElement(Th, null, "Cliente"), React.createElement(Th, null, "Closer"), React.createElement(Th, null, "Loja"), React.createElement(Th, null, "Pack / serviço"), React.createElement(Th, null, "Situação"), React.createElement(Th, null, "Última mexida"), React.createElement(Th, { right: true }, "Dias parado"), React.createElement(Th, { right: true }, "Orçamento"), React.createElement(Th, null, ""), React.createElement(Th, null, ""))),
                     React.createElement("tbody", null, pcLista.map(function (x) {
                         var l = x.l, dp = x.dp;
                         var aberto = l.situacao === "negociando" || l.situacao === "contatando";
@@ -10965,9 +11014,14 @@ function PilotoSDR(_a) {
                             React.createElement(Td, null, l.atualizado_em ? br(psdrDiaSP(l.atualizado_em)) : "—"),
                             React.createElement(Td, { right: true, bold: true, color: aberto && dp != null && dp >= 10 ? T.bad : aberto && dp != null && dp >= 5 ? T.warn : T.ink }, dp == null ? "—" : String(dp)),
                             React.createElement(Td, { right: true }, l.orcamento_total ? nReal(l.orcamento_total) : "—"),
-                            React.createElement(Td, { right: true }, kommoA(l.kommo_id, aberto ? "Cobrar closer ↗" : "Ver no Kommo ↗")));
+                            React.createElement(Td, { right: true }, kommoA(l.kommo_id, aberto ? "Cobrar closer ↗" : "Ver no Kommo ↗")),
+                            React.createElement(Td, { right: true }, pcVerE === "validados"
+                                ? React.createElement("button", { type: "button", disabled: pcBusy === l.kommo_id, onClick: function () { pcDesfazer(l); }, title: "Volta este lead para o painel", style: { fontFamily: F_UI, fontSize: 12, fontWeight: 600, padding: "5px 9px", borderRadius: 6, cursor: "pointer", border: "1px solid " + T.hair, background: T.surface, color: T.ink2, whiteSpace: "nowrap" } }, pcBusy === l.kommo_id ? "…" : "Desfazer")
+                                : (l.situacao === "perdeu" || l.situacao === "fechou")
+                                    ? React.createElement("button", { type: "button", disabled: pcBusy === l.kommo_id, onClick: function () { pcValidar(l); }, title: l.situacao === "perdeu" ? "Já vi que perdeu: tira este lead do painel" : "Já vi que fechou: tira este lead do painel", style: { fontFamily: F_UI, fontSize: 12, fontWeight: 700, padding: "5px 9px", borderRadius: 6, cursor: "pointer", border: "1px solid " + T.ink, background: "#FFBF00", color: T.ink, whiteSpace: "nowrap" } }, pcBusy === l.kommo_id ? "…" : "Validar e tirar")
+                                    : null));
                     }))))
-                : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, pcTodos.length ? "Nenhum lead com esses filtros." : "Nenhum lead seu está com o closer nos últimos 45 dias.")),
+                : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, pcTodos.length ? "Nenhum lead com esses filtros." : pcAll.length ? "Todos os leads já foram validados. Nada pendente aqui." : "Nenhum lead seu está com o closer nos últimos 45 dias.")),
         /* 09 */
         React.createElement(Secao, { n: 10, titulo: "Meu lugar no ranking", nota: "Ordenado pela conversão em " + unid + ": " + unid + " ÷ leads recebidos no mês. Assim quem recebe menos lead, como os coordenadores, compete de forma justa. Só entra quem recebeu pelo menos " + PSDR_MIN_LEADS + " leads no mês; quem não chegou fica embaixo." },
             React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10 } },
@@ -10990,7 +11044,7 @@ function PilotoSDR(_a) {
                             React.createElement(Td, { right: true, bold: true, style: sty }, r.ok ? nPct(r.conv, 1) : React.createElement("span", { style: { color: T.muted, fontWeight: 400 } }, "poucos leads")));
                     }))))),
         /* 10 */
-        React.createElement(Secao, { n: 10, titulo: "Combinado com o coordenador", nota: "Um espaço curto, escrito pelo coordenador, para o SDR abrir o painel e saber o que foi pedido na última conversa." },
+        React.createElement(Secao, { n: 11, titulo: "Combinado com o coordenador", nota: "Um espaço curto, escrito pelo coordenador, para o SDR abrir o painel e saber o que foi pedido na última conversa." },
             React.createElement(Card, { className: "p16" },
                 React.createElement(Label, null, "Foco da semana" + (foco && foco.autor ? " · " + foco.autor + (foco.atualizado_em ? ", " + br(psdrDiaSP(foco.atualizado_em)) : "") : "")),
                 podeEditarFoco
