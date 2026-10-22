@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v128">
+<meta name="painel-versao" content="v129">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -690,7 +690,7 @@ function contasDaRotina(r, tarefas, semTarefa) {
     var pegar = function (s) {
         if (!porPessoa.has(s)) {
             porPessoa.set(s, { sdr: s, ligou: 0, falou: 0, agendou: 0, compareceu: 0,
-                vendeu: 0, receita: 0, leadsHoje: 0, visitasHoje: 0,
+                vendeu: 0, receita: 0, leadsHoje: 0, visitasHoje: 0, atendeu: 0, whats: 0,
                 recMes: 0, osMes: 0, semDesfecho: 0 });
         }
         return porPessoa.get(s);
@@ -700,6 +700,8 @@ function contasDaRotina(r, tarefas, semTarefa) {
         var p = pegar(x.sdr);
         p.ligou += Number(x.ligacoes_tentadas) || 0;
         p.falou += Number(x.pessoas_com_quem_falou) || 0;
+        p.atendeu += Number(x.ligacoes_atendidas) || 0;
+        p.whats += Number(x.whatsapp_enviados) || 0;
     });
     fato.forEach(function (x) {
         var p = pegar(x.sdr);
@@ -889,9 +891,11 @@ var Bloco = function (_a) {
    depois do horário fica amarelo, não verde. O bloco "Sexta" só aceita
    check na sexta. */
 var BLOCOS_ROTINA = [
-    { chave: "08:00", hora: "08:00", min: 8 * 60 },
-    { chave: "09:00", hora: "09:00", min: 9 * 60 },
-    { chave: "13:30", hora: "13:30", min: 13 * 60 + 30 },
+    { chave: "08:15", hora: "08:15", min: 8 * 60 + 15 },
+    { chave: "08:30", hora: "08:30", min: 8 * 60 + 30 },
+    { chave: "13:00", hora: "13:00", min: 13 * 60 },
+    { chave: "16:00", hora: "16:00", min: 16 * 60 },
+    { chave: "17:00", hora: "17:00", min: 17 * 60 },
     { chave: "17:30", hora: "17:30", min: 17 * 60 + 30 },
     { chave: "sexta", hora: "Sexta", min: 17 * 60 + 30, soSexta: true },
 ];
@@ -1017,7 +1021,7 @@ function useRotinaCheck(sessao, coord) {
         dias: dias.map(function (dia) {
             var marcados = linhas.filter(function (l) { return l.dia === dia && l.email === g.email; }).length;
             var dow = parseISO(dia).getDay();
-            var total = dow === 0 ? 0 : dow === 5 ? 5 : 4; // domingo sem rotina
+            var total = dow === 0 ? 0 : dow === 5 ? 7 : 6; // domingo sem rotina
             return { dia: dia, marcados: marcados, total: total };
         }),
     }); });
@@ -1460,6 +1464,416 @@ function CoordenadorMesFechado(_a) {
         !ehStore && React.createElement(BlocoDivergenciaOS, { sessao: sessao, mesFixo: mes, membros: membros }),
         corpo));
 }
+/* ===================== rotina do coordenador v2 (pedido do Paulo, 19/10) =====================
+   Os blocos novos (closers, escuta, conferências, dificuldades e PDA) buscam os
+   próprios dados aqui, sem mexer no carregamento geral do painel. Tudo o que
+   grava vai para tabelas coord_* (só coordenador e admin; cada coordenador só
+   no squad dele). Os closers vêm de coord_closers_v: só quantidades. */
+var CRIT_ESCUTA = [
+    { k: "abertura", l: "Abertura" },
+    { k: "descoberta", l: "Descoberta" },
+    { k: "oferta", l: "Oferta e preço" },
+    { k: "agendamento", l: "Agendamento fechado" },
+    { k: "registro", l: "Registro no CRM" },
+];
+var inputCoord = { fontFamily: F_UI, fontSize: 13, color: T.ink, background: T.surface, border: "1px solid " + T.hair,
+    borderRadius: 6, padding: "7px 9px", outline: "none", width: "100%", boxSizing: "border-box" };
+var notaEscuta = function (r) {
+    if (!r)
+        return null;
+    var s = 0, n = 0;
+    CRIT_ESCUTA.forEach(function (c) { if (r[c.k] != null) {
+        s += Number(r[c.k]);
+        n++;
+    } });
+    return n === CRIT_ESCUTA.length ? s : null;
+};
+function proximoTreino(dia) {
+    // treino é quarta, quinta e sexta; hoje conta se for um desses dias
+    var d = parseISO(dia), w = d.getDay();
+    if (w >= 3 && w <= 5)
+        return dia;
+    var add = w === 6 ? 4 : w === 0 ? 3 : (3 - w);
+    return addDays(dia, add);
+}
+function useCoordDados(c, sessao, ativo) {
+    var dia = hoje();
+    var mes0 = dia.slice(0, 8) + "01";
+    var diaTreino = proximoTreino(dia);
+    var _a = __read(useState({}), 2), d = _a[0], setD = _a[1];
+    var _b = __read(useState(null), 2), erro = _b[0], setErro = _b[1];
+    var _c = __read(useState(false), 2), salvando = _c[0], setSalvando = _c[1];
+    var meuId = sessao && sessao.user ? sessao.user.id : null;
+    var autor = sessao && sessao.user ? (sessao.user.email || "") : "";
+    var carregar = useCallback(function () {
+        if (!ativo)
+            return Promise.resolve();
+        var q = function (nome, p) { return p.then(function (r) { return [nome, r.error ? null : (r.data || [])]; }, function () { return [nome, null]; }); };
+        return Promise.all([
+            q("closers", db.from("coord_closers_v").select("*")),
+            q("preench", db.from("preenchimento_sdr").select("sdr,data,servico,leads,campos_exigidos,campos_ok").gte("data", mes0)),
+            q("reag", db.from("funil_agora_sdr").select("sdr,etapa_grupo,leads").eq("etapa_grupo", "reagendar")),
+            q("sniper", db.from("coord_sniper").select("*")),
+            q("dif", db.from("coord_dificuldade").select("*").eq("dia", dia)),
+            q("pda", db.from("coord_pda").select("*").order("criado_em", { ascending: false }).limit(80)),
+            q("treino", db.from("coord_treino").select("*").eq("dia", diaTreino)),
+            q("escuta", db.from("coord_escuta").select("*").gte("dia", addDays(dia, -7))),
+            q("ligs", db.from("coord_escuta_v").select("*").order("iniciada_em", { ascending: false }).limit(500)),
+            q("conf", db.from("rotina_check_v").select("*").eq("dia", dia)),
+        ]).then(function (rs) { var o = {}; rs.forEach(function (x) { o[x[0]] = x[1]; }); setD(o); });
+    }, [ativo, dia, mes0, diaTreino]);
+    useEffect(function () {
+        carregar();
+        var t = setInterval(carregar, 300000);
+        return function () { return clearInterval(t); };
+    }, [carregar]);
+    var gravar = function (p) {
+        setSalvando(true);
+        return p.then(function (r) {
+            setErro(r && r.error ? (r.error.message || "não consegui salvar") : null);
+            return carregar();
+        }, function (e) { setErro(String(e && e.message || e)); }).then(function () { setSalvando(false); });
+    };
+    var acoes = {
+        salvarSniper: function (servico, closer) { return gravar(db.from("coord_sniper").upsert({ servico: servico, closer: closer || null, autor: autor, atualizado_em: new Date().toISOString() }, { onConflict: "servico" })); },
+        salvarEscuta: function (row) { return gravar(db.from("coord_escuta").upsert(Object.assign({ autor: autor, atualizado_em: new Date().toISOString() }, row), { onConflict: "ligacao_uniq" })); },
+        salvarDificuldade: function (sdr, texto) {
+            if (!String(texto || "").trim())
+                return gravar(db.from("coord_dificuldade").delete().match({ dia: dia, sdr: sdr }));
+            return gravar(db.from("coord_dificuldade").upsert({ dia: dia, sdr: sdr, texto: texto.trim(), autor: autor, atualizado_em: new Date().toISOString() }, { onConflict: "dia,sdr" }));
+        },
+        novoPda: function (sdr, acao, prazo) { return gravar(db.from("coord_pda").insert({ sdr: sdr, acao: acao.trim(), prazo: prazo || null, autor: autor })); },
+        statusPda: function (id, status) { return gravar(db.from("coord_pda").update({ status: status, atualizado_em: new Date().toISOString() }).eq("id", id)); },
+        salvarTreino: function (tema, presentes) { return gravar(db.from("coord_treino").upsert({ dia: diaTreino, tema: tema || null, presentes: presentes || null, autor: autor, atualizado_em: new Date().toISOString() }, { onConflict: "dia" })); },
+        toggleConf: function (id) {
+            if (!meuId)
+                return Promise.resolve();
+            var bloco = "conf:" + id;
+            var meu = (d.conf || []).find(function (l) { return l.bloco === bloco && l.usuario === meuId; });
+            return gravar(meu ? db.from("rotina_check").delete().match({ dia: dia, bloco: bloco, usuario: meuId })
+                : db.from("rotina_check").insert({ dia: dia, bloco: bloco, usuario: meuId }));
+        },
+    };
+    return { d: d, dia: dia, diaTreino: diaTreino, erro: erro, salvando: salvando, meuId: meuId, acoes: acoes };
+}
+/* ---- 08:15: closers (só quantidades) ---- */
+function CoordClosers(_a) {
+    var cd = _a.cd;
+    var h = React.createElement;
+    var lista = cd.d.closers;
+    if (lista == null)
+        return h("div", { style: { fontSize: 12.5, color: T.muted, padding: "10px 0" } }, "Os números dos closers ainda não carregaram para o seu acesso.");
+    var ord = lista.slice().sort(function (a, b) { return b.recebidos_mes - a.recebidos_mes; });
+    var soma = function (k) { return ord.reduce(function (s, r) { return s + (Number(r[k]) || 0); }, 0); };
+    var corCarga = function (n) { return n >= 25 ? T.bad : n >= 15 ? T.warn : T.good; };
+    var maior = ord.slice().sort(function (a, b) { return b.negociando_aberto - a.negociando_aberto; })[0];
+    var menor = ord.slice().sort(function (a, b) { return a.negociando_aberto - b.negociando_aberto; })[0];
+    return h("div", { style: { marginTop: 10 } },
+        h("div", { style: { display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 6 } },
+            h("span", { style: { fontFamily: F_MARCA, fontSize: 14, fontWeight: 700 } }, "Como está a distribuição"),
+            h(Pill, { cor: T.warn }, "mês até hoje")),
+        h("div", { style: { fontSize: 12, color: T.muted, marginBottom: 10 } }, "Para equilibrar o repasse. Só quantidades, sem faturamento. Hoje cada closer só vê o seu; aqui o coordenador vê todos."),
+        h("div", { className: "rolagem" }, h("table", null,
+            h("thead", null, h("tr", null,
+                h(Th, null, "Closer"), h(Th, null, "Loja"),
+                h(Th, { right: true }, "Recebidos"), h(Th, { right: true }, "Hoje"),
+                h(Th, { right: true }, "Agendados"), h(Th, { right: true }, "Hoje"),
+                h(Th, { right: true }, "Compareceram"), h(Th, { right: true }, "Fechados"),
+                h(Th, { right: true }, "Negociando em aberto"), h(Th, null, "Carga"))),
+            h("tbody", null,
+                ord.map(function (r) {
+                    return h("tr", { key: r.closer_codigo },
+                        h(Td, { bold: true }, r.closer), h(Td, null, r.loja),
+                        h(Td, { right: true }, nInt(r.recebidos_mes)), h(Td, { right: true, color: T.muted }, nInt(r.recebidos_hoje)),
+                        h(Td, { right: true }, nInt(r.agendados_mes)), h(Td, { right: true, color: T.muted }, nInt(r.agendados_hoje)),
+                        h(Td, { right: true }, nInt(r.compareceram_mes)), h(Td, { right: true, bold: true }, nInt(r.fechados_mes)),
+                        h(Td, { right: true, bold: true, color: corCarga(r.negociando_aberto) }, nInt(r.negociando_aberto)),
+                        h(Td, { style: { minWidth: 110 } }, h(Barra, { pct: r.negociando_aberto / 35, cor: corCarga(r.negociando_aberto), alt: 8 })));
+                }),
+                h("tr", { style: { background: "#F7F7F7" } },
+                    h(Td, { bold: true }, "Todos os closers"), h(Td, null, ""),
+                    h(Td, { right: true, bold: true }, nInt(soma("recebidos_mes"))), h(Td, { right: true, bold: true }, nInt(soma("recebidos_hoje"))),
+                    h(Td, { right: true, bold: true }, nInt(soma("agendados_mes"))), h(Td, { right: true, bold: true }, nInt(soma("agendados_hoje"))),
+                    h(Td, { right: true, bold: true }, nInt(soma("compareceram_mes"))), h(Td, { right: true, bold: true }, nInt(soma("fechados_mes"))),
+                    h(Td, { right: true, bold: true }, nInt(soma("negociando_aberto"))), h(Td, null, ""))))),
+        maior && menor && maior.closer !== menor.closer && h("div", { style: { fontSize: 12, color: T.ink2, marginTop: 10, lineHeight: 1.6 } },
+            "Maior carga: ", h("b", null, maior.closer), " (", nInt(maior.negociando_aberto), " em aberto, ", nInt(maior.fechados_mes), " fechados). Menor carga: ", h("b", null, menor.closer), " (", nInt(menor.negociando_aberto), " em aberto, ", nInt(menor.fechados_mes), " fechados)."),
+        h("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 8, lineHeight: 1.6 } },
+            "Fechados = venda ganha no Kommo com data de venda neste mês (pode diferir da O.S. do Oficina). Carga: verde até 14 em aberto, amarelo de 15 a 24, vermelho a partir de 25."));
+}
+/* ---- 08:15: closers snipers de PPF e áudio ---- */
+function CoordSnipers(_a) {
+    var cd = _a.cd, c = _a.c, dia = cd.dia;
+    var h = React.createElement;
+    var pre = cd.d.preench || [];
+    var nomes = {};
+    (c.equipe || []).forEach(function (n) { nomes[n] = true; });
+    var conta = function (serv) { return pre.filter(function (r) { return r.data === dia && nomes[r.sdr] && r.servico === serv; })
+        .reduce(function (s, r) { return s + (Number(r.leads) || 0); }, 0); };
+    var sn = {};
+    (cd.d.sniper || []).forEach(function (r) { sn[r.servico] = r.closer || ""; });
+    var closers = (cd.d.closers || []).map(function (r) { return r.closer; }).sort();
+    var linhas = [{ k: "PPF", l: "PPF", serv: "PPF" }, { k: "Audio", l: "Áudio", serv: "Projeto de Audio" }];
+    return h("div", { style: { marginTop: 16 } },
+        h("div", { style: { fontFamily: F_MARCA, fontSize: 14, fontWeight: 700, marginBottom: 4 } }, "Closers snipers (PPF e áudio)"),
+        h("div", { style: { fontSize: 12, color: T.muted, marginBottom: 10 } }, "Lead de PPF ou de áudio que entrou hoje vai para o closer sniper indicado; o SDR repassa sem dúvida."),
+        h("div", { className: "rolagem" }, h("table", null,
+            h("thead", null, h("tr", null, h(Th, null, "Serviço"), h(Th, { right: true }, "Entraram hoje"), h(Th, null, "Closer sniper"))),
+            h("tbody", null, linhas.map(function (L) {
+                return h("tr", { key: L.k },
+                    h(Td, { bold: true }, L.l), h(Td, { right: true }, nInt(conta(L.serv))),
+                    h(Td, null, h("select", { value: sn[L.k] || "", disabled: cd.salvando || !closers.length, onChange: function (e) { cd.acoes.salvarSniper(L.k, e.target.value); },
+                        style: Object.assign({}, inputCoord, { width: "auto", minWidth: 190 }) },
+                    h("option", { value: "" }, "a definir"),
+                    closers.map(function (n) { return h("option", { key: n, value: n }, n); }))));
+            })))));
+}
+/* ---- 08:30: CRM e tarefas por SDR ---- */
+function CoordCrm(_a) {
+    var cd = _a.cd, c = _a.c, tk = _a.tk;
+    var h = React.createElement;
+    var pre = cd.d.preench || [];
+    var por = {};
+    pre.forEach(function (r) {
+        var o = por[r.sdr] || (por[r.sdr] = { ex: 0, ok: 0 });
+        o.ex += Number(r.campos_exigidos) || 0;
+        o.ok += Number(r.campos_ok) || 0;
+    });
+    return h("div", { style: { marginTop: 16 } },
+        h("div", { style: { fontFamily: F_MARCA, fontSize: 14, fontWeight: 700, marginBottom: 8 } }, "CRM preenchido e tarefas"),
+        h("div", { className: "rolagem" }, h("table", null,
+            h("thead", null, h("tr", null, h(Th, null, "SDR"), h(Th, { right: true }, "CRM preenchido (mês)"), h(Th, { right: true }, "Tarefas vencidas"), h(Th, { right: true }, "Vencem hoje"))),
+            h("tbody", null, (c.equipe || []).map(function (n) {
+                var o = por[n], t = tk[n] || {};
+                var pct = o && o.ex ? o.ok / o.ex : null;
+                return h("tr", { key: n },
+                    h(Td, { bold: true }, primeiroNome(n)),
+                    h(Td, { right: true, bold: true, color: pct == null ? T.muted : pct >= 0.9 ? T.good : pct >= 0.7 ? T.warn : T.bad }, pct == null ? "—" : nPct(pct, 0)),
+                    h(Td, { right: true, color: Number(t.vencidas) > 0 ? T.bad : null }, t.vencidas == null ? "—" : nInt(t.vencidas)),
+                    h(Td, { right: true }, t.vence_hoje == null ? "—" : nInt(t.vence_hoje)));
+            })))));
+}
+/* ---- 13:00: ritmo de cada SDR ---- */
+function CoordCheckup(_a) {
+    var c = _a.c, tk = _a.tk;
+    var h = React.createElement;
+    var lista = c.pessoasLista.slice().sort(function (a, b) { return b.ligou - a.ligou; });
+    return h("div", { style: { marginTop: 16 } },
+        h("div", { style: { fontFamily: F_MARCA, fontSize: 14, fontWeight: 700, marginBottom: 8 } }, "Ritmo de cada SDR até agora"),
+        h("div", { className: "rolagem" }, h("table", null,
+            h("thead", null, h("tr", null, h(Th, null, "SDR"), h(Th, { right: true }, "Ligações"), h(Th, { right: true }, "Atendidas"), h(Th, { right: true }, "WhatsApp enviados"), h(Th, { right: true }, "Agendamentos"), h(Th, { right: true }, "Tarefas que vencem hoje"))),
+            h("tbody", null, lista.map(function (p) {
+                var t = tk[p.sdr] || {};
+                return h("tr", { key: p.sdr },
+                    h(Td, { bold: true }, primeiroNome(p.sdr)),
+                    h(Td, { right: true, color: p.ligou < Number(c.meta.ligacoes_dia) * 0.5 ? T.warn : null }, nInt(p.ligou)),
+                    h(Td, { right: true }, nInt(p.atendeu || 0)),
+                    h(Td, { right: true }, nInt(p.whats || 0)),
+                    h(Td, { right: true }, nInt(p.agendou)),
+                    h(Td, { right: true, color: Number(t.vence_hoje) > 20 ? T.bad : null }, t.vence_hoje == null ? "—" : nInt(t.vence_hoje)));
+            })))));
+}
+/* ---- 16:00: escuta de ligações + pontuação ---- */
+function CoordEscuta(_a) {
+    var cd = _a.cd, c = _a.c;
+    var h = React.createElement;
+    var _b = __read(useState({}), 2), edit = _b[0], setEdit = _b[1];
+    var _c = __read(useState({}), 2), desloc = _c[0], setDesloc = _c[1];
+    var ligs = cd.d.ligs;
+    var salvas = cd.d.escuta || [];
+    if (ligs == null)
+        return h("div", { style: { fontSize: 12.5, color: T.muted } }, "As gravações ainda não carregaram para o seu acesso.");
+    var pegar = function (sdr) {
+        var minhas = ligs.filter(function (l) { return l.sdr === sdr; });
+        if (!minhas.length)
+            return null;
+        var ja = salvas.find(function (r) { return r.sdr === sdr && r.dia === cd.dia; });
+        if (ja) {
+            var igual = minhas.find(function (l) { return l.uniq === ja.ligacao_uniq; });
+            if (igual && !desloc[sdr])
+                return igual;
+        }
+        var diaBase = minhas.some(function (l) { return l.dia === cd.dia; }) ? cd.dia : minhas[0].dia;
+        var pool = minhas.filter(function (l) { return l.dia === diaBase; });
+        var seed = 0, s = cd.dia + sdr;
+        for (var i = 0; i < s.length; i++)
+            seed = (seed * 31 + s.charCodeAt(i)) % 100003;
+        return pool[(seed + (desloc[sdr] || 0)) % pool.length];
+    };
+    var valor = function (sdr, lig) {
+        var base = lig ? (salvas.find(function (r) { return r.ligacao_uniq === lig.uniq; }) || {}) : {};
+        return Object.assign({}, base, edit[lig ? lig.uniq : sdr] || {});
+    };
+    var sdrs = (c.equipe || []).filter(function (n) { return ligs.some(function (l) { return l.sdr === n; }); });
+    var semana = function (sdr) {
+        var rs = salvas.filter(function (r) { return r.sdr === sdr && notaEscuta(r) != null; });
+        if (!rs.length)
+            return "nenhuma escuta salva nos últimos 7 dias";
+        var m = rs.reduce(function (s, r) { return s + notaEscuta(r); }, 0) / rs.length;
+        return rs.length + (rs.length === 1 ? " escuta" : " escutas") + " na semana · média " + nNum(m, 1) + "/10";
+    };
+    if (!sdrs.length)
+        return h("div", { style: { fontSize: 12.5, color: T.muted, lineHeight: 1.6 } }, "Nenhuma ligação atendida, com mais de 1 minuto e gravada nos últimos 8 dias para o seu time.");
+    return h("div", null,
+        h("div", { style: { fontSize: 12, color: T.muted, marginBottom: 12, lineHeight: 1.6 } },
+            "O painel sorteia uma ligação atendida (mais de 1 minuto, com gravação) de cada SDR; o sorteio é o mesmo o dia todo. Ouça, dê 0, 1 ou 2 em cada critério e salve. Os critérios são os da primeira versão; dá para ajustar com o Paulo."),
+        h("div", { style: { display: "grid", gap: 12, gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" } }, sdrs.map(function (sdr) {
+            var lig = pegar(sdr);
+            if (!lig)
+                return null;
+            var v = valor(sdr, lig);
+            var nota = notaEscuta(v);
+            var mudou = function (k, val) { var o = {}; o[lig.uniq] = Object.assign({}, edit[lig.uniq] || {}, (function () { var x = {}; x[k] = val; return x; })()); setEdit(Object.assign({}, edit, o)); };
+            var hora = hhmm(lig.iniciada_em);
+            var min = Math.floor(lig.duracao_seg / 60), seg = lig.duracao_seg % 60;
+            return h(Card, { key: sdr, className: "p16" },
+                h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 } },
+                    h("span", { style: { fontFamily: F_MARCA, fontSize: 15, fontWeight: 700 } }, primeiroNome(sdr)),
+                    h("span", { style: { fontFamily: F_MARCA, fontSize: 18, fontWeight: 700, color: nota == null ? T.muted : nota >= 8 ? T.good : nota >= 5 ? T.warn : T.bad } }, nota == null ? "—" : nota + " / 10")),
+                h("div", { style: { fontSize: 12, color: T.muted, margin: "2px 0 8px" } },
+                    lig.dia === cd.dia ? "Hoje" : br(lig.dia), " · ", hora, " · ", min, " min ", String(seg).padStart(2, "0"), " s · ", semana(sdr)),
+                h("audio", { controls: true, preload: "none", src: lig.gravacao, style: { width: "100%", height: 34 } }),
+                h("div", { style: { display: "flex", gap: 14, fontSize: 11.5, marginTop: 4, marginBottom: 10 } },
+                    h("a", { href: lig.gravacao, target: "_blank", rel: "noopener noreferrer", style: { color: T.ink2 } }, "abrir a gravação"),
+                    h("button", { onClick: function () { setDesloc(Object.assign({}, desloc, (function () { var x = {}; x[sdr] = (desloc[sdr] || 0) + 1; return x; })())); }, style: { background: "none", border: 0, padding: 0, cursor: "pointer", color: T.ink2, textDecoration: "underline", fontFamily: F_UI, fontSize: 11.5 } }, "sortear outra")),
+                CRIT_ESCUTA.map(function (cr) {
+                    return h("div", { key: cr.k, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderTop: "1px solid " + T.hair } },
+                        h("span", { style: { fontSize: 13 } }, cr.l),
+                        h("span", { style: { display: "inline-flex", gap: 4 } }, [0, 1, 2].map(function (n) {
+                            var on = v[cr.k] === n;
+                            return h("button", { key: n, onClick: function () { mudou(cr.k, n); }, style: { width: 30, height: 26, borderRadius: 6, cursor: "pointer", fontFamily: F_MARCA, fontWeight: 700, fontSize: 12.5,
+                                    border: "1px solid " + (on ? T.preto : T.hair), background: on ? T.preto : T.surface, color: on ? T.marca : T.ink2 } }, n);
+                        })));
+                }),
+                h("textarea", { placeholder: "Comentário para o SDR", value: v.comentario || "", onChange: function (e) { mudou("comentario", e.target.value); }, rows: 2, style: Object.assign({}, inputCoord, { marginTop: 8, resize: "vertical" }) }),
+                h("div", { style: { marginTop: 8, display: "flex", justifyContent: "flex-end" } },
+                    h(Btn, { kind: "accent", onClick: function () {
+                            cd.acoes.salvarEscuta({ dia: cd.dia, sdr: sdr, ligacao_uniq: lig.uniq, abertura: v.abertura == null ? null : v.abertura, descoberta: v.descoberta == null ? null : v.descoberta,
+                                oferta: v.oferta == null ? null : v.oferta, agendamento: v.agendamento == null ? null : v.agendamento, registro: v.registro == null ? null : v.registro, comentario: v.comentario || null }).then(function () {
+                                var o = {};
+                                o[lig.uniq] = null;
+                                setEdit(Object.assign({}, edit, o));
+                            });
+                        } }, cd.salvando ? "Salvando…" : "Salvar pontuação")));
+        })));
+}
+/* ---- 17:00: conferências do fechamento + treinamento geral ---- */
+function CoordConferencias(_a) {
+    var cd = _a.cd, c = _a.c, tk = _a.tk;
+    var h = React.createElement;
+    var pre = cd.d.preench || [];
+    var por = {};
+    pre.forEach(function (r) { var o = por[r.sdr] || (por[r.sdr] = { ex: 0, ok: 0 }); o.ex += Number(r.campos_exigidos) || 0; o.ok += Number(r.campos_ok) || 0; });
+    var reag = {};
+    (cd.d.reag || []).forEach(function (r) { reag[r.sdr] = (reag[r.sdr] || 0) + (Number(r.leads) || 0); });
+    var pl = {};
+    c.pessoasLista.forEach(function (p) { pl[p.sdr] = p; });
+    var itens = [
+        { id: "pente", t: "Pente fino dos atendimentos e do preenchimento do dia", s: "conferência manual do coordenador", v: function () { return "—"; } },
+        { id: "ind", t: "Análise individual do dia", s: "ligações do dia", v: function (n) { return pl[n] ? nInt(pl[n].ligou) + " lig." : "—"; } },
+        { id: "crm", t: "Análise dos preenchimentos dos leads", s: "CRM do mês", v: function (n) { var o = por[n]; return o && o.ex ? nPct(o.ok / o.ex, 0) : "—"; } },
+        { id: "reag", t: "Conferência de reagendamentos", s: "leads em reagendar", v: function (n) { return reag[n] == null ? "0" : nInt(reag[n]); } },
+        { id: "ganhos", t: "Conferência de leads ganhos", s: "vendas de hoje: valor, data e O.S. preenchidos", v: function (n) { return pl[n] ? nInt(pl[n].vendeu) : "—"; } },
+        { id: "proc", t: "Conferência de agendamentos do processo", s: "visitas de hoje sem desfecho", v: function (n) { return pl[n] ? nInt(pl[n].semDesfecho) : "—"; } },
+        { id: "venc", t: "Tarefas vencidas", s: "de leads que continuam com o SDR", v: function (n) { var t = tk[n] || {}; return t.vencidas == null ? "—" : nInt(t.vencidas); } },
+        { id: "desq", t: "Preencher campo dos leads desqualificados", s: "perdidos sem motivo", v: function () { return "—"; } },
+    ];
+    var feitos = {};
+    (cd.d.conf || []).forEach(function (l) { (feitos[l.bloco] = feitos[l.bloco] || []).push(l); });
+    return h("div", { style: { marginTop: 16 } },
+        h("div", { style: { fontFamily: F_MARCA, fontSize: 14, fontWeight: 700, marginBottom: 4 } }, "Conferências do fechamento"),
+        h("div", { style: { fontSize: 12, color: T.muted, marginBottom: 8 } }, "Marque cada conferência quando terminar. Os números são de hoje (ou do mês, onde está escrito)."),
+        h("div", { className: "rolagem" }, h("table", null,
+            h("thead", null, h("tr", null, h(Th, null, "Conferência"), (c.equipe || []).map(function (n) { return h(Th, { key: n, right: true }, primeiroNome(n)); }), h(Th, null, "Feito por"))),
+            h("tbody", null, itens.map(function (it) {
+                var l = feitos["conf:" + it.id] || [];
+                var meu = l.some(function (x) { return x.usuario === cd.meuId; });
+                return h("tr", { key: it.id },
+                    h(Td, { style: { whiteSpace: "normal", minWidth: 220 } },
+                        h("label", { style: { display: "flex", gap: 9, alignItems: "flex-start", cursor: "pointer" } },
+                            h("input", { type: "checkbox", checked: meu, disabled: cd.salvando, onChange: function () { cd.acoes.toggleConf(it.id); }, style: { marginTop: 3 } }),
+                            h("span", null, h("b", null, it.t), h("div", { style: { fontSize: 11.5, color: T.muted } }, it.s)))),
+                    (c.equipe || []).map(function (n) { return h(Td, { key: n, right: true }, it.v(n)); }),
+                    h(Td, { color: l.length ? T.good : T.muted }, l.length ? l.map(function (x) { return (x.nome || "") + " " + hhmm(x.feito_em); }).join(" · ") : "pendente"));
+            })))));
+}
+function CoordTreino(_a) {
+    var cd = _a.cd;
+    var h = React.createElement;
+    var atual = (cd.d.treino || [])[0] || {};
+    var _b = __read(useState(null), 2), tema = _b[0], setTema = _b[1];
+    var _c = __read(useState(null), 2), pres = _c[0], setPres = _c[1];
+    var DIAS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+    var dt = parseISO(cd.diaTreino);
+    var ehHoje = cd.diaTreino === cd.dia;
+    return h(Card, { className: "p16", style: { marginTop: 16 } },
+        h("div", { style: { fontFamily: F_MARCA, fontSize: 14, fontWeight: 700 } }, "Treinamento geral"),
+        h("div", { style: { fontSize: 12, color: T.muted, margin: "2px 0 10px" } }, "Quarta, quinta e sexta. ", ehHoje ? "Hoje tem treinamento." : "Próximo: " + DIAS[dt.getDay()] + ", " + br(cd.diaTreino) + "."),
+        h("input", { placeholder: "Tema do treinamento (módulo da Biblioteca para apoiar)", value: tema == null ? (atual.tema || "") : tema, onChange: function (e) { setTema(e.target.value); }, style: inputCoord }),
+        h("input", { placeholder: "Quem participou (lista de presença ao final)", value: pres == null ? (atual.presentes || "") : pres, onChange: function (e) { setPres(e.target.value); }, style: Object.assign({}, inputCoord, { marginTop: 8 }) }),
+        h("div", { style: { marginTop: 8, display: "flex", justifyContent: "flex-end" } },
+            h(Btn, { kind: "accent", onClick: function () { cd.acoes.salvarTreino(tema == null ? atual.tema : tema, pres == null ? atual.presentes : pres).then(function () { setTema(null); setPres(null); }); } }, "Salvar")));
+}
+/* ---- 17:30: dificuldades do dia e PDA ---- */
+function CoordFinal(_a) {
+    var cd = _a.cd, c = _a.c;
+    var h = React.createElement;
+    var _b = __read(useState({}), 2), txt = _b[0], setTxt = _b[1];
+    var _c = __read(useState({ sdr: "", acao: "", prazo: "" }), 2), nv = _c[0], setNv = _c[1];
+    var _d = __read(useState(false), 2), todos = _d[0], setTodos = _d[1];
+    var dif = {};
+    (cd.d.dif || []).forEach(function (r) { dif[r.sdr] = r.texto; });
+    var equipe = c.equipe || [];
+    var pda = (cd.d.pda || []).filter(function (r) { return equipe.indexOf(r.sdr) >= 0; });
+    var abertos = pda.filter(function (r) { return r.status !== "feito"; });
+    var lista = todos ? pda : abertos;
+    var prox = { "a fazer": "em andamento", "em andamento": "feito", "feito": "a fazer" };
+    var corSt = function (s) { return s === "feito" ? T.good : s === "em andamento" ? T.preto : T.muted; };
+    var soma = function (k) { return c.pessoasLista.reduce(function (s, p) { return s + (Number(p[k]) || 0); }, 0); };
+    return h("div", null,
+        h("div", { style: { fontSize: 13, color: T.ink2, marginBottom: 14, lineHeight: 1.6 } },
+            "Dia do time até agora: ", h("b", null, nInt(soma("agendou"))), " agendamentos, ", h("b", null, nInt(soma("compareceu"))), " comparecimentos e ", h("b", null, nInt(soma("vendeu"))), " vendas. Meta do dia por SDR: ", nInt(c.meta.agendamentos_dia), " agendamentos e ", nInt(c.meta.comparecimentos_dia), " comparecimentos."),
+        h("div", { style: { display: "grid", gap: 16, alignItems: "start" } },
+            h(Card, { className: "p16" },
+                h("div", { style: { fontFamily: F_MARCA, fontSize: 14, fontWeight: 700 } }, "Dificuldades do dia"),
+                h("div", { style: { fontSize: 12, color: T.muted, margin: "2px 0 10px" } }, "Um campo por SDR, escrito pelo coordenador."),
+                equipe.map(function (n) {
+                    var v = txt[n] == null ? (dif[n] || "") : txt[n];
+                    var sujo = txt[n] != null && txt[n] !== (dif[n] || "");
+                    return h("div", { key: n, style: { marginBottom: 8 } },
+                        h("div", { style: { fontSize: 12, fontWeight: 700, marginBottom: 3 } }, primeiroNome(n)),
+                        h("div", { style: { display: "flex", gap: 6 } },
+                            h("input", { value: v, placeholder: "sem dificuldade registrada", onChange: function (e) { var o = {}; o[n] = e.target.value; setTxt(Object.assign({}, txt, o)); }, style: inputCoord }),
+                            sujo && h(Btn, { kind: "accent", onClick: function () { cd.acoes.salvarDificuldade(n, txt[n]).then(function () { var o = {}; o[n] = null; setTxt(Object.assign({}, txt, o)); }); } }, "Salvar")));
+                })),
+            h(Card, { className: "p16" },
+                h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, flexWrap: "wrap" } },
+                    h("span", { style: { fontFamily: F_MARCA, fontSize: 14, fontWeight: 700 } }, "PDA · plano de ação"),
+                    h("button", { onClick: function () { setTodos(!todos); }, style: { background: "none", border: 0, cursor: "pointer", fontFamily: F_UI, fontSize: 11.5, color: T.ink2, textDecoration: "underline" } }, todos ? "ver só os abertos" : "ver também os feitos (" + (pda.length - abertos.length) + ")")),
+                h("div", { style: { fontSize: 12, color: T.muted, margin: "2px 0 10px" } }, "Fica aberto nos dias seguintes até ser concluído. Clique no status para avançar."),
+                h("div", { className: "rolagem" }, h("table", null,
+                    h("thead", null, h("tr", null, h(Th, null, "Ação"), h(Th, null, "Quem"), h(Th, null, "Prazo"), h(Th, null, "Status"))),
+                    h("tbody", null,
+                        lista.map(function (r) {
+                            var atrasado = r.prazo && r.status !== "feito" && r.prazo < cd.dia;
+                            return h("tr", { key: r.id },
+                                h(Td, { style: { whiteSpace: "normal", minWidth: 180 } }, r.acao),
+                                h(Td, null, primeiroNome(r.sdr)),
+                                h(Td, { color: atrasado ? T.bad : null, bold: !!atrasado }, r.prazo ? br(r.prazo) : "—"),
+                                h(Td, null, h("button", { disabled: cd.salvando, onClick: function () { cd.acoes.statusPda(r.id, prox[r.status]); }, title: "Avançar para: " + prox[r.status], style: { cursor: "pointer", fontFamily: F_UI, fontSize: 11.5, fontWeight: 700, borderRadius: 99, padding: "3px 11px",
+                                        border: "1px solid " + corSt(r.status), background: r.status === "em andamento" ? T.preto : T.surface, color: r.status === "em andamento" ? T.marca : corSt(r.status) } }, r.status)));
+                        }),
+                        !lista.length && h("tr", null, h(Td, null, "Nenhuma ação em aberto."))))),
+                h("div", { style: { display: "grid", gap: 6, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", marginTop: 12, alignItems: "center" } },
+                    h("input", { placeholder: "Nova ação", value: nv.acao, onChange: function (e) { setNv(Object.assign({}, nv, { acao: e.target.value })); }, style: inputCoord }),
+                    h("select", { value: nv.sdr, onChange: function (e) { setNv(Object.assign({}, nv, { sdr: e.target.value })); }, style: inputCoord },
+                        h("option", { value: "" }, "Quem"),
+                        equipe.map(function (n) { return h("option", { key: n, value: n }, primeiroNome(n)); })),
+                    h("input", { type: "date", value: nv.prazo, onChange: function (e) { setNv(Object.assign({}, nv, { prazo: e.target.value })); }, style: inputCoord }),
+                    h(Btn, { kind: "accent", onClick: function () { if (!nv.acao.trim() || !nv.sdr)
+                            return; cd.acoes.novoPda(nv.sdr, nv.acao, nv.prazo).then(function () { setNv({ sdr: "", acao: "", prazo: "" }); }); } }, "Adicionar")))),
+        cd.erro && h("div", { style: { fontSize: 12, color: T.bad, marginTop: 10 } }, "Não consegui salvar: ", cd.erro));
+}
 function AbaCoordenador(_a) {
     var c = _a.c, funil = _a.funil, qualidade = _a.qualidade, tarefas = _a.tarefas, semTarefa = _a.semTarefa, sessao = _a.sessao;
     var rotina = useRotinaCheck(sessao, c.coordenadores);
@@ -1468,6 +1882,7 @@ function AbaCoordenador(_a) {
        bloco de faturamento sai inteiro em vez de mostrar a meta do Car
        Service como se fosse dele. */
     var ehStore = c.negocio === "car_store";
+    var cd = useCoordDados(c, sessao, !ehStore);
     var f = {};
     (funil || []).forEach(function (r) { f[r.etapa] = r; });
     /* Às 08:00 tudo que já passou da primeira conversa vai para o closer.
@@ -1597,13 +2012,18 @@ function AbaCoordenador(_a) {
                 " no banco: para mudar, altera l\u00E1, sem republicar o painel.",
                 ehStore && " O total de carros é a soma das três metas por intenção; quem manda são elas, em metas_intencao.",
                 c.squadNome && " Meta do squad = " + Math.round((c.pesoMeta || 0.5) * 100) + "% da meta do grupo (cadastrada em squad.peso_meta).")),
+        !ehStore && React.createElement(Card, { className: "p16", style: { marginTop: 16 } },
+            React.createElement("div", { style: { display: "flex", alignItems: "baseline", gap: 11 } },
+                React.createElement("span", { style: { fontFamily: F_MARCA, fontSize: 17, fontWeight: 700 } }, "08:15"),
+                React.createElement("span", { style: { fontSize: 14, fontWeight: 600 } }, "Closers: antes de repassar")),
+            React.createElement(CoordClosers, { cd: cd })),
         React.createElement("div", { className: "colsRotina", style: { display: "grid", gap: 16, marginTop: 16,
                 alignItems: "start" } },
             React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12 } },
                 ehStore && (React.createElement(Card, { className: "p16", style: { borderColor: "#F0DCB4", background: "#FDF4E4" } },
                     React.createElement("div", { style: { fontSize: 13, color: T.ink, fontWeight: 600 } }, "A rotina abaixo \u00E9 a do Car Service"),
-                    React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 6, lineHeight: 1.6 } }, "O Car Store ainda n\u00E3o tem coordenador nem rotina pr\u00F3pria. Os hor\u00E1rios, os blocos e os marcadores de \"feito\" s\u00E3o os do outro time \u2014 o que muda aqui \u00E9 s\u00F3 o dado. O bloco das 08:00 fica de fora porque a regra de repasse para o closer n\u00E3o existe no Car Store."))),
-                !ehStore && (React.createElement(Bloco, { hora: "08:00", check: rotina.porBloco["08:00"], titulo: "Distribuir para os closers", alerta: totalRepasse > 0, etiqueta: ehStore ? "".concat(nInt(totalRepasse), " para repassar") : "".concat(nReal(valorRepasse), " parados"), nota: "O SDR n\u00E3o faz follow-up de or\u00E7amento \u2014 se o lead ficar com ele, para. Tudo que passou da primeira conversa vai para o closer na abertura do dia." },
+                    React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 6, lineHeight: 1.6 } }, "O Car Store ainda n\u00E3o tem coordenador nem rotina pr\u00F3pria. Os hor\u00E1rios, os blocos e os marcadores de \"feito\" s\u00E3o os do outro time \u2014 o que muda aqui \u00E9 s\u00F3 o dado. O bloco das 08:15 fica de fora porque a regra de repasse para o closer n\u00E3o existe no Car Store."))),
+                !ehStore && (React.createElement(Bloco, { hora: "08:15", check: rotina.porBloco["08:15"], titulo: "Raio-X de leads + closers snipers", alerta: totalRepasse > 0, etiqueta: ehStore ? "".concat(nInt(totalRepasse), " para repassar") : "".concat(nReal(valorRepasse), " parados"), nota: "O SDR n\u00E3o faz follow-up de or\u00E7amento \u2014 se o lead ficar com ele, para. Tudo que passou da primeira conversa vai para o closer na abertura do dia." },
                     paraRepassar.map(function (r) { return (React.createElement(Linha, { key: r.etapa, valor: nInt(r.leads), cor: Number(r.dias_sem_mexer) >= 5 ? T.bad : null },
                         r.etapa,
                         React.createElement("span", { style: { fontSize: 12, color: T.muted } },
@@ -1614,8 +2034,8 @@ function AbaCoordenador(_a) {
                             " sem mexer \u00B7 ",
                             nReal(r.valor_parado)))); }),
                     React.createElement(Linha, { total: true, valor: ehStore ? "".concat(nInt(totalRepasse), " leads") : "".concat(nInt(totalRepasse), " leads \u00B7 ").concat(nReal(valorRepasse)), cor: T.bad },
-                        React.createElement("b", null, "A repassar para o closer")))),
-                React.createElement(Bloco, { hora: "09:00", check: rotina.porBloco["09:00"], titulo: "Reuni\u00E3o de time", etiqueta: "O dia at\u00E9 agora \u00D7 meta", nota: "Meta do dia: ".concat(ehStore ? "" : nReal(c.metaReceitaDia) + " e ").concat(nNum(c.metaVendaDia, 1), " vendas por pessoa \u2014 a meta do m\u00EAs dividida pelos dias \u00FAteis e pelas ").concat(c.pessoas, " pessoas que atendem. Liga\u00E7\u00F5es e conversas s\u00E3o meta fixa da casa.") },
+                        React.createElement("b", null, "A repassar para o closer")), React.createElement(CoordSnipers, { cd: cd, c: c }))),
+                React.createElement(Bloco, { hora: "08:30", check: rotina.porBloco["08:30"], titulo: "Raio-X do CRM + meta do dia (daily)", etiqueta: "O dia at\u00E9 agora \u00D7 meta", nota: "Meta do dia: ".concat(ehStore ? "" : nReal(c.metaReceitaDia) + " e ").concat(nNum(c.metaVendaDia, 1), " vendas por pessoa \u2014 a meta do m\u00EAs dividida pelos dias \u00FAteis e pelas ").concat(c.pessoas, " pessoas que atendem. Liga\u00E7\u00F5es e conversas s\u00E3o meta fixa da casa.") },
                     React.createElement("div", { className: "rolagem" },
                         React.createElement("table", null,
                             React.createElement("thead", null,
@@ -1643,8 +2063,8 @@ function AbaCoordenador(_a) {
                                     React.createElement(Cel, { v: p.agendou, m: Number(c.meta.agendamentos_dia) }),
                                     React.createElement(Cel, { v: p.compareceu, m: Number(c.meta.comparecimentos_dia) }),
                                     React.createElement(Cel, { v: p.vendeu, m: c.metaVendaDia }),
-                                    !ehStore && React.createElement(Cel, { v: p.receita, m: c.metaReceitaDia, dinheiro: true }))); }))))),
-                React.createElement(Bloco, { hora: "13:30", check: rotina.porBloco["13:30"], titulo: "Destravar", alerta: c.semLigar > 0, etiqueta: "".concat(nInt(c.semLigar), " leads sem liga\u00E7\u00E3o"), nota: "Reagendamento e negocia\u00E7\u00E3o futura continuam com o SDR \u2014 o resto j\u00E1 foi para o closer \u00E0s 08:00." },
+                                    !ehStore && React.createElement(Cel, { v: p.receita, m: c.metaReceitaDia, dinheiro: true }))); })))), React.createElement(CoordCrm, { cd: cd, c: c, tk: tk })),
+                React.createElement(Bloco, { hora: "13:00", check: rotina.porBloco["13:00"], titulo: "1\u00BA check-up e corre\u00E7\u00E3o de rota", alerta: c.semLigar > 0, etiqueta: "".concat(nInt(c.semLigar), " leads sem liga\u00E7\u00E3o"), nota: "Reagendamento e negocia\u00E7\u00E3o futura continuam com o SDR \u2014 o resto j\u00E1 foi para o closer no in\u00EDcio do dia." },
                     React.createElement(Linha, { valor: nInt(c.semLigar), cor: T.bad },
                         "Leads que entraram hoje e ningu\u00E9m ligou",
                         React.createElement("span", { style: { fontSize: 12, color: T.muted } },
@@ -1660,8 +2080,11 @@ function AbaCoordenador(_a) {
                             " ",
                             Number(f[e].dias_sem_mexer) === 1 ? "dia" : "dias",
                             " sem mexer \u00B7 ",
-                            nReal(f[e].valor_parado)))); })),
-                React.createElement(Bloco, { hora: "17:30", check: rotina.porBloco["17:30"], titulo: "Fechar o dia", alerta: totalVencidas > 0, etiqueta: "".concat(nInt(totalVencidas), " tarefas vencidas"), nota: "Vencida aqui \u00E9 tarefa de lead que CONTINUA com o SDR \u2014 \u00E9 o que d\u00E1 para cobrar na reuni\u00E3o. Quando o lead \u00E9 repassado, o Kommo troca o respons\u00E1vel e o SDR perde o acesso: a tarefa fica no nome dele e ele n\u00E3o consegue concluir. Essas viraram a coluna 'J\u00E1 \u00E9 de outro' e quem fecha \u00E9 o dono atual do lead." },
+                            nReal(f[e].valor_parado)))); }),
+                    React.createElement(CoordCheckup, { c: c, tk: tk })),
+                !ehStore && (React.createElement(Bloco, { hora: "16:00", check: rotina.porBloco["16:00"], titulo: "Escuta de liga\u00E7\u00F5es + pontua\u00E7\u00F5es", etiqueta: nInt((cd.d.escuta || []).filter(function (r) { return r.dia === cd.dia; }).length) + " avalia\u00E7\u00F5es hoje", nota: "As grava\u00E7\u00F5es v\u00EAm do discador. S\u00F3 aparecem liga\u00E7\u00F5es atendidas, com mais de 1 minuto." },
+                    React.createElement(CoordEscuta, { cd: cd, c: c }))),
+                React.createElement(Bloco, { hora: "17:00", check: rotina.porBloco["17:00"], titulo: "Rotina de fechamento", alerta: totalVencidas > 0, etiqueta: "".concat(nInt(totalVencidas), " tarefas vencidas"), nota: "Vencida aqui \u00E9 tarefa de lead que CONTINUA com o SDR \u2014 \u00E9 o que d\u00E1 para cobrar na reuni\u00E3o. Quando o lead \u00E9 repassado, o Kommo troca o respons\u00E1vel e o SDR perde o acesso: a tarefa fica no nome dele e ele n\u00E3o consegue concluir. Essas viraram a coluna 'J\u00E1 \u00E9 de outro' e quem fecha \u00E9 o dono atual do lead." },
                     React.createElement("div", { className: "rolagem" },
                         React.createElement("table", null,
                             React.createElement("thead", null,
@@ -1691,7 +2114,11 @@ function AbaCoordenador(_a) {
                     React.createElement("div", { style: { marginTop: 12 } },
                         React.createElement(Linha, { valor: nInt(totalVencidas), cor: T.bad }, "Tarefas vencidas no time"),
                         React.createElement(Linha, { valor: nInt(totalSemTarefa), cor: T.bad }, "Leads sem nenhuma tarefa"),
-                        React.createElement(Linha, { total: true, valor: nInt((qualidade || {}).visita_sem_desfecho), cor: T.bad }, "Acumulado na base sem desfecho"))),
+                        React.createElement(Linha, { total: true, valor: nInt((qualidade || {}).visita_sem_desfecho), cor: T.bad }, "Acumulado na base sem desfecho")),
+                    !ehStore && React.createElement(CoordConferencias, { cd: cd, c: c, tk: tk }),
+                    !ehStore && React.createElement(CoordTreino, { cd: cd })),
+                !ehStore && (React.createElement(Bloco, { hora: "17:30", check: rotina.porBloco["17:30"], titulo: "Raio-X final + dificuldades do dia e PDA", nota: "O PDA (plano de a\u00E7\u00E3o) fica aberto nos dias seguintes at\u00E9 ser conclu\u00EDdo." },
+                    React.createElement(CoordFinal, { cd: cd, c: c }))),
                 React.createElement(Bloco, { hora: "Sexta", check: rotina.porBloco["sexta"], titulo: "Fechar a semana", etiqueta: "Qualidade da base", nota: "\u00C9 a lista que o coordenador leva para o fechamento semanal com o supervisor." },
                     React.createElement(Linha, { valor: nInt((qualidade || {}).sem_unidade), cor: T.bad },
                         "Leads sem unidade preenchida",
@@ -3800,7 +4227,7 @@ function BibEditor(_a) {
                 setErro("Falta o número do módulo.");
                 return;
             }
-            corpo = { numero: inteiro(f.numero), titulo: String(f.titulo).trim(), resumo: f.resumo || null, unidades: f.unidades || [], funcoes: f.funcoes || [],
+            corpo = { numero: inteiro(f.numero), numero_exibicao: inteiro(f.numero_exibicao), titulo: String(f.titulo).trim(), resumo: f.resumo || null, unidades: f.unidades || [], funcoes: f.funcoes || [],
                 nota_minima: inteiro(f.nota_minima) == null ? 80 : inteiro(f.nota_minima), publicado: !!f.publicado };
         }
         else {
@@ -3843,6 +4270,7 @@ function BibEditor(_a) {
                 React.createElement("div", { style: { display: "grid", gridTemplateColumns: "110px 1fr", gap: 12 } },
                     React.createElement(BibCampo, { rotulo: "Número" }, React.createElement(Inp, { type: "number", value: f.numero == null ? "" : f.numero, onChange: function (e) { return mudar("numero", e.target.value); } })),
                     React.createElement(BibCampo, { rotulo: "Título" }, React.createElement(Inp, { value: f.titulo || "", onChange: function (e) { return mudar("titulo", e.target.value); } }))),
+                React.createElement(BibCampo, { rotulo: "Número exibido (opcional: deixe vazio para mostrar o número acima; a Car Store usa 1 a 10)" }, React.createElement(Inp, { type: "number", value: f.numero_exibicao == null ? "" : f.numero_exibicao, onChange: function (e) { return mudar("numero_exibicao", e.target.value); } })),
                 React.createElement(BibCampo, { rotulo: "Resumo (aparece no cartão do módulo)" }, React.createElement("textarea", { rows: 3, value: f.resumo || "", onChange: function (e) { return mudar("resumo", e.target.value); }, style: __assign(__assign({}, inputStyle), { fontFamily: F_UI }) })),
                 React.createElement(BibCampo, { rotulo: "Unidade de negócio", dica: "Nada marcado = vale para todas." }, React.createElement(BibMulti, { valor: f.unidades, opcoes: BIB_UNIDADES, onChange: function (v) { return mudar("unidades", v); } })),
                 React.createElement(BibCampo, { rotulo: "Função", dica: "Nada marcado = vale para todas." }, React.createElement(BibMulti, { valor: f.funcoes, opcoes: BIB_FUNCOES, onChange: function (v) { return mudar("funcoes", v); } })),
@@ -3956,7 +4384,7 @@ function BibPerguntas(_a) {
     return (React.createElement("div", { style: { position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,.55)", zIndex: 100, display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", padding: "24px 12px" } },
         React.createElement("div", { style: { background: T.canvas, borderRadius: 12, width: "100%", maxWidth: 860, padding: 20, boxSizing: "border-box" } },
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 } },
-                React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 17, fontWeight: 700 } }, "Perguntas da prova · Módulo " + bibPad2(mod.numero)),
+                React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 17, fontWeight: 700 } }, "Perguntas da prova · Módulo " + bibPad2(bibNum(mod))),
                 React.createElement("button", { type: "button", onClick: onClose, style: bibBtn() }, "Fechar")),
             React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginTop: 6, lineHeight: 1.5 } }, mod.titulo + ". Cada pergunta salva sozinha, no botão dela. Só você vê o gabarito."),
             aviso && !est.carregando && React.createElement("div", { style: { fontSize: 12.5, color: T.warn, marginTop: 8, fontWeight: 700 } }, aviso),
@@ -3967,6 +4395,8 @@ function BibPerguntas(_a) {
             !est.carregando && !rasc && React.createElement("div", { style: { marginTop: 14 } }, React.createElement("button", { type: "button", onClick: function () { return setRasc(true); }, style: bibBtn("marca") }, "+ Pergunta")))));
 }
 function bibPad2(n) { n = String(n); return n.length < 2 ? "0" + n : n; }
+/* v129: número exibido do módulo. Cada unidade conta de 1 a 10: a Car Store usa numero_exibicao (o numero do banco segue único) */
+function bibNum(m) { return m && m.numero_exibicao != null ? m.numero_exibicao : (m ? m.numero : ""); }
 function bibDur(min) {
     min = Math.round(min || 0);
     if (min < 60)
@@ -4309,10 +4739,10 @@ function AbaBiblioteca() {
             React.createElement("style", null, BIB_CSS),
             React.createElement("div", { className: "bibnav", style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 } },
                 React.createElement("button", { type: "button", onClick: irInicio, style: bibBtn() }, "← Início"),
-                React.createElement("button", { type: "button", onClick: irModulo, style: bibBtn() }, "Módulo " + bibPad2(modAtual.numero)),
+                React.createElement("button", { type: "button", onClick: irModulo, style: bibBtn() }, "Módulo " + bibPad2(bibNum(modAtual))),
                 React.createElement("button", { type: "button", onClick: function () { return setMenuAulas(!menuAulas); }, style: menuAulas ? bibBtn("marca") : bibBtn() }, "☰ Aulas")),
             menuAulas && React.createElement(Card, { className: "p12", style: { marginBottom: 12 } },
-                React.createElement(Label, { style: { marginBottom: 6 } }, "Módulo " + bibPad2(modAtual.numero) + " – " + modAtual.titulo),
+                React.createElement(Label, { style: { marginBottom: 6 } }, "Módulo " + bibPad2(bibNum(modAtual)) + " – " + modAtual.titulo),
                 lista.map(function (x, i) {
                     var f = !!feitas[x.id], atual = x.id === aberta.id;
                     return (React.createElement("button", { key: x.id, type: "button", onClick: function () { abrirAula(x); }, style: { display: "flex", width: "100%", textAlign: "left", gap: 10, alignItems: "center", padding: "10px 8px", background: atual ? "#FFF8E1" : "transparent", border: 0, borderTop: i ? "1px solid " + T.hair : 0, cursor: "pointer", fontFamily: F_UI, fontSize: 13.5, color: T.ink, fontWeight: atual ? 700 : 400 } },
@@ -4322,7 +4752,7 @@ function AbaBiblioteca() {
                         !x.publicado && modAtual.publicado && React.createElement(Tag, { cor: T.warn }, "Rascunho")));
                 })),
             React.createElement(Card, { className: "p20" },
-                React.createElement(Label, null, "Módulo " + bibPad2(modAtual.numero) + " · " + modAtual.titulo),
+                React.createElement(Label, null, "Módulo " + bibPad2(bibNum(modAtual)) + " · " + modAtual.titulo),
                 React.createElement("h2", { style: { fontFamily: F_MARCA, fontSize: 24, lineHeight: 1.25, margin: "6px 0 10px" } }, rotAula),
                 React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginBottom: 12 } },
                     React.createElement(Tag, { cor: corTipo(aberta.tipo) }, rotuloTipo(aberta.tipo)),
@@ -4375,7 +4805,7 @@ function AbaBiblioteca() {
                 React.createElement("div", { style: { background: "#0B0B0B", color: "#fff", padding: "18px 20px", display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" } },
                     React.createElement("div", null,
                         React.createElement("div", { style: { fontSize: 10.5, letterSpacing: ".14em", fontWeight: 700, color: "#BDBDBD" } }, "MÓDULO"),
-                        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 40, fontWeight: 700, lineHeight: 1, color: T.marca } }, bibPad2(modAtual.numero))),
+                        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 40, fontWeight: 700, lineHeight: 1, color: T.marca } }, bibPad2(bibNum(modAtual)))),
                     React.createElement("div", { style: { flex: "1 1 240px", minWidth: 0 } },
                         React.createElement("h2", { style: { fontFamily: F_MARCA, fontSize: 22, lineHeight: 1.25, margin: 0, color: "#fff" } }, modAtual.titulo),
                         modAtual.resumo && React.createElement("div", { style: { fontSize: 13, color: "#CFCFCF", marginTop: 5, lineHeight: 1.5 } }, modAtual.resumo)),
@@ -4430,7 +4860,7 @@ function AbaBiblioteca() {
             React.createElement("div", { className: "bibhead", style: { background: "#0B0B0B", color: "#fff", padding: "14px 16px", minHeight: 92, display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 8 } },
                 React.createElement("div", null,
                     React.createElement("div", { style: { fontSize: 10.5, letterSpacing: ".14em", fontWeight: 700, color: "#BDBDBD" } }, "MÓDULO"),
-                    React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 40, fontWeight: 700, lineHeight: 1, color: T.marca } }, bibPad2(m.numero))),
+                    React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 40, fontWeight: 700, lineHeight: 1, color: T.marca } }, bibPad2(bibNum(m)))),
                 React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end", alignSelf: "flex-start" } },
                     concluido && pill("Concluído", T.good, "#fff"),
                     !m.publicado && pill("Rascunho", T.warn, "#fff"),
@@ -4480,7 +4910,7 @@ function AbaBiblioteca() {
         React.createElement("div", { style: { flex: "1 1 280px", minWidth: 0 } },
             totAulas > 0 && proxAula && React.createElement("div", null,
                 React.createElement(Label, null, totOk === 0 ? "Comece por aqui" : "Continue de onde parou"),
-                React.createElement("div", { style: { fontSize: 14.5, fontWeight: 700, margin: "6px 0 10px", lineHeight: 1.35 } }, "Módulo " + bibPad2(proxMod.numero) + " · Aula " + bibPad2(proxIdx + 1) + " – " + proxAula.titulo),
+                React.createElement("div", { style: { fontSize: 14.5, fontWeight: 700, margin: "6px 0 10px", lineHeight: 1.35 } }, "Módulo " + bibPad2(bibNum(proxMod)) + " · Aula " + bibPad2(proxIdx + 1) + " – " + proxAula.titulo),
                 React.createElement("button", { type: "button", onClick: function () { abrirAula(proxAula); }, style: bibBtnG() }, (totOk === 0 ? "Começar" : "Continuar") + " →")),
             totAulas > 0 && !proxAula && React.createElement("div", null,
                 React.createElement(Label, null, "Trilha concluída"),
@@ -4498,6 +4928,8 @@ function AbaBiblioteca() {
     });
     var listaTime = Object.keys(timePessoas).map(function (k) { return timePessoas[k]; }).sort(function (a, b) { return String(a.nome).localeCompare(String(b.nome)); });
     var numerosMods = dados.mods.map(function (x) { return x.numero; });
+    var rotMods = {};
+    dados.mods.forEach(function (x) { rotMods[x.numero] = (x.unidades && x.unidades.length === 1 && x.unidades[0] === "car_store" ? "CS" : "M") + bibNum(x); });
     return (React.createElement("div", { className: "bibsr" },
         React.createElement("style", null, BIB_CSS),
         React.createElement(Card, { className: "p12" },
@@ -4527,7 +4959,7 @@ function AbaBiblioteca() {
                 listaTime.map(function (p) { return (React.createElement("div", { key: p.nome, style: { padding: "11px 14px", borderTop: "1px solid #EEE" } },
                     React.createElement("div", { style: { fontWeight: 700, fontSize: 13.5, overflowWrap: "anywhere" } }, p.nome),
                     React.createElement("div", { className: "bibprog" }, numerosMods.map(function (n) { return React.createElement("div", { key: n, style: { color: p.mods[n] >= 100 ? T.good : p.mods[n] ? T.ink : T.muted } },
-                        React.createElement("b", null, "M" + n), p.mods[n] != null ? p.mods[n] + "%" + (p.notas && p.notas[n] != null ? " · prova " + p.notas[n] : "") : "—"); })))); }),
+                        React.createElement("b", null, rotMods[n] || "M" + n), p.mods[n] != null ? p.mods[n] + "%" + (p.notas && p.notas[n] != null ? " · prova " + p.notas[n] : "") : "—"); })))); }),
                 !listaTime.length && React.createElement("div", { style: { padding: "12px 14px", fontSize: 13, color: T.ink2 } }, "Ninguém concluiu aula ainda."))),
         editorEl, pergEl));
 }
