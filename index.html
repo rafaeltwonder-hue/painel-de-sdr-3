@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v131">
+<meta name="painel-versao" content="v132">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -5054,7 +5054,7 @@ function AbaBiblioteca() {
                 React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
                     React.createElement(Label, null, "Função"),
                     React.createElement(Chips, { value: fFun, onChange: setFFun, options: [["todas", "Todas"]].concat(BIB_FUNCOES) })))),
-        React.createElement(Secao, { n: 1, titulo: "Trilha do SDR", nota: "Faça os módulos na ordem: abra o módulo, siga as aulas e conclua cada uma. O que você conclui fica salvo no seu login." },
+        React.createElement(Secao, { n: 1, titulo: fFun === "bdr" ? "Trilha do BDR" : (fFun === "closer" ? "Trilha do closer" : "Trilha do SDR"), nota: "Faça os módulos na ordem: abra o módulo, siga as aulas e conclua cada uma. O que você conclui fica salvo no seu login." },
             heroEl,
             ehAdm && React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginTop: 12 } },
                 botaoEdicao,
