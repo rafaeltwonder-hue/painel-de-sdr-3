@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v134">
+<meta name="painel-versao" content="v135">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -12874,6 +12874,247 @@ function IncluirOsFechada(_a) {
             st && st.erro && React.createElement("div", { style: { color: T.bad, fontSize: 13, marginTop: 8 } }, st.erro),
             st && st.ok && React.createElement("div", { style: { color: T.good, fontSize: 13, marginTop: 8, fontWeight: 700 } }, st.ok))));
 }
+/* v135: estoque dos produtos das O.S. e pedido de compra/transferência para Compras.
+   Tudo passa pela função compras-closer (deste projeto), que fala com o Wonder Ops:
+   lá o importador do ERP grava os itens de cada O.S. a cada 15 min e a foto do estoque das 4 lojas.
+   Saldo da loja já desconta o que o ERP baixou nas O.S. lançadas (o Oficina baixa no lançamento).
+   Sem saldo na loja e com saldo em outra loja → "Pedir transferência"; rede inteira sem saldo → "Solicitar compra".
+   O pedido cai na fila do Compras (painel operacional) e o status volta para cá. */
+var COMPRAS_STATUS = {
+    solicitada: { l: "Solicitada", cor: T.warn },
+    em_cotacao: { l: "Em cotação", cor: T.warn },
+    pedido_feito: { l: "Pedido feito", cor: T.pronto },
+    em_transito: { l: "Em trânsito", cor: T.pronto },
+    entregue: { l: "Entregue", cor: T.good },
+    sem_necessidade: { l: "Sem necessidade", cor: T.muted },
+    cancelada: { l: "Cancelada", cor: T.muted },
+};
+var COMPRAS_ACAO = {
+    ok: { l: "Tem na loja", cor: T.good },
+    transferir: { l: "Falta na loja · tem na rede", cor: T.warn },
+    comprar: { l: "Falta na rede", cor: T.bad },
+};
+var qtdBR = function (n, un) {
+    var v = Number(n);
+    if (!isFinite(v)) return "—";
+    return v.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) + (un ? " " + String(un).toLowerCase() : "");
+};
+var btnCompras = { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "7px 12px", minHeight: 34, borderRadius: 6, cursor: "pointer", boxSizing: "border-box", whiteSpace: "nowrap" };
+function chamaCompras(corpo) { return chamaTreino("compras-closer", corpo); }
+
+/* tabela de produtos de UMA O.S., com o botão de pedido em cada item que falta */
+function ProdutosOs(_a) {
+    var loja = _a.loja, os = _a.os, aoPedir = _a.aoPedir;
+    var s0 = useState({ carregando: true }), st = s0[0], setSt = s0[1];
+    var s1 = useState(null), form = s1[0], setForm = s1[1]; /* { item, qtd, obs, enviando, erro } */
+    var carregar = function () {
+        setSt({ carregando: true });
+        chamaCompras({ acao: "consultar", loja: loja, os: os }).then(function (r) {
+            if (!r.ok) { setSt({ erro: r.erro }); return; }
+            setSt({ dados: r.data });
+        });
+    };
+    useEffect(function () { carregar(); }, [loja, os]);
+    var enviar = function () {
+        if (!form) return;
+        var q = Number(String(form.qtd).replace(",", "."));
+        if (!(q > 0)) { setForm(__assign(__assign({}, form), { erro: "Quantidade inválida." })); return; }
+        setForm(__assign(__assign({}, form), { enviando: true, erro: null }));
+        chamaCompras({ acao: "solicitar", loja: loja, os: os, itens: [{ item_codigo: form.item.item_codigo, quantidade: q, observacao: form.obs || null }] }).then(function (r) {
+            var res = r.ok && r.data && r.data.resultado && r.data.resultado[0];
+            if (!r.ok || !res || !res.ok) { setForm(__assign(__assign({}, form), { enviando: false, erro: (res && res.erro) || r.erro || "Não foi possível pedir." })); return; }
+            setForm(null);
+            carregar();
+            if (aoPedir) aoPedir();
+        });
+    };
+    if (st.carregando) return React.createElement("div", { style: { padding: 12, fontSize: 12.5, color: T.muted } }, "Buscando os produtos da O.S. ", os, "…");
+    if (st.erro) return React.createElement("div", { style: { padding: 12, fontSize: 12.5, color: T.bad } }, st.erro);
+    var d = st.dados || {};
+    if (!d.encontrada) return React.createElement("div", { style: { padding: 12, fontSize: 12.5, color: T.warn } }, d.aviso || "O.S. não encontrada.");
+    var itens = d.itens || [];
+    return (React.createElement("div", null,
+        React.createElement("div", { style: { padding: "8px 12px", fontSize: 12, color: T.ink2, display: "flex", gap: 14, flexWrap: "wrap", alignItems: "center" } },
+            React.createElement("span", null, React.createElement("b", null, "O.S. ", d.os, " · ", d.loja)),
+            React.createElement(Pill, { cor: T.good }, (d.resumo && d.resumo.ok) || 0, " ok"),
+            React.createElement(Pill, { cor: T.warn }, (d.resumo && d.resumo.transferir) || 0, " transferir"),
+            React.createElement(Pill, { cor: T.bad }, (d.resumo && d.resumo.comprar) || 0, " comprar"),
+            d.cancelada && React.createElement(Pill, { cor: T.bad }, "O.S. cancelada no ERP"),
+            React.createElement("span", { style: { color: T.muted } }, "lida do ERP ", d.lida_do_erp_em ? new Date(d.lida_do_erp_em).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—", itens[0] && itens[0].foto_de ? " · estoque da manhã de " + brData(itens[0].foto_de) : ""),
+            React.createElement("button", { type: "button", onClick: carregar, style: __assign(__assign({}, btnCompras), { padding: "4px 10px", minHeight: 28, background: T.surface, color: T.ink, border: "1px solid " + T.hair }) }, "Atualizar")),
+        !itens.length && React.createElement("div", { style: { padding: "4px 12px 12px", fontSize: 12.5, color: T.muted } }, "Nenhum produto com controle de estoque nesta O.S. (serviço e material de consumo ficam de fora)."),
+        itens.length > 0 && React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+            React.createElement("thead", null,
+                React.createElement("tr", null,
+                    React.createElement(Th, null, "Produto"),
+                    React.createElement(Th, { right: true }, "Na O.S."),
+                    React.createElement(Th, { right: true }, "Saldo da loja"),
+                    React.createElement(Th, null, "Outras lojas"),
+                    React.createElement(Th, null, "Situação"),
+                    React.createElement(Th, { right: true }, "Pedido"))),
+            React.createElement("tbody", null, itens.map(function (it) {
+                var ac = COMPRAS_ACAO[it.acao_sugerida] || COMPRAS_ACAO.ok;
+                var pedidoAtivo = it.solicitacao_id && ["entregue", "sem_necessidade", "cancelada"].indexOf(it.solicitacao_status) < 0;
+                var stp = it.solicitacao_status && COMPRAS_STATUS[it.solicitacao_status];
+                var abrindo = form && form.item.item_codigo === it.item_codigo;
+                var rotulo = it.acao_sugerida === "transferir" ? "Pedir transferência" : "Solicitar compra";
+                return React.createElement(React.Fragment, { key: it.item_codigo },
+                    React.createElement("tr", { style: it.acao_sugerida === "comprar" ? { background: "#FDF1F2" } : it.acao_sugerida === "transferir" ? { background: "#FFFBEA" } : null },
+                        React.createElement(Td, { style: { whiteSpace: "normal", minWidth: 180 } },
+                            React.createElement("div", { style: { fontWeight: 600 } }, it.descricao || it.item_codigo),
+                            React.createElement("div", { style: { fontSize: 11, color: T.muted } }, it.item_codigo, it.grupo ? " · " + it.grupo : "")),
+                        React.createElement(Td, { right: true }, qtdBR(it.quantidade, it.unidade_medida)),
+                        React.createElement(Td, { right: true, bold: true, color: Number(it.saldo_loja) < 0 ? T.bad : T.ink }, qtdBR(it.saldo_loja)),
+                        React.createElement(Td, { style: { whiteSpace: "normal" } }, (it.onde_tem && it.onde_tem.length) ? it.onde_tem.map(function (x) { return x.loja + " " + qtdBR(x.saldo); }).join(" · ") : React.createElement("span", { style: { color: T.muted } }, "nenhuma")),
+                        React.createElement(Td, null, React.createElement(Pill, { cor: ac.cor }, ac.l)),
+                        React.createElement(Td, { right: true },
+                            pedidoAtivo || (stp && it.solicitacao_status === "entregue")
+                                ? React.createElement("span", null,
+                                    React.createElement(Pill, { cor: stp ? stp.cor : T.muted }, (it.solicitacao_tipo === "transferencia" ? "Transf. " : "Compra ") + (stp ? stp.l.toLowerCase() : "")),
+                                    it.solicitacao_previsao && React.createElement("div", { style: { fontSize: 11, color: T.ink2, marginTop: 3 } }, "previsão ", brData(it.solicitacao_previsao)))
+                                : it.acao_sugerida === "ok"
+                                    ? React.createElement("span", { style: { color: T.muted, fontSize: 12 } }, "—")
+                                    : !abrindo && React.createElement("button", { type: "button", onClick: function () { setForm({ item: it, qtd: String(it.quantidade_faltante || it.quantidade || 1).replace(".", ","), obs: "" }); },
+                                        style: __assign(__assign({}, btnCompras), it.acao_sugerida === "comprar" ? { background: T.marca, color: T.preto, border: "1px solid " + T.marca } : { background: T.surface, color: T.ink, border: "1px solid " + T.ink }) }, rotulo))),
+                    abrindo && React.createElement("tr", null,
+                        React.createElement("td", { colSpan: 6, style: { padding: "10px 12px", background: "#F7F7F7", borderBottom: "1px solid #D6D6D6" } },
+                            React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginBottom: 8 } },
+                                React.createElement("b", null, rotulo, ": "), it.descricao, ". ",
+                                it.acao_sugerida === "transferir" ? "Compras separa de outra loja e manda para a loja " + d.loja + "." : "Nenhuma loja tem saldo: Compras cota e faz o pedido."),
+                            React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" } },
+                                React.createElement("label", { style: { fontSize: 12, color: T.muted } }, "Quantidade",
+                                    React.createElement("input", { type: "text", inputMode: "decimal", value: form.qtd, onChange: function (e) { setForm(__assign(__assign({}, form), { qtd: e.target.value, erro: null })); }, style: __assign(__assign({}, inputStyle), { width: 90, marginLeft: 6 }) })),
+                                React.createElement("input", { type: "text", value: form.obs, maxLength: 300, onChange: function (e) { setForm(__assign(__assign({}, form), { obs: e.target.value })); }, placeholder: "Observação para Compras (ex.: cliente vem sexta)", style: __assign(__assign({}, inputStyle), { flex: "1 1 220px", minWidth: 180 }) }),
+                                React.createElement("button", { type: "button", disabled: !!form.enviando, onClick: enviar, style: __assign(__assign({}, btnCompras), { background: T.marca, color: T.preto, border: "1px solid " + T.marca }) }, form.enviando ? "Enviando…" : "Enviar para Compras"),
+                                React.createElement("button", { type: "button", onClick: function () { setForm(null); }, style: __assign(__assign({}, btnCompras), { background: T.surface, color: T.ink, border: "1px solid " + T.hair }) }, "Cancelar")),
+                            form.erro && React.createElement("div", { style: { color: T.bad, fontSize: 12.5, marginTop: 6 } }, form.erro))));
+            })))));
+}
+
+/* bloco inteiro: O.S. do closer + consulta avulsa + meus pedidos */
+function ComprasCloser(_a) {
+    var osAbertas = _a.osAbertas || [], lojaPadrao = _a.lojaPadrao;
+    var s0 = useState(null), aberta = s0[0], setAberta = s0[1]; /* "loja|os" */
+    var s1 = useState({ carregando: true, lista: [] }), ped = s1[0], setPed = s1[1];
+    var s2 = useState(lojaPadrao || "Itaim"), lojaAv = s2[0], setLojaAv = s2[1];
+    var s3 = useState(""), numAv = s3[0], setNumAv = s3[1];
+    var s4 = useState(null), avulsa = s4[0], setAvulsa = s4[1];
+    var s5 = useState(null), hist = s5[0], setHist = s5[1]; /* { id, eventos } */
+    var s6 = useState(false), verFechados = s6[0], setVerFechados = s6[1];
+    var carregarPedidos = function () {
+        chamaCompras({ acao: "minhas" }).then(function (r) {
+            if (!r.ok) { setPed({ erro: r.erro, lista: [] }); return; }
+            setPed({ lista: (r.data && r.data.solicitacoes) || [] });
+        });
+    };
+    useEffect(function () { carregarPedidos(); }, []);
+    var cancelar = function (s) {
+        var motivo = window.prompt("Cancelar o pedido de " + (s.descricao || s.item_codigo) + "? Diga o motivo (opcional):", "");
+        if (motivo === null) return;
+        chamaCompras({ acao: "cancelar", id: s.id, motivo: motivo }).then(function (r) {
+            if (!r.ok) { window.alert(r.erro); return; }
+            carregarPedidos();
+        });
+    };
+    var verHistorico = function (s) {
+        if (hist && hist.id === s.id) { setHist(null); return; }
+        setHist({ id: s.id, carregando: true });
+        chamaCompras({ acao: "historico", id: s.id }).then(function (r) {
+            setHist({ id: s.id, eventos: r.ok ? (r.data && r.data.eventos) || [] : [], erro: r.ok ? null : r.erro });
+        });
+    };
+    var porOs = {};
+    (ped.lista || []).forEach(function (s) {
+        if (["entregue", "sem_necessidade", "cancelada"].indexOf(s.status) >= 0) return;
+        var k = s.os_codigo; porOs[k] = (porOs[k] || 0) + 1;
+    });
+    var ativos = (ped.lista || []).filter(function (s) { return ["entregue", "sem_necessidade", "cancelada"].indexOf(s.status) < 0; });
+    var fechados = (ped.lista || []).filter(function (s) { return ["entregue", "sem_necessidade", "cancelada"].indexOf(s.status) >= 0; });
+    var mostrar = verFechados ? ativos.concat(fechados) : ativos;
+    var lista = osAbertas.filter(function (o) { return !o.carro_entregue; });
+    var tituloBloco = function (t) { return React.createElement("div", { style: { padding: "8px 12px", fontFamily: F_MARCA, fontWeight: 700, fontSize: 12, letterSpacing: ".06em", textTransform: "uppercase", background: "#F7F7F7", color: T.ink2 } }, t); };
+    var consultarAvulsa = function () {
+        var n = String(numAv || "").replace(/\D/g, "");
+        if (!n) return;
+        setAvulsa({ loja: lojaAv, os: n, k: Date.now() });
+    };
+    return (React.createElement("div", { style: { marginTop: 16 } },
+        React.createElement("div", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 15, margin: "0 0 4px" } }, "Produtos das O.S. · estoque e compras"),
+        React.createElement("p", { style: { fontSize: 12.5, color: T.muted, margin: "0 0 10px", maxWidth: "80ch" } },
+            "Clique em \"Produtos\" para ver se o que você vendeu tem na loja ou em outra loja da rede. Faltou na loja e outra loja tem: \"Pedir transferência\". Ninguém tem: \"Solicitar compra\". O pedido vai para o Compras e o andamento aparece aqui embaixo. A O.S. entra até 15 min depois de lançada no Oficina."),
+        React.createElement(Card, { className: "p0 rolagem", style: { marginBottom: 12 } },
+            tituloBloco("Minhas O.S. em aberto"),
+            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+                React.createElement("tbody", null,
+                    lista.map(function (o) {
+                        var k = o.loja + "|" + o.os_numero;
+                        var ab = aberta === k;
+                        return React.createElement(React.Fragment, { key: k },
+                            React.createElement("tr", null,
+                                React.createElement(Td, { bold: true }, o.os_numero),
+                                React.createElement(Td, null, o.loja),
+                                React.createElement(Td, null, (o.veiculo || "") + " " + (o.placa || "")),
+                                React.createElement(Td, { right: true }, porOs[String(o.os_numero)] ? React.createElement(Pill, { cor: T.pronto }, porOs[String(o.os_numero)], " pedido", porOs[String(o.os_numero)] > 1 ? "s" : "", " em andamento") : null),
+                                React.createElement(Td, { right: true },
+                                    React.createElement("button", { type: "button", onClick: function () { setAberta(ab ? null : k); }, style: __assign(__assign({}, btnCompras), ab ? { background: T.ink, color: "#fff", border: "1px solid " + T.ink } : { background: T.surface, color: T.ink, border: "1px solid " + T.hair }) }, ab ? "Fechar" : "Produtos"))),
+                            ab && React.createElement("tr", null,
+                                React.createElement("td", { colSpan: 5, style: { padding: 0, borderBottom: "2px solid " + T.ink } },
+                                    React.createElement(ProdutosOs, { loja: o.loja, os: String(o.os_numero), aoPedir: carregarPedidos }))));
+                    }),
+                    !lista.length && React.createElement("tr", null, React.createElement(Td, { color: T.muted }, "Nenhuma O.S. em aberto na sua lista."))))),
+        React.createElement(Card, { className: "p16", style: { marginBottom: 12 } },
+            React.createElement(Label, null, "Consultar outra O.S."),
+            React.createElement("div", { style: { fontSize: 12, color: T.ink2, margin: "4px 0 8px" } }, "Acabou de lançar e ela ainda não está na sua lista? Consulte pelo número."),
+            React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" } },
+                React.createElement("select", { value: lojaAv, onChange: function (e) { return setLojaAv(e.target.value); }, style: __assign(__assign({}, inputStyle), { width: "auto", minWidth: 140 }), "aria-label": "Loja" }, LOJAS_OS.map(function (l) { return React.createElement("option", { key: l, value: l }, l); })),
+                React.createElement("input", { type: "text", inputMode: "numeric", value: numAv, onChange: function (e) { setNumAv(e.target.value); }, onKeyDown: function (e) { if (e.key === "Enter") consultarAvulsa(); }, placeholder: "Número da O.S.", style: __assign(__assign({}, inputStyle), { width: 180 }), "aria-label": "Número da O.S." }),
+                React.createElement("button", { type: "button", onClick: consultarAvulsa, style: __assign(__assign({}, btnCompras), { background: T.marca, color: T.preto, border: "1px solid " + T.marca }) }, "Ver produtos"),
+                avulsa && React.createElement("button", { type: "button", onClick: function () { setAvulsa(null); }, style: __assign(__assign({}, btnCompras), { background: T.surface, color: T.ink, border: "1px solid " + T.hair }) }, "Fechar")),
+            avulsa && React.createElement("div", { className: "rolagem", style: { marginTop: 10, border: "1px solid " + T.hair, borderRadius: 6 } },
+                React.createElement(ProdutosOs, { key: avulsa.k, loja: avulsa.loja, os: avulsa.os, aoPedir: carregarPedidos }))),
+        React.createElement(Card, { className: "p0 rolagem" },
+            tituloBloco("Meus pedidos para o Compras" + (ativos.length ? " · " + ativos.length + " em andamento" : "")),
+            ped.erro && React.createElement("div", { style: { padding: 12, color: T.bad, fontSize: 12.5 } }, ped.erro),
+            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+                React.createElement("thead", null,
+                    React.createElement("tr", null,
+                        React.createElement(Th, null, "Pedido"),
+                        React.createElement(Th, null, "O.S."),
+                        React.createElement(Th, null, "Produto"),
+                        React.createElement(Th, { right: true }, "Qtd"),
+                        React.createElement(Th, null, "Status"),
+                        React.createElement(Th, { right: true }, "Previsão"),
+                        React.createElement(Th, null, "Compras disse"),
+                        React.createElement(Th, { right: true }))),
+                React.createElement("tbody", null,
+                    mostrar.map(function (s) {
+                        var stp = COMPRAS_STATUS[s.status] || { l: s.status, cor: T.muted };
+                        var vencida = s.previsao_chegada && String(s.previsao_chegada).slice(0, 10) < hoje() && ["entregue", "sem_necessidade", "cancelada"].indexOf(s.status) < 0;
+                        return React.createElement(React.Fragment, { key: s.id },
+                            React.createElement("tr", null,
+                                React.createElement(Td, null, React.createElement("b", null, s.tipo === "transferencia" ? "Transferência" : "Compra"), React.createElement("div", { style: { fontSize: 11, color: T.muted } }, "nº ", s.id, " · ", brData(s.criado_em))),
+                                React.createElement(Td, null, s.os_codigo, " · ", s.loja),
+                                React.createElement(Td, { style: { whiteSpace: "normal", minWidth: 160 } }, s.descricao || s.item_codigo),
+                                React.createElement(Td, { right: true }, qtdBR(s.quantidade, s.unidade_medida)),
+                                React.createElement(Td, null, React.createElement(Pill, { cor: stp.cor }, stp.l), s.origem_loja && React.createElement("div", { style: { fontSize: 11, color: T.ink2, marginTop: 3 } }, "sai de ", s.origem_loja)),
+                                React.createElement(Td, { right: true, bold: !!vencida, color: vencida ? T.bad : T.ink }, s.previsao_chegada ? brData(s.previsao_chegada) : "—"),
+                                React.createElement(Td, { style: { whiteSpace: "normal", minWidth: 140, fontSize: 12, color: T.ink2 } }, s.observacao_compras || "—"),
+                                React.createElement(Td, { right: true },
+                                    React.createElement("button", { type: "button", onClick: function () { verHistorico(s); }, style: __assign(__assign({}, btnCompras), { padding: "4px 10px", minHeight: 28, background: T.surface, color: T.ink, border: "1px solid " + T.hair }) }, hist && hist.id === s.id ? "Fechar" : "Histórico"),
+                                    s.status === "solicitada" && React.createElement("button", { type: "button", onClick: function () { cancelar(s); }, style: __assign(__assign({}, btnCompras), { padding: "4px 10px", minHeight: 28, marginLeft: 6, background: T.surface, color: T.bad, border: "1px solid " + T.hair }) }, "Cancelar"))),
+                            hist && hist.id === s.id && React.createElement("tr", null,
+                                React.createElement("td", { colSpan: 8, style: { padding: "8px 12px", background: "#F7F7F7", borderBottom: "1px solid #D6D6D6", fontSize: 12, color: T.ink2 } },
+                                    hist.carregando ? "Carregando…" : hist.erro ? hist.erro : (hist.eventos || []).map(function (e, i) {
+                                        var p = COMPRAS_STATUS[e.status_para] || { l: e.status_para };
+                                        return React.createElement("div", { key: i, style: { padding: "2px 0" } },
+                                            React.createElement("b", null, new Date(e.em).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })), " · ", p.l,
+                                            e.previsao_chegada ? " · previsão " + brData(e.previsao_chegada) : "", e.observacao ? " · " + e.observacao : "", e.por_nome ? " (" + e.por_nome + ")" : "");
+                                    }))));
+                    }),
+                    !mostrar.length && React.createElement("tr", null, React.createElement(Td, { color: T.muted }, ped.carregando ? "Carregando pedidos…" : "Nenhum pedido em andamento.")))),
+            fechados.length > 0 && React.createElement("div", { style: { padding: "8px 12px" } },
+                React.createElement("button", { type: "button", onClick: function () { setVerFechados(!verFechados); }, style: __assign(__assign({}, btnCompras), { padding: "4px 10px", minHeight: 28, background: T.surface, color: T.ink, border: "1px solid " + T.hair }) }, verFechados ? "Esconder concluídos" : "Ver concluídos e cancelados (" + fechados.length + ")")))));
+}
 /* v87: "Carro pago". O cliente já pagou — com a data de entrada se o carro ainda não chegou.
    A O.S. ganha a etiqueta PAGO e o closer não é mais cobrado pelo pagamento. Fica em os_prazo (pago_em). */
 function PrazoOs(_a) {
@@ -14563,7 +14804,9 @@ function MeuPainel(_a) {
                             React.createElement(Td, { right: true },
                                 React.createElement(PrazoOs, { o: o, aoSalvar: recarregar })))); }),
                         !d.osAbertas.length && React.createElement("tr", null,
-                            React.createElement(Td, { color: T.muted }, "Nenhuma O.S. em aberto no seu nome.")))))),
+                            React.createElement(Td, { color: T.muted }, "Nenhuma O.S. em aberto no seu nome."))))),
+            /* v135: produtos das O.S., estoque da loja/rede e pedido para o Compras */
+            React.createElement(ComprasCloser, { osAbertas: d.osAbertas, lojaPadrao: (d.osAbertas[0] && d.osAbertas[0].loja) || undefined })),
         React.createElement(Secao, { n: 8, titulo: "Carros de hoje: entradas, entregas e retiradas", nota: "Entradas: carros que voc\u00EA marcou para entrar hoje (confirme se chegou). Retiradas: carros prontos que o cliente ficou de buscar hoje (ou que ele deixou passar). Entregas: carros com prazo para hoje \u2014 atrasado aparece primeiro, em vermelho. Marcou \"Carro entregue\" ou \"Cliente retirou\", sai daqui.".concat(entregaAmanha.length || entradaAmanha.length || retiradaAmanha.length ? " Amanh\u00E3: ".concat(entregaAmanha.length, " entrega").concat(entregaAmanha.length === 1 ? "" : "s", ", ").concat(retiradaAmanha.length, " retirada").concat(retiradaAmanha.length === 1 ? "" : "s", " e ").concat(entradaAmanha.length, " entrada").concat(entradaAmanha.length === 1 ? "" : "s", ".") : "").concat(semPrazo.length ? " ".concat(semPrazo.length, " carro").concat(semPrazo.length > 1 ? "s" : "", " na loja sem prazo lan\u00E7ado.") : "") },
             (entradaAtrasada.length + entradaHoje.length) > 0 && (React.createElement(Card, { className: "p0 rolagem", style: { marginBottom: 12 } },
                 React.createElement("div", { style: { padding: "8px 12px", fontFamily: F_MARCA, fontWeight: 700, fontSize: 12, letterSpacing: ".06em", textTransform: "uppercase", background: "#F7F7F7", color: T.ink2 } }, "Entradas de hoje"),
