@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v130">
+<meta name="painel-versao" content="v131">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -3661,6 +3661,55 @@ var TREINO_COMO_STORE = {
     proxima_acao: "Ofereça DUAS opções de dia e horário, com a unidade (Ipiranga ou Bandeirantes), e confirme dia, horário e unidade no fim.",
     kommo_passagem: "Resuma o combinado (dia, horário, unidade, interesse e carro) e diga o que vai registrar no Kommo ou que vai passar ao closer ou ao avaliador."
 };
+/* v131: Treinador do BDR. 12 clientes da base (3 por nível), 7 critérios, passa com 75. */
+var TREINO_PASSA_BDR = 75;
+var TREINO_NIVEIS_BDR = [
+    { id: "Easy", cor: T.good, min: "~3 min", txt: "Cliente receptivo. Pra pegar o ritmo.", personas: [
+            { nome: "Sérgio", gancho: "Satisfeito · o irmão quer trocar de carro", carro: "Corolla Cross 2024 · película", quer: "Nada agora", id: "agent_9801m5jcaz01fdtar7jz4ajn2hap" },
+            { nome: "Helena", gancho: "Receptiva · tem uma dor com o carro", carro: "Renegade 2023", quer: "Funilaria", id: "agent_9301m5jcdd4yez4s76cvfajva5s8" },
+            { nome: "Ricardo", gancho: "Não lembra do serviço", carro: "HR-V 2022", quer: "Entender o contato", id: "agent_5701m5jcdfnyfwkshdxy00q35amj" }
+        ] },
+    { id: "Normal", cor: T.warn, min: "~5 min", txt: "Tem objeção e pede condução.", personas: [
+            { nome: "Aline", gancho: "“Está tudo certo com o carro”", carro: "T-Cross 2022", quer: "Nada agora", id: "agent_9701m5jcdp41eqt9b384tr57p3ah" },
+            { nome: "Leandro", gancho: "“Estou em reunião, manda no WhatsApp”", carro: "Creta 2023", quer: "Ser rápido", id: "agent_1201m5jcdrfkfjr9jjdnd72415az" },
+            { nome: "Beatriz", gancho: "“Vou fazer mês que vem”", carro: "Pulse 2023", quer: "Adiar", id: "agent_3401m5jcdtx9epzay31aeks82qqs" }
+        ] },
+    { id: "Hard", cor: "#C85A16", min: "~7 min", txt: "Pressiona por preço e desconto.", personas: [
+            { nome: "Otávio", gancho: "“Quanto sai? Qual o máximo de desconto?”", carro: "BMW X1 2022", quer: "Preço e desconto", id: "agent_2001m5jcdxaae02szjfnxm0tjhrw" },
+            { nome: "Douglas", gancho: "“Não tenho dinheiro agora”", carro: "Onix 2021", quer: "Não gastar", id: "agent_4901m5jcdzv8epvtcvwcqmgh90pd" },
+            { nome: "Nelson", gancho: "Teve problema no serviço anterior", carro: "Kicks 2020", quer: "Ser ouvido", id: "agent_1401m5jce2ggfwfapkjqtedcpqy1" }
+        ] },
+    { id: "Infernal", cor: T.bad, min: "~10 min", txt: "Sem paciência. Um erro de regra e o cupom vira problema.", personas: [
+            { nome: "Cecília", gancho: "Com pressa · só quer WhatsApp", carro: "XC40 2022", quer: "Encerrar rápido", id: "agent_4401m5jce50qf53t8037ajjzvrwg" },
+            { nome: "Jorge", gancho: "Quer fechar até sábado · pressiona preço e prazo", carro: "Q5 2023", quer: "Preço e prazo", id: "agent_9001m5jce7kge1hrqer0n84hcpqy" },
+            { nome: "Luciana", gancho: "Vendeu o carro · mistura assuntos", carro: "Compass 2024 (novo)", quer: "Resolver várias coisas", id: "agent_7501m5jceagpebhsxjkxxpq650nj" }
+        ] },
+];
+var TREINO_PERSONAS_BDR = [];
+TREINO_NIVEIS_BDR.forEach(function (n) { n.personas.forEach(function (x) { TREINO_PERSONAS_BDR.push(x.nome); }); });
+var TREINO_CRITERIOS_BDR = [
+    ["Abertura e contexto", 15], ["Gancho e energia", 10], ["Diagnóstico e dor", 25], ["Manter na ligação", 15],
+    ["Cupom e DW Cars", 15], ["Próxima ação", 10], ["Indicação e registro", 10],
+];
+var TREINO_CHAVES_BDR = ["abertura_contexto", "gancho_energia", "diagnostico_dor", "manter_ligacao", "cupom_dwcars", "proxima_acao", "indicacao_registro"];
+var TREINO_COMO_BDR = {
+    abertura_contexto: "Já cumprimente pelo nome (sem perguntar “falo com…?”), diga seu nome e “da DW” e lembre que o cliente fez um serviço com a loja, com o veículo dele.",
+    gancho_energia: "Soe firme e com energia. Diga o motivo do contato: entender se está tudo certo com o serviço e se ainda está com o carro. Não pareça leitura.",
+    diagnostico_dor: "Não aceite a primeira resposta. Pergunte como está o carro hoje, o que já fez desde a compra e o que melhoraria. Puxe a dor antes de falar de cupom.",
+    manter_ligacao: "Segure o cliente na ligação antes de pensar no WhatsApp. Se ele pedir mensagem, prometa ser rápido e tente de novo antes de ceder.",
+    cupom_dwcars: "Ofereça a DW Cars (compra, venda, troca) e leve o cupom de 10% ou 15%. Não passe preço nem desconto fora do cupom e não prometa o que depende do closer.",
+    proxima_acao: "Feche com um agendamento: dia, horário e a visita na loja. Se não for agora, marque a data do retorno e confirme.",
+    indicacao_registro: "Peça indicação (amigo ou parente) antes de encerrar, anote o telefone na hora e diga o que vai registrar no Kommo."
+};
+/* qual frente é a ligação: pela chave do critério ou pelo nome do cliente */
+function frenteDeLigacao(u) {
+    var c = (u && u.criterios) || {};
+    if (Object.prototype.hasOwnProperty.call(c, "abertura_contexto") || TREINO_PERSONAS_BDR.indexOf(u && u.persona) >= 0)
+        return "bdr";
+    if (Object.prototype.hasOwnProperty.call(c, "velocidade_contexto") || TREINO_PERSONAS_STORE.indexOf(u && u.persona) >= 0)
+        return "car_store";
+    return "car_service";
+}
 var TREINO_SDRS = ["Paulo Allan", "Milena", "Marcos", "Alessandro", "Alexandre Nogueira"];
 /* v92: segunda-feira da semana atual em São Paulo (UTC-3, sem horário de verão), como "AAAA-MM-DD". */
 function segundaSP() {
@@ -3775,8 +3824,7 @@ function TreinoFeedback(_a) {
             }
         });
     };
-    var ehLigStore = function (u) { var c = u.criterios || {}; return Object.prototype.hasOwnProperty.call(c, "velocidade_contexto") || TREINO_PERSONAS_STORE.indexOf(u.persona) >= 0; };
-    var base = st.rows.filter(function (u) { return (ehLigStore(u) ? "car_store" : "car_service") === frente; });
+    var base = st.rows.filter(function (u) { return frenteDeLigacao(u) === frente; });
     var nomes = [];
     var minus = function (v) { return String(v || "").toLowerCase().trim(); };
     base.forEach(function (u) { if (u.sdr_nome && !nomes.some(function (n) { return minus(n) === minus(u.sdr_nome); }))
@@ -3801,9 +3849,9 @@ function TreinoFeedback(_a) {
         rows.slice(0, 20).map(function (u, i) {
             var aberto = ab[u.conversation_id] === undefined ? i === 0 : ab[u.conversation_id];
             var cr = u.criterios || {};
-            var lst = ehLigStore(u), CRIT = lst ? TREINO_CRITERIOS_STORE : TREINO_CRITERIOS, CH = lst ? TREINO_CHAVES_STORE : TREINO_CHAVES, COMO = lst ? TREINO_COMO_STORE : TREINO_COMO;
+            var fu = frenteDeLigacao(u), lst = fu !== "car_service", ehB = fu === "bdr", CRIT = ehB ? TREINO_CRITERIOS_BDR : (lst ? TREINO_CRITERIOS_STORE : TREINO_CRITERIOS), CH = ehB ? TREINO_CHAVES_BDR : (lst ? TREINO_CHAVES_STORE : TREINO_CHAVES), COMO = ehB ? TREINO_COMO_BDR : (lst ? TREINO_COMO_STORE : TREINO_COMO);
             var elim = lst && u.erro_eliminatorio === true;
-            var passou = lst && u.conta && u.nota >= TREINO_PASSA_STORE;
+            var passou = lst && u.conta && u.nota >= (ehB ? TREINO_PASSA_BDR : TREINO_PASSA_STORE);
             var temCr = CH.some(function (k) { return cr[k]; });
             var pts = parsePontos(u.pontos_melhoria);
             var min = Math.floor((u.duracao_s || 0) / 60), sec = (u.duracao_s || 0) % 60;
@@ -3857,8 +3905,11 @@ function TreinoFeedback(_a) {
 function AbaTreinador(_a) {
     var nome = _a.nome, semPlacar = _a.semPlacar, membros = _a.membros, todos = _a.todos, negocioPainel = _a.negocio;
     var _fr = __read(useState(negocioPainel === "car_store" ? "car_store" : "car_service"), 2), fr = _fr[0], setFr = _fr[1];
-    var ehSt = fr === "car_store";
-    var NIVEIS = ehSt ? TREINO_NIVEIS_STORE : TREINO_NIVEIS;
+    var ehBdr = fr === "bdr";
+    var ehSt = fr !== "car_service";
+    var NIVEIS = ehBdr ? TREINO_NIVEIS_BDR : (fr === "car_store" ? TREINO_NIVEIS_STORE : TREINO_NIVEIS);
+    var CRIT_FR = ehBdr ? TREINO_CRITERIOS_BDR : (ehSt ? TREINO_CRITERIOS_STORE : TREINO_CRITERIOS);
+    var PASSA_FR = ehBdr ? TREINO_PASSA_BDR : TREINO_PASSA_STORE;
     var _b = __read(useState({ carregando: true, erro: null, sem: [], eq: [], ult: [], cl: [], sem_l: [] }), 2), pl = _b[0], setPl = _b[1];
     var _tk = __read(useState(0), 2), tick = _tk[0], setTick = _tk[1];
     useEffect(function () {
@@ -3866,10 +3917,10 @@ function AbaTreinador(_a) {
             return undefined;
         var vivo = true;
         Promise.all([
-            db.from("treino_semana_v").select("*").eq("semana", segundaSP()).eq("negocio", fr),
-            db.from("equipe_sdr").select("sdr,ativo,negocio").eq("negocio", fr).eq("ativo", true),
+            db.from("treino_semana_v").select("*").eq("semana", segundaSP()),
+            db.from("equipe_sdr").select("sdr,ativo,negocio,funcao").eq("negocio", ehBdr ? "car_service" : fr).eq("ativo", true),
             db.from("treino_ultimas_v").select("conversation_id,sdr_nome,persona,nivel,iniciada_em,duracao_s,nota,agendou,conta")
-                .order("iniciada_em", { ascending: false }).limit(80),
+                .order("iniciada_em", { ascending: false }).limit(120),
             /* v112: closers. O placar do SDR vem da view; o dos closers é somado aqui, das ligações da semana. */
             db.from("map_closer").select("nome_oficial,erp_curto,ativo").eq("ativo", true),
             db.from("treino_closer_semana_v").select("*").eq("semana", segundaSP()),
@@ -3883,10 +3934,15 @@ function AbaTreinador(_a) {
         return function () { vivo = false; };
     }, [semPlacar, tick, fr]);
     var porSdr = {};
-    var semSq = membros ? pl.sem.filter(function (x) { return membroBate(membros, x.sdr); }) : pl.sem;
-    var eqSq = membros ? pl.eq.filter(function (e) { return membroBate(membros, e.sdr); }) : pl.eq;
+    var nomesFr = {};
+    pl.eq.forEach(function (e) { if ((e.funcao === "bdr") === ehBdr)
+        nomesFr[String(e.sdr).toLowerCase()] = true; });
+    var semFr = pl.sem.filter(function (x) { return nomesFr[String(x.sdr).toLowerCase()]; });
+    var semSq = membros ? semFr.filter(function (x) { return membroBate(membros, x.sdr); }) : semFr;
+    var eqFr = pl.eq.filter(function (e) { return (e.funcao === "bdr") === ehBdr; });
+    var eqSq = membros ? eqFr.filter(function (e) { return membroBate(membros, e.sdr); }) : eqFr;
     var ultSq = (membros ? pl.ult.filter(function (u) { return membroBate(membros, u.sdr_nome); }) : pl.ult)
-        .filter(function (u) { return (TREINO_PERSONAS_STORE.indexOf(u.persona) >= 0) === ehSt; }).slice(0, 15);
+        .filter(function (u) { return frenteDeLigacao(u) === fr; }).slice(0, 15);
     semSq.forEach(function (x) { porSdr[String(x.sdr).toLowerCase()] = x; });
     var linhas = eqSq.map(function (e) { return ({ sdr: e.sdr, x: porSdr[String(e.sdr).toLowerCase()] || null }); })
         .sort(function (a, b) { return ((b.x ? b.x.treinos : 0) - (a.x ? a.x.treinos : 0)) || String(a.sdr).localeCompare(String(b.sdr)); });
@@ -3916,11 +3972,11 @@ function AbaTreinador(_a) {
     var nPersonas = NIVEIS.reduce(function (s, n) { return s + n.personas.length; }, 0);
     var botFr = function (id, rot) { return React.createElement("button", { key: id, onClick: function () { setFr(id); }, style: { fontFamily: F_UI, fontSize: 13, fontWeight: 700, padding: "7px 14px", borderRadius: 6, cursor: "pointer", border: "1px solid " + (fr === id ? T.marca : T.hair), background: fr === id ? T.marca : "transparent", color: fr === id ? T.preto : T.ink2 } }, rot); };
     return (React.createElement("div", null,
-        React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" } }, botFr("car_service", "Car Service"), botFr("car_store", "Car Store")),
+        React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" } }, botFr("car_service", "Car Service"), botFr("car_store", "Car Store"), botFr("bdr", "BDR")),
         React.createElement("div", { className: "grid-kpi" },
-            React.createElement(Kpi, { label: "Personas no ar", value: nInt(nPersonas), sub: ehSt ? "Car Store \u00B7 3 por n\u00EDvel" : "Car Service \u00B7 3 a 4 por n\u00EDvel" }),
-            React.createElement(Kpi, { label: "Agendaram no treino", value: semPlacar ? "\u2014" : (nTodos > 0 ? Math.round(100 * agTodos / nTodos) + "%" : "\u2014"), sub: semPlacar ? "" : agTodos + " de " + nTodos + " ligações (SDRs e closers)" }),
-            React.createElement(Kpi, { label: "Treinos do time", value: semPlacar ? "—" : nInt(totalTreinos), sub: "SDRs nesta semana (liga\u00E7\u00F5es de 60 s ou mais). Meta: 3 por pessoa" }),
+            React.createElement(Kpi, { label: "Personas no ar", value: nInt(nPersonas), sub: ehBdr ? "BDR \u00B7 3 por n\u00EDvel" : (ehSt ? "Car Store \u00B7 3 por n\u00EDvel" : "Car Service \u00B7 3 a 4 por n\u00EDvel") }),
+            React.createElement(Kpi, { label: "Agendaram no treino", value: semPlacar ? "\u2014" : (nTodos > 0 ? Math.round(100 * agTodos / nTodos) + "%" : "\u2014"), sub: semPlacar ? "" : agTodos + " de " + nTodos + (ehBdr ? " ligações dos BDRs" : " ligações (SDRs e closers)") }),
+            React.createElement(Kpi, { label: "Treinos do time", value: semPlacar ? "—" : nInt(totalTreinos), sub: (ehBdr ? "BDRs" : "SDRs") + " nesta semana (liga\u00E7\u00F5es de 60 s ou mais). Meta: 3 por pessoa" }),
             (membros || ehSt) ? null : React.createElement(Kpi, { label: "Closers treinando", value: semPlacar ? "—" : closersTreinaram + "/" + linhasCl.length, sub: "com ao menos 1 treino nesta semana" })),
         React.createElement(Secao, { n: 1, titulo: "Treinar agora", nota: "Escolha o cliente e ligue pelo navegador, com o microfone. " + (nome ? "O seu nome já vai junto no link: é assim que o treino é identificado. A nota sai sozinha ao final." : "Diga o seu nome no começo da ligação: é assim que o treino é identificado. A nota sai sozinha ao final.") },
             React.createElement("div", { className: "grid-kpi", style: { gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" } }, NIVEIS.map(function (nv) { return (React.createElement(Card, { key: nv.id, className: "p16", style: { borderTop: "4px solid ".concat(nv.cor) } },
@@ -3941,13 +3997,13 @@ function AbaTreinador(_a) {
                     React.createElement("a", { href: TREINO_LINK + p.id + (nome ? "&var_sdr_nome=" + encodeURIComponent(nome) : ""), target: "_blank", rel: "noopener noreferrer", style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "7px 11px", borderRadius: 6, background: T.marca,
                             color: T.preto, textDecoration: "none", whiteSpace: "nowrap", border: "1px solid ".concat(T.marca) } }, "\uD83D\uDCDE Ligar"))); }))); }))),
         React.createElement(TreinoFeedback, { frente: fr, todos: todos, tick: tick, aoAtualizar: function () { return setTick(function (t) { return t + 1; }); } }),
-        !semPlacar && React.createElement(Secao, { n: 3, titulo: "Placar da semana", nota: "Meta: " + TREINO_META + " treinos por pessoa por semana. Só contam ligações de 60 segundos ou mais. A nota é a soma dos critérios cumpridos (não a nota solta da IA). \"Agendou\" é em quantas dessas ligações a pessoa conseguiu marcar a visita." + (ehSt ? " Na Car Store, passa quem faz 75 ou mais." : "") + (pl.erro ? " Não consegui ler o placar: " + pl.erro : "") },
+        !semPlacar && React.createElement(Secao, { n: 3, titulo: "Placar da semana", nota: "Meta: " + TREINO_META + " treinos por pessoa por semana. Só contam ligações de 60 segundos ou mais. A nota é a soma dos critérios cumpridos (não a nota solta da IA). \"Agendou\" é em quantas dessas ligações a pessoa conseguiu marcar a visita." + (ehSt ? " Aqui passa quem faz 75 ou mais." : "") + (pl.erro ? " Não consegui ler o placar: " + pl.erro : "") },
             React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
                 React.createElement("div", { className: "rolagem" },
                     React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 640 } },
                         React.createElement("thead", null,
                             React.createElement("tr", null,
-                                React.createElement(Th, null, "SDR"),
+                                React.createElement(Th, null, ehBdr ? "BDR" : "SDR"),
                                 React.createElement(Th, { right: true },
                                     "Treinos (meta ",
                                     TREINO_META,
@@ -4011,14 +4067,14 @@ function AbaTreinador(_a) {
                                 React.createElement(Td, null, u.nivel || "—"),
                                 React.createElement(Td, { right: true, bold: true }, u.conta ? u.nota : "—"),
                                 React.createElement(Td, null, u.conta ? (u.agendou ? "Sim" : "Não") : "não conta"),
-                                ehSt && React.createElement(Td, { bold: true, color: u.conta ? (u.nota >= TREINO_PASSA_STORE ? T.good : T.warn) : T.muted }, u.conta ? (u.nota >= TREINO_PASSA_STORE ? "Passou" : "Repetir") : "—"),
+                                ehSt && React.createElement(Td, { bold: true, color: u.conta ? (u.nota >= PASSA_FR ? T.good : T.warn) : T.muted }, u.conta ? (u.nota >= PASSA_FR ? "Passou" : "Repetir") : "—"),
                                 React.createElement(Td, { right: true },
                                     Math.floor((u.duracao_s || 0) / 60),
                                     ":",
                                     ((u.duracao_s || 0) % 60 < 10 ? "0" : "") + ((u.duracao_s || 0) % 60)))); })))))),
-        React.createElement(Secao, { n: semPlacar ? 3 : 5, titulo: "Como a nota sai", nota: (ehSt ? "Igual nos 12 clientes da Car Store. A nota é a soma dos pesos dos critérios cumpridos (0 a 100) e passa quem faz 75 ou mais. Se houver erro eliminatório (passar ou confirmar o valor do carro do cliente, prometer parcela, taxa ou aprovação, usar a palavra “consignação” ou citar condição além da comissão de 6%), a nota fica em no máximo 74. " : "Igual nos 13 clientes. A nota \u00E9 a soma dos pesos dos crit\u00E9rios cumpridos (0 a 100). ") + "Cada liga\u00E7\u00E3o tamb\u00E9m diz se o SDR agendou e traz um ponto de treino: a frase que ele disse, ao lado de uma vers\u00E3o melhor." },
+        React.createElement(Secao, { n: semPlacar ? 3 : 5, titulo: "Como a nota sai", nota: (ehBdr ? "Igual nos 12 clientes do BDR. A nota é a soma dos pesos dos critérios cumpridos (0 a 100) e passa quem faz 75 ou mais. Se houver erro eliminatório (passar preço ou desconto fora do cupom, prometer algo que depende do closer ou oferecer cupom diferente de 10% e 15%), a nota fica em no máximo 74. " : ehSt ? "Igual nos 12 clientes da Car Store. A nota é a soma dos pesos dos critérios cumpridos (0 a 100) e passa quem faz 75 ou mais. Se houver erro eliminatório (passar ou confirmar o valor do carro do cliente, prometer parcela, taxa ou aprovação, usar a palavra “consignação” ou citar condição além da comissão de 6%), a nota fica em no máximo 74. " : "Igual nos 13 clientes. A nota \u00E9 a soma dos pesos dos crit\u00E9rios cumpridos (0 a 100). ") + "Cada liga\u00E7\u00E3o tamb\u00E9m diz se o SDR agendou e traz um ponto de treino: a frase que ele disse, ao lado de uma vers\u00E3o melhor." },
             React.createElement(Card, { className: "p20" },
-                (ehSt ? TREINO_CRITERIOS_STORE : TREINO_CRITERIOS).map(function (_a) {
+                CRIT_FR.map(function (_a) {
                     var _b = __read(_a, 2), n = _b[0], pt = _b[1];
                     return (React.createElement("div", { key: n, style: { display: "grid", gridTemplateColumns: "minmax(120px, 190px) 1fr 44px", gap: 12, alignItems: "center", padding: "6px 0" } },
                         React.createElement("span", { style: { fontSize: 13.5, fontWeight: 600 } }, n),
@@ -4027,7 +4083,7 @@ function AbaTreinador(_a) {
                 }),
                 React.createElement("div", { style: { display: "flex", justifyContent: "space-between", borderTop: "1px solid ".concat(T.hair), marginTop: 8, paddingTop: 10, fontSize: 13 } },
                     React.createElement("b", null, "Total"),
-                    React.createElement("b", { style: { fontFamily: F_NUM } }, (ehSt ? TREINO_CRITERIOS_STORE : TREINO_CRITERIOS).reduce(function (s, c) { return s + c[1]; }, 0)))))));
+                    React.createElement("b", { style: { fontFamily: F_NUM } }, CRIT_FR.reduce(function (s, c) { return s + c[1]; }, 0)))))));
 }
 /* ---------------- BIBLIOTECA + PESQUISA DE MERCADO ---------------- */
 var BIB_AREAS = ["Todas", "SDR", "BDR", "Closer", "Car Service", "Car Store", "Academy", "House Service"];
