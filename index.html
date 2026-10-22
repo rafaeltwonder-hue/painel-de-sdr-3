@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v133">
+<meta name="painel-versao" content="v134">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -5107,10 +5107,386 @@ function BibDrive(_p) {
                                             color: T.preto, textDecoration: "none", whiteSpace: "nowrap", border: "1px solid ".concat(T.marca) } }, "Abrir"))); }),
                 !lista.length && React.createElement("div", { style: { padding: "12px 14px", fontSize: 13, color: T.ink2 } }, "Nenhum documento do Drive nesta frente. Os materiais do Car Service estão na trilha, acima.")))));
 }
+/* v134: prints de orçamentos de concorrentes. SDR ou closer joga o print, o sistema lê (função benchmark-ler),
+   a pessoa confere e só então salva em comercial.benchmark_orcamento (print guardado no bucket privado "benchmark"). */
+var BENCH_CATS = PRECOS_CATS.concat(["Outros"]);
+function benchPreco(s) {
+    if (typeof s === "number")
+        return isFinite(s) && s > 0 ? s : null;
+    var t = String(s == null ? "" : s).replace(/[^\d.,]/g, "");
+    if (!t)
+        return null;
+    if (t.indexOf(",") >= 0)
+        t = t.replace(/\./g, "").replace(",", ".");
+    else if (/^\d{1,3}(\.\d{3})+$/.test(t))
+        t = t.replace(/\./g, "");
+    var n = parseFloat(t);
+    return isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null;
+}
+function benchTxtPreco(n) {
+    return n == null ? "" : Number(n).toFixed(2).replace(".", ",");
+}
+function benchItemNosso(id) {
+    return PRECOS_ITENS.filter(function (x) { return x.id === id; })[0] || null;
+}
+/* preço nosso do item/opção, já com o acréscimo de pick-up */
+function benchNossoPreco(id, k, pickup) {
+    var it = benchItemNosso(id);
+    if (!it)
+        return null;
+    var ops = opcoesDoItem(it);
+    var op = ops[parseInt(k, 10) || 0];
+    if (!op || op.p == null)
+        return null;
+    return Math.round(op.p * (pickup ? FATOR_PICKUP : 1) * 100) / 100;
+}
+function benchRedimensionar(file, cb) {
+    var rd = new FileReader();
+    rd.onerror = function () { cb("Não consegui abrir esse arquivo."); };
+    rd.onload = function () {
+        var im = new Image();
+        im.onerror = function () { cb("Não consegui abrir essa imagem. Use um print em JPG ou PNG."); };
+        im.onload = function () {
+            var k = Math.min(1, 2000 / Math.max(im.width, im.height));
+            var c = document.createElement("canvas");
+            c.width = Math.max(1, Math.round(im.width * k));
+            c.height = Math.max(1, Math.round(im.height * k));
+            var g = c.getContext("2d");
+            g.fillStyle = "#fff";
+            g.fillRect(0, 0, c.width, c.height);
+            g.drawImage(im, 0, 0, c.width, c.height);
+            var url = c.toDataURL("image/jpeg", 0.82);
+            cb(null, { url: url, base64: url.split(",")[1], tipo: "image/jpeg" });
+        };
+        im.src = rd.result;
+    };
+    rd.readAsDataURL(file);
+}
+function benchItemVazio() {
+    return { categoria: "PPF", produto: "", marca: "", preco: "", condicao: "", nosso_item_id: "", nosso_opcao: "0" };
+}
+function BenchmarkPrints() {
+    var h = React.createElement;
+    var _u = useState(null), user = _u[0], setUser = _u[1];
+    var _l = useState({ carregando: true, erro: null, rows: [] }), lista = _l[0], setLista = _l[1];
+    var _t = useState(0), tick = _t[0], setTick = _t[1];
+    var _e = useState("idle"), etapa = _e[0], setEtapa = _e[1]; /* idle | lendo | revisar */
+    var _i = useState(null), img = _i[0], setImg = _i[1];
+    var _f = useState(null), form = _f[0], setForm = _f[1];
+    var _m = useState(""), msg = _m[0], setMsg = _m[1];
+    var _s = useState(false), salvando = _s[0], setSalvando = _s[1];
+    var _o = useState(false), sobre = _o[0], setSobre = _o[1];
+    var _v = useState(null), ver = _v[0], setVer = _v[1];
+    var _fc = useState("__all"), fConc = _fc[0], setFConc = _fc[1];
+    var _fk = useState("Todos"), fCat = _fk[0], setFCat = _fk[1];
+    var _fb = useState(""), busca = _fb[0], setBusca = _fb[1];
+    var inputRef = useRef(null);
+    var perfil = (user && user.app_metadata && user.app_metadata.perfil) || "";
+    var gestor = perfil === "admin" || perfil === "gerente";
+    useEffect(function () {
+        var vivo = true;
+        db.auth.getSession().then(function (r) { if (vivo)
+            setUser(r && r.data && r.data.session ? r.data.session.user : { id: "", app_metadata: {} }); });
+        return function () { vivo = false; };
+    }, []);
+    useEffect(function () {
+        var vivo = true;
+        db.from("benchmark_orcamento").select("*").order("criado_em", { ascending: false }).limit(300).then(function (r) {
+            if (vivo)
+                setLista({ carregando: false, erro: r.error ? r.error.message : null, rows: r.data || [] });
+        }, function (e) { if (vivo)
+            setLista({ carregando: false, erro: String((e && e.message) || e), rows: [] }); });
+        return function () { vivo = false; };
+    }, [tick]);
+    var catalogo = useMemo(function () { return PRECOS_ITENS.map(function (x) { return { id: x.id, cat: x.cat, linha: x.linha }; }); }, []);
+    var comecar = function (file) {
+        if (!file || !/^image\//.test(file.type || "")) {
+            setMsg("Esse arquivo não é uma imagem. Use o print em JPG ou PNG.");
+            return;
+        }
+        setMsg("");
+        setEtapa("lendo");
+        benchRedimensionar(file, function (erro, im) {
+            if (erro) {
+                setEtapa("idle");
+                setMsg(erro);
+                return;
+            }
+            setImg(im);
+            chamaTreino("benchmark-ler", { imagem: im.base64, tipo: im.tipo, catalogo: catalogo }).then(function (r) {
+                var vazio = { concorrente: "", carro: "", unidade: "", pagamento: "", data_orcamento: "", observacao: "", tipo_carro: "passeio", itens: [benchItemVazio()] };
+                if (!r.ok || !r.data || !r.data.leitura) {
+                    setForm(vazio);
+                    setEtapa("revisar");
+                    setMsg(r.falta ? "A leitura automática ainda não está ligada (falta a chave no Supabase). Preencha na mão: o print fica salvo junto."
+                        : "Não consegui ler o print sozinho (" + (r.erro || "sem resposta") + "). Preencha na mão: o print fica salvo junto.");
+                    return;
+                }
+                var L = r.data.leitura;
+                var itens = (L.itens || []).map(function (i) {
+                    return { categoria: i.categoria || "Outros", produto: i.produto || "", marca: i.marca || "", preco: benchTxtPreco(i.preco), condicao: i.condicao || "", nosso_item_id: i.nosso_item_id || "", nosso_opcao: "0" };
+                });
+                setForm({ concorrente: L.concorrente || "", carro: L.carro || "", unidade: L.unidade || "", pagamento: L.pagamento || "", data_orcamento: L.data_orcamento || "",
+                    observacao: L.observacao || "", tipo_carro: /pick|hilux|ranger|s10|amarok|strada|toro|saveiro|frontier|l200/i.test(L.carro || "") ? "pickup" : "passeio",
+                    itens: itens.length ? itens : [benchItemVazio()] });
+                setEtapa("revisar");
+                setMsg(itens.length ? "Leitura pronta. Confira cada campo antes de salvar." : "Não achei produto com preço nesse print" + (L.observacao ? " (" + L.observacao + ")" : "") + ". Preencha na mão se precisar.");
+            });
+        });
+    };
+    /* Ctrl+V em qualquer lugar da aba */
+    useEffect(function () {
+        var onPaste = function (ev) {
+            if (etapa !== "idle")
+                return;
+            var its = (ev.clipboardData && ev.clipboardData.items) || [];
+            for (var q = 0; q < its.length; q++) {
+                if (its[q].kind === "file" && /^image\//.test(its[q].type)) {
+                    var f = its[q].getAsFile();
+                    if (f) {
+                        ev.preventDefault();
+                        comecar(f);
+                        return;
+                    }
+                }
+            }
+        };
+        document.addEventListener("paste", onPaste);
+        return function () { document.removeEventListener("paste", onPaste); };
+    }, [etapa, catalogo]);
+    var cancelar = function () { setEtapa("idle"); setImg(null); setForm(null); setMsg(""); };
+    var setCampo = function (k, v) { setForm(function (f) { var o = __assign({}, f); o[k] = v; return o; }); };
+    var setItem = function (ix, k, v) {
+        setForm(function (f) {
+            var itens = f.itens.map(function (it, j) {
+                if (j !== ix)
+                    return it;
+                var o = __assign({}, it);
+                o[k] = v;
+                if (k === "nosso_item_id")
+                    o.nosso_opcao = "0";
+                return o;
+            });
+            return __assign(__assign({}, f), { itens: itens });
+        });
+    };
+    var tirarItem = function (ix) { setForm(function (f) { var itens = f.itens.filter(function (_x, j) { return j !== ix; }); return __assign(__assign({}, f), { itens: itens.length ? itens : [benchItemVazio()] }); }); };
+    var salvar = function () {
+        if (!form || salvando)
+            return;
+        var itens = form.itens.map(function (it) {
+            var pk = form.tipo_carro === "pickup";
+            var np = it.nosso_item_id ? benchNossoPreco(it.nosso_item_id, it.nosso_opcao, pk) : null;
+            var nit = it.nosso_item_id ? benchItemNosso(it.nosso_item_id) : null;
+            var op = nit ? opcoesDoItem(nit)[parseInt(it.nosso_opcao, 10) || 0] : null;
+            return { categoria: it.categoria, produto: (it.produto || "").trim(), marca: (it.marca || "").trim() || null, preco: benchPreco(it.preco), condicao: (it.condicao || "").trim() || null,
+                nosso_item_id: it.nosso_item_id || null, nosso_item: nit ? nit.linha : null, nosso_opcao: op ? (op.r || null) : null, nosso_preco: np };
+        }).filter(function (it) { return it.produto || it.preco != null; });
+        if (!form.concorrente.trim()) {
+            setMsg("Falta o nome do concorrente.");
+            return;
+        }
+        if (!itens.length) {
+            setMsg("Coloque pelo menos um produto ou serviço com preço.");
+            return;
+        }
+        if (itens.some(function (it) { return it.preco == null; })) {
+            setMsg("Tem item sem preço. Preencha o valor ou tire a linha.");
+            return;
+        }
+        setSalvando(true);
+        setMsg("");
+        var caminho = ((user && user.id) || "anon") + "/" + Date.now() + ".jpg";
+        var subir = img ? fetch(img.url).then(function (r) { return r.blob(); }).then(function (b) { return db.storage.from("benchmark").upload(caminho, b, { contentType: "image/jpeg", upsert: false }); }) : Promise.resolve({ error: null });
+        subir.then(function (up) {
+            if (up && up.error) {
+                setSalvando(false);
+                setMsg("Não consegui guardar o print: " + up.error.message);
+                return null;
+            }
+            var linha = { enviado_por: nomeDoLogin({ user: user }) || null, concorrente: form.concorrente.trim(), carro: form.carro.trim() || null, unidade: form.unidade.trim() || null,
+                pagamento: form.pagamento.trim() || null, observacao: form.observacao.trim() || null, data_orcamento: form.data_orcamento || null, tipo_carro: form.tipo_carro, itens: itens, imagem_path: img ? caminho : null };
+            return db.from("benchmark_orcamento").insert(linha).then(function (r) {
+                setSalvando(false);
+                if (r.error) {
+                    if (img)
+                        db.storage.from("benchmark").remove([caminho]);
+                    setMsg("Não consegui salvar: " + r.error.message);
+                    return;
+                }
+                cancelar();
+                setMsg("Salvo no Benchmark.");
+                setTick(function (x) { return x + 1; });
+            });
+        }, function (e) { setSalvando(false); setMsg("Não consegui salvar: " + String((e && e.message) || e)); });
+    };
+    var abrirPrint = function (path) {
+        db.storage.from("benchmark").createSignedUrl(path, 3600).then(function (r) {
+            if (r.error || !r.data) {
+                setMsg("Não consegui abrir o print: " + (r.error ? r.error.message : "sem resposta"));
+                return;
+            }
+            setVer(r.data.signedUrl);
+        });
+    };
+    var apagar = function (row) {
+        if (!window.confirm("Apagar este orçamento do " + (row.concorrente || "concorrente") + "?"))
+            return;
+        db.from("benchmark_orcamento").delete().eq("id", row.id).then(function (r) {
+            if (r.error) {
+                setMsg("Não consegui apagar: " + r.error.message);
+                return;
+            }
+            if (row.imagem_path)
+                db.storage.from("benchmark").remove([row.imagem_path]);
+            setTick(function (x) { return x + 1; });
+        });
+    };
+    var rotulo = { fontFamily: F_MARCA, fontSize: 10.5, letterSpacing: ".06em", textTransform: "uppercase", color: T.muted, fontWeight: 500, marginBottom: 4 };
+    var campo = function (nome, el) { return h("div", { style: { minWidth: 0 } }, h("div", { style: rotulo }, nome), el); };
+    var fmtData = function (d) { return d ? String(d).slice(8, 10) + "/" + String(d).slice(5, 7) + "/" + String(d).slice(0, 4) : ""; };
+    var difTxt = function (comp, nosso) {
+        if (comp == null || nosso == null)
+            return null;
+        var d = comp - nosso, p = nosso ? d / nosso : 0;
+        var cor = Math.abs(d) < 1 ? T.muted : (d < 0 ? T.bad : T.good);
+        var txt = Math.abs(d) < 1 ? "igual" : (d < 0 ? "concorrente " + nReal(-d) + " mais barato" : "concorrente " + nReal(d) + " mais caro");
+        return h("span", { style: { color: cor, fontWeight: 700, fontSize: 12 } }, txt, Math.abs(d) >= 1 ? " (" + (p > 0 ? "+" : "−") + Math.abs(Math.round(p * 100)) + "%)" : "");
+    };
+    /* ---------- área de envio ---------- */
+    var envio = null;
+    if (etapa === "idle") {
+        envio = h(Card, { className: "p20", style: { borderStyle: "dashed", borderWidth: 2, borderColor: sobre ? T.marca : T.hair, background: sobre ? "#FFF8E1" : T.surface, textAlign: "center" } },
+            h("div", {
+                onDragOver: function (ev) { ev.preventDefault(); setSobre(true); },
+                onDragLeave: function () { setSobre(false); },
+                onDrop: function (ev) { ev.preventDefault(); setSobre(false); var f = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]; if (f)
+                    comecar(f); },
+                style: { padding: "14px 6px" }
+            },
+            h("div", { style: { fontFamily: F_MARCA, fontSize: 16, fontWeight: 700 } }, "Jogue aqui o print do orçamento do concorrente"),
+            h("div", { style: { fontSize: 13, color: T.ink2, margin: "6px 0 12px", lineHeight: 1.5 } }, "Arraste a imagem, cole com Ctrl+V ou escolha o arquivo. O sistema lê o print e você confere antes de salvar."),
+            h(Btn, { kind: "accent", onClick: function () { if (inputRef.current)
+                inputRef.current.click(); } }, "Escolher print"),
+            h("input", { ref: inputRef, type: "file", accept: "image/*", style: { display: "none" }, onChange: function (ev) { var f = ev.target.files && ev.target.files[0]; ev.target.value = ""; if (f)
+                comecar(f); } })));
+    }
+    else if (etapa === "lendo") {
+        envio = h(Card, { className: "p20", style: { textAlign: "center", fontSize: 14, color: T.ink2 } }, "Lendo o print… isso leva alguns segundos.");
+    }
+    else if (etapa === "revisar" && form) {
+        var pk = form.tipo_carro === "pickup";
+        envio = h(Card, { className: "p16" },
+            h("div", { className: "bench-rev", style: { display: "grid", gap: 14, gridTemplateColumns: "minmax(0,1fr)" } },
+                img && h("div", null, h("img", { src: img.url, alt: "Print do orçamento", style: { maxWidth: "100%", maxHeight: 280, borderRadius: 8, border: "1px solid " + T.hair, display: "block" } })),
+                h("div", { style: { display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))" } },
+                    campo("Concorrente *", h(Inp, { value: form.concorrente, onChange: function (e) { return setCampo("concorrente", e.target.value); }, list: "bench-conc", placeholder: "Nome da loja" })),
+                    campo("Carro", h(Inp, { value: form.carro, onChange: function (e) { return setCampo("carro", e.target.value); }, placeholder: "Ex.: Corolla 2022" })),
+                    campo("Tipo de carro", h(Select, { value: form.tipo_carro, onChange: function (v) { return setCampo("tipo_carro", v); }, options: [{ v: "passeio", l: "Passeio" }, { v: "pickup", l: "Pick-up (+15% no nosso)" }], style: { width: "100%", boxSizing: "border-box", padding: "8px 9px" } })),
+                    campo("Unidade do concorrente", h(Inp, { value: form.unidade, onChange: function (e) { return setCampo("unidade", e.target.value); }, placeholder: "Se aparecer no print" })),
+                    campo("Condição de pagamento", h(Inp, { value: form.pagamento, onChange: function (e) { return setCampo("pagamento", e.target.value); }, placeholder: "Ex.: 10x sem juros" })),
+                    campo("Data do orçamento", h(Inp, { type: "date", value: form.data_orcamento, onChange: function (e) { return setCampo("data_orcamento", e.target.value); } }))),
+                campo("Observação (garantia, prazo, brinde…)", h(Inp, { value: form.observacao, onChange: function (e) { return setCampo("observacao", e.target.value); } })),
+                h("div", null,
+                    h("div", { style: __assign(__assign({}, rotulo), { marginBottom: 8 }) }, "Produtos e serviços do orçamento"),
+                    form.itens.map(function (it, ix) {
+                        var nit = it.nosso_item_id ? benchItemNosso(it.nosso_item_id) : null;
+                        var ops = nit ? opcoesDoItem(nit) : [];
+                        var np = nit ? benchNossoPreco(it.nosso_item_id, it.nosso_opcao, pk) : null;
+                        var pc = benchPreco(it.preco);
+                        return h("div", { key: ix, style: { border: "1px solid " + T.hair, borderRadius: 8, padding: 10, marginBottom: 8, background: "#FAFAFA" } },
+                            h("div", { style: { display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" } },
+                                campo("Categoria", h(Select, { value: it.categoria, onChange: function (v) { return setItem(ix, "categoria", v); }, options: BENCH_CATS.map(function (c) { return { v: c, l: c }; }), style: { width: "100%", boxSizing: "border-box", padding: "8px 9px" } })),
+                                campo("Produto / serviço", h(Inp, { value: it.produto, onChange: function (e) { return setItem(ix, "produto", e.target.value); }, placeholder: "Como está no print" })),
+                                campo("Preço (R$)", h(Inp, { value: it.preco, inputMode: "decimal", onChange: function (e) { return setItem(ix, "preco", e.target.value); }, placeholder: "0,00" })),
+                                campo("Condição do item", h(Inp, { value: it.condicao, onChange: function (e) { return setItem(ix, "condicao", e.target.value); }, placeholder: "Garantia, parcelas…" }))),
+                            h("div", { style: { display: "grid", gap: 8, gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", marginTop: 8, alignItems: "end" } },
+                                campo("Nosso item equivalente", h("select", { value: it.nosso_item_id, onChange: function (e) { return setItem(ix, "nosso_item_id", e.target.value); }, style: __assign(__assign({}, inputStyle), { padding: "8px 9px" }) },
+                                    h("option", { value: "" }, "— sem equivalente —"),
+                                    PRECOS_CATS.map(function (c) { return h("optgroup", { key: c, label: c }, PRECOS_ITENS.filter(function (x) { return x.cat === c; }).map(function (x) { return h("option", { key: x.id, value: x.id }, x.linha); })); }))),
+                                nit && ops.length > 1 ? campo("Opção do nosso item", h(Select, { value: it.nosso_opcao, onChange: function (v) { return setItem(ix, "nosso_opcao", v); }, options: ops.map(function (o, k) { return { v: String(k), l: (o.r || "único") + " · " + nReal(o.p * (pk ? FATOR_PICKUP : 1)) }; }), style: { width: "100%", boxSizing: "border-box", padding: "8px 9px" } })) : h("div", null),
+                                h("div", { style: { fontSize: 13, lineHeight: 1.5 } },
+                                    nit && np != null && h("div", null, "Nosso preço: ", h("b", null, nReal(np))),
+                                    nit && np == null && h("div", { style: { color: T.muted } }, "Item sem preço de tabela (avaliação)."),
+                                    pc != null && np != null && difTxt(pc, np))),
+                            h("div", { style: { textAlign: "right", marginTop: 6 } }, h("button", { type: "button", onClick: function () { return tirarItem(ix); }, style: { fontFamily: F_UI, fontSize: 12, color: T.bad, background: "none", border: "none", cursor: "pointer", fontWeight: 600 } }, "Tirar este item")));
+                    }),
+                    h(Btn, { onClick: function () { setForm(function (f) { return __assign(__assign({}, f), { itens: f.itens.concat([benchItemVazio()]) }); }); } }, "+ Adicionar item")),
+                h("div", { style: { display: "flex", gap: 10, flexWrap: "wrap" } },
+                    h(Btn, { kind: "accent", onClick: salvar }, salvando ? "Salvando…" : "Confirmar e salvar"),
+                    h(Btn, { onClick: cancelar }, "Descartar"))));
+    }
+    /* ---------- lista ---------- */
+    var rows = lista.rows;
+    var concs = rows.map(function (r) { return r.concorrente; }).filter(function (x, i, a) { return x && a.indexOf(x) === i; }).sort();
+    var q = busca.trim().toLowerCase();
+    var visiveis = rows.filter(function (r) {
+        if (fConc !== "__all" && r.concorrente !== fConc)
+            return false;
+        var its = r.itens || [];
+        if (fCat !== "Todos" && !its.some(function (i) { return i.categoria === fCat; }))
+            return false;
+        if (q && [r.concorrente, r.carro, r.unidade, r.pagamento, r.observacao, r.enviado_por].concat(its.map(function (i) { return [i.produto, i.marca, i.nosso_item].join(" "); })).join(" ").toLowerCase().indexOf(q) < 0)
+            return false;
+        return true;
+    });
+    var nItens = 0, nComp = 0, nBarato = 0;
+    rows.forEach(function (r) { (r.itens || []).forEach(function (i) { nItens++; if (i.preco != null && i.nosso_preco != null) {
+        nComp++;
+        if (i.preco < i.nosso_preco - 1)
+            nBarato++;
+    } }); });
+    return h("div", null,
+        h("datalist", { id: "bench-conc" }, concs.map(function (c) { return h("option", { key: c, value: c }); })),
+        msg && h(Card, { className: "p12", style: { marginBottom: 10, fontSize: 13, background: /^Salvo/.test(msg) ? "#E6F4EE" : "#FFF8E1", borderColor: /^Salvo/.test(msg) ? "#B6DCCB" : "#F0DDA0" } }, msg),
+        envio,
+        h("div", { className: "grid-kpi", style: { gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", marginTop: 14 } },
+            h(Kpi, { label: "Orçamentos cadastrados", value: nInt(rows.length), sub: "prints confirmados" }),
+            h(Kpi, { label: "Concorrentes", value: nInt(concs.length), sub: "com orçamento" }),
+            h(Kpi, { label: "Itens comparados", value: nInt(nComp), sub: "de " + nInt(nItens) + " itens" }),
+            h(Kpi, { label: "Concorrente mais barato", value: nInt(nBarato), sub: "itens abaixo do nosso preço", tone: nBarato ? "bad" : undefined })),
+        h(Card, { className: "p12", style: { marginTop: 14 } },
+            h("div", { style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
+                h("input", { type: "search", value: busca, onChange: function (e) { return setBusca(e.target.value); }, placeholder: "Buscar concorrente, produto ou carro", style: __assign(__assign({}, inputStyle), { width: 280, maxWidth: "100%" }) }),
+                h(Select, { value: fConc, onChange: setFConc, options: [{ v: "__all", l: "Todos os concorrentes" }].concat(concs.map(function (c) { return { v: c, l: c }; })) })),
+            h("div", { style: { marginTop: 10 } }, h(Chips, { value: fCat, onChange: setFCat, options: [["Todos", "Todos"]].concat(BENCH_CATS.map(function (c) { return [c, c]; })) }))),
+        lista.carregando && h("div", { style: { padding: 14, fontSize: 13, color: T.muted } }, "Carregando…"),
+        lista.erro && h("div", { style: { padding: 14, fontSize: 13, color: T.bad } }, "Não consegui carregar os orçamentos: " + lista.erro),
+        !lista.carregando && !lista.erro && !visiveis.length && h(Card, { className: "p16", style: { marginTop: 12, fontSize: 13, color: T.muted } }, rows.length ? "Nada encontrado com esses filtros." : "Ainda não há orçamentos de concorrentes. Jogue o primeiro print acima."),
+        h("div", { style: { display: "grid", gap: 10, marginTop: 12 } }, visiveis.map(function (r) {
+            var its = (r.itens || []).filter(function (i) { return fCat === "Todos" || i.categoria === fCat; });
+            return h(Card, { key: r.id, className: "p16" },
+                h("div", { style: { display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "flex-start" } },
+                    h("div", null,
+                        h("div", { style: { fontFamily: F_MARCA, fontSize: 16, fontWeight: 700 } }, r.concorrente || "Concorrente sem nome"),
+                        h("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 3, lineHeight: 1.5 } },
+                            [r.carro, r.tipo_carro === "pickup" ? "pick-up" : null, r.unidade, r.pagamento].filter(Boolean).join(" · "),
+                            r.observacao ? h("div", null, r.observacao) : null),
+                        h("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 3 } }, "Enviado por " + (r.enviado_por || "—") + " em " + fmtData(r.data_orcamento || String(r.criado_em).slice(0, 10)))),
+                    h("div", { style: { display: "flex", gap: 8 } },
+                        r.imagem_path && h(Btn, { onClick: function () { return abrirPrint(r.imagem_path); } }, "Ver print"),
+                        (gestor || (user && r.criado_por === user.id)) && h(Btn, { onClick: function () { return apagar(r); }, style: { color: T.bad } }, "Apagar"))),
+                h("div", { className: "rolagem", style: { marginTop: 10 } },
+                    h("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 560 } },
+                        h("thead", null, h("tr", null, h(Th, null, "Produto / serviço"), h(Th, { right: true }, "Concorrente"), h(Th, null, "Nosso item"), h(Th, { right: true }, "Nosso preço"), h(Th, null, "Diferença"))),
+                        h("tbody", null, its.map(function (i, k) {
+                            return h("tr", { key: k },
+                                h(Td, { bold: true, style: { whiteSpace: "normal", minWidth: 170 } }, i.produto || "—", i.condicao ? h("div", { style: { fontWeight: 400, fontSize: 11.5, color: T.muted } }, i.condicao) : null),
+                                h(Td, { right: true, bold: true }, i.preco != null ? nReal(i.preco) : "—"),
+                                h(Td, { color: T.ink2, style: { whiteSpace: "normal", minWidth: 150 } }, i.nosso_item ? i.nosso_item + (i.nosso_opcao ? " · " + i.nosso_opcao : "") : "—"),
+                                h(Td, { right: true }, i.nosso_preco != null ? nReal(i.nosso_preco) : "—"),
+                                h(Td, { style: { whiteSpace: "normal", minWidth: 150 } }, difTxt(i.preco, i.nosso_preco) || ""));
+                        })))));
+        })),
+        ver && h("div", { onClick: function () { return setVer(null); }, style: { position: "fixed", inset: 0, background: "rgba(0,0,0,.75)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, cursor: "zoom-out" } },
+            h("img", { src: ver, alt: "Print do orçamento", style: { maxWidth: "100%", maxHeight: "100%", borderRadius: 8, background: "#fff" } })));
+}
 /* v96: aba própria de Benchmark (pesquisa de mercado), tirada da Biblioteca */
 function AbaBenchmark() {
     return (React.createElement("div", { className: "bibsr" },
-        React.createElement(Secao, { n: 1, titulo: "Pesquisa de mercado", nota: "Levantamento de 10/09/2026, São Paulo capital. Concorrentes do Car Service." },
+        React.createElement(Secao, { n: 1, titulo: "Orçamentos de concorrentes (prints)", nota: "O cliente mandou o orçamento de outra loja? Jogue o print aqui. O sistema lê, você confere e salva. Fica o preço do concorrente ao lado do nosso." },
+            React.createElement(BenchmarkPrints, null)),
+        React.createElement(Secao, { n: 2, titulo: "Pesquisa de mercado", nota: "Levantamento de 10/09/2026, São Paulo capital. Concorrentes do Car Service." },
             React.createElement("div", { className: "grid-kpi", style: { gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", maxWidth: 720 } },
                 React.createElement(Kpi, { label: "Concorrentes mapeados", value: "30", sub: "5 por frente" }),
                 React.createElement(Kpi, { label: "Credenciados 3M", value: "8", sub: "pelo que cada loja declara no site" })),
@@ -5130,7 +5506,7 @@ function AbaBenchmark() {
                 React.createElement("div", { style: { fontSize: 12.5, marginTop: 10, background: "#FFF8E1", border: "1px solid #F0DDA0", borderRadius: 8, padding: "9px 11px", lineHeight: 1.5 } },
                     React.createElement("b", null, "Dica para a conversa:"),
                     " o selo 3M de película de vidro não cobre PPF. Pergunte se a loja é credenciada em proteção de pintura."))),
-        React.createElement(Secao, { n: 2, titulo: "O cliente diz → o concorrente → como a gente conduz" },
+        React.createElement(Secao, { n: 3, titulo: "O cliente diz → o concorrente → como a gente conduz" },
             React.createElement("div", { style: { display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 300px), 1fr))" } },
                 PESQ_OBJECOES.map(function (r) { return (React.createElement(Card, { key: r[0], className: "p16" },
                     React.createElement("div", { style: { fontWeight: 700, fontSize: 13.5, overflowWrap: "anywhere" } }, r[0]),
