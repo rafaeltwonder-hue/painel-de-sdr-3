@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v132">
+<meta name="painel-versao" content="v133">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -3903,8 +3903,10 @@ function TreinoFeedback(_a) {
                                 errosG[u.conversation_id] && React.createElement("div", { style: { fontSize: 12.5, color: T.bad, marginTop: 6, lineHeight: 1.4 } }, errosG[u.conversation_id]))))))); })));
 }
 function AbaTreinador(_a) {
-    var nome = _a.nome, semPlacar = _a.semPlacar, membros = _a.membros, todos = _a.todos, negocioPainel = _a.negocio;
-    var _fr = __read(useState(negocioPainel === "car_store" ? "car_store" : "car_service"), 2), fr = _fr[0], setFr = _fr[1];
+    var nome = _a.nome, semPlacar = _a.semPlacar, membros = _a.membros, todos = _a.todos, negocioPainel = _a.negocio, revisor = !!_a.revisor;
+    if (revisor)
+        semPlacar = true;
+    var _fr = __read(useState(revisor ? "bdr" : (negocioPainel === "car_store" ? "car_store" : "car_service")), 2), fr = _fr[0], setFr = _fr[1];
     var ehBdr = fr === "bdr";
     var ehSt = fr !== "car_service";
     var NIVEIS = ehBdr ? TREINO_NIVEIS_BDR : (fr === "car_store" ? TREINO_NIVEIS_STORE : TREINO_NIVEIS);
@@ -3972,8 +3974,8 @@ function AbaTreinador(_a) {
     var nPersonas = NIVEIS.reduce(function (s, n) { return s + n.personas.length; }, 0);
     var botFr = function (id, rot) { return React.createElement("button", { key: id, onClick: function () { setFr(id); }, style: { fontFamily: F_UI, fontSize: 13, fontWeight: 700, padding: "7px 14px", borderRadius: 6, cursor: "pointer", border: "1px solid " + (fr === id ? T.marca : T.hair), background: fr === id ? T.marca : "transparent", color: fr === id ? T.preto : T.ink2 } }, rot); };
     return (React.createElement("div", null,
-        React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" } }, botFr("car_service", "Car Service"), botFr("car_store", "Car Store"), botFr("bdr", "BDR")),
-        React.createElement("div", { className: "grid-kpi" },
+        revisor ? null : React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" } }, botFr("car_service", "Car Service"), botFr("car_store", "Car Store"), botFr("bdr", "BDR")),
+        React.createElement("div", { className: "grid-kpi", style: revisor ? { display: "none" } : undefined },
             React.createElement(Kpi, { label: "Personas no ar", value: nInt(nPersonas), sub: ehBdr ? "BDR \u00B7 3 por n\u00EDvel" : (ehSt ? "Car Store \u00B7 3 por n\u00EDvel" : "Car Service \u00B7 3 a 4 por n\u00EDvel") }),
             React.createElement(Kpi, { label: "Agendaram no treino", value: semPlacar ? "\u2014" : (nTodos > 0 ? Math.round(100 * agTodos / nTodos) + "%" : "\u2014"), sub: semPlacar ? "" : agTodos + " de " + nTodos + (ehBdr ? " ligações dos BDRs" : " ligações (SDRs e closers)") }),
             React.createElement(Kpi, { label: "Treinos do time", value: semPlacar ? "—" : nInt(totalTreinos), sub: (ehBdr ? "BDRs" : "SDRs") + " nesta semana (liga\u00E7\u00F5es de 60 s ou mais). Meta: 3 por pessoa" }),
@@ -3996,7 +3998,7 @@ function AbaTreinador(_a) {
                         React.createElement("div", { style: { fontSize: 12, color: T.muted, lineHeight: 1.4, marginTop: 2 } }, p.gancho)),
                     React.createElement("a", { href: TREINO_LINK + p.id + (nome ? "&var_sdr_nome=" + encodeURIComponent(nome) : ""), target: "_blank", rel: "noopener noreferrer", style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "7px 11px", borderRadius: 6, background: T.marca,
                             color: T.preto, textDecoration: "none", whiteSpace: "nowrap", border: "1px solid ".concat(T.marca) } }, "\uD83D\uDCDE Ligar"))); }))); }))),
-        React.createElement(TreinoFeedback, { frente: fr, todos: todos, tick: tick, aoAtualizar: function () { return setTick(function (t) { return t + 1; }); } }),
+        !revisor && React.createElement(TreinoFeedback, { frente: fr, todos: todos, tick: tick, aoAtualizar: function () { return setTick(function (t) { return t + 1; }); } }),
         !semPlacar && React.createElement(Secao, { n: 3, titulo: "Placar da semana", nota: "Meta: " + TREINO_META + " treinos por pessoa por semana. Só contam ligações de 60 segundos ou mais. A nota é a soma dos critérios cumpridos (não a nota solta da IA). \"Agendou\" é em quantas dessas ligações a pessoa conseguiu marcar a visita." + (ehSt ? " Aqui passa quem faz 75 ou mais." : "") + (pl.erro ? " Não consegui ler o placar: " + pl.erro : "") },
             React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
                 React.createElement("div", { className: "rolagem" },
@@ -4072,7 +4074,7 @@ function AbaTreinador(_a) {
                                     Math.floor((u.duracao_s || 0) / 60),
                                     ":",
                                     ((u.duracao_s || 0) % 60 < 10 ? "0" : "") + ((u.duracao_s || 0) % 60)))); })))))),
-        React.createElement(Secao, { n: semPlacar ? 3 : 5, titulo: "Como a nota sai", nota: (ehBdr ? "Igual nos 12 clientes do BDR. A nota é a soma dos pesos dos critérios cumpridos (0 a 100) e passa quem faz 75 ou mais. Se houver erro eliminatório (passar preço ou desconto fora do cupom, prometer algo que depende do closer ou oferecer cupom diferente de 10% e 15%), a nota fica em no máximo 74. " : ehSt ? "Igual nos 12 clientes da Car Store. A nota é a soma dos pesos dos critérios cumpridos (0 a 100) e passa quem faz 75 ou mais. Se houver erro eliminatório (passar ou confirmar o valor do carro do cliente, prometer parcela, taxa ou aprovação, usar a palavra “consignação” ou citar condição além da comissão de 6%), a nota fica em no máximo 74. " : "Igual nos 13 clientes. A nota \u00E9 a soma dos pesos dos crit\u00E9rios cumpridos (0 a 100). ") + "Cada liga\u00E7\u00E3o tamb\u00E9m diz se o SDR agendou e traz um ponto de treino: a frase que ele disse, ao lado de uma vers\u00E3o melhor." },
+        React.createElement(Secao, { n: revisor ? 2 : (semPlacar ? 3 : 5), titulo: "Como a nota sai", nota: (ehBdr ? "Igual nos 12 clientes do BDR. A nota é a soma dos pesos dos critérios cumpridos (0 a 100) e passa quem faz 75 ou mais. Se houver erro eliminatório (passar preço ou desconto fora do cupom, prometer algo que depende do closer ou oferecer cupom diferente de 10% e 15%), a nota fica em no máximo 74. " : ehSt ? "Igual nos 12 clientes da Car Store. A nota é a soma dos pesos dos critérios cumpridos (0 a 100) e passa quem faz 75 ou mais. Se houver erro eliminatório (passar ou confirmar o valor do carro do cliente, prometer parcela, taxa ou aprovação, usar a palavra “consignação” ou citar condição além da comissão de 6%), a nota fica em no máximo 74. " : "Igual nos 13 clientes. A nota \u00E9 a soma dos pesos dos crit\u00E9rios cumpridos (0 a 100). ") + "Cada liga\u00E7\u00E3o tamb\u00E9m diz se o SDR agendou e traz um ponto de treino: a frase que ele disse, ao lado de uma vers\u00E3o melhor." },
             React.createElement(Card, { className: "p20" },
                 CRIT_FR.map(function (_a) {
                     var _b = __read(_a, 2), n = _b[0], pt = _b[1];
@@ -4668,11 +4670,12 @@ function BibProva(_p) {
     return React.createElement("div", null, "Carregando…");
 }
 
-function AbaBiblioteca() {
+function AbaBiblioteca(_pb) {
+    var revisor = !!(_pb && _pb.revisor);
     var st = useState({ carregando: true, erro: null, mods: [], aulas: [], prog: [], time: [] }), dados = st[0], setDados = st[1];
     var us = useState(null), user = us[0], setUser = us[1];
     var ue = useState("todas"), fUni = ue[0], setFUni = ue[1];
-    var uf = useState("todas"), fFun = uf[0], setFFun = uf[1];
+    var uf = useState(revisor ? "bdr" : "todas"), fFun = uf[0], setFFun = uf[1];
     var ub = useState(""), busca = ub[0], setBusca = ub[1];
     var ua = useState(null), aberta = ua[0], setAberta = ua[1];
     var umo = useState(null), modAberto = umo[0], setModAberto = umo[1];
@@ -4706,7 +4709,8 @@ function AbaBiblioteca() {
             if (!vivo)
                 return;
             var erro = r[0].error || r[1].error || r[2].error || (r[3] && r[3].error);
-            setDados({ carregando: false, erro: erro ? erro.message : null, mods: r[0].data || [], aulas: r[1].data || [], prog: r[2].data || [], time: (r[3] && r[3].data) || [] });
+            var pubR = function (x) { return revisor ? __assign(__assign({}, x), { publicado: true }) : x; };
+            setDados({ carregando: false, erro: erro ? erro.message : null, mods: (r[0].data || []).map(pubR), aulas: (r[1].data || []).map(pubR), prog: r[2].data || [], time: (r[3] && r[3].data) || [] });
         }, function (e) { if (vivo)
             setDados({ carregando: false, erro: String((e && e.message) || e), mods: [], aulas: [], prog: [], time: [] }); });
         return function () { vivo = false; };
@@ -4732,7 +4736,7 @@ function AbaBiblioteca() {
         var falt = 0;
         aulasDe(m).forEach(function (a) { if (a.tipo !== "prova" && a.publicado && !feitas[a.id])
             falt++; });
-        return { faltam: falt, liberada: falt === 0 || ehAdm };
+        return { faltam: falt, liberada: falt === 0 || ehAdm || revisor };
     };
     /* aulas de um módulo que passam nos filtros de unidade e função (vazio herda do módulo), na ordem */
     var aulasDe = function (m) {
@@ -5047,7 +5051,7 @@ function AbaBiblioteca() {
         React.createElement("style", null, BIB_CSS),
         React.createElement(Card, { className: "p12" },
             React.createElement(Inp, { type: "search", value: busca, onChange: function (e) { return setBusca(e.target.value); }, placeholder: "Buscar aula, módulo ou documento", style: { marginBottom: 10 } }),
-            React.createElement("div", { style: { display: "flex", gap: "10px 26px", flexWrap: "wrap", alignItems: "center" } },
+            React.createElement("div", { style: { display: revisor ? "none" : "flex", gap: "10px 26px", flexWrap: "wrap", alignItems: "center" } },
                 React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
                     React.createElement(Label, null, "Unidade"),
                     React.createElement(Chips, { value: fUni, onChange: setFUni, options: [["todas", "Todas"]].concat(BIB_UNIDADES) })),
@@ -5066,7 +5070,7 @@ function AbaBiblioteca() {
             !dados.carregando && !dados.erro && !modsView.length && React.createElement(Card, { className: "p16", style: { marginTop: 12 } },
                 React.createElement("div", { style: { fontSize: 13.5, color: T.ink2 } }, ehAdm ? "Nenhum módulo neste filtro." : "Ainda não há módulos publicados para este filtro. Assim que o supervisor comercial publicar, eles aparecem aqui.")),
             React.createElement("div", { className: "bibgrid", style: { marginTop: 14 } }, modsView.map(moduloCard))),
-        React.createElement(BibDrive, { busca: busca, fUni: fUni, fFun: fFun, ehAdm: ehAdm }),
+        !revisor && React.createElement(BibDrive, { busca: busca, fUni: fUni, fFun: fFun, ehAdm: ehAdm }),
         vePerfisTodos && React.createElement(Secao, { n: 3, titulo: "Progresso do time", nota: "Percentual de aulas concluídas por pessoa e módulo, com a melhor nota da prova quando já fez. Aparece quem já concluiu pelo menos uma aula." },
             React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
                 listaTime.map(function (p) { return (React.createElement("div", { key: p.nome, style: { padding: "11px 14px", borderTop: "1px solid #EEE" } },
@@ -15387,6 +15391,37 @@ function PainelHub(_a) {
             })),
             React.createElement(HubConteudo, { aba: hub, nome: nome }))));
 }
+/* v133: casca do revisor da trilha do BDR (perfil 'bdr_revisor'). Só a trilha e o Treinador do BDR. */
+function PainelRevisor(_a) {
+    var sessao = _a.sessao;
+    var _b = __read(useState("biblioteca"), 2), aba = _b[0], setAba = _b[1];
+    var nome = nomeDoLogin(sessao);
+    var ABAS = [["biblioteca", "Trilha do BDR"], ["treinador", "Treinador do BDR"]];
+    return (React.createElement("div", { style: { background: T.canvas, minHeight: "100vh", fontFamily: F_UI, color: T.ink } },
+        React.createElement("header", { style: { background: T.preto, position: "sticky", top: 0, zIndex: 30 } },
+            React.createElement("div", { className: "wrap", style: { display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12, padding: "11px 24px" } },
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 13 } },
+                    React.createElement(Selo, { tam: 32 }),
+                    React.createElement("div", { style: { lineHeight: 1.2 } },
+                        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 15, fontWeight: 700, color: "#fff" } }, "Revisão da trilha do BDR"),
+                        React.createElement("div", { style: { fontSize: 11.5, color: "rgba(255,255,255,.6)" } }, nome ? "Olá, " + nome : "Trilha · Treinador"))),
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
+                    React.createElement("span", { style: { fontSize: 12, color: "rgba(255,255,255,.55)" } }, sessao.user.email),
+                    React.createElement("button", { onClick: function () { return db.auth.signOut(); }, style: { background: "transparent", border: "1px solid rgba(255,255,255,.28)", color: "rgba(255,255,255,.85)",
+                            borderRadius: 7, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: F_UI } }, "Sair")))),
+        React.createElement("main", { className: "wrap", style: { padding: "24px 24px 80px" } },
+            React.createElement("div", { style: { padding: "10px 14px", marginBottom: 14, borderRadius: 8, background: T.surface, border: "1px solid " + T.hair, borderLeft: "4px solid " + T.marca, fontSize: 13, lineHeight: 1.5, color: T.ink2 } },
+                React.createElement("b", { style: { color: T.ink } }, "Versão para revisão. "),
+                "O conteúdo ainda é rascunho. Leia as aulas, faça as provas e teste o Treinador. Anote suas observações por módulo e aula e envie ao Rafael."),
+            React.createElement("div", { style: { display: "flex", gap: 4, background: T.surface, border: "1px solid ".concat(T.hair), borderRadius: 8, padding: 4,
+                    marginBottom: 16, width: "fit-content", maxWidth: "100%", flexWrap: "wrap", alignItems: "center" } }, ABAS.map(function (_a) {
+                var _b = __read(_a, 2), v = _b[0], l = _b[1];
+                return (React.createElement("button", { key: v, onClick: function () { return setAba(v); }, style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700, padding: "8px 16px",
+                        border: 0, borderRadius: 5, cursor: "pointer", background: aba === v ? T.ink : "transparent", color: aba === v ? "#fff" : T.ink2 } }, l));
+            })),
+            aba === "biblioteca" && React.createElement(AbaBiblioteca, { revisor: true }),
+            aba === "treinador" && React.createElement(AbaTreinador, { nome: nome, revisor: true, semPlacar: true, todos: false, negocio: "car_service" }))));
+}
 function App() {
     var _a = __read(useState(undefined), 2), sessao = _a[0], setSessao = _a[1];
     useEffect(function () {
@@ -15433,6 +15468,8 @@ function App() {
        closer vê só o dele; a gerente (Gerente Geral Comercial) vê todos.
        O banco garante isso (pode_closer); aqui é só a porta certa. */
     var perfilSessao = ((sessao && sessao.user && sessao.user.app_metadata) || {}).perfil || "";
+    if (sessao && perfilSessao === "bdr_revisor")
+        return React.createElement(PainelRevisor, { sessao: sessao });
     if (sessao && perfilSessao === "closer")
         return React.createElement(PainelCloser, { sessao: sessao });
     if (sessao && perfilSessao === "gerente")
