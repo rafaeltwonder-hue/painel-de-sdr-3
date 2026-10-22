@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v129">
+<meta name="painel-versao" content="v130">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -3620,6 +3620,47 @@ var TREINO_CRITERIOS = [
     ["Abertura", 10], ["Personalização", 15], ["Diagnóstico", 20], ["Condução de preço", 15],
     ["Valor da visita", 10], ["Fechamento", 20], ["Respeito", 10],
 ];
+/* v130: Treinador da Car Store. 12 clientes (3 por nível), 8 critérios, passa com 75. */
+var TREINO_PASSA_STORE = 75;
+var TREINO_NIVEIS_STORE = [
+    { id: "Easy", cor: T.good, min: "~3 min", txt: "Cliente receptivo. Pra pegar o ritmo.", personas: [
+            { nome: "Carla", gancho: "Quer vender · quer o valor sem ir à loja", carro: "Jeep Compass 2021", quer: "Vender o carro", id: "agent_1701m5j4hb1af0kawybp1zx984ct" },
+            { nome: "Eduardo", gancho: "“Preciso pensar”", carro: "Audi A4 2019", quer: "Vender o carro", id: "agent_0001m5j4kkhnevcber8gv93tb8z8" },
+            { nome: "Juliana", gancho: "Quer comprar, com o carro na troca e financiamento", carro: "Onix 2018 na troca", quer: "Comprar um SUV do estoque", id: "agent_9301m5j4kp3cebhr2s8hwktckggd" }
+        ] },
+    { id: "Normal", cor: T.warn, min: "~5 min", txt: "Tem objeção e compara. Pede condução.", personas: [
+            { nome: "Roberto", gancho: "Prefere vender sozinho", carro: "Porsche Macan 2018", quer: "Vender o carro", id: "agent_7201m5j4krghf8w89yck7wj50h1s" },
+            { nome: "Márcia", gancho: "“Meu carro vale mais”", carro: "BMW X1 2020", quer: "Vender o carro", id: "agent_7701m5j4ktyxewp8k90v5qb0vmmh" },
+            { nome: "André", gancho: "“A loja paga menos”", carro: "Toyota Corolla 2022", quer: "Vender o carro", id: "agent_7501m5j4kydff70a4xd79kxkeg4k" }
+        ] },
+    { id: "Hard", cor: "#C85A16", min: "~7 min", txt: "Pressiona por valor e condição.", personas: [
+            { nome: "Paulo César", gancho: "Recusa consignação · acha a comissão alta", carro: "Mercedes C300 2019", quer: "Vender o carro", id: "agent_6801m5j4m1a9fdwsnec0svnaet24" },
+            { nome: "Fernanda", gancho: "“Achei mais barato em outro lugar”", carro: "Volvo XC60 2020", quer: "Vender o carro", id: "agent_9601m5j4m45se62btpj9sf2vyfja" },
+            { nome: "Cláudio", gancho: "Mora longe · quer o valor fechado", carro: "Honda HR-V 2021", quer: "Vender o carro", id: "agent_0301m5j4m6z7fkkt33e3y4fgggr8" }
+        ] },
+    { id: "Infernal", cor: T.bad, min: "~10 min", txt: "Sem paciência. Um erro de regra e perde o cliente.", personas: [
+            { nome: "Wagner", gancho: "Mistura todas as objeções", carro: "Land Rover Defender 2021", quer: "Vender o carro", id: "agent_2701m5j4m9swettsnvfwrg9qbhv0" },
+            { nome: "Rubens", gancho: "Só quer o número · compara lojas", carro: "VW T-Cross 2022", quer: "Saber quanto paga", id: "agent_4501m5j4mca6f8589ayega0x6m61" },
+            { nome: "Tatiana", gancho: "Desconfia de golpe", carro: "Toyota SW4 2020", quer: "Vender o carro", id: "agent_9601m5j4meznf1ktpzqy6g255hfc" }
+        ] },
+];
+var TREINO_PERSONAS_STORE = [];
+TREINO_NIVEIS_STORE.forEach(function (n) { n.personas.forEach(function (x) { TREINO_PERSONAS_STORE.push(x.nome); }); });
+var TREINO_CRITERIOS_STORE = [
+    ["Velocidade e contexto", 10], ["Rapport e linguagem", 10], ["Diagnóstico", 25], ["Conhecimento de produto", 15],
+    ["Construção de valor", 15], ["Condução e objeções", 10], ["Próxima ação", 10], ["Kommo e passagem", 5],
+];
+var TREINO_CHAVES_STORE = ["velocidade_contexto", "rapport_linguagem", "diagnostico", "conhecimento_produto", "construcao_valor", "conducao_objecoes", "proxima_acao", "kommo_passagem"];
+var TREINO_COMO_STORE = {
+    velocidade_contexto: "Nas primeiras falas, diga seu nome, a empresa e de onde veio o contato, já ligando ao interesse do cliente (comprar, vender ou intermediar).",
+    rapport_linguagem: "Fale natural e claro e chame o cliente pelo nome. Abra em 5 partes: cumprimento com nome, empresa, origem do contato, permissão e motivo.",
+    diagnostico: "Faça uma pergunta por vez e levante modelo, ano, km, situação do carro, a motivação e o valor que o cliente espera, ANTES de explicar os caminhos.",
+    conhecimento_produto: "Explique só o caminho que cabe ao cliente. Não use a palavra “consignação”, cite apenas a comissão de 6% (cobrada só se o carro vender) e não prometa parcela, taxa ou aprovação.",
+    construcao_valor: "Ligue o caminho ao que o cliente disse que importa e mostre o que ele ganha indo à loja: avaliação presencial sem compromisso e conversa com o avaliador ou o closer.",
+    conducao_objecoes: "Use o método ANA: acolher, perguntar, apresentar. Nunca passe nem confirme o valor do carro: o valor só é firme na avaliação presencial.",
+    proxima_acao: "Ofereça DUAS opções de dia e horário, com a unidade (Ipiranga ou Bandeirantes), e confirme dia, horário e unidade no fim.",
+    kommo_passagem: "Resuma o combinado (dia, horário, unidade, interesse e carro) e diga o que vai registrar no Kommo ou que vai passar ao closer ou ao avaliador."
+};
 var TREINO_SDRS = ["Paulo Allan", "Milena", "Marcos", "Alessandro", "Alexandre Nogueira"];
 /* v92: segunda-feira da semana atual em São Paulo (UTC-3, sem horário de verão), como "AAAA-MM-DD". */
 function segundaSP() {
@@ -3669,7 +3710,7 @@ function chamaTreino(nome, corpo) {
     }, function (e) { return { ok: false, erro: String((e && e.message) || e) }; });
 }
 function TreinoFeedback(_a) {
-    var todos = _a.todos, tick = _a.tick, aoAtualizar = _a.aoAtualizar;
+    var todos = _a.todos, tick = _a.tick, aoAtualizar = _a.aoAtualizar, frente = _a.frente || "car_service";
     var _bz = __read(useState(false), 2), ocupado = _bz[0], setOcupado = _bz[1];
     var _mz = __read(useState(""), 2), aviso = _mz[0], setAviso = _mz[1];
     var _gz = __read(useState({}), 2), gerando = _gz[0], setGerando = _gz[1];
@@ -3679,8 +3720,8 @@ function TreinoFeedback(_a) {
     var _d = __read(useState(""), 2), quem = _d[0], setQuem = _d[1];
     useEffect(function () {
         var vivo = true;
-        db.from("treino_ligacao").select("conversation_id,sdr_nome,persona,nivel,iniciada_em,duracao_s,nota,agendou,conta,criterios,ponto_de_treino,pontos_melhoria")
-            .not("sdr_nome", "is", null).order("iniciada_em", { ascending: false }).limit(60)
+        db.from("treino_ligacao").select("conversation_id,sdr_nome,persona,nivel,iniciada_em,duracao_s,nota,agendou,conta,criterios,ponto_de_treino,pontos_melhoria,erro_eliminatorio")
+            .not("sdr_nome", "is", null).order("iniciada_em", { ascending: false }).limit(120)
             .then(function (r) { if (vivo)
             setSt({ carregando: false, erro: r.error ? r.error.message : null, rows: r.data || [] }); }, function (e) { if (vivo)
             setSt({ carregando: false, erro: String((e && e.message) || e), rows: [] }); });
@@ -3734,12 +3775,14 @@ function TreinoFeedback(_a) {
             }
         });
     };
+    var ehLigStore = function (u) { var c = u.criterios || {}; return Object.prototype.hasOwnProperty.call(c, "velocidade_contexto") || TREINO_PERSONAS_STORE.indexOf(u.persona) >= 0; };
+    var base = st.rows.filter(function (u) { return (ehLigStore(u) ? "car_store" : "car_service") === frente; });
     var nomes = [];
     var minus = function (v) { return String(v || "").toLowerCase().trim(); };
-    st.rows.forEach(function (u) { if (u.sdr_nome && !nomes.some(function (n) { return minus(n) === minus(u.sdr_nome); }))
+    base.forEach(function (u) { if (u.sdr_nome && !nomes.some(function (n) { return minus(n) === minus(u.sdr_nome); }))
         nomes.push(u.sdr_nome); });
     nomes.sort(function (a, b) { return String(a).localeCompare(String(b)); });
-    var rows = quem ? st.rows.filter(function (u) { return minus(u.sdr_nome) === minus(quem); }) : st.rows;
+    var rows = quem ? base.filter(function (u) { return minus(u.sdr_nome) === minus(quem); }) : base;
     var z = function (n) { return (n < 10 ? "0" : "") + n; };
     var quando = function (iso) { var d = new Date(new Date(iso).getTime() - 3 * 3600 * 1000); return z(d.getUTCDate()) + "/" + z(d.getUTCMonth() + 1) + " " + z(d.getUTCHours()) + ":" + z(d.getUTCMinutes()); };
     var sub = "Depois de cada ligação, a nota, o que você cumpriu e os 3 pontos para melhorar aparecem aqui (leva alguns minutos). Só você vê o seu feedback.";
@@ -3751,44 +3794,50 @@ function TreinoFeedback(_a) {
             aviso && React.createElement("span", { style: { fontSize: 12.5, color: T.ink2, lineHeight: 1.4, flex: 1, minWidth: 200 } }, aviso)),
         todos && nomes.length > 1 && React.createElement("div", { style: { marginBottom: 10 } },
             React.createElement("select", { value: quem, onChange: function (e) { return setQuem(e.target.value); }, style: inputStyle },
-                React.createElement("option", { value: "" }, "Todos (" + st.rows.length + " ligações)"),
+                React.createElement("option", { value: "" }, "Todos (" + base.length + " ligações)"),
                 nomes.map(function (n) { return React.createElement("option", { key: n, value: n }, n); }))),
         rows.length === 0 && React.createElement(Card, { className: "p16" },
             React.createElement("span", { style: { color: T.muted, fontSize: 13.5 } }, st.carregando ? "Carregando…" : "Nenhuma ligação com feedback ainda. Faça um treino abaixo e volte aqui em alguns minutos.")),
         rows.slice(0, 20).map(function (u, i) {
             var aberto = ab[u.conversation_id] === undefined ? i === 0 : ab[u.conversation_id];
             var cr = u.criterios || {};
-            var temCr = TREINO_CHAVES.some(function (k) { return cr[k]; });
+            var lst = ehLigStore(u), CRIT = lst ? TREINO_CRITERIOS_STORE : TREINO_CRITERIOS, CH = lst ? TREINO_CHAVES_STORE : TREINO_CHAVES, COMO = lst ? TREINO_COMO_STORE : TREINO_COMO;
+            var elim = lst && u.erro_eliminatorio === true;
+            var passou = lst && u.conta && u.nota >= TREINO_PASSA_STORE;
+            var temCr = CH.some(function (k) { return cr[k]; });
             var pts = parsePontos(u.pontos_melhoria);
             var min = Math.floor((u.duracao_s || 0) / 60), sec = (u.duracao_s || 0) % 60;
             return (React.createElement(Card, { key: u.conversation_id, className: "p0", style: { padding: 0, overflow: "hidden", marginBottom: 10, opacity: u.conta ? 1 : 0.7 } },
                 React.createElement("button", { onClick: function () { var o = {}; Object.keys(ab).forEach(function (k) { o[k] = ab[k]; }); o[u.conversation_id] = !aberto; setAb(o); },
                     style: { width: "100%", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "12px 16px", background: "transparent", border: 0, cursor: "pointer", textAlign: "left", fontFamily: F_UI, color: T.ink } },
-                    React.createElement("span", { style: { fontFamily: F_NUM, fontWeight: 800, fontSize: 22, minWidth: 44, color: !u.conta ? T.muted : (u.nota >= 70 ? T.good : (u.nota >= 40 ? T.warn : T.bad)) } }, u.conta ? u.nota : "—"),
+                    React.createElement("span", { style: { fontFamily: F_NUM, fontWeight: 800, fontSize: 22, minWidth: 44, color: !u.conta ? T.muted : (lst ? (u.nota >= TREINO_PASSA_STORE ? T.good : (u.nota >= 50 ? T.warn : T.bad)) : (u.nota >= 70 ? T.good : (u.nota >= 40 ? T.warn : T.bad))) } }, u.conta ? u.nota : "—"),
                     React.createElement("span", { style: { flex: 1, minWidth: 160 } },
                         React.createElement("span", { style: { display: "block", fontWeight: 700, fontSize: 14 } }, (todos ? (u.sdr_nome || "—") + " · " : "") + (u.persona || "—") + (u.nivel ? " · " + u.nivel : "")),
                         React.createElement("span", { style: { display: "block", fontSize: 12, color: T.muted } }, quando(u.iniciada_em) + " · " + min + ":" + z(sec) + (u.conta ? "" : " · menos de 60 s, não conta"))),
                     u.conta && React.createElement("span", { style: { fontSize: 12, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: u.agendou ? T.good : T.hair, color: u.agendou ? "#fff" : T.ink2 } }, u.agendou ? "Agendou" : "Não agendou"),
+                    lst && u.conta && React.createElement("span", { style: { fontSize: 12, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: passou ? T.good : T.warn, color: "#fff" } }, passou ? "Passou" : "Repetir"),
+                    elim && React.createElement("span", { style: { fontSize: 12, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: T.bad, color: "#fff" } }, "Erro eliminatório"),
                     React.createElement("span", { style: { fontSize: 12, color: T.muted } }, aberto ? "▲" : "▼")),
                 aberto && React.createElement("div", { style: { borderTop: "1px solid " + T.hair, padding: 16, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 } },
                     React.createElement("div", null,
                         React.createElement(Label, null, "Critérios"),
-                        temCr ? TREINO_CRITERIOS.map(function (c, k) {
-                            var v = cr[TREINO_CHAVES[k]];
+                        temCr ? CRIT.map(function (c, k) {
+                            var v = cr[CH[k]];
                             var ok = v === "success", falhou = v === "failure";
                             return (React.createElement("div", { key: c[0], style: { display: "flex", alignItems: "center", gap: 8, padding: "4px 0", fontSize: 13.5 } },
                                 React.createElement("span", { style: { width: 18, fontWeight: 800, color: ok ? T.good : (falhou ? T.bad : T.muted) } }, ok ? "✓" : (falhou ? "✗" : "—")),
                                 React.createElement("span", { style: { flex: 1, color: falhou ? T.ink : T.ink2 } }, c[0]),
                                 React.createElement("span", { style: { fontFamily: F_NUM, fontSize: 12.5, color: ok ? T.good : T.muted } }, (ok ? "+" + c[1] : "0") + " / " + c[1])));
                         }) : React.createElement("div", { style: { fontSize: 13, color: T.muted } }, "Esta ligação não tem os critérios detalhados."),
-                        (u.conta && temCr && TREINO_CHAVES.some(function (k) { return cr[k] === "failure"; })) && React.createElement("div", { style: { marginTop: 14 } },
+                        elim && React.createElement("div", { style: { marginTop: 10, padding: "8px 10px", borderRadius: 6, border: "1px solid " + T.bad, fontSize: 13, lineHeight: 1.5 } }, React.createElement("b", { style: { color: T.bad } }, "Erro eliminatório: "), "a nota fica em no máximo 74 e a ligação não passa. Veja o ponto 1 ao lado."),
+                        (u.conta && temCr && CH.some(function (k) { return cr[k] === "failure"; })) && React.createElement("div", { style: { marginTop: 14 } },
                             React.createElement(Label, null, "O que faltou"),
-                            TREINO_CRITERIOS.map(function (c, k) {
-                                if (cr[TREINO_CHAVES[k]] !== "failure")
+                            CRIT.map(function (c, k) {
+                                if (cr[CH[k]] !== "failure")
                                     return null;
                                 return (React.createElement("div", { key: "f" + c[0], style: { padding: "7px 0", borderTop: "1px solid " + T.hair, fontSize: 13, lineHeight: 1.5 } },
                                     React.createElement("b", { style: { color: T.bad } }, c[0] + " (" + c[1] + " pts): "),
-                                    TREINO_COMO[TREINO_CHAVES[k]]));
+                                    COMO[CH[k]]));
                             }))),
                     React.createElement("div", null,
                         React.createElement(Label, null, "3 pontos para melhorar"),
@@ -3806,7 +3855,10 @@ function TreinoFeedback(_a) {
                                 errosG[u.conversation_id] && React.createElement("div", { style: { fontSize: 12.5, color: T.bad, marginTop: 6, lineHeight: 1.4 } }, errosG[u.conversation_id]))))))); })));
 }
 function AbaTreinador(_a) {
-    var nome = _a.nome, semPlacar = _a.semPlacar, membros = _a.membros, todos = _a.todos;
+    var nome = _a.nome, semPlacar = _a.semPlacar, membros = _a.membros, todos = _a.todos, negocioPainel = _a.negocio;
+    var _fr = __read(useState(negocioPainel === "car_store" ? "car_store" : "car_service"), 2), fr = _fr[0], setFr = _fr[1];
+    var ehSt = fr === "car_store";
+    var NIVEIS = ehSt ? TREINO_NIVEIS_STORE : TREINO_NIVEIS;
     var _b = __read(useState({ carregando: true, erro: null, sem: [], eq: [], ult: [], cl: [], sem_l: [] }), 2), pl = _b[0], setPl = _b[1];
     var _tk = __read(useState(0), 2), tick = _tk[0], setTick = _tk[1];
     useEffect(function () {
@@ -3814,10 +3866,10 @@ function AbaTreinador(_a) {
             return undefined;
         var vivo = true;
         Promise.all([
-            db.from("treino_semana_v").select("*").eq("semana", segundaSP()),
-            db.from("equipe_sdr").select("sdr,ativo,negocio").eq("negocio", "car_service").eq("ativo", true),
+            db.from("treino_semana_v").select("*").eq("semana", segundaSP()).eq("negocio", fr),
+            db.from("equipe_sdr").select("sdr,ativo,negocio").eq("negocio", fr).eq("ativo", true),
             db.from("treino_ultimas_v").select("conversation_id,sdr_nome,persona,nivel,iniciada_em,duracao_s,nota,agendou,conta")
-                .order("iniciada_em", { ascending: false }).limit(15),
+                .order("iniciada_em", { ascending: false }).limit(80),
             /* v112: closers. O placar do SDR vem da view; o dos closers é somado aqui, das ligações da semana. */
             db.from("map_closer").select("nome_oficial,erp_curto,ativo").eq("ativo", true),
             db.from("treino_closer_semana_v").select("*").eq("semana", segundaSP()),
@@ -3829,11 +3881,12 @@ function AbaTreinador(_a) {
         }, function (e) { if (vivo)
             setPl({ carregando: false, erro: String((e && e.message) || e), sem: [], eq: [], ult: [], cl: [], sem_l: [] }); });
         return function () { vivo = false; };
-    }, [semPlacar, tick]);
+    }, [semPlacar, tick, fr]);
     var porSdr = {};
     var semSq = membros ? pl.sem.filter(function (x) { return membroBate(membros, x.sdr); }) : pl.sem;
     var eqSq = membros ? pl.eq.filter(function (e) { return membroBate(membros, e.sdr); }) : pl.eq;
-    var ultSq = membros ? pl.ult.filter(function (u) { return membroBate(membros, u.sdr_nome); }) : pl.ult;
+    var ultSq = (membros ? pl.ult.filter(function (u) { return membroBate(membros, u.sdr_nome); }) : pl.ult)
+        .filter(function (u) { return (TREINO_PERSONAS_STORE.indexOf(u.persona) >= 0) === ehSt; }).slice(0, 15);
     semSq.forEach(function (x) { porSdr[String(x.sdr).toLowerCase()] = x; });
     var linhas = eqSq.map(function (e) { return ({ sdr: e.sdr, x: porSdr[String(e.sdr).toLowerCase()] || null }); })
         .sort(function (a, b) { return ((b.x ? b.x.treinos : 0) - (a.x ? a.x.treinos : 0)) || String(a.sdr).localeCompare(String(b.sdr)); });
@@ -3841,7 +3894,7 @@ function AbaTreinador(_a) {
     /* v112: placar dos closers (só para quem vê o time todo). Casa pelo nome oficial ou pelo nome curto. */
     var chaveN = function (v) { return String(v || "").toLowerCase().replace(/\s+/g, " ").trim(); };
     var closersNomes = (pl.cl || []).map(function (c) { return c.nome_oficial; }).filter(Boolean);
-    var linhasCl = membros ? [] : closersNomes.map(function (nm) {
+    var linhasCl = (membros || ehSt) ? [] : closersNomes.map(function (nm) {
         var curto = (pl.cl.find(function (c) { return c.nome_oficial === nm; }) || {}).erp_curto;
         var x = (pl.sem_l || []).filter(function (u) { return chaveN(u.closer) === chaveN(nm) || (curto && chaveN(u.closer) === chaveN(curto)); })[0];
         return { sdr: nm, n: x ? (x.treinos || 0) : 0, ag: x ? (x.agendou || 0) : 0, media: x ? x.media_nota : null,
@@ -3860,15 +3913,17 @@ function AbaTreinador(_a) {
         var z = function (n) { return (n < 10 ? "0" : "") + n; };
         return z(dd.getUTCDate()) + "/" + z(dd.getUTCMonth() + 1) + " " + z(dd.getUTCHours()) + ":" + z(dd.getUTCMinutes());
     };
-    var nPersonas = TREINO_NIVEIS.reduce(function (s, n) { return s + n.personas.length; }, 0);
+    var nPersonas = NIVEIS.reduce(function (s, n) { return s + n.personas.length; }, 0);
+    var botFr = function (id, rot) { return React.createElement("button", { key: id, onClick: function () { setFr(id); }, style: { fontFamily: F_UI, fontSize: 13, fontWeight: 700, padding: "7px 14px", borderRadius: 6, cursor: "pointer", border: "1px solid " + (fr === id ? T.marca : T.hair), background: fr === id ? T.marca : "transparent", color: fr === id ? T.preto : T.ink2 } }, rot); };
     return (React.createElement("div", null,
+        React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" } }, botFr("car_service", "Car Service"), botFr("car_store", "Car Store")),
         React.createElement("div", { className: "grid-kpi" },
-            React.createElement(Kpi, { label: "Personas no ar", value: nInt(nPersonas), sub: "Car Service \u00B7 3 a 4 por n\u00EDvel" }),
+            React.createElement(Kpi, { label: "Personas no ar", value: nInt(nPersonas), sub: ehSt ? "Car Store \u00B7 3 por n\u00EDvel" : "Car Service \u00B7 3 a 4 por n\u00EDvel" }),
             React.createElement(Kpi, { label: "Agendaram no treino", value: semPlacar ? "\u2014" : (nTodos > 0 ? Math.round(100 * agTodos / nTodos) + "%" : "\u2014"), sub: semPlacar ? "" : agTodos + " de " + nTodos + " ligações (SDRs e closers)" }),
             React.createElement(Kpi, { label: "Treinos do time", value: semPlacar ? "—" : nInt(totalTreinos), sub: "SDRs nesta semana (liga\u00E7\u00F5es de 60 s ou mais). Meta: 3 por pessoa" }),
-            membros ? null : React.createElement(Kpi, { label: "Closers treinando", value: semPlacar ? "—" : closersTreinaram + "/" + linhasCl.length, sub: "com ao menos 1 treino nesta semana" })),
+            (membros || ehSt) ? null : React.createElement(Kpi, { label: "Closers treinando", value: semPlacar ? "—" : closersTreinaram + "/" + linhasCl.length, sub: "com ao menos 1 treino nesta semana" })),
         React.createElement(Secao, { n: 1, titulo: "Treinar agora", nota: "Escolha o cliente e ligue pelo navegador, com o microfone. " + (nome ? "O seu nome já vai junto no link: é assim que o treino é identificado. A nota sai sozinha ao final." : "Diga o seu nome no começo da ligação: é assim que o treino é identificado. A nota sai sozinha ao final.") },
-            React.createElement("div", { className: "grid-kpi", style: { gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" } }, TREINO_NIVEIS.map(function (nv) { return (React.createElement(Card, { key: nv.id, className: "p16", style: { borderTop: "4px solid ".concat(nv.cor) } },
+            React.createElement("div", { className: "grid-kpi", style: { gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))" } }, NIVEIS.map(function (nv) { return (React.createElement(Card, { key: nv.id, className: "p16", style: { borderTop: "4px solid ".concat(nv.cor) } },
                 React.createElement("div", { style: { display: "flex", alignItems: "baseline", justifyContent: "space-between" } },
                     React.createElement("span", { style: { fontFamily: F_MARCA, fontSize: 17, fontWeight: 700, color: nv.cor } }, nv.id),
                     React.createElement("span", { style: { fontSize: 12, color: T.muted } },
@@ -3885,8 +3940,8 @@ function AbaTreinador(_a) {
                         React.createElement("div", { style: { fontSize: 12, color: T.muted, lineHeight: 1.4, marginTop: 2 } }, p.gancho)),
                     React.createElement("a", { href: TREINO_LINK + p.id + (nome ? "&var_sdr_nome=" + encodeURIComponent(nome) : ""), target: "_blank", rel: "noopener noreferrer", style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 700, padding: "7px 11px", borderRadius: 6, background: T.marca,
                             color: T.preto, textDecoration: "none", whiteSpace: "nowrap", border: "1px solid ".concat(T.marca) } }, "\uD83D\uDCDE Ligar"))); }))); }))),
-        React.createElement(TreinoFeedback, { todos: todos, tick: tick, aoAtualizar: function () { return setTick(function (t) { return t + 1; }); } }),
-        !semPlacar && React.createElement(Secao, { n: 3, titulo: "Placar da semana", nota: "Meta: " + TREINO_META + " treinos por pessoa por semana. Só contam ligações de 60 segundos ou mais. A nota é a soma dos critérios cumpridos (não a nota solta da IA). \"Agendou\" é em quantas dessas ligações a pessoa conseguiu marcar a visita." + (pl.erro ? " Não consegui ler o placar: " + pl.erro : "") },
+        React.createElement(TreinoFeedback, { frente: fr, todos: todos, tick: tick, aoAtualizar: function () { return setTick(function (t) { return t + 1; }); } }),
+        !semPlacar && React.createElement(Secao, { n: 3, titulo: "Placar da semana", nota: "Meta: " + TREINO_META + " treinos por pessoa por semana. Só contam ligações de 60 segundos ou mais. A nota é a soma dos critérios cumpridos (não a nota solta da IA). \"Agendou\" é em quantas dessas ligações a pessoa conseguiu marcar a visita." + (ehSt ? " Na Car Store, passa quem faz 75 ou mais." : "") + (pl.erro ? " Não consegui ler o placar: " + pl.erro : "") },
             React.createElement(Card, { className: "p0", style: { padding: 0, overflow: "hidden" } },
                 React.createElement("div", { className: "rolagem" },
                     React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 640 } },
@@ -3944,6 +3999,7 @@ function AbaTreinador(_a) {
                                 React.createElement(Th, null, "N\u00EDvel"),
                                 React.createElement(Th, { right: true }, "Nota"),
                                 React.createElement(Th, null, "Agendou"),
+                                ehSt && React.createElement(Th, null, "Resultado"),
                                 React.createElement(Th, { right: true }, "Dura\u00E7\u00E3o"))),
                         React.createElement("tbody", null,
                             ultSq.length === 0 && (React.createElement("tr", null,
@@ -3955,22 +4011,23 @@ function AbaTreinador(_a) {
                                 React.createElement(Td, null, u.nivel || "—"),
                                 React.createElement(Td, { right: true, bold: true }, u.conta ? u.nota : "—"),
                                 React.createElement(Td, null, u.conta ? (u.agendou ? "Sim" : "Não") : "não conta"),
+                                ehSt && React.createElement(Td, { bold: true, color: u.conta ? (u.nota >= TREINO_PASSA_STORE ? T.good : T.warn) : T.muted }, u.conta ? (u.nota >= TREINO_PASSA_STORE ? "Passou" : "Repetir") : "—"),
                                 React.createElement(Td, { right: true },
                                     Math.floor((u.duracao_s || 0) / 60),
                                     ":",
                                     ((u.duracao_s || 0) % 60 < 10 ? "0" : "") + ((u.duracao_s || 0) % 60)))); })))))),
-        React.createElement(Secao, { n: semPlacar ? 3 : 5, titulo: "Como a nota sai", nota: "Igual nos 13 clientes. A nota \u00E9 a soma dos pesos dos crit\u00E9rios cumpridos (0 a 100). Cada liga\u00E7\u00E3o tamb\u00E9m diz se o SDR agendou e traz um ponto de treino: a frase que ele disse, ao lado de uma vers\u00E3o melhor." },
+        React.createElement(Secao, { n: semPlacar ? 3 : 5, titulo: "Como a nota sai", nota: (ehSt ? "Igual nos 12 clientes da Car Store. A nota é a soma dos pesos dos critérios cumpridos (0 a 100) e passa quem faz 75 ou mais. Se houver erro eliminatório (passar ou confirmar o valor do carro do cliente, prometer parcela, taxa ou aprovação, usar a palavra “consignação” ou citar condição além da comissão de 6%), a nota fica em no máximo 74. " : "Igual nos 13 clientes. A nota \u00E9 a soma dos pesos dos crit\u00E9rios cumpridos (0 a 100). ") + "Cada liga\u00E7\u00E3o tamb\u00E9m diz se o SDR agendou e traz um ponto de treino: a frase que ele disse, ao lado de uma vers\u00E3o melhor." },
             React.createElement(Card, { className: "p20" },
-                TREINO_CRITERIOS.map(function (_a) {
+                (ehSt ? TREINO_CRITERIOS_STORE : TREINO_CRITERIOS).map(function (_a) {
                     var _b = __read(_a, 2), n = _b[0], pt = _b[1];
                     return (React.createElement("div", { key: n, style: { display: "grid", gridTemplateColumns: "minmax(120px, 190px) 1fr 44px", gap: 12, alignItems: "center", padding: "6px 0" } },
                         React.createElement("span", { style: { fontSize: 13.5, fontWeight: 600 } }, n),
-                        React.createElement(Barra, { pct: pt / 20, cor: T.ink, alt: 8 }),
+                        React.createElement(Barra, { pct: pt / (ehSt ? 25 : 20), cor: T.ink, alt: 8 }),
                         React.createElement("span", { style: { fontFamily: F_NUM, fontWeight: 700, textAlign: "right" } }, pt)));
                 }),
                 React.createElement("div", { style: { display: "flex", justifyContent: "space-between", borderTop: "1px solid ".concat(T.hair), marginTop: 8, paddingTop: 10, fontSize: 13 } },
                     React.createElement("b", null, "Total"),
-                    React.createElement("b", { style: { fontFamily: F_NUM } }, TREINO_CRITERIOS.reduce(function (s, c) { return s + c[1]; }, 0)))))));
+                    React.createElement("b", { style: { fontFamily: F_NUM } }, (ehSt ? TREINO_CRITERIOS_STORE : TREINO_CRITERIOS).reduce(function (s, c) { return s + c[1]; }, 0)))))));
 }
 /* ---------------- BIBLIOTECA + PESQUISA DE MERCADO ---------------- */
 var BIB_AREAS = ["Todas", "SDR", "BDR", "Closer", "Car Service", "Car Store", "Academy", "House Service"];
@@ -5024,10 +5081,10 @@ function AbaBenchmark() {
 }
 /* faixa de abas do Hub (usada na casca do closer). Painel principal usa o próprio menu. */
 function HubConteudo(_a) {
-    var aba = _a.aba, nome = _a.nome, semPlacar = _a.semPlacar, membros = _a.membros, todos = _a.todos;
+    var aba = _a.aba, nome = _a.nome, semPlacar = _a.semPlacar, membros = _a.membros, todos = _a.todos, negocio = _a.negocio;
     return (React.createElement("div", null,
         aba === "precos" && React.createElement(AbaPrecos, null),
-        aba === "treinador" && React.createElement(AbaTreinador, { nome: nome, semPlacar: semPlacar, membros: membros, todos: todos }),
+        aba === "treinador" && React.createElement(AbaTreinador, { nome: nome, semPlacar: semPlacar, membros: membros, todos: todos, negocio: negocio }),
         aba === "biblioteca" && React.createElement(AbaBiblioteca, null),
         aba === "benchmark" && React.createElement(AbaBenchmark, null)));
 }
@@ -5729,7 +5786,7 @@ function Painel(_a) {
             ehAdmin && aba === "lojas" && React.createElement(AbaLojas, { mes: mesAba }),
             ehAdmin && aba === "origem" && React.createElement(AbaOrigem, { mes: mesAba }),
             (ehAdmin || ehAgencia) && aba === "marketing" && React.createElement(AbaMarketing, { negocio: negocio }),
-            HUB_IDS.indexOf(aba) >= 0 && podeVer(aba) && React.createElement(HubConteudo, { aba: aba, nome: nomeDoLogin(sessao), membros: escopo.membros, todos: perfil === "admin" || perfil === "gerente" }),
+            HUB_IDS.indexOf(aba) >= 0 && podeVer(aba) && React.createElement(HubConteudo, { aba: aba, nome: nomeDoLogin(sessao), membros: escopo.membros, todos: perfil === "admin" || perfil === "gerente", negocio: negocio }),
             bdrVazio && (aba === "painel" || aba === "coordenador" || aba === "tv") && React.createElement(PainelBDR, { sessao: sessao, perfil: perfil, sq: sq }),
             aba === "coordenador" && mesAba !== mesAtualISO && !bdrVazio && React.createElement(CoordenadorMesFechado, { mes: mesAba, negocio: negocio, sessao: sessao, membros: escopo.membros, peso: escopo.peso }),
             aba === "coordenador" && mesAba === mesAtualISO && rot && !bdrVazio && React.createElement("div", { id: "coord-topo" },
