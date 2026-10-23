@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v135">
+<meta name="painel-versao" content="v136">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -12940,7 +12940,7 @@ function ProdutosOs(_a) {
             React.createElement(Pill, { cor: T.warn }, (d.resumo && d.resumo.transferir) || 0, " transferir"),
             React.createElement(Pill, { cor: T.bad }, (d.resumo && d.resumo.comprar) || 0, " comprar"),
             d.cancelada && React.createElement(Pill, { cor: T.bad }, "O.S. cancelada no ERP"),
-            React.createElement("span", { style: { color: T.muted } }, "lida do ERP ", d.lida_do_erp_em ? new Date(d.lida_do_erp_em).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—", itens[0] && itens[0].foto_de ? " · estoque da manhã de " + brData(itens[0].foto_de) : ""),
+            React.createElement("span", { style: { color: T.muted } }, d.fonte === "planilha" ? "itens da planilha do Oficina (O.S. anterior à leitura automática)" : ["lida do ERP ", d.lida_do_erp_em ? new Date(d.lida_do_erp_em).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—"].join(""), itens[0] && itens[0].foto_de ? " · estoque da manhã de " + brData(itens[0].foto_de) : ""),
             React.createElement("button", { type: "button", onClick: carregar, style: __assign(__assign({}, btnCompras), { padding: "4px 10px", minHeight: 28, background: T.surface, color: T.ink, border: "1px solid " + T.hair }) }, "Atualizar")),
         !itens.length && React.createElement("div", { style: { padding: "4px 12px 12px", fontSize: 12.5, color: T.muted } }, "Nenhum produto com controle de estoque nesta O.S. (serviço e material de consumo ficam de fora)."),
         itens.length > 0 && React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
@@ -13001,6 +13001,19 @@ function ComprasCloser(_a) {
     var s4 = useState(null), avulsa = s4[0], setAvulsa = s4[1];
     var s5 = useState(null), hist = s5[0], setHist = s5[1]; /* { id, eventos } */
     var s6 = useState(false), verFechados = s6[0], setVerFechados = s6[1];
+    var s7 = useState({ carregando: true, mapa: {} }), res = s7[0], setRes = s7[1]; /* v135b: quais O.S. têm produto */
+    var abertasNaoEntregues = osAbertas.filter(function (o) { return !o.carro_entregue; });
+    var chaveLista = abertasNaoEntregues.map(function (o) { return o.loja + "|" + o.os_numero; }).join(",");
+    var carregarResumo = function () {
+        if (!abertasNaoEntregues.length) { setRes({ mapa: {} }); return; }
+        chamaCompras({ acao: "resumo", lista: abertasNaoEntregues.map(function (o) { return { loja: o.loja, os: String(o.os_numero) }; }) }).then(function (r) {
+            if (!r.ok) { setRes({ erro: r.erro, mapa: {} }); return; }
+            var m = {};
+            ((r.data && r.data.os) || []).forEach(function (x) { m[x.loja + "|" + x.os] = x; });
+            setRes({ mapa: m });
+        });
+    };
+    useEffect(function () { carregarResumo(); }, [chaveLista]);
     var carregarPedidos = function () {
         chamaCompras({ acao: "minhas" }).then(function (r) {
             if (!r.ok) { setPed({ erro: r.erro, lista: [] }); return; }
@@ -13023,15 +13036,17 @@ function ComprasCloser(_a) {
             setHist({ id: s.id, eventos: r.ok ? (r.data && r.data.eventos) || [] : [], erro: r.ok ? null : r.erro });
         });
     };
-    var porOs = {};
-    (ped.lista || []).forEach(function (s) {
-        if (["entregue", "sem_necessidade", "cancelada"].indexOf(s.status) >= 0) return;
-        var k = s.os_codigo; porOs[k] = (porOs[k] || 0) + 1;
-    });
     var ativos = (ped.lista || []).filter(function (s) { return ["entregue", "sem_necessidade", "cancelada"].indexOf(s.status) < 0; });
     var fechados = (ped.lista || []).filter(function (s) { return ["entregue", "sem_necessidade", "cancelada"].indexOf(s.status) >= 0; });
     var mostrar = verFechados ? ativos.concat(fechados) : ativos;
-    var lista = osAbertas.filter(function (o) { return !o.carro_entregue; });
+    /* v135b: só aparecem as O.S. que têm produto com controle de estoque (serviço e consumo ficam de fora) */
+    var lista = abertasNaoEntregues.filter(function (o) { var x = res.mapa[o.loja + "|" + o.os_numero]; return x && Number(x.produtos) > 0; })
+        .sort(function (a, b) {
+            var xa = res.mapa[a.loja + "|" + a.os_numero], xb = res.mapa[b.loja + "|" + b.os_numero];
+            return (Number(xb.comprar) + Number(xb.transferir)) - (Number(xa.comprar) + Number(xa.transferir));
+        });
+    var soServico = res.carregando || res.erro ? 0 : abertasNaoEntregues.length - lista.length;
+    var aposPedido = function () { carregarPedidos(); carregarResumo(); };
     var tituloBloco = function (t) { return React.createElement("div", { style: { padding: "8px 12px", fontFamily: F_MARCA, fontWeight: 700, fontSize: 12, letterSpacing: ".06em", textTransform: "uppercase", background: "#F7F7F7", color: T.ink2 } }, t); };
     var consultarAvulsa = function () {
         var n = String(numAv || "").replace(/\D/g, "");
@@ -13041,9 +13056,9 @@ function ComprasCloser(_a) {
     return (React.createElement("div", { style: { marginTop: 16 } },
         React.createElement("div", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 15, margin: "0 0 4px" } }, "Produtos das O.S. · estoque e compras"),
         React.createElement("p", { style: { fontSize: 12.5, color: T.muted, margin: "0 0 10px", maxWidth: "80ch" } },
-            "Clique em \"Produtos\" para ver se o que você vendeu tem na loja ou em outra loja da rede. Faltou na loja e outra loja tem: \"Pedir transferência\". Ninguém tem: \"Solicitar compra\". O pedido vai para o Compras e o andamento aparece aqui embaixo. A O.S. entra até 15 min depois de lançada no Oficina."),
+            "Aqui ficam só as O.S. que têm produto (serviço fica de fora). Clique em \"Produtos\" para ver se o que você vendeu tem na loja ou em outra loja da rede. Faltou na loja e outra loja tem: \"Pedir transferência\". Ninguém tem: \"Solicitar compra\". O pedido vai para o Compras e o andamento aparece aqui embaixo. A O.S. entra até 15 min depois de lançada no Oficina."),
         React.createElement(Card, { className: "p0 rolagem", style: { marginBottom: 12 } },
-            tituloBloco("Minhas O.S. em aberto"),
+            tituloBloco("Minhas O.S. com produto" + (!res.carregando && !res.erro ? " · " + lista.length : "")),
             React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
                 React.createElement("tbody", null,
                     lista.map(function (o) {
@@ -13054,14 +13069,26 @@ function ComprasCloser(_a) {
                                 React.createElement(Td, { bold: true }, o.os_numero),
                                 React.createElement(Td, null, o.loja),
                                 React.createElement(Td, null, (o.veiculo || "") + " " + (o.placa || "")),
-                                React.createElement(Td, { right: true }, porOs[String(o.os_numero)] ? React.createElement(Pill, { cor: T.pronto }, porOs[String(o.os_numero)], " pedido", porOs[String(o.os_numero)] > 1 ? "s" : "", " em andamento") : null),
+                                (function () {
+                                    var x = res.mapa[k] || {};
+                                    return React.createElement(Td, { style: { whiteSpace: "normal" } },
+                                        React.createElement("span", { style: { display: "inline-flex", gap: 6, flexWrap: "wrap" } },
+                                            React.createElement(Pill, { cor: T.ink2 }, x.produtos, " produto", Number(x.produtos) > 1 ? "s" : ""),
+                                            Number(x.comprar) > 0 && React.createElement(Pill, { cor: T.bad }, x.comprar, " comprar"),
+                                            Number(x.transferir) > 0 && React.createElement(Pill, { cor: T.warn }, x.transferir, " transferir"),
+                                            !Number(x.comprar) && !Number(x.transferir) && React.createElement(Pill, { cor: T.good }, "tudo na loja"),
+                                            Number(x.pedidos_ativos) > 0 && React.createElement(Pill, { cor: T.pronto }, x.pedidos_ativos, " pedido", Number(x.pedidos_ativos) > 1 ? "s" : "", " em andamento")));
+                                })(),
                                 React.createElement(Td, { right: true },
                                     React.createElement("button", { type: "button", onClick: function () { setAberta(ab ? null : k); }, style: __assign(__assign({}, btnCompras), ab ? { background: T.ink, color: "#fff", border: "1px solid " + T.ink } : { background: T.surface, color: T.ink, border: "1px solid " + T.hair }) }, ab ? "Fechar" : "Produtos"))),
                             ab && React.createElement("tr", null,
                                 React.createElement("td", { colSpan: 5, style: { padding: 0, borderBottom: "2px solid " + T.ink } },
-                                    React.createElement(ProdutosOs, { loja: o.loja, os: String(o.os_numero), aoPedir: carregarPedidos }))));
+                                    React.createElement(ProdutosOs, { loja: o.loja, os: String(o.os_numero), aoPedir: aposPedido }))));
                     }),
-                    !lista.length && React.createElement("tr", null, React.createElement(Td, { color: T.muted }, "Nenhuma O.S. em aberto na sua lista."))))),
+                    !lista.length && React.createElement("tr", null, React.createElement(Td, { color: res.erro ? T.bad : T.muted },
+                        res.carregando ? "Conferindo quais O.S. têm produto…" : res.erro ? res.erro : "Nenhuma O.S. aberta com produto de estoque.")))),
+            soServico > 0 && React.createElement("div", { style: { padding: "8px 12px", fontSize: 12, color: T.muted } },
+                soServico, " O.S. só com serviço ficaram de fora desta lista.")),
         React.createElement(Card, { className: "p16", style: { marginBottom: 12 } },
             React.createElement(Label, null, "Consultar outra O.S."),
             React.createElement("div", { style: { fontSize: 12, color: T.ink2, margin: "4px 0 8px" } }, "Acabou de lançar e ela ainda não está na sua lista? Consulte pelo número."),
@@ -13071,7 +13098,7 @@ function ComprasCloser(_a) {
                 React.createElement("button", { type: "button", onClick: consultarAvulsa, style: __assign(__assign({}, btnCompras), { background: T.marca, color: T.preto, border: "1px solid " + T.marca }) }, "Ver produtos"),
                 avulsa && React.createElement("button", { type: "button", onClick: function () { setAvulsa(null); }, style: __assign(__assign({}, btnCompras), { background: T.surface, color: T.ink, border: "1px solid " + T.hair }) }, "Fechar")),
             avulsa && React.createElement("div", { className: "rolagem", style: { marginTop: 10, border: "1px solid " + T.hair, borderRadius: 6 } },
-                React.createElement(ProdutosOs, { key: avulsa.k, loja: avulsa.loja, os: avulsa.os, aoPedir: carregarPedidos }))),
+                React.createElement(ProdutosOs, { key: avulsa.k, loja: avulsa.loja, os: avulsa.os, aoPedir: aposPedido }))),
         React.createElement(Card, { className: "p0 rolagem" },
             tituloBloco("Meus pedidos para o Compras" + (ativos.length ? " · " + ativos.length + " em andamento" : "")),
             ped.erro && React.createElement("div", { style: { padding: 12, color: T.bad, fontSize: 12.5 } }, ped.erro),
