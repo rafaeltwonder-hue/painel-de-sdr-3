@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v136">
+<meta name="painel-versao" content="v137">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -2338,13 +2338,17 @@ function FaixaSdrHoje(_a) {
                 nInt(totLigou),
                 " ",
                 totLigou === 1 ? "recebeu" : "receberam",
-                " liga\u00E7\u00E3o")),
+                " liga\u00E7\u00E3o",
+                c.temResp && c.timeLigar && c.timeLigar.min != null && (" \u00B7 m\u00E9dia do time: 1\u00AA liga\u00E7\u00E3o " + nNum(c.timeLigar.min, 0) + " min"),
+                c.temResp && c.timeResp && c.timeResp.min != null && (" \u00B7 resposta de mensagem " + nNum(c.timeResp.min, c.timeResp.min < 10 ? 1 : 0) + " min"))),
         React.createElement("div", { style: { display: "grid", gap: 14, marginTop: 12,
                 gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))" } }, lista.map(function (p) { return (React.createElement("div", { key: p.sdr, style: { background: "#16191F", border: "1px solid ".concat(LINHA),
                 borderRadius: 8, padding: "13px 15px" } },
             React.createElement("div", { style: { fontSize: 12, letterSpacing: ".09em", textTransform: "uppercase",
                     color: CINZA, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden",
                     textOverflow: "ellipsis" } }, p.sdr),
+            c.temResp && React.createElement("div", { style: { fontSize: 10, letterSpacing: ".09em", textTransform: "uppercase",
+                    color: CINZA, fontWeight: 700, marginTop: 8 } }, "1\u00AA liga\u00E7\u00E3o"),
             React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 32, fontWeight: 700, marginTop: 5,
                     lineHeight: 1, letterSpacing: "-.02em", fontVariantNumeric: "tabular-nums",
                     color: corTempo(p.minutos) } }, p.minutos == null
@@ -2353,6 +2357,17 @@ function FaixaSdrHoje(_a) {
                     nNum(p.minutos, 0),
                     React.createElement("span", { style: { fontSize: 16, fontWeight: 500,
                             color: CINZA, marginLeft: 3 } }, "min"))),
+            c.temResp && React.createElement("div", { style: { marginTop: 11, paddingTop: 9, borderTop: "1px solid ".concat(LINHA) } },
+                React.createElement("div", { style: { fontSize: 10, letterSpacing: ".09em", textTransform: "uppercase",
+                        color: CINZA, fontWeight: 700 } }, "Resposta de mensagem"),
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 5 } },
+                    React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 26, fontWeight: 700, lineHeight: 1,
+                            letterSpacing: "-.02em", fontVariantNumeric: "tabular-nums", color: corTempo(p.respMin) } }, p.respMin == null
+                        ? React.createElement("span", { style: { fontSize: 15, fontWeight: 500, color: CINZA } }, "sem resposta medida")
+                        : React.createElement("span", null,
+                            nNum(p.respMin, p.respMin < 10 ? 1 : 0),
+                            React.createElement("span", { style: { fontSize: 14, fontWeight: 500, color: CINZA, marginLeft: 3 } }, "min"))),
+                    p.respN > 0 && React.createElement("span", { style: { fontSize: 13, color: CINZA } }, nInt(p.respN), p.respN === 1 ? " resposta" : " respostas"))),
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-end",
                     marginTop: 11, paddingTop: 9, borderTop: "1px solid ".concat(LINHA) } },
                 React.createElement("div", null,
@@ -2375,7 +2390,7 @@ function FaixaSdrHoje(_a) {
                             borderRadius: 99, background: cor, marginRight: 6 } }),
                     l));
             }),
-            React.createElement("span", { style: { marginLeft: "auto" } }, "convers\u00E3o = leads recebidos no dia \u00F7 quantos agendaram \u00B7 amadurece at\u00E9 o fim do expediente"))));
+            React.createElement("span", { style: { marginLeft: "auto" } }, "convers\u00E3o = leads recebidos no dia \u00F7 quantos agendaram \u00B7 amadurece at\u00E9 o fim do expediente" + (c.temResp ? " \u00B7 resposta de mensagem = da mensagem do lead at\u00E9 a resposta do SDR, s\u00F3 em hor\u00E1rio de expediente" : "")))));
 }
 /* ---------- modo TV ----------
 
@@ -2822,6 +2837,9 @@ function usarDados(de, ate, prevDe, negocio, escopo) {
     var _d = __read(useState([]), 2), sla = _d[0], setSla = _d[1];
     /* v136: uma linha por lead (view tempo_resposta_lead_v) — a média do dia não deixa tirar mediana. */
     var tl_ = __read(useState([]), 2), tempoLead = tl_[0], setTempoLead = tl_[1];
+    /* v137: tempo de resposta de mensagem de HOJE (view resposta_msg_v), pedido do Paulo para o Modo TV.
+       null = a view não existe ainda ou falhou: a TV simplesmente não mostra o número. */
+    var rh_ = __read(useState(null), 2), respHoje = rh_[0], setRespHoje = rh_[1];
     /* A lista nominal de quem ficou sem discagem (Rafael, 18/09). O número
        sozinho não se cobra na reunião da manhã — nome, hora e etapa sim. */
     var _f = __read(useState([]), 2), semLigacao = _f[0], setSemLigacao = _f[1];
@@ -2956,6 +2974,8 @@ function usarDados(de, ate, prevDe, negocio, escopo) {
                     buscarSePuder("Tempo por lead", function () { return doNegocio_1(db.from("tempo_resposta_lead_v")
                         .select("kommo_id,data,sdr,unidade,servico,minutos,minutos_ate_falar,minutos_ate_whatsapp,minutos_primeiro_contato,varredura")
                         .gte("data", de).lte("data", ate).order("kommo_id")); }).then(function (r) { setTempoLead(esc_1(r || [])); });
+                    buscarSePuder("Resposta de mensagem", function () { return doNegocio_1(db.from("resposta_msg_v")
+                        .select("kommo_id,sdr,minutos").eq("data", hoje()).order("kommo_id")); }).then(function (r) { setRespHoje(r === null ? null : esc_1(r)); });
                     return [4 /*yield*/, buscarSePuder("Sem ligação (nominal)", function () { return doNegocio_1(db.from("sem_ligacao_v")
                             .select("*").gte("data", de).lte("data", ate).order("criado_em")); })];
                 case 7:
@@ -3121,7 +3141,7 @@ function usarDados(de, ate, prevDe, negocio, escopo) {
         var t = setInterval(function () { buscar(); }, 5 * 60 * 1000);
         return function () { return clearInterval(t); };
     }, [buscar]);
-    return { estado: estado, fato: fato, motivos: motivos, sla: sla, tempoLead: tempoLead, semLigacao: semLigacao, oficina: oficina, agEvento: agEvento, agCoorte: agCoorte, esforco: esforco, tempoAntigo: tempoAntigo, pendentes: pendentes, carteiraEsf: carteiraEsf, robo: robo, preench: preench, qualidade: qualidade, funilAgora: funilAgora, metas: metas, falhas: falhas, saude: saude, tarefas: tarefas, semTarefa: semTarefa, rotina: rotina, recarregar: buscar };
+    return { estado: estado, fato: fato, motivos: motivos, sla: sla, tempoLead: tempoLead, respHoje: respHoje, semLigacao: semLigacao, oficina: oficina, agEvento: agEvento, agCoorte: agCoorte, esforco: esforco, tempoAntigo: tempoAntigo, pendentes: pendentes, carteiraEsf: carteiraEsf, robo: robo, preench: preench, qualidade: qualidade, funilAgora: funilAgora, metas: metas, falhas: falhas, saude: saude, tarefas: tarefas, semTarefa: semTarefa, rotina: rotina, recarregar: buscar };
 }
 /* ---------- v67: "Ver os leads" das vendas ----------
    Mostra, lead a lead, o que o cartão "Vendas" está contando — com os
@@ -5672,6 +5692,31 @@ function Painel(_a) {
         return function () { return window.removeEventListener("hashchange", ouvir); };
     }, []);
     var rot = useMemo(function () { return contasDaRotina(d.rotina, d.tarefas, d.semTarefa); }, [d.rotina, d.tarefas, d.semTarefa]);
+    /* v137: Modo TV — junta ao cartão de cada SDR o tempo médio de RESPOSTA DE MENSAGEM do dia,
+       ao lado do tempo até a primeira ligação. Só entra quem está no placar (sdrHoje). */
+    var rotTv = useMemo(function () {
+        if (!rot || !Array.isArray(d.respHoje))
+            return rot;
+        var m = new Map();
+        d.respHoje.forEach(function (r) {
+            if (r.minutos == null)
+                return;
+            var a = m.get(r.sdr) || { s: 0, n: 0 };
+            a.s += Number(r.minutos);
+            a.n += 1;
+            m.set(r.sdr, a);
+        });
+        var tot = { s: 0, n: 0 }, ligS = 0, ligN = 0;
+        var lista = (rot.sdrHoje || []).map(function (p) {
+            var a = m.get(p.sdr);
+            if (a) { tot.s += a.s; tot.n += a.n; }
+            if (p.minutos != null && p.ligou) { ligS += p.minutos * p.ligou; ligN += p.ligou; }
+            return __assign(__assign({}, p), { respMin: a ? a.s / a.n : null, respN: a ? a.n : 0 });
+        });
+        return __assign(__assign({}, rot), { sdrHoje: lista, temResp: true,
+            timeResp: { min: tot.n ? tot.s / tot.n : null, n: tot.n },
+            timeLigar: { min: ligN ? ligS / ligN : null, n: ligN } });
+    }, [rot, d.respHoje]);
     var aplicar = function (linhas) { return linhas.filter(function (r) {
         return (f.unidade === "__all" || r.unidade === f.unidade) &&
             (f.servico === "__all" || r.servico === f.servico) &&
@@ -6149,7 +6194,7 @@ function Painel(_a) {
     if (perfil === "rh")
         return React.createElement(TelaRH, { sessao: sessao });
     if (aba === "tv" && !bdrVazio) {
-        return React.createElement(TelaTVCheia, { c: rot, carregando: d.estado.carregando, estado: d.estado, falhas: d.falhas, dadoVelho: dadoVelho, frescor: frescor, idade: idade, onSair: function () { setAba("painel"); } });
+        return React.createElement(TelaTVCheia, { c: rotTv, carregando: d.estado.carregando, estado: d.estado, falhas: d.falhas, dadoVelho: dadoVelho, frescor: frescor, idade: idade, onSair: function () { setAba("painel"); } });
     }
     return (React.createElement("div", { style: { background: T.canvas, minHeight: "100vh", fontFamily: F_UI, color: T.ink } },
         React.createElement("header", { style: { background: T.preto, position: "sticky", top: 0, zIndex: 30 } },
