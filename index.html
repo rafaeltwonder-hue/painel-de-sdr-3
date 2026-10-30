@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v137">
+<meta name="painel-versao" content="v138">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -1027,6 +1027,146 @@ function useRotinaCheck(sessao, coord) {
     }); });
     return { porBloco: porBloco, nomes: nomes, faixa: faixa, dias: dias, diaHoje: diaHoje, ehSexta: ehSexta, erroCheck: erroCheck };
 }
+/* v138: Fechamento do dia (aba Coordenador).
+   Resume, por coordenador, quantos blocos da rotina foram marcados hoje, quantos no prazo
+   (até 1 h depois do horário), quantos com atraso e o que ficou pendente. Pedido do Rafael:
+   o coordenador manda o print desta faixa no grupo Gestão SDR até o fim do dia.
+   Só lê o que o quadro da rotina já lê (rotina_check_v): não grava nada nem exige view nova.
+   Bloco que ainda não chegou na hora não conta como pendente. Bloco marcado no mesmo
+   minuto de outro é sinalizado, porque costuma ser marcação feita de uma vez no fim do dia. */
+var FECH_TITULOS = {
+    "08:15": "Raio-X de leads + closers snipers",
+    "08:30": "Raio-X do CRM + meta do dia",
+    "13:00": "1º check-up e correção de rota",
+    "16:00": "Escuta de ligações + pontuações",
+    "17:00": "Rotina de fechamento",
+    "17:30": "Raio-X final + dificuldades e PDA",
+    "sexta": "Fechar a semana",
+};
+function contasFechamento(r, ehStore, agoraMin) {
+    var blocos = BLOCOS_ROTINA.filter(function (b) {
+        if (b.soSexta && !r.ehSexta)
+            return false;
+        // no Car Store só existem estes três blocos na aba
+        if (ehStore && !b.soSexta && ["08:30", "13:00", "17:00"].indexOf(b.chave) < 0)
+            return false;
+        return true;
+    });
+    var pessoas = r.nomes.map(function (nome, iN) {
+        var itens = blocos.map(function (b) {
+            var q = (r.porBloco[b.chave].quem || [])[iN] || { hora: null, tarde: false };
+            var estado = q.hora ? (q.tarde ? "tarde" : "ok") : (agoraMin >= b.min ? "pendente" : "aguarda");
+            return { chave: b.chave, hora: b.hora, titulo: FECH_TITULOS[b.chave] || b.hora, feitoEm: q.hora || null, estado: estado };
+        });
+        var porMinuto = {};
+        itens.forEach(function (i) { if (i.feitoEm)
+            porMinuto[i.feitoEm] = (porMinuto[i.feitoEm] || 0) + 1; });
+        itens.forEach(function (i) { i.junto = !!(i.feitoEm && porMinuto[i.feitoEm] > 1); });
+        var feitos = itens.filter(function (i) { return i.feitoEm; }).length;
+        return {
+            nome: nome, itens: itens, feitos: feitos, total: itens.length,
+            pct: itens.length ? feitos / itens.length : 0,
+            tarde: itens.filter(function (i) { return i.estado === "tarde"; }).length,
+            pendentes: itens.filter(function (i) { return i.estado === "pendente"; }),
+            faltam: itens.filter(function (i) { return !i.feitoEm; }),
+        };
+    });
+    var soma = function (f) { return pessoas.reduce(function (t, p) { return t + f(p); }, 0); };
+    return {
+        pessoas: pessoas, blocos: blocos,
+        feitos: soma(function (p) { return p.feitos; }),
+        total: soma(function (p) { return p.total; }),
+        tarde: soma(function (p) { return p.tarde; }),
+        noPrazo: soma(function (p) { return p.feitos - p.tarde; }),
+        pendentes: pessoas.reduce(function (l, p) { return l.concat(p.pendentes.map(function (i) { return p.nome + " · " + i.hora; })); }, []),
+    };
+}
+function textoFechamento(f, diaRotulo) {
+    var linhas = ["Fechamento do dia " + diaRotulo];
+    f.pessoas.forEach(function (p) {
+        var s = p.nome + ": " + Math.round(p.pct * 100) + "% (" + p.feitos + " de " + p.total + ")";
+        if (p.faltam.length)
+            s += " — faltou " + p.faltam.map(function (i) { return i.hora; }).join(", ");
+        if (p.tarde)
+            s += " — " + p.tarde + " com mais de 1 h de atraso";
+        linhas.push(s);
+    });
+    return linhas.join("\n");
+}
+function FechamentoDia(_a) {
+    var r = _a.r, ehStore = _a.ehStore;
+    var _b = __read(useState(""), 2), aviso = _b[0], setAviso = _b[1];
+    if (!r || !r.nomes || r.nomes.length === 0)
+        return null;
+    var agora = new Date();
+    var agoraMin = agora.getHours() * 60 + agora.getMinutes();
+    var f = contasFechamento(r, ehStore, agoraMin);
+    var DIAS_ = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+    var diaRotulo = br(r.diaHoje);
+    var fecha = ehStore ? "17:00" : "17:30";
+    var cor = function (e) { return e === "ok" ? T.good : e === "tarde" ? T.warn : e === "pendente" ? T.bad : "#9AA0A6"; };
+    var fundo = function (e) { return e === "ok" ? "#0B7A5A14" : e === "tarde" ? "#FFF8E1" : e === "pendente" ? "#C1121F14" : "#F5F5F5"; };
+    var sinal = function (e) { return e === "ok" ? "✓" : e === "tarde" ? "!" : e === "pendente" ? "–" : "·"; };
+    var copiar = function () {
+        var t = textoFechamento(f, diaRotulo);
+        var ok = function () { setAviso("Copiado. Cole no grupo ou tire o print desta tela."); setTimeout(function () { setAviso(""); }, 6000); };
+        var falhou = function () { setAviso("Não consegui copiar. Tire o print desta tela."); setTimeout(function () { setAviso(""); }, 6000); };
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText)
+                navigator.clipboard.writeText(t).then(ok, falhou);
+            else
+                falhou();
+        }
+        catch (e) {
+            falhou();
+        }
+    };
+    var kpi = function (rot, val, sub, tom) { return (React.createElement("div", { key: rot, style: { background: T.surface, border: "1px solid " + T.hair, borderTop: "3px solid " + T.marca, borderRadius: 10, padding: "10px 14px" } },
+        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 10.5, letterSpacing: ".08em", textTransform: "uppercase", color: T.muted, fontWeight: 600 } }, rot),
+        React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 26, fontWeight: 700, lineHeight: 1.15, color: tom || T.ink, fontVariantNumeric: "tabular-nums" } }, val),
+        React.createElement("div", { style: { fontSize: 11.5, color: T.muted } }, sub))); };
+    return (React.createElement(Card, { className: "p20", style: { marginBottom: 16 } },
+        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "baseline", gap: 8 } },
+            React.createElement("h2", { style: { fontFamily: F_MARCA, fontSize: 16, fontWeight: 700, margin: 0 } }, "Fechamento do dia"),
+            React.createElement("span", { style: { fontSize: 12.5, color: T.muted } },
+                DIAS_[parseISO(r.diaHoje).getDay()],
+                ", ",
+                diaRotulo,
+                " · fecha às ",
+                fecha,
+                " · o print vai para o grupo Gestão SDR")),
+        React.createElement("div", { style: { display: "grid", gap: 10, marginTop: 14, gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" } },
+            kpi("Blocos cumpridos", f.feitos + " de " + f.total, "soma dos coordenadores", f.feitos === f.total ? T.good : T.ink),
+            kpi("Marcados no prazo", String(f.noPrazo), "até 1 h depois do horário"),
+            kpi("Marcados com atraso", String(f.tarde), "mais de 1 h depois", f.tarde ? T.warn : T.ink),
+            kpi("Pendentes", String(f.pendentes.length), f.pendentes.length ? f.pendentes.slice(0, 3).join(" · ") + (f.pendentes.length > 3 ? " …" : "") : "nada atrasado agora", f.pendentes.length ? T.bad : T.good)),
+        React.createElement("div", { style: { display: "grid", gap: 14, marginTop: 14, gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))" } }, f.pessoas.map(function (p) {
+            var corP = p.pct >= 1 ? T.good : p.pct >= 0.8 ? T.warn : T.bad;
+            return (React.createElement("div", { key: p.nome, style: { border: "1px solid " + T.hair, borderRadius: 10, padding: 14, background: T.surface } },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start" } },
+                    React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 17, fontWeight: 700 } }, p.nome),
+                    React.createElement("div", { style: { textAlign: "right" } },
+                        React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 30, fontWeight: 700, lineHeight: 1, color: corP, fontVariantNumeric: "tabular-nums" } }, Math.round(p.pct * 100) + "%"),
+                        React.createElement("div", { style: { fontSize: 11.5, color: T.muted } }, p.feitos + " de " + p.total + " blocos"))),
+                React.createElement("div", { style: { margin: "10px 0 6px" } },
+                    React.createElement(Barra, { pct: p.pct, cor: corP, alt: 8 })),
+                p.itens.map(function (i) { return (React.createElement("div", { key: i.chave, style: { display: "grid", gridTemplateColumns: "24px 46px 1fr auto", gap: 8, alignItems: "center", padding: "7px 0", borderTop: "1px solid " + T.hair } },
+                    React.createElement("span", { style: { width: 22, height: 22, borderRadius: 99, display: "grid", placeItems: "center", fontSize: 12, fontWeight: 700, background: fundo(i.estado), color: cor(i.estado) } }, sinal(i.estado)),
+                    React.createElement("span", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 13 } }, i.hora),
+                    React.createElement("span", { style: { fontSize: 12.5, lineHeight: 1.3 } }, i.titulo),
+                    React.createElement("span", { style: { fontSize: 11.5, textAlign: "right", color: i.estado === "ok" ? T.ink2 : cor(i.estado), fontWeight: i.estado === "ok" || i.estado === "aguarda" ? 400 : 700, fontVariantNumeric: "tabular-nums" } },
+                        i.feitoEm ? "Feito às " + i.feitoEm + (i.estado === "tarde" ? " · tarde" : "") : i.estado === "pendente" ? "Não marcado" : "ainda não chegou",
+                        i.junto && React.createElement("span", { style: { display: "block", fontSize: 10.5, fontWeight: 400, color: T.warn } }, "mesmo minuto de outro bloco")))); }),
+                React.createElement("div", { style: { borderTop: "1px solid " + T.hair, marginTop: 2, paddingTop: 9, fontSize: 12, fontWeight: 700 } },
+                    p.faltam.length === 0 ? "Todos os blocos marcados" : "Faltou: " + p.faltam.map(function (i) { return i.hora; }).join(", "),
+                    p.tarde ? " · " + p.tarde + (p.tarde === 1 ? " marcado" : " marcados") + " com mais de 1 h de atraso" : "")));
+        })),
+        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 12, marginTop: 14 } },
+            React.createElement("span", { style: { fontSize: 12, color: T.muted, lineHeight: 1.5, maxWidth: 760 } }, "Cada bloco é o que a rotina do coordenador já marca abaixo. Verde = no prazo · amarelo = marcado mais de 1 h depois do horário · vermelho = horário passou e não foi marcado. Marcar é declarar que fez: a conferência de dados (tarefas vencidas, leads sem ligação) está nas seções abaixo."),
+            React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 10 } },
+                aviso && React.createElement("span", { style: { fontSize: 12, color: T.ink2 } }, aviso),
+                React.createElement(Btn, { kind: "accent", onClick: copiar, type: "button" }, "Copiar resumo para o grupo")))));
+}
 /* O quadro "quem fez o quê — hoje" e a faixa dos 7 dias. */
 function QuadroRotina(_a) {
     var r = _a.r;
@@ -1924,6 +2064,7 @@ function AbaCoordenador(_a) {
     var porVencidas = c.pessoasLista.slice()
         .sort(function (a, b) { return Number((tk[b.sdr] || {}).vencidas || 0) - Number((tk[a.sdr] || {}).vencidas || 0); });
     return (React.createElement("div", null,
+        React.createElement(FechamentoDia, { r: rotina, ehStore: ehStore }),
         !ehStore && React.createElement(BlocoDivergenciaOS, { sessao: sessao, membros: c.membros }),
         React.createElement(Card, { className: "p20" },
             React.createElement("h2", { style: { fontFamily: F_MARCA, fontSize: 16, fontWeight: 700, margin: 0 } }, "M\u00EAs corrente \u2014 onde estamos" + (c.squadNome ? " \u00B7 " + c.squadNome : "")),
@@ -2390,7 +2531,7 @@ function FaixaSdrHoje(_a) {
                             borderRadius: 99, background: cor, marginRight: 6 } }),
                     l));
             }),
-            React.createElement("span", { style: { marginLeft: "auto" } }, "convers\u00E3o = leads recebidos no dia \u00F7 quantos agendaram \u00B7 amadurece at\u00E9 o fim do expediente" + (c.temResp ? " \u00B7 resposta de mensagem = da mensagem do lead at\u00E9 a resposta do SDR, s\u00F3 em hor\u00E1rio de expediente" : "")))));
+            React.createElement("span", { style: { marginLeft: "auto" } }, "convers\u00E3o = leads recebidos no dia \u00F7 quantos agendaram \u00B7 amadurece at\u00E9 o fim do expediente" + (c.temResp ? " \u00B7 resposta de msg = do lead ao SDR, no expediente" : "")))));
 }
 /* ---------- modo TV ----------
 
