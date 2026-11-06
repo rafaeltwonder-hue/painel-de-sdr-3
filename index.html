@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v138">
+<meta name="painel-versao" content="v140">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -5794,7 +5794,7 @@ function Painel(_a) {
     /* v67: lista de vendas lead a lead — admin, SDR e gerente */
     var podeListarVendas = ["admin", "sdr", "gerente"].indexOf(perfil) >= 0;
     var _g = __read(useState(false), 2), verVendas = _g[0], setVerVendas = _g[1];
-    var ABAS = [["painel", "SDR"], ["piloto_sdr", "Piloto SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["marketing", "Marketing"], ["closers", "Closers"], ["piloto", "Piloto Closer"], ["ficha", "Ficha 1:1"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]].concat(HUB_ABAS);
+    var ABAS = [["painel", "SDR"], ["piloto_sdr", "Piloto SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["marketing", "Marketing"], ["closers", "Closers"], ["piloto", "Piloto Closer"], ["ficha", "Ficha 1:1"], ["agendou", "Quem agendou"], ["trabalho", "Trabalho × resultado"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]].concat(HUB_ABAS);
     /* v89: o Hub (Preços, Treinador, Biblioteca) é de todo mundo do time comercial.
        Importador e agência não veem: preço interno e regras de alçada não são deles. */
     var ABAS_SDR = ["painel", "piloto_sdr", "coordenador", "tv"].concat(HUB_IDS);
@@ -6424,15 +6424,17 @@ function Painel(_a) {
                             background: aba === v ? T.ink : "transparent",
                             color: aba === v ? "#fff" : T.ink2 } }, l)));
             })),
-            aba !== "painel" && aba !== "importar" && aba !== "resumo" && aba !== "closers" && aba !== "piloto" && aba !== "ficha" && aba !== "piloto_sdr" && aba !== "lojas" && aba !== "origem" && aba !== "marketing" && HUB_IDS.indexOf(aba) < 0 && !(aba === "coordenador" && mesAba !== mesAtualISO) && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
+            aba !== "painel" && aba !== "importar" && aba !== "resumo" && aba !== "closers" && aba !== "piloto" && aba !== "ficha" && aba !== "agendou" && aba !== "trabalho" && aba !== "piloto_sdr" && aba !== "lojas" && aba !== "origem" && aba !== "marketing" && HUB_IDS.indexOf(aba) < 0 && !(aba === "coordenador" && mesAba !== mesAtualISO) && !d.rotina && (React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando os dados da rotina\u2026")),
             (ehAdmin || ehImportador) && aba === "importar" && React.createElement(AbaImportar, { sessao: sessao }),
-            ((aba === "resumo" && (ehAdmin || ehImportador)) || (ehAdmin && (aba === "closers" || aba === "lojas" || aba === "origem")) || aba === "coordenador") && (React.createElement(SeletorMes, { mes: mesAba, aoTrocar: trocarMesAba, nota: aba === "resumo" ? "Mês fechado: os cartões mostram o fechamento no último dia do mês."
+            ((aba === "resumo" && (ehAdmin || ehImportador)) || (ehAdmin && (aba === "closers" || aba === "agendou" || aba === "trabalho" || aba === "lojas" || aba === "origem")) || aba === "coordenador") && (React.createElement(SeletorMes, { mes: mesAba, aoTrocar: trocarMesAba, nota: aba === "resumo" ? "Mês fechado: os cartões mostram o fechamento no último dia do mês."
                     : aba === "coordenador" ? "Mês fechado: a aba mostra o fechamento. Ranking do dia, tarefas e funil são ao vivo — volte para o mês atual."
                         : "" })),
             (ehAdmin || ehImportador) && aba === "resumo" && React.createElement(AbaResumo, { sessao: sessao, mes: mesAba }),
             ehAdmin && aba === "closers" && React.createElement(AbaClosers, { mes: mesAba }),
             ehAdmin && aba === "piloto" && React.createElement(Piloto, { sessao: sessao, todos: true, embutido: true }),
             ehAdmin && aba === "ficha" && React.createElement(FichaUmAUm, null),
+            ehAdmin && aba === "agendou" && React.createElement(AbaQuemAgendou, { mes: mesAba }),
+            ehAdmin && aba === "trabalho" && React.createElement(AbaTrabalhoResultado, { mes: mesAba }),
             aba === "piloto_sdr" && podeVer("piloto_sdr") && React.createElement(PilotoSDR, { sessao: sessao, negocio: negocio, perfil: perfil, sq: sq }),
             ehAdmin && aba === "lojas" && React.createElement(AbaLojas, { mes: mesAba }),
             ehAdmin && aba === "origem" && React.createElement(AbaOrigem, { mes: mesAba }),
@@ -13908,14 +13910,306 @@ function SecaoRecompra(_a) {
             todas.length,
             ". Registrou um contato, o pr\u00F3ximo sobe.")));
 }
+/* v140: Trabalho × resultado — uma linha por closer: o que ele faz com o lead no CRM
+   (leads recebidos, tarefas concluídas, leads abertos sem tarefa e parados há +7 dias) ao lado do
+   que entrega (faturado, O.S., ticket médio, vendas perdidas com motivo). Só leitura.
+   Fontes: closer_trabalho_dia_v e closer_leads_agora_v (v140), oi_item_v, closer_desfecho_visita e map_closer.
+   "Abertos sem tarefa" e "parados +7d" são a foto de AGORA e não mudam com o período.
+   A "Leitura" compara cada closer com a mediana do time (tarefas × faturado): é um sinal, não uma nota. */
+function AbaTrabalhoResultado(_a) {
+    var mes = _a.mes;
+    var _b = __read(useState("mes"), 2), modo = _b[0], setModo = _b[1];
+    var _c = __read(useState(null), 2), dados = _c[0], setDados = _c[1];
+    var _d = __read(useState(null), 2), erro = _d[0], setErro = _d[1];
+    var _e = __read(useState({ k: "fat", d: -1 }), 2), ord = _e[0], setOrd = _e[1];
+    var _f = __read(useState(0), 2), versao = _f[0], setVersao = _f[1];
+    var h = hoje();
+    var de = modo === "s7" ? addDays(h, -6) : mes;
+    var ate = modo === "s7" ? h : (ultimoDiaMes(mes) < h ? ultimoDiaMes(mes) : h);
+    useEffect(function () {
+        var vivo = true;
+        setDados(null);
+        setErro(null);
+        var cl = db.from("map_closer").select("erp_codigo,nome_oficial,unidade,meta_mensal").eq("ativo", true).then(function (r) { if (r.error) throw new Error(r.error.message); return r.data || []; });
+        var fat = psdrTudo(function () {
+            return db.from("oi_item_v").select("closer_codigo,os_numero,total,dt_faturamento")
+                .not("closer_codigo", "is", null).gte("dt_faturamento", de).lte("dt_faturamento", ate)
+                .order("dt_faturamento", { ascending: true }).order("os_numero", { ascending: true }).order("item_codigo", { ascending: true });
+        });
+        var tra = psdrTudo(function () {
+            return db.from("closer_trabalho_dia_v").select("closer_codigo,dia,leads_recebidos,tarefas_concluidas")
+                .gte("dia", de).lte("dia", ate).order("dia", { ascending: true }).order("closer_codigo", { ascending: true });
+        });
+        var ago = db.from("closer_leads_agora_v").select("closer_codigo,abertos,sem_tarefa,parados_7d").then(function (r) { if (r.error) throw new Error(r.error.message); return r.data || []; });
+        var per = psdrTudo(function () {
+            return db.from("closer_desfecho_visita").select("closer_codigo,desfecho,criado_em")
+                .eq("desfecho", "perdeu").gte("criado_em", addDays(de, -1)).order("criado_em", { ascending: true });
+        });
+        Promise.all([cl, fat, tra, ago, per]).then(function (r) {
+            if (vivo) setDados({ cl: r[0], fat: r[1], tra: r[2], ago: r[3], per: r[4] });
+        }, function (e) { if (vivo) setErro(e && e.message ? e.message : String(e)); });
+        return function () { vivo = false; };
+    }, [de, ate, versao]);
+    var titulo = "Trabalho × resultado dos closers";
+    var nota = "O que cada closer faz com o lead no CRM, ao lado do que entrega. 'Abertos sem tarefa' e 'parados +7d' são a foto de agora e não mudam com o período. A leitura compara cada closer com a mediana do time e é só um sinal para olhar mais de perto.";
+    var seletor = React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" } },
+        React.createElement(Chips, { value: modo, onChange: setModo, options: [["mes", "Mês escolhido"], ["s7", "Últimos 7 dias"]] }),
+        React.createElement("span", { style: { fontSize: 12, color: T.muted } }, brFull(de) + " a " + brFull(ate)),
+        React.createElement("span", { style: { flex: 1 } }),
+        React.createElement(Btn, { onClick: function () { setVersao(function (v) { return v + 1; }); }, style: { padding: "6px 11px", fontSize: 12 } }, "Atualizar"));
+    if (erro)
+        return React.createElement(Secao, { n: 1, titulo: titulo }, seletor, React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.bad } }, "Não consegui ler: ", erro));
+    if (!dados)
+        return React.createElement(Secao, { n: 1, titulo: titulo }, seletor, React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando…"));
+    var porCod = function (arr, cod) { return arr.filter(function (x) { return String(x.closer_codigo) === String(cod); }); };
+    var linhas = dados.cl.map(function (c) {
+        var f = porCod(dados.fat, c.erp_codigo);
+        var os = {};
+        var fatTot = 0;
+        f.forEach(function (x) { os[String(x.os_numero)] = 1; fatTot += Number(x.total) || 0; });
+        var osQtd = Object.keys(os).length;
+        var t = porCod(dados.tra, c.erp_codigo);
+        var ag = porCod(dados.ago, c.erp_codigo)[0] || {};
+        var perd = porCod(dados.per, c.erp_codigo).filter(function (x) { var d0 = fichaDia(x.criado_em); return d0 >= de && d0 <= ate; }).length;
+        return {
+            cod: c.erp_codigo, nome: c.nome_oficial, loja: c.unidade, meta: Number(c.meta_mensal) || 0,
+            leads: psdrSoma(t, "leads_recebidos"), tar: psdrSoma(t, "tarefas_concluidas"),
+            ab: Number(ag.abertos) || 0, st: Number(ag.sem_tarefa) || 0, pa: Number(ag.parados_7d) || 0,
+            fat: fatTot, os: osQtd, tk: osQtd ? fatTot / osQtd : 0, perd: perd
+        };
+    });
+    var mediana = function (a) {
+        var s = a.slice().sort(function (x, y) { return x - y; });
+        var n = s.length;
+        if (!n) return 0;
+        return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+    };
+    var mt = mediana(linhas.map(function (x) { return x.tar; }));
+    var mf = mediana(linhas.map(function (x) { return x.fat; }));
+    var leitura = function (x) {
+        var t = x.tar >= mt, f = x.fat >= mf;
+        if (t && f) return ["Trabalha e entrega", T.good];
+        if (t && !f) return ["Trabalha, resultado abaixo", T.warn];
+        if (!t && f) return ["Resultado, pouco registro", T.pronto];
+        return ["Pouco de ambos", T.bad];
+    };
+    var k = ord.k;
+    linhas.sort(function (a, b) {
+        if (k === "nome" || k === "loja") return ord.d * String(a[k]).localeCompare(String(b[k]));
+        return ord.d * ((a[k] || 0) - (b[k] || 0));
+    });
+    var maxT = Math.max.apply(Math, __spreadArray([1], __read(linhas.map(function (x) { return x.tar; })), false));
+    var maxF = Math.max.apply(Math, __spreadArray([1], __read(linhas.map(function (x) { return x.fat; })), false));
+    var somaL = function (c) { return linhas.reduce(function (t, x) { return t + (x[c] || 0); }, 0); };
+    var fatTotal = somaL("fat"), osTotal = somaL("os");
+    var mostraMeta = modo === "mes";
+    var cab = function (chave, txt) {
+        return React.createElement("th", { key: chave, onClick: function () { setOrd(ord.k === chave ? { k: chave, d: -ord.d } : { k: chave, d: chave === "nome" || chave === "loja" ? 1 : -1 }); },
+            style: { textAlign: chave === "nome" || chave === "loja" ? "left" : "center", padding: "9px 8px", fontSize: 10.5, letterSpacing: ".06em", textTransform: "uppercase", color: T.muted, fontWeight: 600, borderBottom: "1px solid " + T.hair, whiteSpace: "nowrap", background: T.surface, cursor: "pointer" } },
+            txt + (ord.k === chave ? (ord.d < 0 ? " ▼" : " ▲") : ""));
+    };
+    var minibarra = function (v, max, cor) {
+        return React.createElement("div", { style: { width: 54, margin: "3px auto 0" } }, React.createElement(Barra, { pct: v / max, cor: cor, alt: 5 }));
+    };
+    var corLeads = function (x) { return x.ab && x.st / x.ab >= 0.4 ? T.bad : (x.ab && x.st / x.ab >= 0.25 ? T.warn : undefined); };
+    return (React.createElement(Secao, { n: 1, titulo: titulo, nota: nota },
+        seletor,
+        React.createElement("div", { className: "grid-kpi" },
+            React.createElement(Kpi, { label: "Faturado pelos closers", value: nReal(fatTotal), sub: nInt(osTotal) + " O.S. · ticket médio " + nReal(osTotal ? fatTotal / osTotal : 0) }),
+            React.createElement(Kpi, { label: "Leads recebidos", value: nInt(somaL("leads")), sub: "no período" }),
+            React.createElement(Kpi, { label: "Tarefas concluídas", value: nInt(somaL("tar")), sub: "mediana por closer: " + nInt(Math.round(mt)) }),
+            React.createElement(Kpi, { label: "Leads abertos sem tarefa (agora)", value: nInt(somaL("st")), sub: "de " + nInt(somaL("ab")) + " abertos · " + nInt(somaL("pa")) + " parados +7 dias", tone: somaL("st") ? "bad" : "good" })),
+        React.createElement("div", { style: { height: 14 } }),
+        linhas.length ? React.createElement(Card, { className: "p0 rolagem" },
+            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 1020 } },
+                React.createElement("thead", null,
+                    React.createElement("tr", null,
+                        React.createElement("th", { colSpan: 2, style: { background: T.surface } }),
+                        React.createElement("th", { colSpan: 4, style: { background: T.preto, color: "#fff", fontSize: 11, letterSpacing: ".08em", padding: "6px 8px", textAlign: "center" } }, "TRABALHO"),
+                        React.createElement("th", { colSpan: 4, style: { background: T.marca, color: T.preto, fontSize: 11, letterSpacing: ".08em", padding: "6px 8px", textAlign: "center" } }, "RESULTADO" + (mostraMeta ? " · % DA META NO MÊS" : "")),
+                        React.createElement("th", { style: { background: T.preto } })),
+                    React.createElement("tr", null,
+                        cab("nome", "Closer"), cab("loja", "Loja"),
+                        cab("leads", "Leads recebidos"), cab("tar", "Tarefas concluídas"), cab("st", "Abertos sem tarefa"), cab("pa", "Parados +7d"),
+                        cab("fat", "Faturado"), cab("os", "O.S."), cab("tk", "Ticket médio"), cab("perd", "Perdidas c/ motivo"),
+                        React.createElement(Th, null, "Leitura"))),
+                React.createElement("tbody", null, linhas.map(function (x) {
+                    var l = leitura(x);
+                    return React.createElement("tr", { key: x.cod },
+                        React.createElement(Td, { bold: true }, x.nome),
+                        React.createElement(Td, null, x.loja || "—"),
+                        React.createElement(Td, { right: true }, nInt(x.leads)),
+                        React.createElement(Td, { right: true }, nInt(x.tar), minibarra(x.tar, maxT, T.ink)),
+                        React.createElement(Td, { right: true, color: corLeads(x), bold: !!corLeads(x) }, nInt(x.st), React.createElement("span", { style: { color: T.muted, fontWeight: 400, fontSize: 11 } }, " de " + nInt(x.ab))),
+                        React.createElement(Td, { right: true, color: x.pa >= 10 ? T.bad : (x.pa >= 6 ? T.warn : undefined), bold: x.pa >= 6 }, nInt(x.pa)),
+                        React.createElement(Td, { right: true }, nReal(x.fat), minibarra(x.fat, maxF, T.marca),
+                            mostraMeta && x.meta ? React.createElement("div", { style: { fontSize: 11, color: T.muted } }, nPct(x.fat / x.meta, 0) + " de " + nReal(x.meta)) : null),
+                        React.createElement(Td, { right: true }, nInt(x.os)),
+                        React.createElement(Td, { right: true }, x.os ? nReal(x.tk) : "—"),
+                        React.createElement(Td, { right: true }, nInt(x.perd)),
+                        React.createElement(Td, null, React.createElement(Pill, { cor: l[1] }, l[0])));
+                })))) : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhum closer ativo encontrado."),
+        React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 8, maxWidth: "80ch", lineHeight: 1.5 } },
+            "Faturado por data de faturamento da O.S. Tarefa concluída depende do hábito de usar o CRM: quem fecha venda sem registrar tarefa aparece como 'Resultado, pouco registro'. Orçamento e venda sem orçamento ficam no Controle do piloto, como informativo.")));
+}
+
+/* v139: Quem agendou — para cada lead agendado no mês, quem moveu o card para a
+   etapa de agendamento: o SDR ou o closer. Lê comercial.agendamento_autor_v, que
+   guarda o PRIMEIRO agendamento do lead e o autor desse movimento (histórico do
+   Kommo). O banco já filtra: admin vê tudo, closer/líder só os seus. "Sem autor"
+   é movimento que o Kommo não atribuiu a uma pessoa (robô, automação ou dado
+   antigo). Não grava nada: é leitura. */
+function AbaQuemAgendou(_a) {
+    var mes = _a.mes;
+    var _b = __read(useState(null), 2), linhas = _b[0], setLinhas = _b[1];
+    var _c = __read(useState(null), 2), erro = _c[0], setErro = _c[1];
+    var _d = __read(useState("__all"), 2), loja = _d[0], setLoja = _d[1];
+    var _e = __read(useState(0), 2), versao = _e[0], setVersao = _e[1];
+    useEffect(function () {
+        var vivo = true;
+        setLinhas(null);
+        setErro(null);
+        psdrTudo(function () {
+            return db.from("agendamento_autor_v")
+                .select("kommo_id,dia_agendou,agendou_em,reagendamentos,autor_nome,autor_tipo,unidade,servico,sdr_do_lead,closer_codigo,closer,visita_agendada_em,desfecho")
+                .gte("dia_agendou", mes).lte("dia_agendou", ultimoDiaMes(mes))
+                .order("agendou_em", { ascending: true });
+        }).then(function (r) { if (vivo) setLinhas(r); }, function (e) { if (vivo) setErro(e && e.message ? e.message : String(e)); });
+        return function () { vivo = false; };
+    }, [mes, versao]);
+    var titulo = "Quem agendou a visita";
+    var nota = "Dos leads agendados no mês, quem moveu o card para a etapa de agendamento: o SDR ou o closer. Vale o primeiro agendamento de cada lead. 'Sem autor' é movimento que o Kommo não atribuiu a uma pessoa. O resultado da visita vem do status do lead no Kommo.";
+    if (erro)
+        return React.createElement(Secao, { n: 1, titulo: titulo }, React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.bad } }, "Não consegui ler: ", erro));
+    if (!linhas)
+        return React.createElement(Secao, { n: 1, titulo: titulo }, React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando…"));
+    var lojas = [];
+    linhas.forEach(function (x) { if (x.unidade && lojas.indexOf(x.unidade) < 0) lojas.push(x.unidade); });
+    lojas.sort();
+    var base = loja === "__all" ? linhas : linhas.filter(function (x) { return x.unidade === loja; });
+    var tipoDe = function (x) { return x.autor_tipo || "Sem autor"; };
+    var somar = function (arr) {
+        var o = { n: arr.length, sdr: 0, closer: 0, outro: 0, sem: 0, veio: 0, faltou: 0, aberto: 0 };
+        arr.forEach(function (x) {
+            var t = tipoDe(x);
+            if (t === "SDR") o.sdr++;
+            else if (t === "Closer") o.closer++;
+            else if (t === "Sem autor") o.sem++;
+            else o.outro++;
+            if (x.desfecho === "compareceu") o.veio++;
+            else if (x.desfecho === "nao_compareceu" || x.desfecho === "cancelou") o.faltou++;
+            else o.aberto++;
+        });
+        return o;
+    };
+    var pct = function (a, b) { return b ? nPct(a / b, 0) : "—"; };
+    var agrupar = function (arr, chave, rotulo) {
+        var m = {}, ordem = [];
+        arr.forEach(function (x) {
+            var k = chave(x);
+            if (!m[k]) { m[k] = { nome: rotulo(x), lojas: [], itens: [] }; ordem.push(k); }
+            if (x.unidade && m[k].lojas.indexOf(x.unidade) < 0) m[k].lojas.push(x.unidade);
+            m[k].itens.push(x);
+        });
+        return ordem.map(function (k) { var g = m[k]; g.c = somar(g.itens); return g; })
+            .sort(function (a, b) { return b.c.n - a.c.n; });
+    };
+    var tot = somar(base);
+    var semCloser = base.filter(function (x) { return !x.closer_codigo; });
+    var porCloser = agrupar(base, function (x) { return x.closer_codigo ? String(x.closer_codigo) : "sem"; }, function (x) { return x.closer || "Sem closer atribuído"; });
+    var porAutor = agrupar(base, function (x) { return x.autor_nome ? tipoDe(x) + "|" + x.autor_nome : "sem"; }, function (x) { return x.autor_nome || "Sem autor"; });
+    var tipoDoGrupo = function (g) { return g.itens.length ? tipoDe(g.itens[0]) : ""; };
+    var rotDesf = { compareceu: "Veio", nao_compareceu: "Não veio", cancelou: "Cancelou", reagendar: "Reagendar" };
+    var cabNum = function (txt) { return React.createElement(Th, { right: true }, txt); };
+    var sub = function (txt) { return React.createElement("div", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 13, letterSpacing: ".06em", textTransform: "uppercase", color: T.ink2, margin: "22px 0 8px" } }, txt); };
+    return (React.createElement(Secao, { n: 1, titulo: titulo, nota: nota },
+        React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" } },
+            React.createElement(Chips, { value: loja, onChange: setLoja, options: [["__all", "Todas as lojas"]].concat(lojas.map(function (l) { return [l, l]; })) }),
+            React.createElement("span", { style: { flex: 1 } }),
+            React.createElement(Btn, { onClick: function () { setVersao(function (v) { return v + 1; }); }, style: { padding: "6px 11px", fontSize: 12 } }, "Atualizar")),
+        React.createElement("div", { className: "grid-kpi" },
+            React.createElement(Kpi, { label: "Leads agendados", value: nInt(tot.n), sub: "primeiro agendamento no mês" }),
+            React.createElement(Kpi, { label: "Agendados pelo SDR", value: nInt(tot.sdr), sub: pct(tot.sdr, tot.n) + " do total" }),
+            React.createElement(Kpi, { label: "Agendados pelo closer", value: nInt(tot.closer), sub: pct(tot.closer, tot.n) + " do total" }),
+            React.createElement(Kpi, { label: "Sem autor", value: nInt(tot.sem), sub: "o Kommo não atribuiu a uma pessoa", tone: tot.sem ? "bad" : "good" }),
+            React.createElement(Kpi, { label: "Sem closer atribuído", value: nInt(semCloser.length), sub: "lead sem responsável no Kommo", tone: semCloser.length ? "bad" : "good" })),
+        sub("Por closer"),
+        base.length ? React.createElement(Card, { className: "p0 rolagem" },
+            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 820 } },
+                React.createElement("thead", null, React.createElement("tr", null,
+                    React.createElement(Th, null, "Closer"), React.createElement(Th, null, "Loja"),
+                    cabNum("Agendados"), cabNum("SDR"), cabNum("Closer"), cabNum("Outro"), cabNum("Sem autor"),
+                    cabNum("Vieram"), cabNum("Faltaram"), cabNum("Em aberto"), cabNum("% vieram"))),
+                React.createElement("tbody", null, porCloser.map(function (g, i) {
+                    return React.createElement("tr", { key: i },
+                        React.createElement(Td, { bold: true }, g.nome), React.createElement(Td, null, g.lojas.join(", ") || "—"),
+                        React.createElement(Td, { right: true, bold: true }, nInt(g.c.n)), React.createElement(Td, { right: true }, nInt(g.c.sdr)),
+                        React.createElement(Td, { right: true }, nInt(g.c.closer)), React.createElement(Td, { right: true }, nInt(g.c.outro)),
+                        React.createElement(Td, { right: true, color: g.c.sem ? T.bad : undefined }, nInt(g.c.sem)),
+                        React.createElement(Td, { right: true }, nInt(g.c.veio)), React.createElement(Td, { right: true }, nInt(g.c.faltou)),
+                        React.createElement(Td, { right: true }, nInt(g.c.aberto)), React.createElement(Td, { right: true }, pct(g.c.veio, g.c.veio + g.c.faltou)));
+                })))) : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhum agendamento no mês."),
+        React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 6 } }, "% vieram = vieram ÷ (vieram + faltaram). Quem ainda não tem resultado fica em aberto (visita futura ou sem status)."),
+        sub("Por quem agendou"),
+        base.length ? React.createElement(Card, { className: "p0 rolagem" },
+            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 640 } },
+                React.createElement("thead", null, React.createElement("tr", null,
+                    React.createElement(Th, null, "Quem"), React.createElement(Th, null, "Tipo"),
+                    cabNum("Agendados"), cabNum("Vieram"), cabNum("Faltaram"), cabNum("Em aberto"), cabNum("% vieram"))),
+                React.createElement("tbody", null, porAutor.map(function (g, i) {
+                    return React.createElement("tr", { key: i },
+                        React.createElement(Td, { bold: true }, g.nome), React.createElement(Td, null, tipoDoGrupo(g)),
+                        React.createElement(Td, { right: true, bold: true }, nInt(g.c.n)), React.createElement(Td, { right: true }, nInt(g.c.veio)),
+                        React.createElement(Td, { right: true }, nInt(g.c.faltou)), React.createElement(Td, { right: true }, nInt(g.c.aberto)),
+                        React.createElement(Td, { right: true }, pct(g.c.veio, g.c.veio + g.c.faltou)));
+                })))) : null,
+        semCloser.length ? React.createElement("div", null,
+            sub("Leads agendados sem closer atribuído"),
+            React.createElement(Card, { className: "p0 rolagem" },
+                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 560 } },
+                    React.createElement("thead", null, React.createElement("tr", null,
+                        React.createElement(Th, null, "Agendado em"), React.createElement(Th, null, "Lead"), React.createElement(Th, null, "Loja"),
+                        React.createElement(Th, null, "SDR do lead"), React.createElement(Th, null, "Quem agendou"), React.createElement(Th, null, "Resultado"))),
+                    React.createElement("tbody", null, semCloser.slice().sort(function (a, b) { return String(b.agendou_em) < String(a.agendou_em) ? -1 : 1; }).slice(0, 40).map(function (x, i) {
+                        return React.createElement("tr", { key: i },
+                            React.createElement(Td, null, x.dia_agendou ? br(String(x.dia_agendou).slice(0, 10)) : "—"),
+                            React.createElement(Td, null, React.createElement("a", { href: "https://thewcars.kommo.com/leads/detail/" + x.kommo_id, target: "_blank", rel: "noopener", style: { color: T.ink, fontWeight: 600 } }, "#" + x.kommo_id)),
+                            React.createElement(Td, null, x.unidade || "—"), React.createElement(Td, null, x.sdr_do_lead || "—"),
+                            React.createElement(Td, null, x.autor_nome || "Sem autor"), React.createElement(Td, null, rotDesf[x.desfecho] || "Em aberto"));
+                    })))),
+            semCloser.length > 40 ? React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 6 } }, "Mostrando os 40 mais recentes de " + semCloser.length + ".") : null) : null));
+}
+
 /* v135: Ficha 1:1 — a conversa de melhoria com cada closer, montada sozinha.
    Só admin (aba própria). Junta o que o closer já registra no piloto: resultado do mês,
    orçamentos, visitas (veio e fechou / veio e perdeu, com o motivo que ele escreveu),
    avaliações, clientes chamados e pendências. Não grava nada: é leitura.
    Os "pontos de atenção" e as perguntas saem de regras simples (abaixo), não de IA. */
-var FICHA_META_TICKET = 5000; // meta de ticket médio de out/2026
+var FICHA_META_TICKET = 5000; // meta de ticket médio (scorecard do closer, a partir de nov/2026)
 function fichaNumero(v) { return Number(v) || 0; }
 function fichaData(d) { return d ? String(d).slice(8, 10) + "/" + String(d).slice(5, 7) : ""; }
+/* v139: dia do registro NO FUSO DO NAVEGADOR (São Paulo). O banco devolve timestamp em UTC;
+   cortar o texto nos 10 primeiros caracteres jogava para o dia seguinte tudo o que foi
+   registrado depois das 21h. Datas puras (YYYY-MM-DD) passam direto. */
+function fichaDia(v) {
+    var s = String(v || "");
+    if (s.length <= 10) return s;
+    var d = new Date(s);
+    return isNaN(d.getTime()) ? s.slice(0, 10) : iso(d);
+}
+/* v139: faturado contra o MESMO PONTO do mês passado (mês passado inteiro × fração do mês).
+   Comparar 3 dias de novembro com outubro inteiro dava sempre "▼ 100%". */
+function FichaRitmo(_a) {
+    var atual = _a.atual, anterior = _a.anterior, frac = _a.frac;
+    if (anterior == null || anterior === 0 || !frac)
+        return React.createElement("span", { style: { fontSize: 11, color: T.muted } }, "sem base anterior");
+    var esperado = anterior * frac;
+    var v = (atual - esperado) / esperado;
+    var cor = Math.abs(v) < 0.005 ? T.muted : v > 0 ? T.good : T.bad;
+    return (React.createElement("span", { style: { fontSize: 11.5, color: cor, fontWeight: 600, fontVariantNumeric: "tabular-nums" } },
+        v > 0 ? "▲" : v < 0 ? "▼" : "•", " ", nPct(Math.abs(v), 0),
+        React.createElement("span", { style: { color: T.muted, fontWeight: 400 } }, " vs. o mesmo ponto do mês passado (" + nReal(esperado) + ")")));
+}
 function FichaUmAUm() {
     var s = useControlePiloto();
     var h = hoje(), m0 = primeiroDia(h), mAnt = primeiroDia(addDays(m0, -1));
@@ -13939,15 +14233,14 @@ function FichaUmAUm() {
     if (!c)
         return React.createElement(Secao, { n: 1, titulo: titulo }, React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhum closer ativo cadastrado."));
     var cod = String(c.erp_codigo);
-    var de = per === "semana" ? addDays(h, -6) : m0;
-    if (de < m0) de = m0; // os registros do piloto lidos aqui são do mês corrente
+    var de = per === "semana" ? addDays(h, -6) : m0; // v139: 7 dias reais, também nos primeiros dias do mês
     var meu = function (arr) { return (arr || []).filter(function (x) { return String(x.closer_codigo) === cod; }); };
-    var noPer = function (arr, campo) { return arr.filter(function (x) { var d0 = String(x[campo] || "").slice(0, 10); return d0 >= de && d0 <= h; }); };
+    var noPer = function (arr, campo) { return arr.filter(function (x) { var d0 = fichaDia(x[campo]); return d0 >= de && d0 <= h; }); };
     var ehAb = function (o) { return EM_ABERTO.indexOf(o.status) >= 0; };
     /* ---- resultado do mês ---- */
     var mm = meses.find(function (x) { return String(x.closer_codigo) === cod && String(x.mes).slice(0, 10) === m0; }) || null;
     var mmAnt = meses.find(function (x) { return String(x.closer_codigo) === cod && String(x.mes).slice(0, 10) === mAnt; }) || null;
-    var fat = mm ? fichaNumero(mm.faturado) : 0, osQtd = mm ? fichaNumero(mm.os_qtd) : 0, meta = mm ? fichaNumero(mm.meta) : 0;
+    var fat = mm ? fichaNumero(mm.faturado) : 0, osQtd = mm ? fichaNumero(mm.os_qtd) : 0, meta = mm ? fichaNumero(mm.meta) : fichaNumero(c.meta_mensal); // v139: sem linha no mês (ainda sem faturamento nem orçamento), vale a meta do cadastro
     var fatAnt = mmAnt ? fichaNumero(mmAnt.faturado) : null;
     var ticket = osQtd ? fat / osQtd : 0;
     var du = diasUteisDoMes(h), fracMes = du.diaDoMes / du.diasNoMes;
@@ -13958,15 +14251,20 @@ function FichaUmAUm() {
     var orcFech = orcPer.filter(function (o) { return o.status === "fechado"; });
     var valorOrc = orcPer.reduce(function (t, o) { return t + fichaNumero(o.total); }, 0);
     var convOrc = orcPer.length ? orcFech.length / orcPer.length : null;
-    var desf = noPer(meu(s.desf), "criado_em");
+    var desf = noPer(meu(s.desfAmpl), "criado_em");
     var perdeu = desf.filter(function (x) { return x.desfecho === "perdeu"; });
     var fechou = desf.filter(function (x) { return x.desfecho === "fechou"; });
+    /* v139: "por que perdeu" também lista os ORÇAMENTOS perdidos (com o motivo que o closer escreveu),
+       não só a visita sem orçamento. A data da perda é a da última atualização do orçamento. */
+    var orcPerdidos = orcAll.filter(function (o) { var d1 = fichaDia(o.atualizado_em || o.criado_em); return o.status === "perdido" && d1 >= de && d1 <= h; })
+        .map(function (o) { return { criado_em: o.atualizado_em || o.criado_em, cliente: o.cliente_nome, motivo: o.motivo_perda, onde: "Orçamento" }; });
+    var perdidos = perdeu.map(function (x) { return { criado_em: x.criado_em, cliente: x.cliente, motivo: x.motivo, onde: "Visita sem orçamento" }; }).concat(orcPerdidos);
     var motivos = {};
-    perdeu.forEach(function (x) { var m = String(x.motivo || "").trim() || "sem motivo escrito"; motivos[m] = (motivos[m] || 0) + 1; });
+    perdidos.forEach(function (x) { var m = String(x.motivo || "").trim() || "sem motivo escrito"; motivos[m] = (motivos[m] || 0) + 1; });
     var motivosLista = Object.keys(motivos).map(function (k) { return { m: k, n: motivos[k] }; }).sort(function (a, b) { return b.n - a.n; });
-    var avPer = noPer(meu(s.av).filter(function (a) { return a.status !== "recusada"; }), "avaliado_em");
+    var avPer = noPer(meu(s.avAmpl).filter(function (a) { return a.status !== "recusada"; }), "avaliado_em");
     var notaMedia = avPer.length ? avPer.reduce(function (t, a) { return t + fichaNumero(a.nota); }, 0) / avPer.length : null;
-    var rcPer = noPer(meu(s.rc), "criado_em");
+    var rcPer = noPer(meu(s.rcAmpl), "criado_em");
     /* ---- pendências de agora ---- */
     var comDesfecho = new Set((s.desf || []).map(function (x) { return String(x.kommo_id); }));
     var osA = meu(s.osA).filter(function (o) { return !o.carro_entregue; });
@@ -13990,11 +14288,11 @@ function FichaUmAUm() {
     var pend7 = x7 ? fichaNumero(x7.pendencias) : null;
     var toques = []
         .concat(orcAll.map(function (o) { return o.atualizado_em || o.criado_em; }))
-        .concat(meu(s.av).map(function (a) { return a.criado_em; }))
-        .concat(meu(s.rc).map(function (r) { return r.criado_em; }))
+        .concat(meu(s.avAmpl).map(function (a) { return a.criado_em; }))
+        .concat(meu(s.rcAmpl).map(function (r) { return r.criado_em; }))
         .concat(meu(s.ent).map(function (e) { return e.entregue_em; }))
-        .concat(meu(s.desf).map(function (x) { return x.criado_em; }))
-        .filter(Boolean).map(function (v) { return String(v).slice(0, 10); }).sort();
+        .concat(meu(s.desfAmpl).map(function (x) { return x.criado_em; }))
+        .filter(Boolean).map(function (v) { return fichaDia(v); }).sort();
     var ultimoToque = toques.length ? toques[toques.length - 1] : null;
     var diasSemMexer = ultimoToque ? Math.max(0, diasEntre(ultimoToque, h) - 1) : null;
     /* ---- pontos de atenção e perguntas (regras simples) ---- */
@@ -14028,8 +14326,8 @@ function FichaUmAUm() {
         atencao.push(entC.length + " carro(s) entregue(s) sem pedido de avaliação no Google.");
         perguntas.push("Em que momento da entrega você pede a avaliação? Dá para pedir na hora do momento WOW?");
     }
-    if (perdeu.length >= 3 && motivosLista.length && motivosLista[0].n / perdeu.length >= 0.4) {
-        atencao.push("Motivo de perda mais repetido: \"" + motivosLista[0].m + "\" (" + motivosLista[0].n + " de " + perdeu.length + ").");
+    if (perdidos.length >= 3 && motivosLista.length && motivosLista[0].n / perdidos.length >= 0.4) {
+        atencao.push("Motivo de perda mais repetido: \"" + motivosLista[0].m + "\" (" + motivosLista[0].n + " de " + perdidos.length + ").");
         perguntas.push("Esse motivo aparece muito. Dá para evitar no 360º ou na apresentação do projeto?");
     }
     if (!avPer.length && per === "mes") {
@@ -14058,10 +14356,10 @@ function FichaUmAUm() {
         l.push("Orçamentos: " + orcPer.length + " (" + nReal(valorOrc) + ") · fecharam " + orcFech.length + (convOrc != null ? " (" + nPct(convOrc, 0) + ")" : ""));
         l.push("Veio e fechou (sem orçamento): " + fechou.length + " · Veio e perdeu: " + perdeu.length);
         l.push("Avaliações no Google: " + avPer.length + (notaMedia != null ? " (nota média " + notaMedia.toFixed(1).replace(".", ",") + ")" : "") + " · Clientes da casa chamados: " + rcPer.length);
-        if (perdeu.length) {
+        if (perdidos.length) {
             l.push("");
             l.push("POR QUE PERDEU (o que ele escreveu)");
-            perdeu.slice(0, 12).forEach(function (x) { l.push("- " + (x.cliente || "cliente") + ": " + (String(x.motivo || "").trim() || "sem motivo escrito")); });
+            perdidos.slice(0, 12).forEach(function (x) { l.push("- " + (x.cliente || "cliente") + " (" + x.onde.toLowerCase() + "): " + (String(x.motivo || "").trim() || "sem motivo escrito")); });
         }
         l.push("");
         l.push("PENDÊNCIAS AGORA: " + totPend + (pend7 != null ? " (há 7 dias: " + pend7 + ")" : ""));
@@ -14099,7 +14397,7 @@ function FichaUmAUm() {
         React.createElement("div", { style: { fontSize: 12, color: T.muted, marginBottom: 6 } }, "Período: ", rotuloPer),
         sub("Resultado do mês"),
         React.createElement("div", { className: "grid-kpi-4" },
-            React.createElement(Kpi, { label: "Faturado", value: nReal(fat), sub: meta ? nPct(pctMeta, 0) + " da meta · " + nPct(fracMes, 0) + " do mês" : "sem meta cadastrada", tone: pctMeta != null && pctMeta < fracMes - 0.1 ? "bad" : undefined, foot: fatAnt != null ? React.createElement(Delta, { atual: fat, anterior: fatAnt }) : null }),
+            React.createElement(Kpi, { label: "Faturado", value: nReal(fat), sub: meta ? nPct(pctMeta, 0) + " da meta · " + nPct(fracMes, 0) + " do mês" : "sem meta cadastrada", tone: pctMeta != null && pctMeta < fracMes - 0.1 ? "bad" : undefined, foot: fatAnt != null ? React.createElement(FichaRitmo, { atual: fat, anterior: fatAnt, frac: fracMes }) : null }),
             React.createElement(Kpi, { label: "O.S. no mês", value: nInt(osQtd), sub: "faturadas" }),
             React.createElement(Kpi, { label: "Ticket médio", value: osQtd ? nReal(ticket) : "—", sub: "meta " + nReal(FICHA_META_TICKET), tone: osQtd >= 3 && ticket < FICHA_META_TICKET ? "bad" : osQtd ? "good" : undefined }),
             React.createElement(Kpi, { label: "Pendências agora", value: nInt(totPend), sub: pend7 != null ? "há 7 dias: " + nInt(pend7) : "sem histórico de 7 dias", tone: totPend ? "bad" : "good" })),
@@ -14107,17 +14405,18 @@ function FichaUmAUm() {
         React.createElement("div", { className: "grid-kpi-4" },
             React.createElement(Kpi, { label: "Orçamentos gerados", value: nInt(orcPer.length), sub: nReal(valorOrc) + " orçados" }),
             React.createElement(Kpi, { label: "Conversão de orçamento", value: convOrc != null ? nPct(convOrc, 0) : "—", sub: orcFech.length + " de " + orcPer.length + " fecharam", tone: orcPer.length >= 5 && convOrc < 0.25 ? "bad" : undefined }),
-            React.createElement(Kpi, { label: "Veio e fechou · veio e perdeu", value: fechou.length + " · " + perdeu.length, sub: "visitas com desfecho registrado" }),
+            React.createElement(Kpi, { label: "Veio e fechou · veio e perdeu", value: fechou.length + " · " + perdeu.length, sub: "visitas sem orçamento, com desfecho registrado" }),
             React.createElement(Kpi, { label: "Google · clientes chamados", value: avPer.length + " · " + rcPer.length, sub: notaMedia != null ? "nota média " + notaMedia.toFixed(1).replace(".", ",") : "avaliações · recontatos" })),
         sub("Por que perdeu (o que ele escreveu)"),
-        perdeu.length ? React.createElement(Card, { className: "p0 rolagem" },
+        perdidos.length ? React.createElement(Card, { className: "p0 rolagem" },
             React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
-                React.createElement("thead", null, React.createElement("tr", null, React.createElement(Th, null, "Data"), React.createElement(Th, null, "Cliente"), React.createElement(Th, null, "Motivo"))),
-                React.createElement("tbody", null, perdeu.slice().sort(function (a, b) { return String(b.criado_em) < String(a.criado_em) ? -1 : 1; }).slice(0, 15).map(function (x, i) {
+                React.createElement("thead", null, React.createElement("tr", null, React.createElement(Th, null, "Data"), React.createElement(Th, null, "Cliente"), React.createElement(Th, null, "Motivo"), React.createElement(Th, null, "Onde"))),
+                React.createElement("tbody", null, perdidos.slice().sort(function (a, b) { return String(b.criado_em) < String(a.criado_em) ? -1 : 1; }).slice(0, 15).map(function (x, i) {
                     return React.createElement("tr", { key: i },
-                        React.createElement(Td, null, fichaData(String(x.criado_em).slice(0, 10))),
+                        React.createElement(Td, null, fichaData(fichaDia(x.criado_em))),
                         React.createElement(Td, null, x.cliente || "—"),
-                        React.createElement(Td, null, String(x.motivo || "").trim() || "sem motivo escrito"));
+                        React.createElement(Td, null, String(x.motivo || "").trim() || "sem motivo escrito"),
+                        React.createElement(Td, null, x.onde));
                 })))) : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Nenhuma venda perdida registrada no período."),
         sub("Pendências agora"),
         React.createElement(Card, { className: "p0" },
@@ -14182,6 +14481,12 @@ function useControlePiloto() {
     useEffect(function () {
         var vivo = true;
         var m0 = primeiroDia(hoje());
+        /* v139: a ficha precisa dos últimos 7 dias reais, que nos primeiros dias do mês
+           passam do dia 1º. As listas av/rc/desf continuam sendo só do mês (os outros
+           painéis contam "no mês"); as versões *Ampl são para a ficha. */
+        var d7 = addDays(hoje(), -6);
+        var desde = d7 < m0 ? d7 : m0;
+        var noMes = function (arr, campo) { return (arr || []).filter(function (x) { return String(x[campo] || "").slice(0, 10) >= m0; }); };
         var opc = function (q) { return __awaiter(_this, void 0, void 0, function () { var _a, data, error, e_32; return __generator(this, function (_b) {
             switch (_b.label) {
                 case 0:
@@ -14197,17 +14502,17 @@ function useControlePiloto() {
             }
         }); }); };
         Promise.all([
-            db.from("map_closer").select("erp_codigo,nome_oficial,unidade,auth_user_id").eq("ativo", true).order("unidade").order("nome_oficial"),
-            opc(db.from("orcamento_v").select("id,numero,closer_codigo,cliente_nome,veiculo,placa,total,status,criado_em,atualizado_em,retorno_em,retorno_vencido,validade,fechado_sem_os").order("criado_em", { ascending: false }).limit(3000)),
+            db.from("map_closer").select("erp_codigo,nome_oficial,unidade,auth_user_id,meta_mensal").eq("ativo", true).order("unidade").order("nome_oficial"),
+            opc(db.from("orcamento_v").select("id,numero,closer_codigo,cliente_nome,veiculo,placa,total,status,criado_em,atualizado_em,retorno_em,retorno_vencido,validade,fechado_sem_os,motivo_perda").order("criado_em", { ascending: false }).limit(3000)),
             opc(db.from("closer_os_abertas_v").select("closer_codigo,loja,os_numero,placa,veiculo,total,dt_os,dias_aberta,prazo_entrega,prazo_vencido,carro_entregue,situacao,entrada_prevista,entrada_a_confirmar,pronto_em,retirada_prevista")),
             opc(db.from("closer_os_sem_orcamento_v").select("*")),
             opc(db.from("closer_pos_visita_v").select("*")),
             opc(db.from("closer_entregas_v").select("*")),
-            opc(db.from("closer_avaliacao_v").select("id,closer_codigo,nota,avaliado_em,status,criado_em").gte("avaliado_em", m0)),
-            opc(db.from("closer_recontato").select("closer_codigo,placa,resultado,criado_em").gte("criado_em", m0)),
+            opc(db.from("closer_avaliacao_v").select("id,closer_codigo,nota,avaliado_em,status,criado_em").gte("avaliado_em", desde)),
+            opc(db.from("closer_recontato").select("closer_codigo,placa,resultado,criado_em").gte("criado_em", desde)),
             /* v79: fotos diárias das pendências (cron às 23:40) para a tendência */
             opc(db.from("controle_piloto_dia").select("dia,closer_codigo,pendencias,gerados,avaliacoes,recontatos,venda_sem_orc").gte("dia", addDays(hoje(), -28)).order("dia")),
-            opc(db.from("closer_desfecho_visita").select("kommo_id,closer_codigo,desfecho,motivo,cliente,origem,criado_em").gte("criado_em", m0)),
+            opc(db.from("closer_desfecho_visita").select("kommo_id,closer_codigo,desfecho,motivo,cliente,origem,criado_em").gte("criado_em", desde)),
         ]).then(function (_a) {
             var _b = __read(_a, 10), mc = _b[0], orc = _b[1], osA = _b[2], semOrc = _b[3], pv = _b[4], ent = _b[5], av = _b[6], rc = _b[7], hist = _b[8], desf = _b[9];
             if (!vivo)
@@ -14216,7 +14521,7 @@ function useControlePiloto() {
                 setSt({ carregando: false, erro: mc.error.message });
                 return;
             }
-            setSt({ carregando: false, erro: null, closers: mc.data || [], orc: orc, osA: osA, semOrc: semOrc, pv: pv, ent: ent, av: av, rc: rc, hist: (hist || []).map(function (x) { return __assign(__assign({}, x), { pendencias: Math.max(0, (Number(x.pendencias) || 0) - (Number(x.venda_sem_orc) || 0)) }); }), desf: desf, em: new Date() });
+            setSt({ carregando: false, erro: null, closers: mc.data || [], orc: orc, osA: osA, semOrc: semOrc, pv: pv, ent: ent, av: noMes(av, "avaliado_em"), rc: noMes(rc, "criado_em"), avAmpl: av, rcAmpl: rc, desfAmpl: desf, hist: (hist || []).map(function (x) { return __assign(__assign({}, x), { pendencias: Math.max(0, (Number(x.pendencias) || 0) - (Number(x.venda_sem_orc) || 0)) }); }), desf: noMes(desf, "criado_em"), em: new Date() });
         });
         return function () { vivo = false; };
     }, [versao]);
