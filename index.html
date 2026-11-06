@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v140">
+<meta name="painel-versao" content="v141">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -689,7 +689,7 @@ function contasDaRotina(r, tarefas, semTarefa) {
     var porPessoa = new Map();
     var pegar = function (s) {
         if (!porPessoa.has(s)) {
-            porPessoa.set(s, { sdr: s, ligou: 0, falou: 0, agendou: 0, compareceu: 0,
+            porPessoa.set(s, { sdr: s, ligou: 0, falou: 0, sig: 0, agendou: 0, compareceu: 0,
                 vendeu: 0, receita: 0, leadsHoje: 0, visitasHoje: 0, atendeu: 0, whats: 0,
                 recMes: 0, osMes: 0, semDesfecho: 0 });
         }
@@ -700,6 +700,7 @@ function contasDaRotina(r, tarefas, semTarefa) {
         var p = pegar(x.sdr);
         p.ligou += Number(x.ligacoes_tentadas) || 0;
         p.falou += Number(x.pessoas_com_quem_falou) || 0;
+        p.sig += Number(x.ligacoes_2min) || 0;
         p.atendeu += Number(x.ligacoes_atendidas) || 0;
         p.whats += Number(x.whatsapp_enviados) || 0;
     });
@@ -2183,7 +2184,8 @@ function AbaCoordenador(_a) {
                                 React.createElement("tr", null,
                                     React.createElement(Th, null, "SDR"),
                                     React.createElement(Th, { right: true }, "Ligou"),
-                                    React.createElement(Th, { right: true }, "Falou"),
+                                    React.createElement(Th, { right: true }, "Falou (30s+)"),
+                                    React.createElement(Th, { right: true }, "+2 min"),
                                     React.createElement(Th, { right: true }, "Agendou"),
                                     React.createElement(Th, { right: true }, "Compareceu"),
                                     React.createElement(Th, { right: true }, "Vendeu"),
@@ -2193,6 +2195,7 @@ function AbaCoordenador(_a) {
                                     React.createElement(Td, { bold: true, color: T.warn }, "Meta do dia"),
                                     React.createElement(Td, { right: true, color: T.warn }, nInt(c.meta.ligacoes_dia)),
                                     React.createElement(Td, { right: true, color: T.warn }, nInt(c.meta.falou_dia)),
+                                    React.createElement(Td, { right: true, color: T.warn }, "\u2014"),
                                     React.createElement(Td, { right: true, color: T.warn }, nInt(c.meta.agendamentos_dia)),
                                     React.createElement(Td, { right: true, color: T.warn }, nInt(c.meta.comparecimentos_dia)),
                                     React.createElement(Td, { right: true, color: T.warn }, nNum(c.metaVendaDia, 1)),
@@ -2201,6 +2204,7 @@ function AbaCoordenador(_a) {
                                     React.createElement(Td, { bold: true }, primeiroNome(p.sdr)),
                                     React.createElement(Cel, { v: p.ligou, m: Number(c.meta.ligacoes_dia) }),
                                     React.createElement(Cel, { v: p.falou, m: Number(c.meta.falou_dia) }),
+                                    React.createElement(Td, { right: true }, nInt(p.sig)),
                                     React.createElement(Cel, { v: p.agendou, m: Number(c.meta.agendamentos_dia) }),
                                     React.createElement(Cel, { v: p.compareceu, m: Number(c.meta.comparecimentos_dia) }),
                                     React.createElement(Cel, { v: p.vendeu, m: c.metaVendaDia }),
@@ -2600,7 +2604,7 @@ function ModoTV(_a) {
                 React.createElement("div", { style: { textAlign: "right" } },
                     React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 30, fontWeight: 700, lineHeight: 1,
                             color: "#fff", fontVariantNumeric: "tabular-nums" } }, relogio),
-                    React.createElement("div", { style: { fontSize: 13, color: carregando ? T.marca : CINZA, marginTop: 4 } }, carregando ? "atualizando…" : atualizadoEm ? "atualizado ".concat(atualizadoEm) : "sem atualização")))),
+                    React.createElement("div", { style: { fontSize: 13, color: carregando ? T.marca : CINZA, marginTop: 4 } }, carregando ? "atualizando…" : atualizadoEm ? "atualizado ".concat(atualizadoEm, textoFontes(frescor)) : "sem atualização")))),
         React.createElement("div", null,
             React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 34, alignItems: "flex-end",
                     justifyContent: "space-between", marginBottom: 14 } },
@@ -2670,7 +2674,7 @@ function ModoTV(_a) {
                 React.createElement("div", { className: "rolagem" },
                     React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
                         React.createElement("thead", null,
-                            React.createElement("tr", null, [["SDR", null], ["Ligou", c.meta.ligacoes_dia], ["Falou", c.meta.falou_dia],
+                            React.createElement("tr", null, [["SDR", null], ["Ligou", c.meta.ligacoes_dia], ["Falou", c.meta.falou_dia], ["+2 min", null],
                                 ["Agendou", c.meta.agendamentos_dia], ["Vendeu", null]].map(function (_a, i) {
                                 var _b = __read(_a, 2), l = _b[0], m = _b[1];
                                 return (React.createElement("th", { key: l, style: { textAlign: i === 0 ? "left" : "right", fontSize: 11,
@@ -2704,6 +2708,7 @@ function ModoTV(_a) {
                                 React.createElement("td", { style: __assign(__assign({}, td), { textAlign: "left", fontSize: 20, color: "#E6E9ED" }) }, primeiroNome(p.sdr)),
                                 React.createElement("td", { style: __assign(__assign({}, td), { color: corDe(p.ligou, c.meta.ligacoes_dia) }) }, nInt(p.ligou)),
                                 React.createElement("td", { style: __assign(__assign({}, td), { color: corDe(p.falou, c.meta.falou_dia) }) }, nInt(p.falou)),
+                                React.createElement("td", { style: __assign(__assign({}, td), { color: p.sig ? "#E6E9ED" : "#79808A" }) }, nInt(p.sig)),
                                 React.createElement("td", { style: __assign(__assign({}, td), { color: p.agendou ? corDe(p.agendou, c.meta.agendamentos_dia) : "#79808A" }) }, nInt(p.agendou)),
                                 React.createElement("td", { style: __assign(__assign({}, td), { color: p.vendeu ? VERDE : "#79808A" }) }, nInt(p.vendeu))));
                         }))))),
@@ -2934,6 +2939,24 @@ function useSquads() {
     return st;
 }
 /* soma as linhas por-SDR de qualidade_sdr no mesmo formato da view qualidade */
+/* v141: a hora do carregamento da tela não é a hora do dado. Aqui sai a hora em que cada fonte
+   (ligações, tarefas e WhatsApp) foi lida de verdade, para comparar com o Kommo e a API4COM. */
+function textoFontes(frescor) {
+    if (!frescor || !frescor.linhas) return "";
+    var curto = { "Ligações (discador)": "ligações", "Tarefas (Kommo)": "tarefas", "WhatsApp (Kommo)": "WhatsApp" };
+    var ordem = ["Ligações (discador)", "Tarefas (Kommo)", "WhatsApp (Kommo)"];
+    var partes = [];
+    ordem.forEach(function (nome) {
+        var l = frescor.linhas.filter(function (x) { return x.fonte === nome && x.em; })[0];
+        if (!l) return;
+        var cru = String(l.em).replace(" ", "T");
+        if (/[+-]\d\d$/.test(cru)) cru += ":00";
+        var d = new Date(cru);
+        if (isNaN(d.getTime())) return;
+        partes.push(curto[nome] + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"));
+    });
+    return partes.length ? " \u00B7 dados: " + partes.join(" \u00B7 ") : "";
+}
 function somaQualidade(rows) {
     var out = null;
     (rows || []).forEach(function (r) {
@@ -6225,7 +6248,7 @@ function Painel(_a) {
     var emExpediente = horaSP >= 8 && horaSP < 21;
     var frescor = useMemo(function () {
         var linhas = (d.saude || [])
-            .map(function (r) { return ({ fonte: r.fonte, min: Number(r.atraso_min) }); })
+            .map(function (r) { return ({ fonte: r.fonte, min: Number(r.atraso_min), em: r.ultima_gravacao }); })
             .filter(function (x) { return Number.isFinite(x.min); });
         if (!linhas.length)
             return null;
@@ -6375,7 +6398,7 @@ function Painel(_a) {
                         : dadoVelho
                             ? "\u26A0 ".concat(frescor.pior.fonte, " parado h\u00E1 ").concat(idade(frescor.pior.min))
                             : d.estado.em
-                                ? "atualizado ".concat(d.estado.em.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }))
+                                ? "atualizado ".concat(d.estado.em.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }), textoFontes(frescor))
                                 : "ao vivo")),
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
                     React.createElement("span", { style: { fontSize: 12, color: "rgba(255,255,255,.55)" } }, sessao.user.email),
@@ -11634,12 +11657,13 @@ function CoordOutroNegocio(_a) {
     var metasI = c.metasIntencao || [];
     var metaUn = ehStore ? metasI.reduce(function (s, m) { return s + (m.meta || 0); }, 0) : metaMes;
     var pl = c.pessoasLista.slice().sort(function (a, b) { return b.osMes - a.osMes; });
-    var tot = pl.reduce(function (s, p) { s.ligou += p.ligou; s.falou += p.falou; s.agend += p.agendou; s.compar += p.compareceu; s.vend += p.vendeu; s.semD += p.semDesfecho; return s; }, { ligou: 0, falou: 0, agend: 0, compar: 0, vend: 0, semD: 0 });
+    var tot = pl.reduce(function (s, p) { s.ligou += p.ligou; s.falou += p.falou; s.sig += p.sig; s.agend += p.agendou; s.compar += p.compareceu; s.vend += p.vendeu; s.semD += p.semDesfecho; return s; }, { ligou: 0, falou: 0, sig: 0, agend: 0, compar: 0, vend: 0, semD: 0 });
     var cols = [
         { t: "SDR", f: function (p) { return p.sdr; }, b: true },
         { t: "Leads hoje", r: true, f: function (p) { return nInt(p.leadsHoje); } },
         { t: "Ligações", r: true, f: function (p) { return nInt(p.ligou); } },
-        { t: "Falou com", r: true, f: function (p) { return nInt(p.falou); } },
+        { t: "Falou com (30s+)", r: true, f: function (p) { return nInt(p.falou); } },
+        { t: "+2 min", r: true, f: function (p) { return nInt(p.sig); } },
         { t: "Agendou hoje", r: true, f: function (p) { return nInt(p.agendou); } },
         { t: "Compareceram", r: true, f: function (p) { return nInt(p.compareceu); } },
         { t: "Vendas hoje", r: true, f: function (p) { return nInt(p.vendeu); } },
@@ -11666,7 +11690,7 @@ function CoordOutroNegocio(_a) {
                     React.createElement("div", { style: { marginTop: 9 } }, React.createElement(Barra, { pct: m.pct, cor: m.pct >= 1 ? T.good : T.marca, alt: 7 })));
             }))),
         React.createElement(Card, { className: "p16", style: { marginTop: 12 } },
-            React.createElement(BdrTabela, { cols: cols, linhas: pl.concat([{ sdr: "Squad", leadsHoje: c.doDia.leads, ligou: tot.ligou, falou: tot.falou, agendou: tot.agend, compareceu: tot.compar, vendeu: tot.vend, osMes: c.mes.os, semDesfecho: tot.semD }]), destaque: function (p) { return p.sdr === "Squad"; } })));
+            React.createElement(BdrTabela, { cols: cols, linhas: pl.concat([{ sdr: "Squad", leadsHoje: c.doDia.leads, ligou: tot.ligou, falou: tot.falou, sig: tot.sig, agendou: tot.agend, compareceu: tot.compar, vendeu: tot.vend, osMes: c.mes.os, semDesfecho: tot.semD }]), destaque: function (p) { return p.sdr === "Squad"; } })));
 }
 
 function PilotoSDR(_a) {
