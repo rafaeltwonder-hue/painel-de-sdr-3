@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v141">
+<meta name="painel-versao" content="v142">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -11710,6 +11710,7 @@ function PilotoSDR(_a) {
     var _e = __read(useState(0), 2), versao = _e[0], setVersao = _e[1];
     var _f = __read(useState(null), 2), focoTxt = _f[0], setFocoTxt = _f[1];
     var _g = __read(useState(null), 2), focoMsg = _g[0], setFocoMsg = _g[1];
+    var _v142 = __read(useState("piloto"), 2), visao = _v142[0], setVisao = _v142[1]; /* v142: piloto | novo | lista (orcamento do SDR) */
     var _nf1 = __read(useState("todas"), 2), nfLoja = _nf1[0], setNfLoja = _nf1[1];
     var _nf2 = __read(useState("todos"), 2), nfCloser = _nf2[0], setNfCloser = _nf2[1];
     var _nf3 = __read(useState("todos"), 2), nfParado = _nf3[0], setNfParado = _nf3[1];
@@ -11805,6 +11806,12 @@ function PilotoSDR(_a) {
         React.createElement("span", { style: { fontSize: 12, color: T.muted } }, nome + (lista && lista.squadNome ? " · " + lista.squadNome : "") + " · " + nomeNegocio(negocio)),
         pendCount > 0 && React.createElement("span", { style: { marginLeft: "auto", background: T.bad, color: "#fff", borderRadius: 99, padding: "3px 10px", fontSize: 12, fontWeight: 700 } }, pendCount + (pendCount === 1 ? " alerta" : " alertas")),
         d.carregando && React.createElement("span", { style: { fontSize: 12, color: T.muted, marginLeft: pendCount > 0 ? 0 : "auto" } }, "carregando…"));
+    /* v142: SDR do Car Service tambem monta orcamento formalizado (sempre Cardapio) */
+    var souEu = chaveNome(nome) === chaveNome(meuNome), podeCriarOrc = souEu || perfil === "admin";
+    var barraVisao = carsv && React.createElement("div", { style: { margin: "12px 0 0" } },
+        React.createElement(Chips, { value: visao, onChange: setVisao, options: [["piloto", "Meu piloto"]].concat(podeCriarOrc ? [["novo", "+ Novo or\u00E7amento"]] : [], [["lista", souEu ? "Meus or\u00E7amentos" : "Or\u00E7amentos de " + primeiroNome]]) }));
+    if (carsv && visao !== "piloto")
+        return React.createElement("div", null, cab, barraVisao, React.createElement(AbaOrcamentoSdr, { key: nome, nome: nome, aba: visao === "novo" && !podeCriarOrc ? "lista" : visao, setAba: setVisao, podeSquad: !!(vejoTodos || ehCoord), podeCriar: podeCriarOrc, admin: perfil === "admin" }));
     if (d.erro)
         return React.createElement("div", null, cab, React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.bad, marginTop: 12 } }, "Não consegui ler os dados: " + d.erro));
     if (!lista)
@@ -11987,6 +11994,7 @@ function PilotoSDR(_a) {
     var tipoPill = function (cor, txt) { return React.createElement(Pill, { cor: cor }, txt); };
     return (React.createElement("div", null,
         cab,
+        barraVisao,
         /* 01 */
         React.createElement(Secao, { n: 1, titulo: "Como estou no mês", nota: (lista.metaPropria != null ? "A meta individual é de " + nInt(lista.metaPropria) + (carsv ? " O.S." : " carros") + " por mês, definida pela gestão. " : "A meta individual é a meta do mês do " + nomeNegocio(negocio) + " no peso do squad, dividida pelas " + lista.pessoas + " pessoas do squad. ") + (carsv ? "O.S. vêm do Oficina; faturado é o valor final da O.S., com o upsell do closer." : "No Car Store a unidade é o carro.") },
             React.createElement(Card, { className: "p16", style: { display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" } },
@@ -15484,6 +15492,9 @@ var paraNumero = function (s) { var n = Number(String(s).replace(/\./g, "").repl
 function NovoOrcamento(_a) {
     var _this = this;
     var closer = _a.closer, inicial = _a.inicial, aoSalvar = _a.aoSalvar, editando = _a.editando, aoCancelar = _a.aoCancelar;
+    /* v142: modo SDR = mesmas telas, tabelas próprias, sempre cardápio, sem origem/status/retorno */
+    var modoSdr = !!_a.modoSdr, sdrNome = _a.sdrNome || null;
+    var TAB = modoSdr ? "orcamento_sdr" : "orcamento", TAB_IT = modoSdr ? "orcamento_sdr_item" : "orcamento_item";
     var _b = __read(useState(function () { return (__assign(__assign({}, FORM_VAZIO()), (inicial || {}))); }), 2), f = _b[0], setF = _b[1];
     var _c = __read(useState(false), 2), salvando = _c[0], setSalvando = _c[1];
     var _d = __read(useState(null), 2), erro = _d[0], setErro = _d[1];
@@ -15542,36 +15553,40 @@ function NovoOrcamento(_a) {
                         cortesia: f.cortesia || null, condicao_pagamento: f.condicao_pagamento || null, observacoes: f.observacoes || null,
                         status: statusInicial, validade: f.validade || null, retorno_em: f.retorno_em || null,
                     };
+                    if (modoSdr) {
+                        delete cab.origem; delete cab.indicado_por; delete cab.status; delete cab.retorno_em;
+                        cab.loja = closer.unidade || null; cab.formato = "cardapio"; cab.sdr_autor = sdrNome;
+                    }
                     linhasItem = function (id) { return itensValidos.map(function (it, i) { return ({
                         orcamento_id: id, ordem: i + 1, nome: it.nome.trim(), aplicacao: it.aplicacao || null, garantia: it.garantia || null,
                         descricao: (it.descricao || "").trim() || null,
                         preco: paraNumero(it.preco), opcao: f.formato === "opcoes" ? it.opcao || null : null, destaque: !!it.destaque,
-                    }); }); };
+                    }); }).map(function (l) { if (modoSdr) delete l.opcao; return l; }); };
                     if (!editando) return [3 /*break*/, 10];
                     closer_codigo = cab.closer_codigo, _s = cab.status, cabEd = __rest(cab, ["closer_codigo", "status"]);
                     if (statusInicial && editando.status === "rascunho")
                         cabEd.status = statusInicial;
-                    return [4 /*yield*/, exigir(db.from("orcamento").update(cabEd).eq("id", editando.id).select("id"))];
+                    return [4 /*yield*/, exigir(db.from(TAB).update(cabEd).eq("id", editando.id).select("id"))];
                 case 2:
                     ok = _b.sent();
                     if (!ok || !ok.length)
                         throw new Error("o banco não aceitou a alteração (sem permissão neste orçamento)");
-                    return [4 /*yield*/, exigir(db.from("orcamento_item").select("id").eq("orcamento_id", editando.id))];
+                    return [4 /*yield*/, exigir(db.from(TAB_IT).select("id").eq("orcamento_id", editando.id))];
                 case 3:
                     antigos = _b.sent();
-                    return [4 /*yield*/, exigir(db.from("orcamento_item").insert(linhasItem(editando.id)))];
+                    return [4 /*yield*/, exigir(db.from(TAB_IT).insert(linhasItem(editando.id)))];
                 case 4:
                     _b.sent();
                     idsAntigos = (antigos || []).map(function (x) { return x.id; });
                     if (!idsAntigos.length) return [3 /*break*/, 6];
-                    return [4 /*yield*/, exigir(db.from("orcamento_item").delete().in("id", idsAntigos))];
+                    return [4 /*yield*/, exigir(db.from(TAB_IT).delete().in("id", idsAntigos))];
                 case 5:
                     _b.sent();
                     _b.label = 6;
                 case 6:
                     _b.trys.push([6, 8, , 9]);
                     nota = "Editado: ".concat(itensValidos.length, " ite").concat(itensValidos.length === 1 ? "m" : "ns", ", total ").concat(nReal2(editando.total || 0), " \u2192 ").concat(nReal2(total));
-                    return [4 /*yield*/, exigir(db.from("orcamento_evento").insert({ orcamento_id: editando.id, tipo: "nota", nota: nota }))];
+                    return [4 /*yield*/, modoSdr ? Promise.resolve(null) : exigir(db.from("orcamento_evento").insert({ orcamento_id: editando.id, tipo: "nota", nota: nota }))];
                 case 7:
                     _b.sent();
                     return [3 /*break*/, 9];
@@ -15585,13 +15600,13 @@ function NovoOrcamento(_a) {
                     return [2 /*return*/];
                 case 10:
                     _a = umSo;
-                    return [4 /*yield*/, exigir(db.from("orcamento").insert(cab).select("id, ano, seq").single())];
+                    return [4 /*yield*/, exigir(db.from(TAB).insert(cab).select("id, ano, seq").single())];
                 case 11:
                     novo = _a.apply(void 0, [_b.sent()]);
                     id = novo && novo.id;
                     if (!id)
                         throw new Error("o banco não devolveu o número do orçamento");
-                    return [4 /*yield*/, exigir(db.from("orcamento_item").insert(linhasItem(id)))];
+                    return [4 /*yield*/, exigir(db.from(TAB_IT).insert(linhasItem(id)))];
                 case 12:
                     _b.sent();
                     setF(FORM_VAZIO());
@@ -15640,15 +15655,15 @@ function NovoOrcamento(_a) {
                     React.createElement(Campo, { l: "Cor" },
                         React.createElement(Inp, { value: f.cor, onChange: function (e) { return set("cor", e.target.value); }, placeholder: "\u2014" })))),
             React.createElement(Card, { className: "p20" },
-                React.createElement(Titulo, null, "Origem e formato"),
-                React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                React.createElement(Titulo, { extra: modoSdr ? "SDR: sempre Card\u00E1pio" : undefined }, modoSdr ? "Formato" : "Origem e formato"),
+                !modoSdr && React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
                     React.createElement(Chips, { value: f.origem, onChange: function (v) { return set("origem", v); }, options: ORIGENS }),
                     f.origem === "indicacao" && React.createElement(Inp, { value: f.indicado_por, onChange: function (e) { return set("indicado_por", e.target.value); }, placeholder: "indicado por quem?", style: { width: 220 } }),
                     f.origem === "crm" && f.lead_kommo_id && React.createElement(Tag, null,
                         "lead #",
                         f.lead_kommo_id,
                         " do Kommo")),
-                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginTop: 16 } }, FORMATOS.map(function (_a) {
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: modoSdr ? "1fr" : "1fr 1fr 1fr", gap: 8, marginTop: modoSdr ? 0 : 16 } }, (modoSdr ? FORMATOS.slice(0, 1) : FORMATOS).map(function (_a) {
                     var _b = __read(_a, 3), v = _b[0], l = _b[1], s = _b[2];
                     return (React.createElement("button", { key: v, type: "button", onClick: function () { return set("formato", v); }, style: { textAlign: "center", cursor: "pointer", fontFamily: F_UI,
                             border: "1px solid ".concat(f.formato === v ? T.ink : T.hair), background: f.formato === v ? "#F7F7F7" : T.surface, borderRadius: 8, padding: "12px 10px" } },
@@ -15699,10 +15714,10 @@ function NovoOrcamento(_a) {
             React.createElement(Card, { className: "p20" },
                 React.createElement(Campo, { l: "Condi\u00E7\u00E3o de pagamento" },
                     React.createElement(Inp, { value: f.condicao_pagamento, onChange: function (e) { return set("condicao_pagamento", e.target.value); } })),
-                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 } },
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: modoSdr ? "1fr" : "1fr 1fr", gap: 12, marginTop: 12 } },
                     React.createElement(Campo, { l: "Validade" },
                         React.createElement(Inp, { type: "date", value: f.validade, onChange: function (e) { return set("validade", e.target.value); } })),
-                    React.createElement(Campo, { l: "Retorno ao cliente" },
+                    !modoSdr && React.createElement(Campo, { l: "Retorno ao cliente" },
                         React.createElement(Inp, { type: "date", value: f.retorno_em, onChange: function (e) { return set("retorno_em", e.target.value); } })))),
             React.createElement(Card, { className: "p20" },
                 React.createElement(Label, null, "Resumo"),
@@ -15725,7 +15740,7 @@ function NovoOrcamento(_a) {
                     React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 9, lineHeight: 1.5 } }, !pronto ? "Para salvar: pelo menos um item com nome, o prazo de execução e o cliente ou a placa."
                         : "Mant\u00E9m o N\u00BA ".concat(editando.numero, " e o status atual. A imagem para o cliente sai de novo j\u00E1 com os valores novos.")))) : (React.createElement(React.Fragment, null,
                     React.createElement(Btn, { kind: "solid", onClick: function () { return salvar("enviado"); }, style: { display: "block", width: "100%", padding: 10, marginTop: 10, opacity: pronto && !salvando ? 1 : .45 } }, salvando ? "Salvando…" : "Salvar e marcar como enviado"),
-                    React.createElement(Btn, { onClick: function () { return salvar("rascunho"); }, style: { display: "block", width: "100%", padding: 9, marginTop: 8, opacity: pronto && !salvando ? 1 : .45 } }, "Salvar como rascunho"),
+                    !modoSdr && React.createElement(Btn, { onClick: function () { return salvar("rascunho"); }, style: { display: "block", width: "100%", padding: 9, marginTop: 8, opacity: pronto && !salvando ? 1 : .45 } }, "Salvar como rascunho"),
                     React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 9, lineHeight: 1.5 } }, !pronto ? "Para salvar: pelo menos um item com nome, o prazo de execução e o cliente ou a placa."
                         : "Depois de salvo, o orçamento recebe número e vai para \"Orçamentos gerados\" — a imagem para o cliente sai de lá.")))))));
 }
@@ -15919,7 +15934,7 @@ function ImagemOrcamento(_a) {
 /* Gera o PNG e mostra numa janela: baixar, compartilhar (celular) ou fechar. */
 function JanelaImagem(_a) {
     var _this = this;
-    var o = _a.o, itens = _a.itens, closer = _a.closer, fechar = _a.fechar;
+    var o = _a.o, itens = _a.itens, closer = _a.closer, fechar = _a.fechar, semEvento = !!_a.semEvento;
     var ref = useRef(null);
     var _b = __read(useState(null), 2), png = _b[0], setPng = _b[1];
     var _c = __read(useState(null), 2), erro = _c[0], setErro = _c[1];
@@ -15957,7 +15972,8 @@ function JanelaImagem(_a) {
                         if (!vivo)
                             return [2 /*return*/];
                         setPng(cv.toDataURL("image/png"));
-                        db.from("orcamento_evento").insert({ orcamento_id: o.id, tipo: "imagem_ia", nota: "imagem para o cliente gerada (formato Q2)" }).then(function () { }, function () { });
+                        if (!semEvento)
+                            db.from("orcamento_evento").insert({ orcamento_id: o.id, tipo: "imagem_ia", nota: "imagem para o cliente gerada (formato Q2)" }).then(function () { }, function () { });
                         return [3 /*break*/, 9];
                     case 8:
                         e_37 = _a.sent();
@@ -16180,6 +16196,208 @@ function AbaNovoOrcamento(_a) {
         React.createElement(NovoOrcamento, { closer: closer, inicial: prefill, aoSalvar: aoSalvar, editando: editando, aoCancelar: aoCancelar })));
 }
 var semAcento = function (s) { return String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); };
+/* ---------- v142: orçamento formalizado do SDR (sempre cardápio) ----------
+   Pedido do Paulo, 07/11/2026: os SDRs também precisam fazer o orçamento pelo painel.
+   Mesmo formulário e mesma imagem do closer (Galeria), mas tabelas próprias
+   (orcamento_sdr / orcamento_sdr_item) para não misturar com os números do closer.
+   O SDR cria, edita e gera a imagem dos seus; o status "fechou" não é marcado à mão:
+   vem da O.S. achada no Oficina pela placa ou do lead ganho no Kommo. */
+var situacaoOrcSdr = function (o) {
+    if (o.os_encontrada) return { l: "Fechou · O.S. " + o.os_encontrada, cor: T.good, fechou: true };
+    if (o.lead_etapa === "ganho") return { l: "Lead ganho", cor: T.good, fechou: true };
+    if (o.lead_etapa === "perdido") return { l: "Lead perdido", cor: T.muted, fechou: false };
+    if (o.validade && String(o.validade).slice(0, 10) < hoje()) return { l: "Vencido", cor: T.bad, fechou: false };
+    return { l: "Em aberto", cor: T.warn, fechou: false };
+};
+function DetalheOrcSdr(_a) {
+    var o = _a.o, podeEditar = _a.podeEditar, aoEditar = _a.aoEditar, fechar = _a.fechar, cols = _a.cols;
+    var _b = __read(useState(null), 2), itens = _b[0], setItens = _b[1];
+    var _c = __read(useState(false), 2), imagem = _c[0], setImagem = _c[1];
+    useEffect(function () {
+        var vivo = true;
+        db.from("orcamento_sdr_item").select("*").eq("orcamento_id", o.id).order("ordem").then(function (r) { if (vivo) setItens((r && r.data) || []); });
+        return function () { vivo = false; };
+    }, [o.id]);
+    var sit = situacaoOrcSdr(o);
+    return (React.createElement("tr", null,
+        React.createElement("td", { colSpan: cols, style: { padding: 0, borderBottom: "1px solid #D6D6D6", background: "#FAFAFA" } },
+            React.createElement("div", { style: { padding: 16 } },
+                React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 8 } },
+                    React.createElement("span", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 15 } }, "Nº " + o.numero),
+                    React.createElement(Tag, null, "Cardápio"),
+                    React.createElement(Tag, { cor: T.warn }, "prazo: " + (o.prazo || rotPrazo(o.prazo_execucao))),
+                    React.createElement(Tag, { cor: sit.cor }, sit.l),
+                    o.cliente_da_casa && React.createElement(Tag, { cor: T.good }, "cliente da casa"),
+                    o.lead_kommo_id && React.createElement(Tag, null, "lead #" + o.lead_kommo_id)),
+                o.titulo && React.createElement("div", { style: { fontSize: 13.5, fontWeight: 600, marginBottom: 6 } }, o.titulo),
+                React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginBottom: 10 } }, [o.cliente_nome, o.cliente_whatsapp, o.veiculo, o.cor, o.placa].filter(Boolean).join(" · ") || "sem dados do cliente"),
+                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+                    React.createElement("thead", null, React.createElement("tr", null,
+                        React.createElement(Th, null, "Item"), React.createElement(Th, null, "Aplicação"), React.createElement(Th, null, "Garantia"), React.createElement(Th, { right: true }, "Preço"))),
+                    React.createElement("tbody", null,
+                        (itens || []).map(function (it) { return (React.createElement("tr", { key: it.id },
+                            React.createElement(Td, { bold: true }, it.nome), React.createElement(Td, null, it.aplicacao || "—"),
+                            React.createElement(Td, null, it.garantia || "—"), React.createElement(Td, { right: true, bold: true }, nReal2(it.preco)))); }),
+                        itens === null && React.createElement("tr", null, React.createElement(Td, { color: T.muted }, "Carregando itens…")))),
+                React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: 16, marginTop: 8, fontSize: 13 } },
+                    o.cortesia && React.createElement("span", { style: { color: T.ink2 } }, "Cortesia: ", React.createElement("b", null, o.cortesia)),
+                    o.condicao_pagamento && React.createElement("span", { style: { color: T.ink2 } }, o.condicao_pagamento),
+                    React.createElement("span", null, "Total ", React.createElement("b", { style: { fontFamily: F_MARCA, fontSize: 16 } }, nReal2(o.total)))),
+                o.observacoes && React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 8 } }, "Obs.: " + o.observacoes),
+                React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" } },
+                    React.createElement(Btn, { onClick: fechar }, "Fechar"),
+                    podeEditar && (sit.fechou
+                        ? React.createElement("span", { title: "Orçamento que já virou venda não muda. Se precisar, monte um novo.", style: { display: "inline-flex" } }, React.createElement(Btn, { style: { opacity: .45, cursor: "not-allowed" } }, "✎ Editar"))
+                        : React.createElement(Btn, { onClick: function () { return itens && aoEditar(o, itens); }, style: { opacity: itens ? 1 : .45 } }, "✎ Editar")),
+                    React.createElement("span", { style: { flex: 1 } }),
+                    React.createElement(Btn, { kind: "accent", onClick: function () { return setImagem(true); }, style: { opacity: itens && itens.length ? 1 : .45 } }, "Imagem para o cliente")),
+                imagem && itens && React.createElement(JanelaImagem, { o: o, itens: itens, closer: { nome_oficial: o.sdr_autor, unidade: o.loja }, semEvento: true, fechar: function () { return setImagem(false); } })))));
+}
+function ListaOrcSdr(_a) {
+    var linhas = _a.linhas, abertoId = _a.abertoId, setAbertoId = _a.setAbertoId, mostrarSdr = _a.mostrarSdr, podeEditar = _a.podeEditar, aoEditar = _a.aoEditar, vazio = _a.vazio, minhaChave = _a.minhaChave;
+    var cols = mostrarSdr ? 8 : 7;
+    return (React.createElement(Card, { className: "p0 rolagem" },
+        React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 720 } },
+            React.createElement("thead", null, React.createElement("tr", null,
+                React.createElement(Th, null, "Nº"), React.createElement(Th, null, "Criado"), React.createElement(Th, null, "Cliente · veículo"),
+                mostrarSdr && React.createElement(Th, null, "SDR"),
+                React.createElement(Th, null, "Closer · loja"), React.createElement(Th, { right: true }, "Valor"), React.createElement(Th, null, "Situação"), React.createElement(Th, { right: true }))),
+            React.createElement("tbody", null,
+                linhas.map(function (o) {
+                    var sit = situacaoOrcSdr(o), aberto = abertoId === o.id;
+                    return React.createElement(React.Fragment, { key: o.id },
+                        React.createElement("tr", { onClick: function () { return setAbertoId(aberto ? null : o.id); }, style: { cursor: "pointer", background: aberto ? "#FAFAFA" : undefined } },
+                            React.createElement(Td, { bold: true }, o.numero), React.createElement(Td, null, br(String(o.criado_em).slice(0, 10))),
+                            React.createElement(Td, null, [o.cliente_nome, o.veiculo].filter(Boolean).join(" · ") || "—"),
+                            mostrarSdr && React.createElement(Td, null, o.sdr_autor),
+                            React.createElement(Td, null, (o.closer || "") + (o.loja ? " · " + o.loja : "")),
+                            React.createElement(Td, { right: true, bold: true }, nReal2(o.total)),
+                            React.createElement(Td, { color: sit.cor, bold: true }, sit.l),
+                            React.createElement(Td, { right: true, color: T.muted }, aberto ? "▴" : "▾")),
+                        aberto && React.createElement(DetalheOrcSdr, { o: o, cols: cols + 1, podeEditar: podeEditar && (!minhaChave || chaveNome(o.sdr_autor) === minhaChave), aoEditar: aoEditar, fechar: function () { return setAbertoId(null); } }));
+                }),
+                !linhas.length && React.createElement("tr", null, React.createElement(Td, { color: T.muted, style: { whiteSpace: "normal" } }, vazio || "Nenhum orçamento ainda."))))));
+}
+function AbaOrcamentoSdr(_a) {
+    var nome = _a.nome, aba = _a.aba, setAba = _a.setAba, podeSquad = _a.podeSquad, podeCriar = _a.podeCriar !== false, ehAdmin = !!_a.admin;
+    var _b = __read(useState(null), 2), linhas = _b[0], setLinhas = _b[1];
+    var _c = __read(useState(null), 2), erro = _c[0], setErro = _c[1];
+    var _d = __read(useState(0), 2), versao = _d[0], setVersao = _d[1];
+    var _e = __read(useState("meus"), 2), escopo = _e[0], setEscopo = _e[1];
+    var _f = __read(useState(null), 2), abertoId = _f[0], setAbertoId = _f[1];
+    var _g = __read(useState(null), 2), editando = _g[0], setEditando = _g[1];
+    var _h = __read(useState([]), 2), leads = _h[0], setLeads = _h[1];
+    var _i = __read(useState([]), 2), closers = _i[0], setClosers = _i[1];
+    var _j = __read(useState(""), 2), leadSel = _j[0], setLeadSel = _j[1];
+    var _k = __read(useState(""), 2), closerSel = _k[0], setCloserSel = _k[1];
+    var _l = __read(useState(""), 2), busca = _l[0], setBusca = _l[1];
+    var _m = __read(useState(null), 2), aviso = _m[0], setAviso = _m[1];
+    useEffect(function () {
+        var vivo = true;
+        Promise.resolve(db.from("orcamento_sdr_v").select("*").order("criado_em", { ascending: false }).limit(600))
+            .then(function (r) { if (!vivo) return; if (r.error) setErro(r.error.message); else { setErro(null); setLinhas(r.data || []); } }, function (e) { if (vivo) setErro(e && e.message ? e.message : String(e)); });
+        return function () { vivo = false; };
+    }, [versao]);
+    useEffect(function () {
+        var vivo = true;
+        Promise.resolve(db.from("sdr_orc_closers_v").select("erp_codigo,nome_oficial,unidade").order("unidade").order("nome_oficial")).then(function (r) { if (vivo && r && r.data) setClosers(r.data); }, function () { });
+        Promise.resolve(db.from("sdr_orc_leads_v").select("kommo_id,titulo,sdr,unidade,etapa,closer_codigo,closer,closer_unidade").eq("sdr", nome).order("entrou_em", { ascending: false }).limit(400)).then(function (r) { if (vivo && r && r.data) setLeads(r.data); }, function () { });
+        return function () { vivo = false; };
+    }, [nome]);
+    var h = hoje();
+    var todas = linhas || [];
+    var minhas = todas.filter(function (o) { return chaveNome(o.sdr_autor) === chaveNome(nome); });
+    var exibir = escopo === "squad" && podeSquad ? todas : minhas;
+    var doMes = minhas.filter(function (o) { return String(o.criado_em).slice(0, 7) === h.slice(0, 7); });
+    var fechMes = doMes.filter(function (o) { return situacaoOrcSdr(o).fechou; });
+    var abertos = minhas.filter(function (o) { var s = situacaoOrcSdr(o); return !s.fechou && s.l === "Em aberto"; });
+    var vencidos = minhas.filter(function (o) { return situacaoOrcSdr(o).l === "Vencido"; });
+    var soma = function (arr) { return arr.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0); };
+    var leadObj = leads.filter(function (l) { return String(l.kommo_id) === leadSel; })[0] || null;
+    var closerObj = closers.filter(function (c) { return String(c.erp_codigo) === closerSel; })[0] || null;
+    var q = semAcento(busca.trim());
+    var leadsFilt = leads.filter(function (l) { return !q || semAcento(String(l.kommo_id) + " " + (l.titulo || "")).indexOf(q) >= 0; }).slice(0, 80);
+    var escolherLead = function (v) {
+        setLeadSel(v);
+        var l = leads.filter(function (x) { return String(x.kommo_id) === v; })[0];
+        if (l && l.closer_codigo) setCloserSel(String(l.closer_codigo));
+    };
+    var prefill = useMemo(function () {
+        if (!leadObj) return { origem: "crm" };
+        var p = String(leadObj.titulo || "").split(" - ");
+        return { origem: "crm", lead_kommo_id: leadObj.kommo_id, cliente_nome: (p[0] || "").trim(), veiculo: (p[1] || "").trim() };
+    }, [leadSel, leads]);
+    var aoSalvar = function (id) {
+        setVersao(function (n) { return n + 1; });
+        setEditando(null); setLeadSel(""); setBusca(""); setAbertoId(id || null);
+        setAviso("Orçamento salvo. Abra a linha para gerar a imagem para o cliente.");
+        setAba("lista");
+    };
+    var aoEditar = function (o, itens) {
+        setEditando({ o: o, form: Object.assign(orcParaForm(o, itens), { origem: "crm", lead_kommo_id: o.lead_kommo_id || null }) });
+        setAba("novo");
+    };
+    var cancelarEdicao = function () { setEditando(null); setAba("lista"); };
+    var cabecalhoAviso = aviso && aba === "lista" && React.createElement(Card, { className: "p12", style: { marginBottom: 12, borderLeft: "4px solid " + T.good, fontSize: 13 } }, aviso);
+    if (erro)
+        return React.createElement(Card, { className: "p12", style: { fontSize: 12.5, color: T.bad, marginTop: 12 } }, "Não consegui ler os orçamentos: " + erro);
+    if (aba === "novo") {
+        var closerEd = editando ? { erp_codigo: editando.o.closer_codigo, nome_oficial: editando.o.closer, unidade: editando.o.loja } : closerObj;
+        return (React.createElement(Secao, { n: 1, titulo: editando ? "Editando o orçamento Nº " + editando.o.numero : "Novo orçamento",
+            nota: editando ? "Mude o que precisar — itens, preços, prazo, validade — e salve. O número continua o mesmo e a imagem para o cliente sai de novo com os valores atualizados."
+                : "Escolha o lead, o closer que vai atender e monte o orçamento. O SDR sempre usa o formato Cardápio. Prazo de execução é obrigatório; item e preço são livres nesta fase. O closer da visita vê o que você montar." },
+            !editando && React.createElement(Card, { className: "p16", style: { marginBottom: 14 } },
+                React.createElement("div", { style: { display: "grid", gridTemplateColumns: "minmax(0,1.6fr) minmax(0,1fr)", gap: 14 } },
+                    React.createElement(Campo, { l: "Lead do CRM (seus leads dos últimos 60 dias)" },
+                        React.createElement("div", { style: { display: "grid", gap: 6 } },
+                            React.createElement(Inp, { value: busca, onChange: function (e) { return setBusca(e.target.value); }, placeholder: "buscar por nome ou número do lead…" }),
+                            React.createElement(Select, { value: leadSel, onChange: escolherLead, style: { width: "100%" }, options: [{ v: "", l: "Sem lead do CRM (digitar o cliente)" }].concat(leadsFilt.map(function (l) { return { v: String(l.kommo_id), l: "#" + l.kommo_id + " · " + String(l.titulo || "sem título").slice(0, 60) + (l.etapa ? " · " + l.etapa : "") }; })) }))),
+                    React.createElement(Campo, { l: React.createElement("span", null, "Closer que vai atender ", React.createElement("span", { style: { color: T.bad } }, "· obrigatório")) },
+                        React.createElement(Select, { value: closerSel, onChange: setCloserSel, style: { width: "100%" }, options: [{ v: "", l: "Escolha o closer…" }].concat(closers.map(function (c) { return { v: String(c.erp_codigo), l: c.nome_oficial + " · " + c.unidade }; })) }))),
+                leadObj && !leadObj.closer_codigo && React.createElement("div", { style: { fontSize: 12, color: T.warn, marginTop: 8 } }, "Esse lead ainda não está com um closer no Kommo — escolha quem vai atender.")),
+            (editando || closerObj)
+                ? React.createElement(NovoOrcamento, { key: editando ? "ed" + editando.o.id : "n" + leadSel + "-" + closerSel, closer: closerEd, inicial: editando ? editando.form : prefill, aoSalvar: aoSalvar, editando: editando ? editando.o : null, aoCancelar: cancelarEdicao, modoSdr: true, sdrNome: nome })
+                : React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Escolha o closer que vai atender para liberar o formulário.")));
+    }
+    return (React.createElement(Secao, { n: 1, titulo: "Meus orçamentos", nota: "Só os que você fez" + (podeSquad ? " (coordenador e gestão veem também os do squad)" : "") + ". A situação não é marcada à mão: o painel olha se apareceu O.S. com a placa no Oficina ou se o lead foi ganho no Kommo. Clique na linha para ver os itens, editar ou gerar a imagem para o cliente." },
+        cabecalhoAviso,
+        React.createElement("div", { className: "grid-kpi" },
+            React.createElement(Kpi, { label: "Feitos no mês", value: nInt(doMes.length), sub: nReal(soma(doMes)) + " em orçamentos" }),
+            React.createElement(Kpi, { label: "Em aberto", value: nInt(abertos.length), sub: nReal(soma(abertos)) }),
+            React.createElement(Kpi, { label: "Viraram venda no mês", value: nInt(fechMes.length), sub: nReal(soma(fechMes)), tone: fechMes.length ? "good" : undefined }),
+            React.createElement(Kpi, { label: "Vencidos", value: nInt(vencidos.length), sub: "validade passou sem venda", tone: vencidos.length ? "bad" : "good" })),
+        React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", margin: "14px 0 10px", flexWrap: "wrap" } },
+            podeSquad && React.createElement(Chips, { value: escopo, onChange: setEscopo, options: [["meus", "Só os meus"], ["squad", "Squad / todos"]] }),
+            React.createElement("span", { style: { flex: 1 } }),
+            React.createElement(Btn, { onClick: function () { setVersao(function (n) { return n + 1; }); }, style: { padding: "6px 11px", fontSize: 12 } }, "Atualizar"),
+            podeCriar && React.createElement(Btn, { kind: "accent", onClick: function () { setEditando(null); setAba("novo"); }, style: { padding: "7px 12px", fontSize: 12.5 } }, "+ Novo orçamento")),
+        linhas === null ? React.createElement(Card, { className: "p16", style: { fontSize: 13, color: T.muted } }, "Carregando…")
+            : React.createElement(ListaOrcSdr, { linhas: exibir, abertoId: abertoId, setAbertoId: setAbertoId, mostrarSdr: escopo === "squad" && podeSquad, podeEditar: podeCriar, minhaChave: ehAdmin ? null : chaveNome(nome), aoEditar: aoEditar, vazio: "Nenhum orçamento ainda. Clique em \"+ Novo orçamento\" para montar o primeiro." })));
+}
+/* v142: o closer vê, no Banco, os orçamentos que os SDRs montaram para ele (só leitura; não entram nos números do closer) */
+function OrcDoSdrParaCloser(_a) {
+    var closer = _a.closer;
+    var _b = __read(useState(null), 2), linhas = _b[0], setLinhas = _b[1];
+    var _c = __read(useState(null), 2), abertoId = _c[0], setAbertoId = _c[1];
+    var _d = __read(useState(false), 2), ver = _d[0], setVer = _d[1];
+    useEffect(function () {
+        var vivo = true;
+        if (!closer || !closer.erp_codigo) return undefined;
+        Promise.resolve(db.from("orcamento_sdr_v").select("*").eq("closer_codigo", closer.erp_codigo).order("criado_em", { ascending: false }).limit(60))
+            .then(function (r) { if (vivo && r && r.data) setLinhas(r.data); }, function () { });
+        return function () { vivo = false; };
+    }, [closer && closer.erp_codigo]);
+    if (!linhas || !linhas.length) return null;
+    return (React.createElement("div", { style: { marginBottom: 16 } },
+        React.createElement(Card, { className: "p12", style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", borderLeft: "4px solid " + T.marca } },
+            React.createElement("b", { style: { fontSize: 13.5 } }, "Orçamentos que o SDR montou para você"),
+            React.createElement(Tag, null, String(linhas.length)),
+            React.createElement("span", { style: { fontSize: 12, color: T.muted } }, "só consulta — não entram nos seus números do piloto"),
+            React.createElement("span", { style: { flex: 1 } }),
+            React.createElement(Btn, { onClick: function () { return setVer(!ver); }, style: { padding: "6px 11px", fontSize: 12 } }, ver ? "Esconder" : "Ver")),
+        ver && React.createElement("div", { style: { marginTop: 8 } }, React.createElement(ListaOrcSdr, { linhas: linhas, abertoId: abertoId, setAbertoId: setAbertoId, mostrarSdr: true, podeEditar: false }))));
+}
+
 function msgFollowUp(o, closer) {
     var nome = primeiroNomeDe(o.cliente_nome);
     var eu = primeiroNomeDe(closer && closer.nome_oficial);
@@ -16271,6 +16489,7 @@ function AbaBancoOrcamentos(_a) {
         ["perdidos", "Perdidos e vencidos (".concat(todos.filter(function (o) { return o.status === "perdido" || o.status === "vencido"; }).length, ")")],
         ["rascunhos", "Rascunhos (".concat(todos.filter(function (o) { return o.status === "rascunho"; }).length, ")")], ["todos", "Todos (".concat(todos.length, ")")]];
     return (React.createElement(React.Fragment, null,
+        React.createElement(OrcDoSdrParaCloser, { closer: closer }),
         React.createElement(Secao, { n: 1, titulo: "Banco de or\u00E7amentos", nota: 'Toda a sua carteira num lugar s\u00F3. "Fechado" \u00E9 conferido no Oficina pela placa; or\u00E7amento fechado sem O.S. fica em alerta at\u00E9 aparecer. Clique na linha para ver os itens, mudar o status, editar o or\u00E7amento ou gerar a imagem para o cliente.' },
             aviso && React.createElement(Card, { className: "p12", style: { marginBottom: 12, borderColor: "#B7DFD0", background: "#E6F4EF", fontSize: 13, color: T.good, fontWeight: 600 } }, aviso),
             React.createElement("div", { className: "grid-kpi-4", style: { marginBottom: 12 } },
