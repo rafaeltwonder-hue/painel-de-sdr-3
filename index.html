@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v142">
+<meta name="painel-versao" content="v143">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -2458,6 +2458,66 @@ function TelaTVCheia(_a) {
    da conversão são propositalmente frouxas — 25% verde, 10% âmbar — porque
    a meta de 40% é de mês fechado, não de meio de tarde. */
 var MIN_LEADS_PCT = 5; // abaixo disso a porcentagem não aparece
+/* ---------- v143: SDR do Car Store no Modo TV do squad (pedido do Rafael, 09/11/2026) ----------
+   O Pedro (Car Store) trabalha no squad Los Cafetinos. Ele entra na TV só nos cartões "Hoje · por SDR",
+   no "Placar de hoje" e nas contagens de tarefa vencida / lead sem tarefa / visita sem desfecho.
+   Fica FORA dos totais de R$ e O.S., da meta do squad e do ranking de receita: Car Store vende carro, não O.S. */
+function buscarExtrasTv(squad, timeTudo, dia) {
+    var nomes = (timeTudo || []).filter(function (x) { return x.ativo && x.negocio === "car_store" && x.squad === squad; }).map(function (x) { return x.sdr; });
+    if (!nomes.length)
+        return Promise.resolve(null);
+    var q = function (tabela, colunas, filtro) {
+        return Promise.resolve(filtro(db.from(tabela).select(colunas))).then(function (r) { return (r && !r.error && r.data) || []; }, function () { return []; });
+    };
+    var loja = function (x) { return x.eq("negocio", "car_store").in("sdr", nomes); };
+    return Promise.all([
+        q("esforco_dia", "*", function (x) { return x.eq("data", dia).in("sdr", nomes); }),
+        q("tempo_resposta_dia", "*", function (x) { return loja(x).eq("data", dia); }),
+        q("visitas_pendentes_dia", "*", function (x) { return loja(x).eq("data", dia); }),
+        q("coorte_agendamento_v", "*", function (x) { return loja(x).eq("dia", dia); }),
+        q("fato_dia", "*", function (x) { return loja(x).eq("data", dia); }),
+        q("tarefas_sdr", "*", loja),
+        q("leads_sem_tarefa", "*", loja),
+        q("resposta_msg_v", "kommo_id,sdr,minutos", function (x) { return loja(x).eq("data", dia); }),
+    ]).then(function (r) {
+        return { nomes: nomes, esforcoHoje: r[0], tempoHoje: r[1], visitasHoje: r[2], coorteHoje: r[3], fatoHoje: r[4], tarefas: r[5], semTarefa: r[6], respHoje: r[7] };
+    });
+}
+function comExtrasTv(c, ex) {
+    if (!c || !ex || !ex.nomes || !ex.nomes.length)
+        return c;
+    var soma = function (arr, k) { return (arr || []).reduce(function (s, x) { return s + (Number(x[k]) || 0); }, 0); };
+    var dele = function (arr, nome) { return (arr || []).filter(function (x) { return x.sdr === nome; }); };
+    var pessoas = [], cartoes = [], totSemLigar = 0, totVenc = 0, totSemTar = 0;
+    ex.nomes.forEach(function (nome) {
+        var e = dele(ex.esforcoHoje, nome), f = dele(ex.fatoHoje, nome), v = dele(ex.visitasHoje, nome), t = dele(ex.tempoHoje, nome), co = dele(ex.coorteHoje, nome);
+        var rm = dele(ex.respHoje, nome).filter(function (x) { return x.minutos != null; });
+        pessoas.push({ sdr: nome, extra: true,
+            ligou: soma(e, "ligacoes_tentadas"), falou: soma(e, "pessoas_com_quem_falou"), sig: soma(e, "ligacoes_2min"),
+            agendou: soma(f, "agendamentos_marcados"), compareceu: soma(f, "comparecimentos"), vendeu: soma(f, "vendas"), receita: 0,
+            leadsHoje: soma(f, "leads_recebidos"), visitasHoje: soma(f, "visitas_do_dia"), atendeu: soma(e, "ligacoes_atendidas"), whats: soma(e, "whatsapp_enviados"),
+            recMes: 0, osMes: 0, semDesfecho: soma(v, "visitas_sem_desfecho") });
+        var medidos = soma(t, "com_medida");
+        var somaMin = t.reduce(function (s, x) { return s + (Number(x.minutos_medio) || 0) * (Number(x.com_medida) || 0); }, 0);
+        var leads = soma(co, "leads"), agend = soma(co, "agendaram");
+        cartoes.push({ sdr: nome, extra: true,
+            minutos: medidos ? somaMin / medidos : null, ligou: medidos, leadsTempo: soma(t, "leads"),
+            leads: leads, agendaram: agend, poucos: leads < 5, taxa: leads ? agend / leads : null,
+            respMin: rm.length ? rm.reduce(function (s, x) { return s + Number(x.minutos); }, 0) / rm.length : null, respN: rm.length });
+        totSemLigar += soma(t, "nunca_ligaram");
+        totVenc += soma(dele(ex.tarefas, nome), "vencidas");
+        totSemTar += soma(dele(ex.semTarefa, nome).filter(function (x) { return x.ainda_dele; }), "leads");
+    });
+    return Object.assign({}, c, {
+        pessoasLista: (c.pessoasLista || []).concat(pessoas),
+        sdrHoje: (c.sdrHoje || []).concat(cartoes).sort(function (a, b) { return b.leads - a.leads; }),
+        leadsHoje: (c.leadsHoje || 0) + cartoes.reduce(function (s, p) { return s + p.leadsTempo; }, 0),
+        semLigar: (c.semLigar || 0) + totSemLigar,
+        tarefasVencidas: (c.tarefasVencidas || 0) + totVenc,
+        leadsSemTarefa: (c.leadsSemTarefa || 0) + totSemTar,
+    });
+}
+
 function FaixaSdrHoje(_a) {
     var c = _a.c;
     var CINZA = "#8C939D", LINHA = "#242A33", VERDE = "#4FD1AC", VERMELHO = "#F2707A";
@@ -2491,7 +2551,7 @@ function FaixaSdrHoje(_a) {
                 borderRadius: 8, padding: "13px 15px" } },
             React.createElement("div", { style: { fontSize: 12, letterSpacing: ".09em", textTransform: "uppercase",
                     color: CINZA, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden",
-                    textOverflow: "ellipsis" } }, p.sdr),
+                    textOverflow: "ellipsis" } }, p.sdr + (p.extra ? " \u00B7 Car Store" : "")),
             c.temResp && React.createElement("div", { style: { fontSize: 10, letterSpacing: ".09em", textTransform: "uppercase",
                     color: CINZA, fontWeight: 700, marginTop: 8 } }, "1\u00AA liga\u00E7\u00E3o"),
             React.createElement("div", { style: { fontFamily: F_NUM, fontSize: 32, fontWeight: 700, marginTop: 5,
@@ -2555,7 +2615,7 @@ function ModoTV(_a) {
     /* O ranking da TV é por receita no Car Service e por carros vendidos no
        Car Store — mesma barra, outra régua. */
     var valorRank = function (p) { return (ehStore ? p.osMes : p.recMes); };
-    var rank = c.pessoasLista.slice().sort(function (a, b) { return valorRank(b) - valorRank(a); });
+    var rank = c.pessoasLista.filter(function (p) { return !p.extra; }).sort(function (a, b) { return valorRank(b) - valorRank(a); });
     var maiorRec = Math.max(1, rank.length ? valorRank(rank[0]) : 1);
     var porLigacoes = c.pessoasLista.slice().sort(function (a, b) { return b.ligou - a.ligou; });
     var totalSemDesfecho = c.pessoasLista.reduce(function (s, p) { return s + p.semDesfecho; }, 0);
@@ -3084,7 +3144,7 @@ function usarDados(de, ate, prevDe, negocio, escopo) {
                     esc_1 = function (linhas) { return memSet_1 ? (linhas || []).filter(function (r) { return memSet_1.has(r.sdr); }) : (linhas || []); };
                     pesoMeta_1 = memSet_1 ? (Number(escopo.peso) || 0.5) : 1;
                     doNegocio_1 = function (q) { return q.eq("negocio", negocio); };
-                    return [4 /*yield*/, db.from("equipe_sdr").select("sdr,ativo,negocio")];
+                    return [4 /*yield*/, db.from("equipe_sdr").select("sdr,ativo,negocio,squad")];
                 case 2:
                     timeTudo = (_d.sent()).data;
                     doOutroTime_1 = new Set((timeTudo || []).filter(function (x) { return x.negocio && x.negocio !== negocio; }).map(function (x) { return x.sdr; }));
@@ -3259,9 +3319,11 @@ function usarDados(de, ate, prevDe, negocio, escopo) {
                             /* v50 — as metas do Car Store não são um bolo de 60 carros: são
                                três metas separadas, por intenção. Vazio no Car Service. */
                             opcional(function () { return doNegocio_1(db.from("metas_intencao").select("*")).order("ordem"); }, []),
+                            /* v143: SDR do Car Store do mesmo squad, só para o Modo TV */
+                            (memSet_1 && negocio === "car_service" && escopo.squad) ? buscarExtrasTv(escopo.squad, timeTudo, oDiaDeHoje_1).catch(function () { return null; }) : Promise.resolve(null),
                         ])];
                 case 18:
-                    _c = __read.apply(void 0, [_d.sent(), 15]), q = _c[0], fa = _c[1], ms = _c[2], mt = _c[3], sd = _c[4], tf = _c[5], lst = _c[6], mm = _c[7], eq = _c[8], fm = _c[9], eh = _c[10], th = _c[11], vh = _c[12], ch = _c[13], mi = _c[14];
+                    _c = __read.apply(void 0, [_d.sent(), 16]), q = _c[0], fa = _c[1], ms = _c[2], mt = _c[3], sd = _c[4], tf = _c[5], lst = _c[6], mm = _c[7], eq = _c[8], fm = _c[9], eh = _c[10], th = _c[11], vh = _c[12], ch = _c[13], mi = _c[14];
                     setQualidade(memSet_1 ? somaQualidade(q) : (q[0] || null));
                     setFunilAgora(memSet_1 ? agregaFunil(fa) : fa);
                     setMetas({ sdr: esc_1(ms), taxa: mt[0] || null });
@@ -3284,6 +3346,7 @@ function usarDados(de, ate, prevDe, negocio, escopo) {
                         inicioDoMes: inicioDoMes_1,
                         oDiaDeHoje: oDiaDeHoje_1,
                         negocio: negocio,
+                        extras: _c[15] || null,
                     });
                     setFalhas(falhou_1);
                     setEstado({ carregando: false, erro: null, em: new Date() });
@@ -5858,7 +5921,7 @@ function Painel(_a) {
     var rot = useMemo(function () { return contasDaRotina(d.rotina, d.tarefas, d.semTarefa); }, [d.rotina, d.tarefas, d.semTarefa]);
     /* v137: Modo TV — junta ao cartão de cada SDR o tempo médio de RESPOSTA DE MENSAGEM do dia,
        ao lado do tempo até a primeira ligação. Só entra quem está no placar (sdrHoje). */
-    var rotTv = useMemo(function () {
+    var rotTv0 = useMemo(function () {
         if (!rot || !Array.isArray(d.respHoje))
             return rot;
         var m = new Map();
@@ -5881,6 +5944,8 @@ function Painel(_a) {
             timeResp: { min: tot.n ? tot.s / tot.n : null, n: tot.n },
             timeLigar: { min: ligN ? ligS / ligN : null, n: ligN } });
     }, [rot, d.respHoje]);
+    /* v143: SDR do Car Store do squad entra só na TV */
+    var rotTv = useMemo(function () { return comExtrasTv(rotTv0, d.rotina && d.rotina.extras); }, [rotTv0, d.rotina]);
     var aplicar = function (linhas) { return linhas.filter(function (r) {
         return (f.unidade === "__all" || r.unidade === f.unidade) &&
             (f.servico === "__all" || r.servico === f.servico) &&
