@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v145">
+<meta name="painel-versao" content="v146">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -15656,6 +15656,79 @@ function FalarOrcamento(_a) {
             React.createElement("div", { style: { fontSize: 11.5, color: T.muted, lineHeight: 1.5 } }, React.createElement("b", null, "O que entendi do seu áudio: "), res.transcricao))));
 }
 
+/* ---------- v146: orçamento SIMPLES (modelo do Canva que os closers adoravam) ----------
+   Cliente, carro, prazo e uma lista de serviços (descrição livre + preço). O resto fica com o padrão da casa.
+   VOZ_ATIVA: o cartão "Falar o orçamento" (IA) fica desligado até a chave da Anthropic estar nos Secrets. */
+var VOZ_ATIVA = false;
+/* "PPF full body · carro todo · 10 anos" vira nome · aplicação · garantia (o 4º pedaço em diante vai para a descrição).
+   Sem separador, o texto inteiro fica no nome. Separadores: "·", "|" ou " - " (com espaços). */
+var dividirItem = function (it) {
+    var t = String((it && it.nome) || "");
+    if (!/[|·]|\s[-–—]\s/.test(t))
+        return it;
+    var p = t.split(/\s*[|·]\s*|\s+[-–—]\s+/).map(function (x) { return x.trim(); }).filter(Boolean);
+    return __assign(__assign({}, it), { nome: p[0] || "", aplicacao: it.aplicacao || p[1] || "", garantia: it.garantia || p[2] || "", descricao: it.descricao || p.slice(3).join(" · ") });
+};
+/* Lê texto colado ou ditado pelo teclado do celular: uma linha (ou ";") por serviço, o valor em qualquer lugar da linha
+   ("18 mil", "18.000", "R$ 2500", "2,5 mil"). "cortesia: ..." vira cortesia. Garantia ("10 anos") sai da linha. */
+var lerLinhasOrc = function (texto) {
+    var itens = [], cortesia = [];
+    String(texto || "").split(/\n|;/).forEach(function (ln) {
+        var l = ln.replace(/\s+/g, " ").trim();
+        if (!l)
+            return;
+        var mc = /^(?:de\s+)?(?:cortesia|brinde)s?\s*[:\-–]?\s*(.*)$/i.exec(l);
+        if (mc) {
+            if (mc[1])
+                cortesia.push(mc[1].replace(/[.\s]+$/, ""));
+            return;
+        }
+        /* "de brinde" no meio da linha: a linha inteira é cortesia (sem o valor) */
+        if (/\b(de brinde|brinde|cortesia)\b/i.test(l)) {
+            var c = l.replace(/\b(de brinde|brinde|cortesia)\b/gi, " ").replace(/(R\$\s*)?\d[\d.,]*(\s*(mil|k)\b)?/gi, " ").replace(/\s+/g, " ").replace(/^[\s\-\u2013:=,.]+|[\s\-\u2013:=,.]+$/g, "");
+            if (c)
+                cortesia.push(c);
+            return;
+        }
+        var re = /(R\$\s*)?(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d+)?)(\s*(?:mil|k)\b)?/gi, m, achou = null;
+        while ((m = re.exec(l)) !== null) {
+            var depois = l.slice(re.lastIndex);
+            if (/^\s*(anos?|meses|m[eê]s|dias?|%|x\b|vezes|vidros?|portas?|lugares|peças?)/i.test(depois))
+                continue;
+            if (/(?:vlt|n[ºo]\.?|a partir de|at[eé])\s*$/i.test(l.slice(0, m.index)) && !m[1] && !m[3])
+                continue;
+            var bruto = m[2], n;
+            if (m[3]) {
+                n = Number(bruto.replace(/\./g, "").replace(",", ".")) * 1000;
+            }
+            else {
+                n = Number(bruto.replace(/\./g, "").replace(",", "."));
+                if (!m[1] && n < 100)
+                    continue;
+            }
+            if (!isFinite(n) || n <= 0)
+                continue;
+            achou = { ini: m.index, fim: re.lastIndex, valor: n };
+        }
+        var desc = l, preco = "";
+        if (achou) {
+            desc = (l.slice(0, achou.ini) + " " + l.slice(achou.fim)).replace(/\s+/g, " ");
+            preco = String(Math.round(achou.valor * 100) / 100).replace(".", ",");
+        }
+        var gar = "";
+        var mg = /(?:garantia\s*(?:de)?\s*)?(\d+\s*anos?|vital[ií]cia|\d+\s*meses)/i.exec(desc);
+        if (mg) {
+            gar = mg[1].replace(/\s+/g, " ");
+            desc = desc.replace(mg[0], " ");
+        }
+        desc = desc.replace(/\bR\$/gi, " ").replace(/\s+/g, " ").replace(/^[\s\-–—:=·|,.]+|[\s\-–—:=·|,.]+$/g, "").replace(/\s+(por|a|de|em|=|garantia)$/i, "").trim();
+        if (!desc && !preco)
+            return;
+        itens.push({ nome: desc, aplicacao: "", garantia: gar, preco: preco, opcao: "", destaque: false, descricao: "" });
+    });
+    return { itens: itens, cortesia: cortesia.join(", ") };
+};
+
 function NovoOrcamento(_a) {
     var _this = this;
     var closer = _a.closer, inicial = _a.inicial, aoSalvar = _a.aoSalvar, editando = _a.editando, aoCancelar = _a.aoCancelar;
@@ -15666,6 +15739,10 @@ function NovoOrcamento(_a) {
     var _c = __read(useState(false), 2), salvando = _c[0], setSalvando = _c[1];
     var _d = __read(useState(null), 2), erro = _d[0], setErro = _d[1];
     var _f = __read(useState(null), 2), daCasa = _f[0], setDaCasa = _f[1];
+    /* v146: orçamento simples (padrão do closer); o formulário completo continua a um toque */
+    var _sm = __read(useState(true), 2), simples = _sm[0], setSimples = _sm[1];
+    var _pt = __read(useState(""), 2), colado = _pt[0], setColado = _pt[1];
+    var simplesAtivo = simples && !editando && !modoSdr;
     useEffect(function () { if (inicial)
         setF(__assign(__assign({}, FORM_VAZIO()), inicial)); }, [inicial]);
     var set = function (k, v) { return setF(function (x) {
@@ -15712,7 +15789,7 @@ function NovoOrcamento(_a) {
             .catch(function () { });
         return function () { vivo = false; };
     }, [f.placa]);
-    var itensValidos = f.itens.filter(function (it) { return it.nome.trim(); });
+    var itensValidos = (simplesAtivo ? f.itens.map(dividirItem) : f.itens).filter(function (it) { return it.nome.trim(); });
     var pronto = f.prazo_execucao && itensValidos.length > 0 && (f.cliente_nome.trim() || f.placa.trim());
     var salvar = function (statusInicial) { return __awaiter(_this, void 0, void 0, function () {
         var cab, linhasItem, closer_codigo, _s, cabEd, ok, antigos, idsAntigos, nota, e_34, novo, _a, id, e_35;
@@ -15816,10 +15893,80 @@ function NovoOrcamento(_a) {
             React.createElement(Label, { style: { fontSize: 12, color: T.ink, marginBottom: 0 } }, children),
             extra && React.createElement("span", { style: { fontSize: 12, color: T.muted } }, extra)));
     };
+    var montarDoTexto = function () {
+        var r = lerLinhasOrc(colado);
+        if (!r.itens.length && !r.cortesia)
+            return;
+        setF(function (x) {
+            var cheios = x.itens.filter(function (it) { return it.nome.trim() || String(it.preco).trim(); });
+            return __assign(__assign({}, x), { itens: r.itens.length ? cheios.concat(r.itens) : x.itens, cortesia: r.cortesia || x.cortesia });
+        });
+        setColado("");
+    };
+    var abrirCompleto = function () { setF(function (x) { return __assign(__assign({}, x), { itens: x.itens.map(dividirItem) }); }); setSimples(false); };
+    if (simplesAtivo) {
+        var semPreco = itensValidos.some(function (it) { return !paraNumero(it.preco); });
+        var grade = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 14, alignItems: "end" };
+        return (React.createElement("div", { style: { display: "grid", gap: 16, maxWidth: 840 } },
+            VOZ_ATIVA && React.createElement(FalarOrcamento, { aoPreencher: preencherPorVoz }),
+            React.createElement(Card, { className: "p20" },
+                React.createElement(Titulo, { extra: React.createElement("button", { type: "button", onClick: abrirCompleto, style: { border: 0, background: "transparent", color: T.ink2, cursor: "pointer", fontSize: 12, textDecoration: "underline", fontFamily: F_UI } }, "formulário completo") }, "Cliente e veículo"),
+                React.createElement("div", { style: grade },
+                    React.createElement(Campo, { l: "Nome do cliente" },
+                        React.createElement(Inp, { value: f.cliente_nome, onChange: function (e) { return set("cliente_nome", e.target.value); }, placeholder: "Nome completo" })),
+                    React.createElement(Campo, { l: "WhatsApp" },
+                        React.createElement(Inp, { value: f.cliente_whatsapp, onChange: function (e) { return set("cliente_whatsapp", e.target.value); }, placeholder: "(11) 9…", inputMode: "tel" })),
+                    React.createElement(Campo, { l: "Carro" },
+                        React.createElement(Inp, { value: f.veiculo, onChange: function (e) { return set("veiculo", e.target.value); }, placeholder: "Marca e modelo" })),
+                    React.createElement(Campo, { l: "Placa (opcional)" },
+                        React.createElement(Inp, { value: f.placa, onChange: function (e) { return set("placa", e.target.value.toUpperCase()); }, placeholder: "ABC1D23", style: { fontFamily: F_MARCA, fontWeight: 700, letterSpacing: ".05em" } }))),
+                React.createElement("div", { style: { marginTop: 14, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                    React.createElement(Label, { style: { marginBottom: 0, marginRight: 4 } }, "Origem"),
+                    React.createElement(Chips, { value: f.origem, onChange: function (v) { return set("origem", v); }, options: ORIGENS }),
+                    f.origem === "indicacao" && React.createElement(Inp, { value: f.indicado_por, onChange: function (e) { return set("indicado_por", e.target.value); }, placeholder: "indicado por quem?", style: { width: 200 } }),
+                    f.origem === "crm" && f.lead_kommo_id && React.createElement(Tag, null, "lead #", f.lead_kommo_id, " do Kommo"),
+                    daCasa === true && React.createElement(Tag, { cor: T.good }, "cliente da casa"))),
+            React.createElement(Card, { className: "p20", style: { borderColor: T.marca, borderWidth: 2 } },
+                React.createElement(Campo, { l: React.createElement("span", null, "Tempo de serviço ", React.createElement("span", { style: { color: T.bad } }, "· obrigatório")) },
+                    React.createElement(Select, { value: f.prazo_execucao, onChange: function (v) { return set("prazo_execucao", v); }, style: { width: "100%", fontSize: 15, fontWeight: 700, padding: "11px 12px" }, options: [{ v: "", l: "Escolha o prazo…" }].concat(PRAZOS.map(function (_a) { var _b = __read(_a, 2), v = _b[0], l = _b[1]; return ({ v: v, l: l }); })) })),
+                React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 8 } }, "Sai impresso no orçamento que o cliente recebe.")),
+            React.createElement(Card, { className: "p20" },
+                React.createElement(Titulo, { extra: "descrição livre + preço" }, "Serviços"),
+                React.createElement("div", { style: { display: "grid", gap: 10 } }, f.itens.map(function (it, i) { return (React.createElement("div", { key: i, style: { display: "flex", gap: 8, alignItems: "center" } },
+                    React.createElement(Inp, { value: it.nome, onChange: function (e) { return setItem(i, "nome", e.target.value); }, placeholder: "Descrição do serviço — ex.: PPF full body · carro todo · 10 anos", style: { flex: 1, minWidth: 0 } }),
+                    React.createElement(Inp, { value: it.preco, onChange: function (e) { return setItem(i, "preco", e.target.value); }, placeholder: "Preço", inputMode: "decimal", style: { width: 112, flex: "0 0 112px", textAlign: "right", fontWeight: 700 } }),
+                    React.createElement("button", { type: "button", onClick: function () { return rmItem(i); }, title: "tirar serviço", style: { border: 0, background: "transparent", color: T.bad, cursor: "pointer", fontSize: 16, padding: "0 4px" } }, "✕"))); })),
+                React.createElement("div", { style: { marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" } },
+                    React.createElement(Btn, { kind: "solid", onClick: addItem }, "+ Adicionar serviço"),
+                    React.createElement(Inp, { value: f.cortesia, onChange: function (e) { return set("cortesia", e.target.value); }, placeholder: "Cortesia (opcional) — ex.: higienização interna", style: { flex: 1, minWidth: 200 } })),
+                React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 10, lineHeight: 1.5 } }, "Dica: separe com · para a imagem sair completa (serviço · onde aplica · garantia). Sem separador, o texto inteiro vira o nome do serviço."),
+                semPreco && React.createElement("div", { style: { fontSize: 12, color: T.warn, marginTop: 6 } }, "Há serviço sem preço.")),
+            React.createElement(Card, { className: "p20" },
+                React.createElement(Titulo, { extra: "serve também para ditar pelo microfone do teclado do celular" }, "Colar ou ditar o orçamento"),
+                React.createElement("textarea", { value: colado, onChange: function (e) { return setColado(e.target.value); }, rows: 4, style: __assign(__assign({}, inputStyle), { resize: "vertical" }),
+                    placeholder: "Uma linha por serviço, com o valor na linha:\nPPF full body carro todo 10 anos 18 mil\nPelícula solar nos vidros 2.500\ncortesia: higienização interna" }),
+                React.createElement("div", { style: { marginTop: 10 } }, React.createElement(Btn, { onClick: montarDoTexto, style: { opacity: colado.trim() ? 1 : .5 } }, "Montar os serviços"))),
+            React.createElement(Card, { className: "p20" },
+                React.createElement("div", { style: { display: "grid", gap: 14 } },
+                    React.createElement(Campo, { l: "Condição de pagamento" },
+                        React.createElement(Inp, { value: f.condicao_pagamento, onChange: function (e) { return set("condicao_pagamento", e.target.value); } })),
+                    React.createElement(Campo, { l: "Observações" },
+                        React.createElement("textarea", { value: f.observacoes, onChange: function (e) { return set("observacoes", e.target.value); }, rows: 2, style: __assign(__assign({}, inputStyle), { resize: "vertical" }), placeholder: "Observações adicionais" })))),
+            React.createElement(Card, { className: "p20" },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 } },
+                    React.createElement("span", { style: { fontSize: 13 } }, "Total"),
+                    React.createElement("span", { style: { fontFamily: F_MARCA, fontWeight: 700, fontSize: 26 } }, nReal2(total))),
+                erro && React.createElement("div", { style: { fontSize: 12.5, color: T.bad, margin: "6px 0" } }, "Não salvou: ", erro),
+                React.createElement(Btn, { kind: "accent", onClick: function () { return salvar("enviado"); }, style: { display: "block", width: "100%", padding: 13, fontSize: 15, fontWeight: 800, opacity: pronto && !salvando ? 1 : .45 } }, salvando ? "Salvando…" : "Salvar e gerar a proposta"),
+                React.createElement(Btn, { onClick: function () { return salvar("rascunho"); }, style: { display: "block", width: "100%", padding: 10, marginTop: 8, opacity: pronto && !salvando ? 1 : .45 } }, "Salvar como rascunho"),
+                React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 9, lineHeight: 1.5 } }, !pronto ? "Para salvar: pelo menos um serviço, o tempo de serviço e o nome do cliente (ou a placa)."
+                    : "Depois de salvo, o orçamento ganha número e abre no Banco: de lá sai a imagem para o cliente, que dá para baixar, mandar no WhatsApp ou imprimir / salvar em PDF."))));
+    }
     var colsItem = f.formato === "opcoes" ? "24px 60px 1.4fr 1.4fr .7fr .8fr 24px" : "24px 1.4fr 1.4fr .7fr .8fr 24px";
     return (React.createElement("div", { className: "col2", style: { gridTemplateColumns: "minmax(0,1.6fr) minmax(0,1fr)", alignItems: "start" } },
         React.createElement("div", { style: { display: "grid", gap: 16 } },
-            !editando && !modoSdr && React.createElement(FalarOrcamento, { aoPreencher: preencherPorVoz }),
+            !editando && !modoSdr && React.createElement("div", { style: { display: "flex", justifyContent: "flex-end" } }, React.createElement(Btn, { onClick: function () { return setSimples(true); }, style: { padding: "6px 12px", fontSize: 12 } }, "\u2190 Voltar ao formul\u00E1rio simples")),
+            !editando && !modoSdr && VOZ_ATIVA && React.createElement(FalarOrcamento, { aoPreencher: preencherPorVoz }),
             React.createElement(Card, { className: "p20" },
                 React.createElement(Titulo, null, "Cliente e ve\u00EDculo"),
                 React.createElement("div", { style: { display: "grid", gridTemplateColumns: "180px 1fr 1fr", gap: 16, alignItems: "end" } },
@@ -16173,6 +16320,22 @@ function JanelaImagem(_a) {
     }, [o.id]);
     var nomeArq = "orcamento-".concat(o.numero).concat(o.cliente_nome ? "-" + String(o.cliente_nome).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") : "", ".png");
     var baixar = function () { var a = document.createElement("a"); a.href = png; a.download = nomeArq; document.body.appendChild(a); a.click(); document.body.removeChild(a); };
+    /* v146: Imprimir / PDF — a imagem do orçamento numa folha A4 (no diálogo de impressão: "Salvar como PDF") */
+    var imprimir = function () {
+        try {
+            var fr = document.createElement("iframe");
+            fr.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+            document.body.appendChild(fr);
+            var d = fr.contentWindow.document;
+            d.open();
+            d.write('<!doctype html><html><head><meta charset="utf-8"><title>' + nomeArq.replace(/\.png$/, "") + '</title><style>@page{size:A4;margin:12mm}html,body{margin:0;background:#fff}img{display:block;width:100%;max-width:186mm;margin:0 auto}</style></head><body><img id="i" src="' + png + '"></body></html>');
+            d.close();
+            var ir = function () { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (e) { baixar(); } setTimeout(function () { try { document.body.removeChild(fr); } catch (e) { } }, 60000); };
+            var im = d.getElementById("i");
+            if (im.complete) ir(); else im.onload = ir;
+        }
+        catch (e) { baixar(); }
+    };
     var podeCompartilhar = !!(navigator.share && navigator.canShare && window.File);
     var compartilhar = function () { return __awaiter(_this, void 0, void 0, function () {
         var blob, file, e_38;
@@ -16219,7 +16382,8 @@ function JanelaImagem(_a) {
                     : React.createElement("div", { style: { color: T.marca, fontSize: 13 } }, "Montando a imagem\u2026")),
             png && (React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 12 } },
                 React.createElement(Btn, { kind: "accent", onClick: baixar, style: { flex: 1, padding: 10 } }, "Baixar imagem"),
-                podeCompartilhar && React.createElement(Btn, { kind: "solid", onClick: compartilhar, style: { flex: 1, padding: 10 } }, "Compartilhar"))),
+                podeCompartilhar && React.createElement(Btn, { kind: "solid", onClick: compartilhar, style: { flex: 1, padding: 10 } }, "Compartilhar"),
+                React.createElement(Btn, { onClick: imprimir, style: { flex: 1, padding: 10 } }, "Imprimir / PDF"))),
             React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 8 } }, "No celular, segure o dedo na imagem para salvar ou mandar direto no WhatsApp."))));
 }
 /* Um orçamento aberto: itens, status, retorno, motivo. */
