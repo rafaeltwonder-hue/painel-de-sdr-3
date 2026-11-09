@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v143">
+<meta name="painel-versao" content="v144">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -15554,6 +15554,105 @@ var orcParaForm = function (o, itens) { return ({
     }); }),
 }); };
 var paraNumero = function (s) { var n = Number(String(s).replace(/\./g, "").replace(",", ".")); return isNaN(n) ? 0 : n; };
+/* ---------- v144 (TESTE): "Falar o orçamento" ----------
+   O closer fala (ou escreve) o orçamento; a função orcar-voz-teste transcreve e devolve os campos.
+   Nada é salvo aqui: o formulário é preenchido e o closer confere antes de salvar. */
+function FalarOrcamento(_a) {
+    var aoPreencher = _a.aoPreencher;
+    var _s = __read(useState("parado"), 2), estado = _s[0], setEstado = _s[1];
+    var _t = __read(useState(0), 2), seg = _t[0], setSeg = _t[1];
+    var _e = __read(useState(null), 2), erro = _e[0], setErro = _e[1];
+    var _r = __read(useState(null), 2), res = _r[0], setRes = _r[1];
+    var _x = __read(useState(""), 2), texto = _x[0], setTexto = _x[1];
+    var _m = __read(useState(false), 2), mostrarTexto = _m[0], setMostrarTexto = _m[1];
+    var rec = useRef(null), fluxo = useRef(null), pedacos = useRef([]), relogio = useRef(null);
+    var suportaMic = typeof navigator !== "undefined" && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function" && typeof window.MediaRecorder !== "undefined";
+    useEffect(function () { return function () {
+        try { if (relogio.current) clearInterval(relogio.current); } catch (e) { }
+        try { if (fluxo.current) fluxo.current.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { }
+    }; }, []);
+    var aplicar = function (r) {
+        if (r && r.ok && r.data && r.data.ok && r.data.orcamento) {
+            setRes({ transcricao: r.data.transcricao || "", avisos: r.data.avisos || [] });
+            aoPreencher(r.data.orcamento);
+            setEstado("parado");
+            return;
+        }
+        setErro((r && r.erro) || "Não consegui ler o orçamento. Tente de novo.");
+        setEstado("parado");
+    };
+    var enviarTexto = function () {
+        var t = String(texto || "").trim();
+        if (!t || estado === "enviando") return;
+        setErro(null); setRes(null); setEstado("enviando");
+        chamaTreino("orcar-voz-teste", { texto: t }).then(aplicar);
+    };
+    var parar = function () {
+        try { if (relogio.current) clearInterval(relogio.current); } catch (e) { }
+        relogio.current = null;
+        try { if (rec.current && rec.current.state !== "inactive") rec.current.stop(); } catch (e) { }
+    };
+    var gravar = function () {
+        if (estado !== "parado") return;
+        setErro(null); setRes(null);
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+            fluxo.current = stream;
+            pedacos.current = [];
+            var tipos = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg;codecs=opus"];
+            var tipo = "";
+            for (var i = 0; i < tipos.length; i++) { try { if (window.MediaRecorder.isTypeSupported(tipos[i])) { tipo = tipos[i]; break; } } catch (e) { } }
+            var mr = tipo ? new window.MediaRecorder(stream, { mimeType: tipo }) : new window.MediaRecorder(stream);
+            rec.current = mr;
+            mr.ondataavailable = function (ev) { if (ev.data && ev.data.size) pedacos.current.push(ev.data); };
+            mr.onstop = function () {
+                try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) { }
+                var mime = mr.mimeType || tipo || "audio/webm";
+                var blob = new Blob(pedacos.current, { type: mime });
+                if (blob.size < 2000) { setErro("Não captei nada. Toque no microfone e fale perto dele."); setEstado("parado"); return; }
+                setEstado("enviando");
+                var fr = new FileReader();
+                fr.onload = function () {
+                    var b64 = String(fr.result || "").split(",")[1] || "";
+                    chamaTreino("orcar-voz-teste", { audio_base64: b64, mime: mime }).then(aplicar);
+                };
+                fr.onerror = function () { setErro("Não consegui ler o áudio gravado."); setEstado("parado"); };
+                fr.readAsDataURL(blob);
+            };
+            mr.start();
+            setSeg(0);
+            setEstado("gravando");
+            relogio.current = setInterval(function () {
+                setSeg(function (s) { if (s + 1 >= 180) parar(); return s + 1; });
+            }, 1000);
+        }, function () {
+            setErro("O navegador não deixou usar o microfone. Libere o microfone para este site ou escreva o orçamento abaixo.");
+            setMostrarTexto(true);
+        });
+    };
+    var mmss = function (s) { return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+    var gravando = estado === "gravando", enviando = estado === "enviando";
+    return (React.createElement(Card, { className: "p20", style: { borderColor: T.marca, borderWidth: 2 } },
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 8, flexWrap: "wrap" } },
+            React.createElement(Label, { style: { fontSize: 12, color: T.ink, marginBottom: 0 } }, "Falar o orçamento"),
+            React.createElement(Tag, { cor: T.warn }, "versão de teste")),
+        React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginBottom: 12, lineHeight: 1.5 } },
+            "Toque no microfone e fale como no áudio: cliente, carro, cada serviço com onde aplica, garantia e valor, cortesia, prazo e pagamento. O formulário abaixo é preenchido e você confere antes de salvar."),
+        React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
+            suportaMic && !gravando && React.createElement("button", { type: "button", disabled: enviando, onClick: gravar, style: { fontFamily: F_UI, fontSize: 15, fontWeight: 800, background: T.marca, color: T.preto, border: "1px solid " + T.marca, borderRadius: 10, padding: "14px 20px", cursor: enviando ? "wait" : "pointer", opacity: enviando ? .6 : 1 } }, enviando ? "Lendo o que você falou…" : "🎤  Falar o orçamento"),
+            gravando && React.createElement("button", { type: "button", onClick: parar, style: { fontFamily: F_UI, fontSize: 15, fontWeight: 800, background: T.preto, color: "#fff", border: "1px solid " + T.preto, borderRadius: 10, padding: "14px 20px", cursor: "pointer" } },
+                React.createElement("span", { style: { color: "#FF4D4D", marginRight: 8 } }, "●"),
+                "Gravando " + mmss(seg) + " · toque para terminar"),
+            !gravando && !enviando && React.createElement(Btn, { onClick: function () { setMostrarTexto(!mostrarTexto); } }, mostrarTexto ? "esconder texto" : "ou escrever")),
+        mostrarTexto && !gravando && React.createElement("div", { style: { marginTop: 12, display: "grid", gap: 8 } },
+            React.createElement("textarea", { value: texto, onChange: function (e) { return setTexto(e.target.value); }, rows: 4, placeholder: "ex.: Marcos, Civic 2022, PPF full body carro todo 10 anos 18 mil, película solar nos vidros 2.500, cortesia de higienização, 3 dias, 6x sem juros", style: __assign(__assign({}, inputStyle), { resize: "vertical" }) }),
+            React.createElement("div", null, React.createElement(Btn, { kind: "solid", onClick: enviarTexto }, enviando ? "Lendo…" : "Preencher o formulário"))),
+        erro && React.createElement("div", { style: { marginTop: 10, fontSize: 12.5, color: T.bad } }, erro),
+        res && React.createElement("div", { style: { marginTop: 12, borderTop: "1px solid " + T.hair, paddingTop: 10 } },
+            React.createElement("div", { style: { fontSize: 12, color: T.good, fontWeight: 700, marginBottom: 6 } }, "Formulário preenchido — confira os itens, o prazo e salve."),
+            res.avisos.length > 0 && React.createElement("div", { style: { fontSize: 12.5, color: T.warn, marginBottom: 6, lineHeight: 1.5 } }, res.avisos.map(function (v, i) { return React.createElement("div", { key: i }, "⚠ " + v); })),
+            React.createElement("div", { style: { fontSize: 11.5, color: T.muted, lineHeight: 1.5 } }, React.createElement("b", null, "O que entendi do seu áudio: "), res.transcricao))));
+}
+
 function NovoOrcamento(_a) {
     var _this = this;
     var closer = _a.closer, inicial = _a.inicial, aoSalvar = _a.aoSalvar, editando = _a.editando, aoCancelar = _a.aoCancelar;
@@ -15575,6 +15674,22 @@ function NovoOrcamento(_a) {
             return (j === i ? __assign(__assign({}, it), (_a = {}, _a[k] = v, _a)) : it);
         }) })); }); };
     var addItem = function () { return setF(function (x) { return (__assign(__assign({}, x), { itens: __spreadArray(__spreadArray([], __read(x.itens), false), [ITEM_VAZIO()], false) })); }); };
+    /* v144: o que a IA entendeu da fala entra no formulário (cliente e carro só se o campo estiver vazio) */
+    var preencherPorVoz = function (o) { setF(function (x) {
+        var vazio = function (v) { return !String(v || "").trim(); };
+        var troca = function (novo, atual) { return String(novo || "").trim() ? novo : atual; };
+        var itens = (o.itens && o.itens.length) ? o.itens.map(function (it) { return __assign(__assign({}, ITEM_VAZIO()), { nome: it.nome || "", aplicacao: it.aplicacao || "", garantia: it.garantia || "", preco: it.preco || "", descricao: it.descricao || "" }); }) : x.itens;
+        return __assign(__assign({}, x), {
+            cliente_nome: vazio(x.cliente_nome) ? (o.cliente_nome || "") : x.cliente_nome,
+            cliente_whatsapp: vazio(x.cliente_whatsapp) ? (o.cliente_whatsapp || "") : x.cliente_whatsapp,
+            placa: vazio(x.placa) ? (o.placa || "") : x.placa,
+            veiculo: vazio(x.veiculo) ? (o.veiculo || "") : x.veiculo,
+            cor: vazio(x.cor) ? (o.cor || "") : x.cor,
+            titulo: troca(o.titulo, x.titulo), itens: itens, cortesia: troca(o.cortesia, x.cortesia),
+            prazo_execucao: troca(o.prazo_execucao, x.prazo_execucao), condicao_pagamento: troca(o.condicao_pagamento, x.condicao_pagamento),
+            observacoes: troca(o.observacoes, x.observacoes),
+        });
+    }); };
     var rmItem = function (i) { return setF(function (x) { return (__assign(__assign({}, x), { itens: x.itens.length > 1 ? x.itens.filter(function (_, j) { return j !== i; }) : x.itens })); }); };
     var total = f.itens.reduce(function (s, it) { return s + paraNumero(it.preco); }, 0);
     /* placa digitada → o banco responde se o carro já passou pela casa */
@@ -15701,6 +15816,7 @@ function NovoOrcamento(_a) {
     var colsItem = f.formato === "opcoes" ? "24px 60px 1.4fr 1.4fr .7fr .8fr 24px" : "24px 1.4fr 1.4fr .7fr .8fr 24px";
     return (React.createElement("div", { className: "col2", style: { gridTemplateColumns: "minmax(0,1.6fr) minmax(0,1fr)", alignItems: "start" } },
         React.createElement("div", { style: { display: "grid", gap: 16 } },
+            !editando && !modoSdr && React.createElement(FalarOrcamento, { aoPreencher: preencherPorVoz }),
             React.createElement(Card, { className: "p20" },
                 React.createElement(Titulo, null, "Cliente e ve\u00EDculo"),
                 React.createElement("div", { style: { display: "grid", gridTemplateColumns: "180px 1fr 1fr", gap: 16, alignItems: "end" } },
