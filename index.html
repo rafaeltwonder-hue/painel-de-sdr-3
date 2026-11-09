@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v144">
+<meta name="painel-versao" content="v145">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -5883,7 +5883,10 @@ function Painel(_a) {
     var ABAS = [["painel", "SDR"], ["piloto_sdr", "Piloto SDR"], ["coordenador", "Coordenador"], ["tv", "Modo TV"], ["marketing", "Marketing"], ["closers", "Closers"], ["piloto", "Piloto Closer"], ["ficha", "Ficha 1:1"], ["agendou", "Quem agendou"], ["trabalho", "Trabalho × resultado"], ["lojas", "Lojas"], ["origem", "Origem"], ["resumo", "Resumo"], ["importar", "Importar"]].concat(HUB_ABAS);
     /* v89: o Hub (Preços, Treinador, Biblioteca) é de todo mundo do time comercial.
        Importador e agência não veem: preço interno e regras de alçada não são deles. */
-    var ABAS_SDR = ["painel", "piloto_sdr", "coordenador", "tv"].concat(HUB_IDS);
+    /* v145: SDR com acesso restrito (app_metadata.acesso = "piloto") vê só o Piloto SDR e o Hub.
+       O perfil continua "sdr" (o banco depende dele); a restrição é só a porta, como o resto desta regra. */
+    var restritoPiloto = !ehAdmin && !ehImportador && !ehAgencia && ((((sessao && sessao.user && sessao.user.app_metadata) || {}).acesso) === "piloto");
+    var ABAS_SDR = (restritoPiloto ? ["piloto_sdr"] : ["painel", "piloto_sdr", "coordenador", "tv"]).concat(HUB_IDS);
     // 16/09: o importador também monta e envia os resumos do dia, então vê
     // Importar + Resumo (e nada além disso).
     var ABAS_IMPORTADOR = ["importar", "resumo"];
@@ -5896,7 +5899,7 @@ function Painel(_a) {
         : ehImportador ? ABAS_IMPORTADOR.indexOf(v) >= 0
             : ehAgencia ? ABAS_AGENCIA.indexOf(v) >= 0
                 : ABAS_SDR.indexOf(v) >= 0); };
-    var abaInicial = ehImportador ? "importar" : "painel";
+    var abaInicial = ehImportador ? "importar" : restritoPiloto ? "piloto_sdr" : "painel";
     var abaDaURL = function () {
         var h = String(window.location.hash || "").replace("#", "");
         var conhecida = ABAS.some(function (_a) {
