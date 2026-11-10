@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v146">
+<meta name="painel-versao" content="v148">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -2265,16 +2265,14 @@ function AbaCoordenador(_a) {
                 !ehStore && (React.createElement(Bloco, { hora: "17:30", check: rotina.porBloco["17:30"], titulo: "Raio-X final + dificuldades do dia e PDA", nota: "O PDA (plano de a\u00E7\u00E3o) fica aberto nos dias seguintes at\u00E9 ser conclu\u00EDdo." },
                     React.createElement(CoordFinal, { cd: cd, c: c }))),
                 React.createElement(Bloco, { hora: "Sexta", check: rotina.porBloco["sexta"], titulo: "Fechar a semana", etiqueta: "Qualidade da base", nota: "\u00C9 a lista que o coordenador leva para o fechamento semanal com o supervisor." },
-                    React.createElement(Linha, { valor: nInt((qualidade || {}).sem_unidade), cor: T.bad },
-                        "Leads sem unidade preenchida",
+                    React.createElement(Linha, { valor: nInt((qualidade || {}).sem_unidade_aberto != null ? (qualidade || {}).sem_unidade_aberto : (qualidade || {}).sem_unidade), cor: T.bad },
+                        (qualidade || {}).sem_unidade_aberto != null ? "Leads em aberto sem unidade preenchida" : "Leads sem unidade preenchida",
                         React.createElement("span", { style: { fontSize: 12, color: T.muted } },
                             " · ",
-                            "de ",
-                            nInt((qualidade || {}).leads_total),
-                            " na base")),
-                    React.createElement(Linha, { valor: nInt((qualidade || {}).sem_servico), cor: T.bad }, ehStore ? "Leads sem interesse preenchido" : "Leads sem serviço preenchido"),
+                            (qualidade || {}).sem_unidade_aberto != null ? "fora: " + nInt((qualidade || {}).sem_unidade_perdido) + " j\u00E1 perdidos e " + nInt((qualidade || {}).sem_unidade_ganho) + " ganhos" : "de " + nInt((qualidade || {}).leads_total) + " na base")),
+                    React.createElement(Linha, { valor: nInt((qualidade || {}).sem_servico_aberto != null ? (qualidade || {}).sem_servico_aberto : (qualidade || {}).sem_servico), cor: T.bad }, (ehStore ? "Leads sem interesse preenchido" : "Leads sem serviço preenchido") + ((qualidade || {}).sem_servico_aberto != null ? " (em aberto)" : "")),
                     !ehStore && (React.createElement(Linha, { valor: nInt((qualidade || {}).ganho_sem_valor), cor: T.bad }, "Vendas ganhas sem valor lan\u00E7ado")),
-                    React.createElement(Linha, { valor: nInt((qualidade || {}).sem_sdr) }, "Leads sem SDR atribu\u00EDdo"))),
+                    React.createElement(Linha, { valor: nInt((qualidade || {}).sem_sdr_aberto != null ? (qualidade || {}).sem_sdr_aberto : (qualidade || {}).sem_sdr) }, (qualidade || {}).sem_sdr_aberto != null ? "Leads em aberto sem SDR atribu\u00EDdo" : "Leads sem SDR atribu\u00EDdo"))),
             React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12 } },
                 React.createElement(QuadroRotina, { r: rotina }),
                 React.createElement(Card, { className: "p16" },
@@ -3016,6 +3014,13 @@ function textoFontes(frescor) {
         partes.push(curto[nome] + " " + String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"));
     });
     return partes.length ? " \u00B7 dados: " + partes.join(" \u00B7 ") : "";
+}
+/* v147: cartões de qualidade do CRM contam só o que ainda dá para corrigir (lead em aberto); perdidos e ganhos ficam como informação */
+function qCard(q, k, label, subBase) {
+    var tem = q["sem_" + k + "_aberto"] != null;
+    var ab = tem ? Number(q["sem_" + k + "_aberto"]) || 0 : Number(q["sem_" + k]) || 0;
+    var sub = tem ? "Fora do n\u00FAmero: " + nInt(q["sem_" + k + "_perdido"]) + " perdidos e " + nInt(q["sem_" + k + "_ganho"]) + " ganhos" : subBase;
+    return React.createElement(Kpi, { label: label + (tem ? " \u00B7 em aberto" : ""), value: nInt(ab), sub: sub, tone: ab > 0 ? "bad" : "good" });
 }
 function somaQualidade(rows) {
     var out = null;
@@ -7043,12 +7048,12 @@ function Painel(_a) {
                                     ehStore ? cel(x.com_contrato, x.exige_contrato) : cel(x.com_valor, x.ganhos)));
                             })))),
                     React.createElement(Card, { className: "p16", style: { marginTop: 12, fontSize: 12.5, color: T.ink2, lineHeight: 1.6 } }, "\"Nota ao closer\" mede se existe uma nota escrita por gente no lead. A qualidade do que foi escrito \u00E9 outra conversa, que nenhum painel resolve \u2014 esta coluna serve para achar quem n\u00E3o escreve nada."))),
-                q && (React.createElement(Secao, { n: 12, titulo: "Qualidade do preenchimento no CRM", nota: "Os mesmos buracos, vistos por campo em vez de por pessoa. As visitas sem desfecho aparecem aqui e n\u00E3o na nota acima de prop\u00F3sito: hoje ningu\u00E9m tem essa tarefa, e cobrar de quem n\u00E3o a recebeu destruiria a confian\u00E7a na nota." },
+                q && (React.createElement(Secao, { n: 12, titulo: "Qualidade do preenchimento no CRM", nota: "Os mesmos buracos, vistos por campo em vez de por pessoa. As visitas sem desfecho aparecem aqui e n\u00E3o na nota acima de prop\u00F3sito: hoje ningu\u00E9m tem essa tarefa, e cobrar de quem n\u00E3o a recebeu destruiria a confian\u00E7a na nota. Os tr\u00EAs cart\u00F5es de lead contam s\u00F3 os que ainda est\u00E3o em aberto, que \u00E9 o que d\u00E1 para corrigir; os perdidos e os ganhos ficam em letra pequena." },
                     React.createElement("div", { className: "grid-kpi" },
                         React.createElement(Kpi, { label: "Visitas sem desfecho", value: nInt(q.visita_sem_desfecho), sub: "J\u00E1 passaram e ningu\u00E9m marcou", tone: q.visita_sem_desfecho > 0 ? "bad" : "good" }),
-                        React.createElement(Kpi, { label: "Leads sem unidade", value: nInt(q.sem_unidade), sub: "N\u00E3o d\u00E1 para atribuir \u00E0 loja", tone: q.sem_unidade > 0 ? "bad" : "good" }),
-                        React.createElement(Kpi, { label: ehStore ? "Leads sem interesse" : "Leads sem serviço", value: nInt(q.sem_servico), sub: ehStore ? "Não dá para separar os negócios" : "Não entram na análise por produto", tone: q.sem_servico > 0 ? "bad" : "good" }),
-                        React.createElement(Kpi, { label: "Leads sem SDR", value: nInt(q.sem_sdr), sub: "Nunca distribu\u00EDdos", tone: q.sem_sdr > 0 ? "bad" : "good" }),
+                        qCard(q, "unidade", "Leads sem unidade", "N\u00E3o d\u00E1 para atribuir \u00E0 loja"),
+                        qCard(q, "servico", ehStore ? "Leads sem interesse" : "Leads sem servi\u00E7o", ehStore ? "N\u00E3o d\u00E1 para separar os neg\u00F3cios" : "N\u00E3o entram na an\u00E1lise por produto"),
+                        qCard(q, "sdr", "Leads sem SDR", "Nunca distribu\u00EDdos"),
                         !ehStore && (React.createElement(Kpi, { label: "Vendas sem valor", value: nInt(q.ganho_sem_valor), sub: "Fecharam com R$ 0", tone: q.ganho_sem_valor > 0 ? "bad" : "good" })),
                         !ehStore && (React.createElement(Kpi, { label: "Valores em quarentena", value: nInt(q.valor_em_quarentena), sub: "Acima de R$ 100 mil, fora do c\u00E1lculo", tone: q.valor_em_quarentena > 0 ? "bad" : "good" }))))),
                 tarefasLista.length > 0 && (React.createElement(Secao, { n: 13, titulo: "Tarefas \u2014 o pr\u00F3ximo passo", nota: "Foto do agora, n\u00E3o do per\u00EDodo: vencida \u00E9 uma condi\u00E7\u00E3o de hoje. As cinco primeiras colunas contam S\u00D3 tarefa de lead que continua com o SDR \u2014 \u00E9 o que d\u00E1 para cobrar dele. Quando o lead \u00E9 repassado, o Kommo troca o respons\u00E1vel e o SDR perde o acesso ao card: a tarefa fica no nome dele e ele n\u00E3o consegue nem abrir para concluir. Isso virou a coluna 'J\u00E1 \u00E9 de outro', e quem fecha essas \u00E9 o dono atual do lead. 'Leads sem tarefa' tamb\u00E9m conta s\u00F3 os que ainda s\u00E3o dele. 'Faxina de CRM' \u00E9 tarefa aberta em lead j\u00E1 perdido, ganho ou de outro funil." },
@@ -10208,9 +10213,17 @@ var MKT_CANAIS = ["Google", "Meta"];
 /* ROAS abaixo de 1 é dinheiro perdido; acima de 2 é o que a casa espera.
    A cor serve para a mesa inteira enxergar isso sem ler o número. */
 var tomRoas = function (x) { return (x >= 2 ? "good" : x < 1 ? "bad" : undefined); };
-function mktFaixa(periodo) {
+function mktFaixa(periodo, custom) {
     var h = hoje();
     var inicioMes = h.slice(0, 8) + "01";
+    /* v148: período personalizado (datas escolhidas na aba; o fim nunca passa de hoje) */
+    if (periodo === "custom" && custom && custom.de && custom.ate) {
+        var pa = custom.de, pb = custom.ate;
+        if (pa > pb) { var pt = pa; pa = pb; pb = pt; }
+        if (pb > h) pb = h;
+        if (pa > pb) pa = pb;
+        return { de: pa, ate: pb, rotulo: "Per\u00EDodo personalizado" };
+    }
     /* v88: "m:2026-08" = mês inteiro escolhido na lista */
     if (String(periodo).indexOf("m:") === 0) {
         var m = periodo.slice(2), u = ultimoDiaMes(m);
@@ -10703,6 +10716,9 @@ function AbaMarketing(_a) {
     var _this = this;
     var negocio = _a.negocio;
     var _b = __read(useState("mes"), 2), periodo = _b[0], setPeriodo = _b[1];
+    /* v148: datas do período personalizado — o que está nos campos (customIn) só vale depois de "Aplicar" (custom) */
+    var _cu = __read(useState({ de: hoje().slice(0, 8) + "01", ate: hoje() }), 2), custom = _cu[0], setCustom = _cu[1];
+    var _ci = __read(useState({ de: hoje().slice(0, 8) + "01", ate: hoje() }), 2), customIn = _ci[0], setCustomIn = _ci[1];
     var _c = __read(useState(null), 2), linhas = _c[0], setLinhas = _c[1];
     var _d = __read(useState([]), 2), verba = _d[0], setVerba = _d[1];
     var _f = __read(useState([]), 2), orcamento = _f[0], setOrcamento = _f[1];
@@ -10739,7 +10755,7 @@ function AbaMarketing(_a) {
             if (partes.length) setRecarga(function (n) { return n + 1; });
         }).then(function () { setAtualizando(false); });
     };
-    var faixa = useMemo(function () { return mktFaixa(periodo); }, [periodo]);
+    var faixa = useMemo(function () { return mktFaixa(periodo, custom); }, [periodo, custom]);
     /* 24/09: a aba lia comercial.campanha_v, que já vinha com o dinheiro
        colado no resultado. Ficou bonito e estourou o tempo do banco: a view
        usa FULL JOIN, e o Postgres não consegue empurrar o filtro de data
@@ -10860,12 +10876,18 @@ function AbaMarketing(_a) {
     return (React.createElement("div", null,
         React.createElement(Card, { className: "p12", style: { display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" } },
             React.createElement(Select, { value: periodo, onChange: setPeriodo, options: __spreadArray([
-                    { v: "mes", l: "Mês atual" }, { v: "ant", l: "Mês passado" }, { v: "30", l: "Últimos 30 dias" }
+                    { v: "mes", l: "Mês atual" }, { v: "ant", l: "Mês passado" }, { v: "30", l: "Últimos 30 dias" }, { v: "custom", l: "Período personalizado" }
                 ], __read(listaMeses().slice(2).map(function (m) { return ({ v: "m:" + m, l: rotuloMes(m) }); })), false) }),
             React.createElement("span", { style: { fontSize: 12, color: T.muted } },
                 faixa.de.split("-").reverse().join("/"),
                 " a ",
                 faixa.ate.split("-").reverse().join("/")),
+            periodo === "custom" && React.createElement("span", { style: { display: "inline-flex", gap: 6, alignItems: "center", flexWrap: "wrap" } },
+                React.createElement("span", { style: { fontSize: 12, color: T.muted } }, "de"),
+                React.createElement(Inp, { type: "date", value: customIn.de, max: hoje(), onChange: function (e) { var v = e.target.value; setCustomIn(function (x) { return { de: v, ate: x.ate }; }); }, style: { width: 150 } }),
+                React.createElement("span", { style: { fontSize: 12, color: T.muted } }, "at\u00E9"),
+                React.createElement(Inp, { type: "date", value: customIn.ate, max: hoje(), onChange: function (e) { var v = e.target.value; setCustomIn(function (x) { return { de: x.de, ate: v }; }); }, style: { width: 150 } }),
+                React.createElement(Btn, { kind: "solid", onClick: function () { if (customIn.de && customIn.ate) setCustom({ de: customIn.de, ate: customIn.ate }); }, style: { padding: "7px 12px", fontSize: 12.5, opacity: customIn.de && customIn.ate ? 1 : .45 } }, "Aplicar")),
             React.createElement(Btn, { kind: "accent", onClick: atualizarMeta, style: { padding: "7px 12px", fontSize: 12.5, opacity: atualizando ? .6 : 1 } }, atualizando ? "Atualizando\u2026" : "Atualizar gasto (Meta e Google)"),
             avisoMeta && React.createElement("span", { style: { fontSize: 12, color: avisoMeta.ruim ? T.bad : T.good, flexBasis: "100%" } }, avisoMeta.txt),
             React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", flexBasis: "100%", borderTop: "1px solid ".concat(T.hair), paddingTop: 10 } },
