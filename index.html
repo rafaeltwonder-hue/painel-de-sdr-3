@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v148">
+<meta name="painel-versao" content="v149">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -15813,6 +15813,14 @@ function NovoOrcamento(_a) {
     }, [f.placa]);
     var itensValidos = (simplesAtivo ? f.itens.map(dividirItem) : f.itens).filter(function (it) { return it.nome.trim(); });
     var pronto = f.prazo_execucao && itensValidos.length > 0 && (f.cliente_nome.trim() || f.placa.trim());
+    /* v149: PDF da proposta com o que está na tela (não salva nada) */
+    var gerarPdf = function () {
+        if (!itensValidos.length) return;
+        var oo = { numero: editando ? editando.numero : "", criado_em: editando ? editando.criado_em : null, cliente_nome: f.cliente_nome, cliente_whatsapp: f.cliente_whatsapp, placa: f.placa, veiculo: f.veiculo, cor: f.cor,
+            titulo: f.titulo, formato: f.formato, prazo_execucao: f.prazo_execucao, cortesia: f.cortesia, condicao_pagamento: f.condicao_pagamento, observacoes: f.observacoes, validade: f.validade, loja: closer.unidade };
+        var ii = itensValidos.map(function (it) { return ({ nome: it.nome, aplicacao: it.aplicacao, garantia: it.garantia, descricao: it.descricao, preco: paraNumero(it.preco), opcao: f.formato === "opcoes" ? it.opcao : null }); });
+        propostaPdf(oo, ii, closer);
+    };
     var salvar = function (statusInicial) { return __awaiter(_this, void 0, void 0, function () {
         var cab, linhasItem, closer_codigo, _s, cabEd, ok, antigos, idsAntigos, nota, e_34, novo, _a, id, e_35;
         return __generator(this, function (_b) {
@@ -15981,8 +15989,9 @@ function NovoOrcamento(_a) {
                 erro && React.createElement("div", { style: { fontSize: 12.5, color: T.bad, margin: "6px 0" } }, "Não salvou: ", erro),
                 React.createElement(Btn, { kind: "accent", onClick: function () { return salvar("enviado"); }, style: { display: "block", width: "100%", padding: 13, fontSize: 15, fontWeight: 800, opacity: pronto && !salvando ? 1 : .45 } }, salvando ? "Salvando…" : "Salvar e gerar a proposta"),
                 React.createElement(Btn, { onClick: function () { return salvar("rascunho"); }, style: { display: "block", width: "100%", padding: 10, marginTop: 8, opacity: pronto && !salvando ? 1 : .45 } }, "Salvar como rascunho"),
+                React.createElement(Btn, { onClick: gerarPdf, style: { display: "block", width: "100%", padding: 10, marginTop: 8, opacity: itensValidos.length ? 1 : .45 } }, "Gerar PDF (sem imagem)"),
                 React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 9, lineHeight: 1.5 } }, !pronto ? "Para salvar: pelo menos um serviço, o tempo de serviço e o nome do cliente (ou a placa)."
-                    : "Depois de salvo, o orçamento ganha número e abre no Banco: de lá sai a imagem para o cliente, que dá para baixar, mandar no WhatsApp ou imprimir / salvar em PDF."))));
+                    : "O PDF sai direto daqui, sem imagem. Depois de salvo, o orçamento ganha número e abre no Banco: de lá também sai o PDF e a imagem para o cliente (baixar ou WhatsApp)."))));
     }
     var colsItem = f.formato === "opcoes" ? "24px 60px 1.4fr 1.4fr .7fr .8fr 24px" : "24px 1.4fr 1.4fr .7fr .8fr 24px";
     return (React.createElement("div", { className: "col2", style: { gridTemplateColumns: "minmax(0,1.6fr) minmax(0,1fr)", alignItems: "start" } },
@@ -16089,13 +16098,15 @@ function NovoOrcamento(_a) {
                 editando ? (React.createElement(React.Fragment, null,
                     React.createElement(Btn, { kind: "solid", onClick: function () { return salvar(null); }, style: { display: "block", width: "100%", padding: 10, marginTop: 10, opacity: pronto && !salvando ? 1 : .45 } }, salvando ? "Salvando…" : "Salvar alterações"),
                     editando.status === "rascunho" && (React.createElement(Btn, { onClick: function () { return salvar("enviado"); }, style: { display: "block", width: "100%", padding: 9, marginTop: 8, opacity: pronto && !salvando ? 1 : .45 } }, "Salvar e marcar como enviado")),
+                    React.createElement(Btn, { onClick: gerarPdf, style: { display: "block", width: "100%", padding: 9, marginTop: 8, opacity: itensValidos.length ? 1 : .45 } }, "Gerar PDF (sem imagem)"),
                     React.createElement(Btn, { onClick: aoCancelar, style: { display: "block", width: "100%", padding: 9, marginTop: 8 } }, "Cancelar edi\u00E7\u00E3o"),
                     React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 9, lineHeight: 1.5 } }, !pronto ? "Para salvar: pelo menos um item com nome, o prazo de execução e o cliente ou a placa."
                         : "Mant\u00E9m o N\u00BA ".concat(editando.numero, " e o status atual. A imagem para o cliente sai de novo j\u00E1 com os valores novos.")))) : (React.createElement(React.Fragment, null,
                     React.createElement(Btn, { kind: "solid", onClick: function () { return salvar("enviado"); }, style: { display: "block", width: "100%", padding: 10, marginTop: 10, opacity: pronto && !salvando ? 1 : .45 } }, salvando ? "Salvando…" : "Salvar e marcar como enviado"),
                     !modoSdr && React.createElement(Btn, { onClick: function () { return salvar("rascunho"); }, style: { display: "block", width: "100%", padding: 9, marginTop: 8, opacity: pronto && !salvando ? 1 : .45 } }, "Salvar como rascunho"),
+                    React.createElement(Btn, { onClick: gerarPdf, style: { display: "block", width: "100%", padding: 9, marginTop: 8, opacity: itensValidos.length ? 1 : .45 } }, "Gerar PDF (sem imagem)"),
                     React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 9, lineHeight: 1.5 } }, !pronto ? "Para salvar: pelo menos um item com nome, o prazo de execução e o cliente ou a placa."
-                        : "Depois de salvo, o orçamento recebe número e vai para \"Orçamentos gerados\" — a imagem para o cliente sai de lá.")))))));
+                        : "Depois de salvo, o orçamento recebe número e vai para \"Orçamentos gerados\" — o PDF e a imagem para o cliente saem de lá.")))))));
 }
 /* ---------- a imagem que o cliente recebe (formato Q2 "Galeria", votado
    pelo time em 25/09; capa C1 escolhida pelo Rafael em 25/09) ----------
@@ -16284,6 +16295,78 @@ function ImagemOrcamento(_a) {
                 "Unidade ",
                 closer.unidade || o.loja))));
 }
+
+/* v149: proposta em PDF de verdade (A4, texto selecionável, sem passar pela imagem). Abre o diálogo de impressão com o
+   documento pronto: é só escolher "Salvar como PDF". Usa os mesmos dados do orçamento (o + itens + closer). */
+function propostaPdf(o, itens, closer) {
+    var esc = function (s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); };
+    var cl = closer || {};
+    var lista = (itens || []).map(function (it) { return ({ nome: arruma(it.nome), aplicacao: arruma(it.aplicacao), garantia: arruma(it.garantia), descricao: arruma(it.descricao), preco: Number(it.preco) || 0, opcao: it.opcao }); });
+    var comOpcao = lista.filter(function (i) { return i.opcao; });
+    var opcoes = o.formato === "opcoes" && comOpcao.length >= 2;
+    var total = Number(o.total) || lista.reduce(function (s, i) { return s + i.preco; }, 0);
+    var precos = lista.map(function (i) { return i.preco; });
+    var parc = parcelas(o.condicao_pagamento);
+    var cliente = nomeCliente(o.cliente_nome) || "";
+    var veiculo = [arruma(o.veiculo), o.cor && o.cor !== "—" ? arruma(o.cor) : "", o.placa ? String(o.placa).toUpperCase() : ""].filter(Boolean).join(" · ");
+    var d0 = o.criado_em ? String(o.criado_em).slice(0, 10) : hoje();
+    var quando = d0.split("-").reverse().join("/");
+    var prazo = o.prazo || rotPrazo(o.prazo_execucao) || "";
+    var consultor = [cl.nome_oficial, cl.unidade || o.loja ? ("Unidade " + (cl.unidade || o.loja)) : "", cl.whatsapp || ""].filter(Boolean).join(" · ");
+    var fonte = "";
+    try {
+        for (var s = 0; s < document.styleSheets.length; s++) {
+            var rs = document.styleSheets[s].cssRules || [];
+            for (var r = 0; r < rs.length; r++) { if (rs[r].type === 5 && /PoppinsMarca/.test(rs[r].style.getPropertyValue("font-family"))) fonte += rs[r].cssText + "\n"; }
+        }
+    }
+    catch (e) { }
+    var campo = function (l, v) { return v ? '<div class="c"><div class="l">' + esc(l) + '</div><div class="v">' + esc(v) + '</div></div>' : ""; };
+    var linhas = lista.map(function (it, i) { return '<tr><td class="n">' + (i + 1) + '</td><td><div class="nm">' + (opcoes && it.opcao ? "Opção " + esc(it.opcao) + " · " : "") + esc(it.nome) + '</div>' +
+        (it.aplicacao ? '<div class="ap">' + esc(it.aplicacao) + '</div>' : "") + (it.descricao ? '<div class="ds">' + esc(it.descricao) + '</div>' : "") + '</td><td class="g">' + esc(it.garantia || "") + '</td><td class="p">' + nReal2(it.preco) + '</td></tr>'; }).join("");
+    var totalRot = opcoes ? "Opções a partir de" : "Total";
+    var totalVal = opcoes ? Math.min.apply(null, precos.length ? precos : [0]) : total;
+    var cab = '<div class="topo"><div class="lg"><svg viewBox="0 0 360 360" width="30" height="30"><path fill="#000" d="M360 72L288 0L216 72L288 216L180 108L72 216L144 72L72 0L0 72L72 180L0 288L72 360L180 252L288 360L360 288L288 180Z"/></svg></div>' +
+        '<div class="mk">THE WONDER<span>CAR SERVICE</span></div><div class="nu">PROPOSTA COMERCIAL<b>Nº ' + esc(o.numero || "rascunho") + '</b></div></div>';
+    var corpo = '<div class="tt">' + (o.titulo ? esc(arruma(o.titulo)) : "Proposta comercial") + '</div>' +
+        '<div class="gr">' + campo("Cliente", cliente) + campo("Veículo", veiculo) + campo("Data", quando) + campo("Tempo de serviço", prazo) + campo("Consultor", consultor) + campo("Validade", o.validade ? "até " + brPonto(o.validade) : "") + '</div>' +
+        '<div class="sc">Serviços</div><table><thead><tr><th class="n">#</th><th>Serviço</th><th class="g">Garantia</th><th class="p">Preço</th></tr></thead><tbody>' + linhas + '</tbody></table>' +
+        (o.cortesia ? '<div class="cx"><b>Cortesia</b> · ' + esc(arruma(o.cortesia)) + '</div>' : "") +
+        '<div class="tot"><div class="tl">' + totalRot + '</div><div class="tv">' + nReal2(totalVal) + '</div>' + (parc > 0 && !opcoes ? '<div class="tp">' + parc + '× de ' + nReal2(total / parc) + '</div>' : "") + '</div>' +
+        (o.condicao_pagamento ? '<div class="bl"><div class="l">Condição de pagamento</div><div class="v">' + esc(arruma(o.condicao_pagamento)) + '</div></div>' : "") +
+        (o.observacoes ? '<div class="bl"><div class="l">Observações</div><div class="v ob">' + esc(o.observacoes) + '</div></div>' : "") +
+        '<div class="rd">The Wonder · Car Service' + (cl.nome_oficial ? ' · ' + esc(cl.nome_oficial) : "") + '</div>';
+    var css = fonte + '@page{size:A4;margin:0}*{box-sizing:border-box}html,body{margin:0;background:#fff;color:#1a1a1a;font-family:"PoppinsMarca",Arial,Helvetica,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}' +
+        '.pg{width:210mm;min-height:297mm;padding:0 0 14mm;position:relative}.topo{background:#000;color:#fff;display:flex;align-items:center;gap:12px;padding:9mm 14mm}' +
+        '.lg{background:#FFBF00;width:11mm;height:11mm;border-radius:2mm;display:flex;align-items:center;justify-content:center}.mk{font-weight:700;letter-spacing:.24em;font-size:12pt;line-height:1.15}.mk span{display:block;font-weight:500;font-size:8pt;letter-spacing:.34em;color:#FFBF00;margin-top:1mm}' +
+        '.nu{margin-left:auto;text-align:right;font-size:7.5pt;letter-spacing:.2em;color:#FFBF00;font-weight:500}.nu b{display:block;color:#fff;font-size:14pt;letter-spacing:.04em;margin-top:1mm}' +
+        '.tt{font-size:20pt;font-weight:700;margin:11mm 14mm 6mm;border-left:2mm solid #FFBF00;padding-left:4mm;line-height:1.15}' +
+        '.gr{display:grid;grid-template-columns:1fr 1fr;gap:4mm 8mm;margin:0 14mm 8mm}.c{border-bottom:.3mm solid #e2e2e2;padding-bottom:2mm}.l{font-size:7pt;letter-spacing:.16em;text-transform:uppercase;color:#666;font-weight:500}.v{font-size:11pt;font-weight:500;margin-top:.8mm}' +
+        '.sc{margin:0 14mm 2mm;font-size:8pt;letter-spacing:.22em;text-transform:uppercase;font-weight:700}' +
+        'table{width:calc(100% - 28mm);margin:0 14mm;border-collapse:collapse}th{background:#000;color:#fff;font-size:7.5pt;font-weight:500;letter-spacing:.1em;text-transform:uppercase;text-align:left;padding:2.6mm 3mm}' +
+        'td{padding:3.4mm 3mm;border-bottom:.3mm solid #e2e2e2;vertical-align:top;font-size:10.5pt}th.n,td.n{width:9mm;color:#888;text-align:center}th.g,td.g{width:30mm;font-size:9pt;color:#444}th.g{color:#fff;font-size:7.5pt}th.p,td.p{width:36mm;text-align:right;white-space:nowrap;font-weight:700}' +
+        '.nm{font-weight:700;font-size:11pt}.ap{font-size:8pt;letter-spacing:.12em;text-transform:uppercase;color:#8a5a00;font-weight:500;margin-top:.8mm}.ds{font-size:9pt;color:#555;margin-top:1.2mm;line-height:1.4}' +
+        '.cx{margin:5mm 14mm 0;border:.3mm dashed #999;border-radius:1.5mm;padding:3mm 4mm;font-size:10pt}' +
+        '.tot{margin:7mm 14mm 0;background:#FFBF00;border-radius:2mm;padding:5mm 6mm;display:flex;align-items:baseline;gap:6mm}.tl{font-size:8pt;letter-spacing:.24em;text-transform:uppercase;font-weight:700}.tv{font-size:24pt;font-weight:700;letter-spacing:-.02em}.tp{margin-left:auto;font-size:13pt;font-weight:700}' +
+        '.bl{margin:5mm 14mm 0}.bl .v{font-size:10.5pt;font-weight:500}.ob{white-space:pre-wrap;font-size:9.5pt;font-weight:400;line-height:1.5;color:#333}.rd{margin:9mm 14mm 0;border-top:.3mm solid #e2e2e2;padding-top:3mm;font-size:8pt;letter-spacing:.08em;color:#888}' +
+        'tr,.bl,.tot,.cx{page-break-inside:avoid}';
+    var nomeDoc = "Proposta " + (o.numero || "rascunho") + (cliente ? " - " + cliente : "");
+    try {
+        var fr = document.createElement("iframe");
+        fr.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+        document.body.appendChild(fr);
+        var d = fr.contentWindow.document;
+        d.open();
+        d.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>' + esc(nomeDoc) + '</title><style>' + css + '</style></head><body><div class="pg">' + cab + corpo + '</div></body></html>');
+        d.close();
+        var ir = function () { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (e) { } setTimeout(function () { try { document.body.removeChild(fr); } catch (e) { } }, 60000); };
+        var pronto = false;
+        var go = function () { if (pronto) return; pronto = true; ir(); };
+        if (d.fonts && d.fonts.ready) d.fonts.ready.then(function () { setTimeout(go, 150); }); else setTimeout(go, 600);
+        setTimeout(go, 1500);
+    }
+    catch (e) { }
+}
 /* Gera o PNG e mostra numa janela: baixar, compartilhar (celular) ou fechar. */
 function JanelaImagem(_a) {
     var _this = this;
@@ -16405,7 +16488,8 @@ function JanelaImagem(_a) {
             png && (React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 12 } },
                 React.createElement(Btn, { kind: "accent", onClick: baixar, style: { flex: 1, padding: 10 } }, "Baixar imagem"),
                 podeCompartilhar && React.createElement(Btn, { kind: "solid", onClick: compartilhar, style: { flex: 1, padding: 10 } }, "Compartilhar"),
-                React.createElement(Btn, { onClick: imprimir, style: { flex: 1, padding: 10 } }, "Imprimir / PDF"))),
+                React.createElement(Btn, { kind: "solid", onClick: function () { return propostaPdf(o, itens, closer); }, style: { flex: 1, padding: 10 } }, "Gerar PDF"),
+                React.createElement(Btn, { onClick: imprimir, style: { flex: 1, padding: 10 } }, "Imprimir imagem"))),
             React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 8 } }, "No celular, segure o dedo na imagem para salvar ou mandar direto no WhatsApp."))));
 }
 /* Um orçamento aberto: itens, status, retorno, motivo. */
@@ -16539,6 +16623,7 @@ function DetalheOrcamento(_a) {
                                 React.createElement(Btn, { style: { opacity: .45, cursor: "not-allowed" } }, "\u270E Editar"))
                             : React.createElement(Btn, { onClick: function () { return itens && editar(o, itens); }, style: { opacity: itens ? 1 : .45 } }, "\u270E Editar")),
                         React.createElement("span", { style: { flex: 1 } }),
+                        React.createElement(Btn, { onClick: function () { return itens && itens.length && propostaPdf(o, itens, closer); }, style: { opacity: itens && itens.length ? 1 : .45 } }, "Gerar PDF"),
                         React.createElement(Btn, { kind: "accent", onClick: function () { return setImagem(true); }, style: { opacity: itens && itens.length ? 1 : .45 } }, "Imagem para o cliente")),
                     React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 8 } }, "A imagem sai no formato aprovado pelo time (quadrada, 1080). Toda mudan\u00E7a de status fica no hist\u00F3rico. Para mudar itens, pre\u00E7os ou prazo, use Editar."),
                     imagem && itens && React.createElement(JanelaImagem, { o: o, itens: itens, closer: closer, fechar: function () { return setImagem(false); } }))))));
@@ -16620,7 +16705,8 @@ function DetalheOrcSdr(_a) {
                         ? React.createElement("span", { title: "Orçamento que já virou venda não muda. Se precisar, monte um novo.", style: { display: "inline-flex" } }, React.createElement(Btn, { style: { opacity: .45, cursor: "not-allowed" } }, "✎ Editar"))
                         : React.createElement(Btn, { onClick: function () { return itens && aoEditar(o, itens); }, style: { opacity: itens ? 1 : .45 } }, "✎ Editar")),
                     React.createElement("span", { style: { flex: 1 } }),
-                    React.createElement(Btn, { kind: "accent", onClick: function () { return setImagem(true); }, style: { opacity: itens && itens.length ? 1 : .45 } }, "Imagem para o cliente")),
+                    React.createElement(Btn, { onClick: function () { return itens && itens.length && propostaPdf(o, itens, { nome_oficial: o.sdr_autor, unidade: o.loja }); }, style: { opacity: itens && itens.length ? 1 : .45 } }, "Gerar PDF"),
+                        React.createElement(Btn, { kind: "accent", onClick: function () { return setImagem(true); }, style: { opacity: itens && itens.length ? 1 : .45 } }, "Imagem para o cliente")),
                 imagem && itens && React.createElement(JanelaImagem, { o: o, itens: itens, closer: { nome_oficial: o.sdr_autor, unidade: o.loja }, semEvento: true, fechar: function () { return setImagem(false); } })))));
 }
 function ListaOrcSdr(_a) {
