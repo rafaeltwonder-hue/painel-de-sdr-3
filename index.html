@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v149">
+<meta name="painel-versao" content="v150">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -5904,7 +5904,8 @@ function Painel(_a) {
         : ehImportador ? ABAS_IMPORTADOR.indexOf(v) >= 0
             : ehAgencia ? ABAS_AGENCIA.indexOf(v) >= 0
                 : ABAS_SDR.indexOf(v) >= 0); };
-    var abaInicial = ehImportador ? "importar" : restritoPiloto ? "piloto_sdr" : "painel";
+    var rafaCloser = ehAdmin && modoRafaelCloser(sessao); /* v150 */
+    var abaInicial = ehImportador ? "importar" : restritoPiloto ? "piloto_sdr" : rafaCloser ? "piloto" : "painel";
     var abaDaURL = function () {
         var h = String(window.location.hash || "").replace("#", "");
         var conhecida = ABAS.some(function (_a) {
@@ -5917,7 +5918,7 @@ function Painel(_a) {
     var setAba = function (v) {
         setAbaBruto(v);
         try {
-            window.location.hash = v === "painel" ? "" : v;
+            window.location.hash = v === "painel" && !rafaCloser ? "" : v;
         }
         catch (e) { /* sem hash, segue */ }
     };
@@ -17063,6 +17064,23 @@ function AbaBancoOrcamentos(_a) {
                             React.createElement(Td, null)))))),
             React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 6 } }, "Linha amarelada = precisa de a\u00E7\u00E3o: retorno de hoje ou atrasado, validade vencida, fechado sem O.S. ou rascunho parado h\u00E1 2 dias ou mais."))));
 }
+/* v150: janela temporária de 15 dias (até 29/11/2026) em que o Rafael atua como closer.
+   Nos logins dele (admin), o painel abre direto no Piloto Closer, já no nome dele. Passada a data, volta tudo ao padrão
+   sozinho. Para outras pessoas ou outros logins, nada muda. */
+var RAFAEL_CLOSER_ATE = "2026-11-29";
+var RAFAEL_CLOSER_EMAILS = ["rafaelhideki@thew.com.br", "rafael.twonder@gmail.com"];
+function modoRafaelCloser(sessao) {
+    try {
+        var u = (sessao && sessao.user) || {};
+        var perfil = (u.app_metadata || {}).perfil;
+        if (perfil !== "admin") return false;
+        if (RAFAEL_CLOSER_EMAILS.indexOf(String(u.email || "").toLowerCase()) < 0) return false;
+        var d = new Date();
+        var hojeStr = d.getFullYear() + "-" + ("0" + (d.getMonth() + 1)).slice(-2) + "-" + ("0" + d.getDate()).slice(-2);
+        return hojeStr <= RAFAEL_CLOSER_ATE;
+    }
+    catch (e) { return false; }
+}
 /* ---------- a tela inteira ---------- */
 function Piloto(_a) {
     var sessao = _a.sessao, todos = _a.todos, embutido = _a.embutido;
@@ -17074,6 +17092,10 @@ function Piloto(_a) {
             return null;
         if (sel)
             return lista.find(function (c) { return String(c.erp_codigo) === String(sel); }) || null;
+        if (todos && modoRafaelCloser(sessao)) {
+            var rafa = lista.find(function (c) { return /rafael hideki/i.test(String(c.nome_oficial || "")); });
+            if (rafa) return rafa;
+        }
         return lista.find(function (c) { return c.auth_user_id === meuId; }) || (todos ? lista[0] : null) || null;
     }, [lista, sel, meuId, todos]);
     var _d = __read(useState("painel"), 2), aba = _d[0], setAba = _d[1];
