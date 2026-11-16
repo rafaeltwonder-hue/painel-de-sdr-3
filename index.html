@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v150">
+<meta name="painel-versao" content="v151">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -16860,77 +16860,194 @@ function msgFollowUp(o, closer) {
     var eu = primeiroNomeDe(closer && closer.nome_oficial);
     return "Oi".concat(nome ? " " + nome : "", "! Aqui \u00E9 ").concat(eu ? "o " + eu : "a equipe", " da The Wonder ").concat(o.loja || "", ". Passando sobre o or\u00E7amento N\u00BA ").concat(o.numero).concat(o.veiculo ? " do seu ".concat(o.veiculo) : "", ". Ficou alguma d\u00FAvida? Se quiser, consigo reservar a agenda para voc\u00EA esta semana.");
 }
+/* ---------- v151: Banco de orçamentos simplificado ----------
+   Pedido do Rafael, 14/11/2026: a tela antiga (4 números + esteira + 11 colunas + 6 filtros) confundia.
+   Agora: busca, 4 abas que respondem "o que eu faço agora?", um cartão por orçamento e,
+   ao abrir, só o que importa — itens, enviar ao cliente, resultado (fechou/perdeu/negociando) e retorno.
+   Cada clique salva na hora (sem botão Salvar). Os dados e as regras são os mesmos da v150. */
+var corWa = "#1F9D55";
+function LinkOrc(_a) {
+    var children = _a.children, onClick = _a.onClick, cor = _a.cor;
+    return (React.createElement("button", { type: "button", onClick: onClick, style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 600, color: cor || T.ink2, background: "none", border: 0, padding: "4px 2px", cursor: "pointer", textDecoration: "underline" } }, children));
+}
+function CartaoOrc(_a) {
+    var o = _a.o, closer = _a.closer, aberto = _a.aberto, setAbertoId = _a.setAbertoId, aoMudar = _a.aoMudar, editar = _a.editar, aviseSalvo = _a.aviseSalvo;
+    var h = hoje();
+    var _b = __read(useState(null), 2), itens = _b[0], setItens = _b[1];
+    var _c = __read(useState(false), 2), imagem = _c[0], setImagem = _c[1];
+    var _d = __read(useState(null), 2), modo = _d[0], setModo = _d[1]; // "fechou" | "perdeu" | null
+    var _f = __read(useState(o.os_numero || ""), 2), os = _f[0], setOs = _f[1];
+    var _g = __read(useState(o.motivo_perda || ""), 2), motivo = _g[0], setMotivo = _g[1];
+    var _j = __read(useState(false), 2), dataLivre = _j[0], setDataLivre = _j[1];
+    var _k = __read(useState(false), 2), salvando = _k[0], setSalvando = _k[1];
+    var _l = __read(useState(null), 2), erro = _l[0], setErro = _l[1];
+    useEffect(function () {
+        if (!aberto || itens) return undefined;
+        var vivo = true;
+        db.from("orcamento_item").select("*").eq("orcamento_id", o.id).order("ordem")
+            .then(function (r) { if (vivo) setItens((r && r.data) || []); });
+        return function () { vivo = false; };
+    }, [aberto, o.id]);
+    var ehAb = EM_ABERTO.indexOf(o.status) >= 0;
+    var rasc = o.status === "rascunho";
+    var dd = o.criado_em ? Math.max(0, diasEntre(String(o.criado_em).slice(0, 10), h) - 1) : 0;
+    var vd = o.validade ? diasEntre(h, String(o.validade).slice(0, 10)) - 1 : null;
+    var retHoje = ehAb && o.retorno_em && String(o.retorno_em).slice(0, 10) === h;
+    var retDia = o.retorno_em ? String(o.retorno_em).slice(0, 10) : "";
+    var plural = function (n, s) { return n + " " + s + (n === 1 ? "" : "s"); };
+    /* a frase "Próximo passo": uma só, sempre dizendo o que fazer */
+    var passo = (function () {
+        if (o.status === "fechado") return o.fechado_sem_os ? { t: "Fechou, mas ainda não achei a O.S. no Oficina — abra a O.S.", cor: T.bad } : { t: "Fechado" + (o.os_numero || o.os_encontrada ? " · O.S. " + (o.os_numero || o.os_encontrada) + " ✓" : ""), cor: T.good };
+        if (o.status === "perdido") return { t: "Perdido" + (o.motivo_perda ? " · " + String(o.motivo_perda).slice(0, 60) : ""), cor: T.muted };
+        if (o.status === "vencido") return { t: "Vencido", cor: T.muted };
+        if (rasc) return dd >= 2 ? { t: "Rascunho parado há " + plural(dd, "dia") + " — termine e envie", cor: T.bad } : { t: "Termine e envie ao cliente", cor: T.warn };
+        if (o.retorno_vencido) return { t: "Retorno atrasado — chame o cliente agora", cor: T.bad };
+        if (retHoje) return { t: "Retorno é hoje — chame o cliente", cor: T.bad };
+        if (vd != null && vd < 0) return { t: "A validade venceu há " + plural(-vd, "dia") + " — renove ou pergunte se ainda quer", cor: T.bad };
+        if (vd != null && vd <= 1) return { t: "A validade vence " + (vd === 0 ? "hoje" : "amanhã") + " — chame o cliente", cor: T.warn };
+        if (retDia) return { t: "Esperando o cliente · retorno em " + brData(retDia), cor: T.ink2 };
+        return { t: "Sem retorno marcado — escolha um dia abaixo", cor: T.warn };
+    })();
+    var wa = ehAb ? waLink(o.cliente_whatsapp, msgFollowUp(o, closer)) : null;
+    var salvar = function (patch, aviso, fechaCartao) {
+        if (salvando) return;
+        setSalvando(true);
+        setErro(null);
+        var corpo = { status: o.status, motivo_perda: o.motivo_perda || null, retorno_em: o.retorno_em ? String(o.retorno_em).slice(0, 10) : null, os_numero: o.os_numero || null };
+        for (var k in patch) corpo[k] = patch[k];
+        exigir(db.from("orcamento").update(corpo).eq("id", o.id))
+            .then(function () {
+                setSalvando(false);
+                setModo(null);
+                if (aviso) aviseSalvo(aviso);
+                if (fechaCartao) setAbertoId(null);
+                aoMudar();
+            }, function (e) { setSalvando(false); setErro(e.message); });
+    };
+    var mais = function (n) { return addDays(h, n); };
+    var chip = function (txt, ativo, fn) { return React.createElement("button", { key: txt, type: "button", onClick: fn, style: { fontFamily: F_UI, fontSize: 12.5, fontWeight: 600, padding: "6px 11px", borderRadius: 99, cursor: "pointer", border: "1px solid " + (ativo ? T.ink : T.hair), background: ativo ? T.ink : T.surface, color: ativo ? "#fff" : T.ink2 } }, txt); };
+    var grande = function (txt, cor, fn, ativo) { return React.createElement("button", { type: "button", onClick: fn, disabled: salvando, style: { flex: "1 1 130px", fontFamily: F_UI, fontSize: 14, fontWeight: 700, padding: "12px 10px", borderRadius: 8, cursor: "pointer", border: "2px solid " + cor, background: ativo ? cor : T.surface, color: ativo ? "#fff" : cor, opacity: salvando ? .6 : 1 } }, txt); };
+    var motivosRapidos = ["Achou caro", "Foi com outro lugar", "Desistiu do serviço", "Não respondeu mais"];
+    var sec = function (n, t) { return React.createElement("div", { style: { fontFamily: F_UI, fontSize: 11.5, fontWeight: 700, letterSpacing: ".06em", textTransform: "uppercase", color: T.muted, margin: "16px 0 8px" } }, n + " · " + t); };
+    var detalhe = aberto && React.createElement("div", { style: { borderTop: "1px solid " + T.hair, marginTop: 12, paddingTop: 4 } },
+        o.titulo && React.createElement("div", { style: { fontSize: 13.5, fontWeight: 600, marginTop: 10 } }, o.titulo),
+        React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 4 } }, ["Nº " + o.numero, rotFormato(o.formato), rotOrigem(o.origem) + (o.indicado_por ? " · " + o.indicado_por : ""), (o.prazo || o.prazo_execucao) ? "prazo: " + (o.prazo || rotPrazo(o.prazo_execucao)) : null, o.cliente_whatsapp, o.cliente_da_casa ? "cliente da casa" : null].filter(Boolean).join(" · ")),
+        React.createElement("div", { style: { overflowX: "auto", marginTop: 8 } },
+            React.createElement("table", { style: { width: "100%", borderCollapse: "collapse" } },
+                React.createElement("thead", null, React.createElement("tr", null,
+                    o.formato === "opcoes" && React.createElement(Th, null, "Opção"),
+                    React.createElement(Th, null, "Item"), React.createElement(Th, null, "Garantia"), React.createElement(Th, { right: true }, "Preço"))),
+                React.createElement("tbody", null,
+                    (itens || []).map(function (it) { return (React.createElement("tr", { key: it.id },
+                        o.formato === "opcoes" && React.createElement(Td, { bold: true }, it.opcao || "—"),
+                        React.createElement(Td, { bold: true, style: { whiteSpace: "normal" } }, it.nome),
+                        React.createElement(Td, null, it.garantia || "—"),
+                        React.createElement(Td, { right: true, bold: true }, nReal2(it.preco)))); }),
+                    itens === null && React.createElement("tr", null, React.createElement(Td, { color: T.muted }, "Carregando itens…"))))),
+        React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: 14, marginTop: 8, fontSize: 13, flexWrap: "wrap" } },
+            o.cortesia && React.createElement("span", { style: { color: T.ink2 } }, "Cortesia: ", React.createElement("b", null, o.cortesia)),
+            o.condicao_pagamento && React.createElement("span", { style: { color: T.ink2 } }, o.condicao_pagamento),
+            React.createElement("span", null, "Total ", React.createElement("b", { style: { fontFamily: F_MARCA, fontSize: 16 } }, nReal2(o.total)))),
+        o.observacoes && React.createElement("div", { style: { fontSize: 12.5, color: T.ink2, marginTop: 6 } }, "Obs.: " + o.observacoes),
+        sec("A", "Enviar ao cliente"),
+        React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" } },
+            React.createElement(Btn, { kind: "accent", onClick: function () { return setImagem(true); }, style: { opacity: itens && itens.length ? 1 : .45 } }, "Imagem para o cliente"),
+            React.createElement(Btn, { onClick: function () { return itens && itens.length && propostaPdf(o, itens, closer); }, style: { opacity: itens && itens.length ? 1 : .45 } }, "Gerar PDF"),
+            o.status === "fechado"
+                ? React.createElement("span", { style: { fontSize: 12, color: T.muted } }, "Fechado não muda — foi vendido com esses valores. Se precisar, monte um novo.")
+                : React.createElement(LinkOrc, { onClick: function () { return itens && editar && editar(o, itens); } }, "✎ Editar itens, preço ou prazo")),
+        rasc && React.createElement("div", { style: { marginTop: 10 } }, React.createElement(Btn, { kind: "solid", onClick: function () { return salvar({ status: "enviado" }, "Marcado como enviado ✓", false); } }, "Já enviei ao cliente")),
+        (ehAb || o.status === "fechado" || o.status === "perdido" || o.status === "vencido") && sec("B", "Qual foi o resultado?"),
+        (ehAb || o.status === "fechado" || o.status === "perdido" || o.status === "vencido") && React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+            grande("✔ Fechou", T.good, function () { return setModo(modo === "fechou" ? null : "fechou"); }, modo === "fechou" || o.status === "fechado"),
+            grande("✖ Perdeu", T.bad, function () { return setModo(modo === "perdeu" ? null : "perdeu"); }, modo === "perdeu" || o.status === "perdido"),
+            grande("… Ainda negociando", T.warn, function () { return salvar({ status: "negociando", motivo_perda: null }, "Marcado como negociando ✓", false); }, o.status === "negociando")),
+        modo === "fechou" && React.createElement("div", { style: { marginTop: 10, padding: 12, background: "#E6F4EF", border: "1px solid #B7DFD0", borderRadius: 8 } },
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 6 } }, "Qual o número da O.S. no Oficina? (se ainda não abriu, deixe em branco)"),
+            React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+                React.createElement(Inp, { value: os, onChange: function (e) { return setOs(e.target.value); }, placeholder: o.os_encontrada ? "o painel achou a " + o.os_encontrada : "ex.: 48.211" }),
+                React.createElement(Btn, { kind: "solid", onClick: function () { return salvar({ status: "fechado", motivo_perda: null, os_numero: os.trim() || null }, "Fechado ✓ — parabéns!", true); } }, salvando ? "Salvando…" : "Confirmar que fechou")),
+            !o.os_encontrada && !os.trim() && React.createElement("div", { style: { fontSize: 11.5, color: T.warn, marginTop: 6 } }, "Sem O.S. com a placa " + (o.placa || "?") + " no Oficina ainda. Fechado sem O.S. fica em alerta até aparecer.")),
+        modo === "perdeu" && React.createElement("div", { style: { marginTop: 10, padding: 12, background: "#FDF1F2", border: "1px solid #F0C3C6", borderRadius: 8 } },
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 6 } }, "Por que perdeu? (obrigatório)"),
+            React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 } }, motivosRapidos.map(function (m) { return chip(m, motivo === m, function () { return setMotivo(m); }); })),
+            React.createElement("textarea", { value: motivo, onChange: function (e) { return setMotivo(e.target.value); }, rows: 2, placeholder: "ou escreva o motivo com as suas palavras", style: __assign(__assign({}, inputStyle), { resize: "vertical", width: "100%" }) }),
+            React.createElement("div", { style: { marginTop: 8 } }, React.createElement(Btn, { kind: "solid", onClick: function () { return motivo.trim() && salvar({ status: "perdido", motivo_perda: motivo.trim() }, "Marcado como perdido", true); }, style: { opacity: motivo.trim() && !salvando ? 1 : .45 } }, salvando ? "Salvando…" : "Confirmar que perdeu"))),
+        (ehAb || rasc) && sec("C", "Quando falar com o cliente de novo?"),
+        (ehAb || rasc) && React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" } },
+            chip("Amanhã", retDia === mais(1), function () { return salvar({ retorno_em: mais(1) }, "Retorno marcado para amanhã ✓", false); }),
+            chip("Em 3 dias", retDia === mais(3), function () { return salvar({ retorno_em: mais(3) }, "Retorno marcado ✓", false); }),
+            chip("Em 1 semana", retDia === mais(7), function () { return salvar({ retorno_em: mais(7) }, "Retorno marcado ✓", false); }),
+            chip("Escolher data", dataLivre, function () { return setDataLivre(!dataLivre); }),
+            dataLivre && React.createElement(Inp, { type: "date", value: retDia, onChange: function (e) { if (e.target.value) salvar({ retorno_em: e.target.value }, "Retorno marcado ✓", false); } }),
+            retDia && React.createElement("span", { style: { fontSize: 12.5, color: T.ink2 } }, "marcado: " + brData(retDia))),
+        erro && React.createElement("div", { style: { fontSize: 12.5, color: T.bad, marginTop: 10 } }, "Não salvou: " + erro),
+        React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 12 } }, "Tudo o que você clica já fica salvo, e cada mudança de situação entra no histórico."),
+        imagem && itens && React.createElement(JanelaImagem, { o: o, itens: itens, closer: closer, fechar: function () { return setImagem(false); } }));
+    return (React.createElement(Card, { className: "p16", style: { marginBottom: 10, borderLeft: "4px solid " + (passo.cor === T.bad ? T.bad : passo.cor === T.good ? T.good : T.hair) } },
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline", flexWrap: "wrap" } },
+            React.createElement("div", { style: { minWidth: 0 } },
+                React.createElement("span", { style: { fontSize: 15, fontWeight: 700 } }, o.cliente_nome || "Sem nome"),
+                React.createElement("span", { style: { fontSize: 13, color: T.ink2 } }, [o.veiculo, o.placa].filter(Boolean).length ? " · " + [o.veiculo, o.placa].filter(Boolean).join(" · ") : "")),
+            React.createElement("span", { style: { fontFamily: F_MARCA, fontSize: 17, fontWeight: 700 } }, nReal(o.total))),
+        React.createElement("div", { style: { fontSize: 12, color: T.muted, marginTop: 3 } },
+            "Nº " + o.numero + " · " + (rasc ? "criado " : "enviado ") + (dd === 0 ? "hoje" : "há " + plural(dd, "dia")) + (ehAb && vd != null ? (vd >= 0 ? " · vale mais " + plural(vd, "dia") : " · validade vencida") : "")),
+        React.createElement("div", { style: { fontSize: 13.5, fontWeight: 600, color: passo.cor, marginTop: 8 } }, "Próximo passo: " + passo.t),
+        React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center" } },
+            wa && React.createElement("a", { href: wa, target: "_blank", rel: "noopener", style: { fontFamily: F_UI, fontSize: 13, fontWeight: 700, color: "#fff", background: corWa, borderRadius: 6, padding: "8px 14px", textDecoration: "none" } }, "WhatsApp · mensagem pronta"),
+            React.createElement(Btn, { onClick: function () { return setAbertoId(aberto ? null : o.id); } }, aberto ? "Fechar ▲" : "Abrir ▼")),
+        detalhe));
+}
 function AbaBancoOrcamentos(_a) {
     var d = _a.d, closer = _a.closer, recarregar = _a.recarregar, abertoId = _a.abertoId, setAbertoId = _a.setAbertoId, aviso = _a.aviso, irParaNovo = _a.irParaNovo, editarOrcamento = _a.editarOrcamento;
     var h = hoje(), m0 = primeiroDia(h), mAnt = mesAnteriorDe(h);
-    var _b = __read(useState("abertos"), 2), filtro = _b[0], setFiltro = _b[1];
-    var _c = __read(useState("valor"), 2), ordem = _c[0], setOrdem = _c[1];
-    var _d = __read(useState(""), 2), busca = _d[0], setBusca = _d[1];
+    var _b = __read(useState(null), 2), tabSel = _b[0], setTab = _b[1];
+    var _c = __read(useState(""), 2), busca = _c[0], setBusca = _c[1];
+    var _d = __read(useState(false), 2), maisFiltros = _d[0], setMaisFiltros = _d[1];
     var _f = __read(useState("__all"), 2), origem = _f[0], setOrigem = _f[1];
     var _g = __read(useState("tudo"), 2), periodo = _g[0], setPeriodo = _g[1];
+    var _j = __read(useState(null), 2), toast = _j[0], setToast = _j[1];
     var todos = d.orcamentos || [];
     var diasDesde = function (d0) { return (d0 ? Math.max(0, diasEntre(String(d0).slice(0, 10), h) - 1) : 0); };
     var ehAberto = function (o) { return EM_ABERTO.indexOf(o.status) >= 0; };
-    var validadeDias = function (o) { return (o.validade ? diasEntre(h, String(o.validade).slice(0, 10)) - 1 : null); }; // negativo = vencida
+    var validadeDias = function (o) { return (o.validade ? diasEntre(h, String(o.validade).slice(0, 10)) - 1 : null); };
     var retornoHoje = function (o) { return ehAberto(o) && o.retorno_em && String(o.retorno_em).slice(0, 10) === h; };
     var precisaAcao = function (o) { return (ehAberto(o) && (o.retorno_vencido || retornoHoje(o) || (validadeDias(o) != null && validadeDias(o) < 0)))
         || (o.status === "fechado" && o.fechado_sem_os) || (o.status === "rascunho" && diasDesde(o.criado_em) >= 2); };
-    /* números do topo: sempre da carteira inteira, não do filtro */
-    var doMes = todos.filter(function (o) { return String(o.criado_em).slice(0, 7) === m0.slice(0, 7); });
-    var abertos = todos.filter(ehAberto);
-    var vAbertos = abertos.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0);
-    var fechMes = doMes.filter(function (o) { return o.status === "fechado"; });
-    var vFechMes = fechMes.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0);
-    var decididosMes = doMes.filter(function (o) { return ["fechado", "perdido", "vencido"].indexOf(o.status) >= 0; }).length;
-    var ticketOrc = doMes.length ? doMes.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0) / doMes.length : 0;
-    var ticketFech = fechMes.length ? vFechMes / fechMes.length : 0;
-    var nAcao = todos.filter(precisaAcao).length;
-    /* esteira: onde está o dinheiro em aberto */
-    var esteira = ["enviado", "negociando", "aguardando"].map(function (k) {
-        var ls = abertos.filter(function (o) { return o.status === k; });
-        return { k: k, l: STATUS_ORC[k].l, n: ls.length, v: ls.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0) };
-    });
-    var maxEst = Math.max.apply(Math, __spreadArray([1], __read(esteira.map(function (e) { return e.v; })), false));
+    var aviseSalvo = function (t) { setToast(t); setTimeout(function () { setToast(null); }, 4500); };
+    var noRetorno = function (a, b) { return String(a.retorno_em || "9999") < String(b.retorno_em || "9999") ? -1 : 1; };
+    var grupos = {
+        falar: todos.filter(precisaAcao).sort(noRetorno),
+        espera: todos.filter(function (o) { return ehAberto(o) && !precisaAcao(o); }).sort(noRetorno),
+        fechou: todos.filter(function (o) { return o.status === "fechado"; }).sort(function (a, b) { return String(a.criado_em) < String(b.criado_em) ? 1 : -1; }),
+        perdeu: todos.filter(function (o) { return o.status === "perdido" || o.status === "vencido"; }).sort(function (a, b) { return String(a.criado_em) < String(b.criado_em) ? 1 : -1; }),
+        rascunhos: todos.filter(function (o) { return o.status === "rascunho"; }).sort(function (a, b) { return String(a.criado_em) < String(b.criado_em) ? 1 : -1; }),
+    };
+    var tab = tabSel || (grupos.falar.length ? "falar" : "espera");
     var q = semAcento(busca.trim());
-    var lista = todos.filter(function (o) {
-        if (filtro === "abertos" && !ehAberto(o))
-            return false;
-        if (filtro === "acao" && !precisaAcao(o))
-            return false;
-        if (filtro === "fechados" && o.status !== "fechado")
-            return false;
-        if (filtro === "perdidos" && o.status !== "perdido" && o.status !== "vencido")
-            return false;
-        if (filtro === "rascunhos" && o.status !== "rascunho")
-            return false;
-        if (["enviado", "negociando", "aguardando"].indexOf(filtro) >= 0 && o.status !== filtro)
-            return false;
-        if (origem !== "__all" && o.origem !== origem)
-            return false;
+    var base = q ? todos.slice().sort(function (a, b) { return String(a.criado_em) < String(b.criado_em) ? 1 : -1; }) : grupos[tab];
+    var lista = base.filter(function (o) {
+        if (origem !== "__all" && o.origem !== origem) return false;
         var dia = String(o.criado_em).slice(0, 10);
-        if (periodo === "mes" && dia.slice(0, 7) !== m0.slice(0, 7))
-            return false;
-        if (periodo === "mesPassado" && dia.slice(0, 7) !== mAnt.slice(0, 7))
-            return false;
-        if (periodo === "90" && dia < addDays(h, -90))
-            return false;
+        if (periodo === "mes" && dia.slice(0, 7) !== m0.slice(0, 7)) return false;
+        if (periodo === "mesPassado" && dia.slice(0, 7) !== mAnt.slice(0, 7)) return false;
+        if (periodo === "90" && dia < addDays(h, -90)) return false;
         if (q) {
             var alvo = semAcento([o.numero, o.cliente_nome, o.placa, o.veiculo, o.titulo, o.indicado_por].filter(Boolean).join(" "));
             var dig = soDigitos(busca);
             var porTel = dig.length >= 4 && soDigitos(o.cliente_whatsapp).indexOf(dig) >= 0;
-            if (alvo.indexOf(q) < 0 && !porTel)
-                return false;
+            if (alvo.indexOf(q) < 0 && !porTel) return false;
         }
         return true;
-    }).slice().sort(function (a, b) { return ordem === "antigos" ? (String(a.criado_em) < String(b.criado_em) ? -1 : 1)
-        : ordem === "recentes" ? (String(a.criado_em) > String(b.criado_em) ? -1 : 1)
-            : ordem === "retorno" ? (String(a.retorno_em || "9999") < String(b.retorno_em || "9999") ? -1 : 1)
-                : (Number(b.total) || 0) - (Number(a.total) || 0); });
-    var totLista = lista.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0);
+    });
+    var nAbertos = todos.filter(ehAberto).length;
+    var vAbertos = todos.filter(ehAberto).reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0);
+    var fechMes = todos.filter(function (o) { return o.status === "fechado" && String(o.criado_em).slice(0, 7) === m0.slice(0, 7); });
+    var vFechMes = fechMes.reduce(function (s, o) { return s + (Number(o.total) || 0); }, 0);
     var baixar = function () {
         var num = function (v) { return String((Number(v) || 0).toFixed(2)).replace(".", ","); };
         var cab = ["Nº", "Criado em", "Cliente", "WhatsApp", "Veículo", "Placa", "Origem", "Formato", "Valor", "Status", "Retorno", "Validade", "O.S.", "Motivo da perda"];
-        var corpo = lista.map(function (o) { return [o.numero, brFull(String(o.criado_em).slice(0, 10)), o.cliente_nome || "", o.cliente_whatsapp || "", o.veiculo || "", o.placa || "",
+        var corpo = todos.map(function (o) { return [o.numero, brFull(String(o.criado_em).slice(0, 10)), o.cliente_nome || "", o.cliente_whatsapp || "", o.veiculo || "", o.placa || "",
             rotOrigem(o.origem), rotFormato(o.formato), num(o.total), (STATUS_ORC[o.status] || { l: o.status }).l,
             o.retorno_em ? brFull(String(o.retorno_em).slice(0, 10)) : "", o.validade ? brFull(String(o.validade).slice(0, 10)) : "", o.os_numero || o.os_encontrada || "", o.motivo_perda || ""]; });
         var texto = [cab].concat(corpo).map(function (r) { return r.map(function (c) { return (/[;"\n]/.test(String(c)) ? '"' + String(c).replace(/"/g, '""') + '"' : c); }).join(";"); }).join("\n");
@@ -16942,127 +17059,37 @@ function AbaBancoOrcamentos(_a) {
         document.body.removeChild(a);
         setTimeout(function () { return URL.revokeObjectURL(a.href); }, 4000);
     };
-    var chips = [["abertos", "Em aberto (".concat(abertos.length, ")")], ["acao", "Precisa de a\u00E7\u00E3o (".concat(nAcao, ")")], ["fechados", "Fechados (".concat(todos.filter(function (o) { return o.status === "fechado"; }).length, ")")],
-        ["perdidos", "Perdidos e vencidos (".concat(todos.filter(function (o) { return o.status === "perdido" || o.status === "vencido"; }).length, ")")],
-        ["rascunhos", "Rascunhos (".concat(todos.filter(function (o) { return o.status === "rascunho"; }).length, ")")], ["todos", "Todos (".concat(todos.length, ")")]];
+    var abas = [["falar", "Falar hoje", grupos.falar.length, true], ["espera", "Esperando o cliente", grupos.espera.length, false], ["fechou", "Fechou", grupos.fechou.length, false], ["perdeu", "Perdeu", grupos.perdeu.length, false]];
+    var vazios = { falar: "Nada urgente agora. Quem estiver com retorno vencido ou validade vencida aparece aqui.", espera: "Nenhum orçamento esperando resposta.", fechou: "Nenhum orçamento fechado ainda.", perdeu: "Nenhum orçamento perdido.", rascunhos: "Nenhum rascunho guardado." };
     return (React.createElement(React.Fragment, null,
         React.createElement(OrcDoSdrParaCloser, { closer: closer }),
-        React.createElement(Secao, { n: 1, titulo: "Banco de or\u00E7amentos", nota: 'Toda a sua carteira num lugar s\u00F3. "Fechado" \u00E9 conferido no Oficina pela placa; or\u00E7amento fechado sem O.S. fica em alerta at\u00E9 aparecer. Clique na linha para ver os itens, mudar o status, editar o or\u00E7amento ou gerar a imagem para o cliente.' },
-            aviso && React.createElement(Card, { className: "p12", style: { marginBottom: 12, borderColor: "#B7DFD0", background: "#E6F4EF", fontSize: 13, color: T.good, fontWeight: 600 } }, aviso),
-            React.createElement("div", { className: "grid-kpi-4", style: { marginBottom: 12 } },
-                React.createElement(Kpi, { label: "Em aberto", value: nReal(vAbertos), sub: "".concat(nInt(abertos.length), " or\u00E7amento").concat(abertos.length === 1 ? "" : "s", " esperando resposta") }),
-                React.createElement(Kpi, { label: "Fechado no m\u00EAs", value: nReal(vFechMes), sub: "".concat(nInt(fechMes.length), " de ").concat(nInt(doMes.length), " or\u00E7ados no m\u00EAs"), tone: fechMes.length ? "good" : undefined }),
-                React.createElement(Kpi, { label: "Convers\u00E3o do m\u00EAs", value: doMes.length ? nPct(fechMes.length / doMes.length, 0) : "—", sub: decididosMes ? "".concat(nPct(fechMes.length / decididosMes, 0), " entre os j\u00E1 decididos") : "nenhum decidido ainda", tone: doMes.length >= 5 && fechMes.length / doMes.length < 0.25 ? "bad" : undefined }),
-                React.createElement(Kpi, { label: "Ticket", value: ticketFech ? nReal(ticketFech) : "—", sub: "fechado \u00B7 or\u00E7ado em m\u00E9dia ".concat(ticketOrc ? nReal(ticketOrc) : "—") })),
-            React.createElement(Card, { className: "p16", style: { marginBottom: 12 } },
-                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 8, marginBottom: 10 } },
-                    React.createElement(Label, null, "Onde est\u00E1 o dinheiro em aberto"),
-                    nAcao > 0 && React.createElement("button", { onClick: function () { return setFiltro("acao"); }, style: { fontFamily: F_UI, fontSize: 12, fontWeight: 700, color: T.bad, background: "#FDF1F2", border: "1px solid #F0C3C6", borderRadius: 6, padding: "4px 10px", cursor: "pointer" } },
-                        "\u26A0 ",
-                        nAcao,
-                        " precisa",
-                        nAcao > 1 ? "m" : "",
-                        " de a\u00E7\u00E3o agora \u2192")),
-                React.createElement("div", { style: { display: "grid", gap: 8 } }, esteira.map(function (e) { return (React.createElement("button", { key: e.k, onClick: function () { return setFiltro(filtro === e.k ? "abertos" : e.k); }, style: { display: "grid", gridTemplateColumns: "110px 1fr 150px", alignItems: "center", gap: 12, background: filtro === e.k ? "#FFFBEA" : "transparent", border: 0, borderRadius: 6, padding: "4px 6px", cursor: "pointer", textAlign: "left", fontFamily: F_UI } },
-                    React.createElement("span", { style: { fontSize: 12.5, fontWeight: 700, color: T.ink } }, e.l),
-                    React.createElement("div", { style: { background: T.canvas, borderRadius: 99, height: 10, overflow: "hidden" } },
-                        React.createElement("div", { style: { width: "".concat(e.v / maxEst * 100, "%"), height: "100%", background: e.k === "negociando" ? T.marca : e.k === "aguardando" ? "#E0A800" : T.ink, borderRadius: 99 } })),
-                    React.createElement("span", { style: { fontSize: 12.5, textAlign: "right", fontVariantNumeric: "tabular-nums" } },
-                        React.createElement("b", null, nReal(e.v)),
-                        " ",
-                        React.createElement("span", { style: { color: T.muted } },
-                            "\u00B7 ",
-                            e.n)))); }))),
-            React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 10, flexWrap: "wrap", alignItems: "center" } },
-                React.createElement("div", { style: { position: "relative", flex: "1 1 260px", maxWidth: 380 } },
-                    React.createElement("input", { value: busca, onChange: function (e) { return setBusca(e.target.value); }, placeholder: "Buscar cliente, placa, carro ou n\u00BA\u2026", style: { width: "100%", fontFamily: F_UI, fontSize: 13, padding: "8px 30px 8px 32px", border: "1px solid ".concat(T.hair), borderRadius: 7, outline: "none", background: T.surface, boxSizing: "border-box" } }),
-                    React.createElement("span", { style: { position: "absolute", left: 10, top: 8, fontSize: 13, color: T.muted } }, "\uD83D\uDD0D"),
-                    busca && React.createElement("button", { onClick: function () { return setBusca(""); }, style: { position: "absolute", right: 6, top: 5, border: 0, background: "none", cursor: "pointer", color: T.muted, fontSize: 14 } }, "\u00D7")),
-                React.createElement(Select, { value: origem, onChange: setOrigem, options: [{ v: "__all", l: "Todas as origens" }].concat(ORIGENS.map(function (_a) {
-                        var _b = __read(_a, 2), v = _b[0], l = _b[1];
-                        return ({ v: v, l: l });
-                    })) }),
-                React.createElement(Select, { value: periodo, onChange: setPeriodo, options: [{ v: "tudo", l: "Qualquer data" }, { v: "mes", l: "Criados este mês" }, { v: "mesPassado", l: "Criados no mês passado" }, { v: "90", l: "Últimos 90 dias" }] }),
-                React.createElement(Select, { value: ordem, onChange: setOrdem, options: [{ v: "valor", l: "Maior valor primeiro" }, { v: "antigos", l: "Aberto há mais tempo" }, { v: "retorno", l: "Retorno mais próximo" }, { v: "recentes", l: "Mais recentes" }] }),
+        React.createElement(Secao, { n: 1, titulo: "Meus orçamentos", nota: "Escolha uma aba, abra o orçamento e clique no que aconteceu. Fechado é conferido no Oficina pela placa." },
+            (aviso || toast) && React.createElement(Card, { className: "p12", style: { marginBottom: 12, borderColor: "#B7DFD0", background: "#E6F4EF", fontSize: 13, color: T.good, fontWeight: 600 } }, toast || aviso),
+            React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap", alignItems: "center" } },
+                React.createElement("div", { style: { position: "relative", flex: "1 1 260px", maxWidth: 420 } },
+                    React.createElement("input", { value: busca, onChange: function (e) { return setBusca(e.target.value); }, placeholder: "Buscar cliente, placa, carro ou nº…", style: { width: "100%", fontFamily: F_UI, fontSize: 14, padding: "10px 30px 10px 34px", border: "1px solid " + T.hair, borderRadius: 8, background: T.surface, boxSizing: "border-box" } }),
+                    React.createElement("span", { style: { position: "absolute", left: 11, top: 10, fontSize: 14, color: T.muted } }, "🔍"),
+                    busca && React.createElement("button", { onClick: function () { return setBusca(""); }, style: { position: "absolute", right: 6, top: 7, border: 0, background: "none", cursor: "pointer", color: T.muted, fontSize: 16 } }, "×")),
                 React.createElement("span", { style: { flex: 1 } }),
-                React.createElement(Btn, { onClick: baixar, style: { padding: "7px 12px", fontSize: 12.5 } }, "\u2913 Baixar planilha"),
-                React.createElement(Btn, { kind: "accent", onClick: irParaNovo, style: { padding: "7px 12px", fontSize: 12.5 } }, "+ Novo or\u00E7amento")),
-            React.createElement("div", { style: { marginBottom: 10, overflowX: "auto" } },
-                React.createElement(Chips, { value: filtro, onChange: setFiltro, options: chips })),
-            React.createElement(Card, { className: "p0 rolagem" },
-                React.createElement("table", { style: { width: "100%", borderCollapse: "collapse", minWidth: 1180 } },
-                    React.createElement("thead", null,
-                        React.createElement("tr", null,
-                            React.createElement(Th, null, "N\u00BA"),
-                            React.createElement(Th, null, "Data"),
-                            React.createElement(Th, null, "Cliente"),
-                            React.createElement(Th, null, "Ve\u00EDculo \u00B7 placa"),
-                            React.createElement(Th, null, "Origem"),
-                            React.createElement(Th, { right: true }, "Valor"),
-                            React.createElement(Th, null, "Status"),
-                            React.createElement(Th, { right: true }, "H\u00E1"),
-                            React.createElement(Th, { right: true }, "Validade"),
-                            React.createElement(Th, { right: true }, "Retorno"),
-                            React.createElement(Th, null))),
-                    React.createElement("tbody", null,
-                        lista.map(function (o) {
-                            var st = STATUS_ORC[o.status] || { l: o.status, cor: T.ink };
-                            var aberto = abertoId === o.id;
-                            var ab = ehAberto(o) || o.status === "rascunho";
-                            var dd = diasDesde(o.criado_em);
-                            var vd = validadeDias(o);
-                            var wa = ehAberto(o) ? waLink(o.cliente_whatsapp, msgFollowUp(o, closer)) : null;
-                            return (React.createElement(React.Fragment, { key: o.id },
-                                React.createElement("tr", { onClick: function () { return setAbertoId(aberto ? null : o.id); }, style: { cursor: "pointer", background: aberto ? "#FAFAFA" : precisaAcao(o) ? "#FFFBF0" : "transparent" } },
-                                    React.createElement(Td, { bold: true }, o.numero),
-                                    React.createElement(Td, null, brData(o.criado_em)),
-                                    React.createElement(Td, { bold: true, style: { whiteSpace: "normal", minWidth: 150 } },
-                                        o.cliente_nome || "—",
-                                        " ",
-                                        o.cliente_da_casa && React.createElement(Tag, { cor: T.good }, "da casa")),
-                                    React.createElement(Td, null, [o.veiculo, o.placa].filter(Boolean).join(" · ") || "—"),
-                                    React.createElement(Td, null,
-                                        rotOrigem(o.origem),
-                                        o.indicado_por ? React.createElement("span", { style: { color: T.muted, fontSize: 11.5 } },
-                                            " \u00B7 ",
-                                            o.indicado_por) : null),
-                                    React.createElement(Td, { right: true, bold: true }, nReal(o.total)),
-                                    React.createElement(Td, null, o.status === "fechado" && o.fechado_sem_os ? React.createElement(Tag, { cor: T.bad }, "Fechado \u00B7 sem O.S. no Oficina")
-                                        : o.status === "fechado" ? React.createElement(Tag, { cor: T.good },
-                                            "Fechado",
-                                            o.os_numero || o.os_encontrada ? " \u00B7 O.S. ".concat(o.os_numero || o.os_encontrada, " \u2713") : "")
-                                            : o.status === "perdido" ? React.createElement("span", { title: o.motivo_perda || "" },
-                                                React.createElement(Tag, { cor: T.muted },
-                                                    "Perdido",
-                                                    o.motivo_perda ? " \u00B7 ".concat(String(o.motivo_perda).slice(0, 28)) : ""))
-                                                : React.createElement(Tag, { cor: st.cor }, st.l)),
-                                    React.createElement(Td, { right: true, color: ab && dd > 7 ? T.bad : ab ? T.ink : T.muted, bold: ab && dd > 7 }, ab ? "".concat(dd, " dia").concat(dd === 1 ? "" : "s") : "—"),
-                                    React.createElement(Td, { right: true, color: ehAberto(o) && vd != null && vd < 0 ? T.bad : ehAberto(o) && vd != null && vd <= 1 ? T.warn : T.ink, bold: ehAberto(o) && vd != null && vd <= 1 }, !ehAberto(o) || vd == null ? "—" : vd < 0 ? "vencida h\u00E1 ".concat(-vd, "d") : vd === 0 ? "vence hoje" : "".concat(vd, " dia").concat(vd === 1 ? "" : "s")),
-                                    React.createElement(Td, { right: true, color: o.retorno_vencido ? T.bad : retornoHoje(o) ? T.warn : T.ink, bold: !!o.retorno_vencido || retornoHoje(o) }, ehAberto(o) ? (retornoHoje(o) ? "hoje" : brData(o.retorno_em)) : "—"),
-                                    React.createElement(Td, { style: { textAlign: "right" } },
-                                        React.createElement("span", { style: { display: "inline-flex", gap: 6, alignItems: "center" } },
-                                            wa && React.createElement("a", { href: wa, target: "_blank", rel: "noopener", onClick: function (e) { return e.stopPropagation(); }, title: "Mensagem de follow-up pronta", style: { fontSize: 11.5, fontWeight: 700, color: T.preto, background: T.marca, borderRadius: 5, padding: "4px 8px", textDecoration: "none" } }, "WhatsApp \u2197"),
-                                            React.createElement("span", { style: { fontSize: 12, color: T.muted } }, aberto ? "▲" : "▼")))),
-                                aberto && React.createElement(DetalheOrcamento, { o: o, closer: closer, aoMudar: function () { recarregar(); }, fechar: function () { return setAbertoId(null); }, editar: editarOrcamento })));
-                        }),
-                        !lista.length && React.createElement("tr", null,
-                            React.createElement(Td, { color: T.muted, style: { whiteSpace: "normal" } }, todos.length ? (busca ? "Nada encontrado para \"".concat(busca, "\" neste filtro.") : "Nada nesse filtro.") : "Nenhum orçamento ainda. Clique em \"+ Novo orçamento\" para montar o primeiro.")),
-                        !!lista.length && (React.createElement("tr", { style: { background: "#FAFAFA" } },
-                            React.createElement(Td, { bold: true }, nInt(lista.length)),
-                            React.createElement(Td, null),
-                            React.createElement(Td, { bold: true },
-                                "or\u00E7amento",
-                                lista.length === 1 ? "" : "s",
-                                " na lista"),
-                            React.createElement(Td, null),
-                            React.createElement(Td, null),
-                            React.createElement(Td, { right: true, bold: true }, nReal(totLista)),
-                            React.createElement(Td, null),
-                            React.createElement(Td, null),
-                            React.createElement(Td, null),
-                            React.createElement(Td, null),
-                            React.createElement(Td, null)))))),
-            React.createElement("div", { style: { fontSize: 11.5, color: T.muted, marginTop: 6 } }, "Linha amarelada = precisa de a\u00E7\u00E3o: retorno de hoje ou atrasado, validade vencida, fechado sem O.S. ou rascunho parado h\u00E1 2 dias ou mais."))));
+                React.createElement(Btn, { kind: "accent", onClick: irParaNovo }, "+ Novo orçamento")),
+            React.createElement("div", { style: { display: "flex", gap: 14, marginBottom: 12, flexWrap: "wrap", alignItems: "center" } },
+                React.createElement(LinkOrc, { onClick: function () { return setMaisFiltros(!maisFiltros); } }, maisFiltros ? "Menos filtros" : "Mais filtros"),
+                React.createElement(LinkOrc, { onClick: function () { setBusca(""); setTab("rascunhos"); } }, "Rascunhos (" + grupos.rascunhos.length + ")"),
+                React.createElement(LinkOrc, { onClick: baixar }, "⤓ Baixar planilha"),
+                React.createElement("span", { style: { fontSize: 12, color: T.muted } }, "Em aberto: " + nReal(vAbertos) + " (" + nAbertos + ") · Fechado no mês: " + nReal(vFechMes) + " (" + fechMes.length + ")")),
+            maisFiltros && React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" } },
+                React.createElement(Select, { value: origem, onChange: setOrigem, options: [{ v: "__all", l: "Todas as origens" }].concat(ORIGENS.map(function (r) { return ({ v: r[0], l: r[1] }); })) }),
+                React.createElement(Select, { value: periodo, onChange: setPeriodo, options: [{ v: "tudo", l: "Qualquer data" }, { v: "mes", l: "Criados este mês" }, { v: "mesPassado", l: "Criados no mês passado" }, { v: "90", l: "Últimos 90 dias" }] })),
+            !q && React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" } }, abas.map(function (t) {
+                var ativo = tab === t[0];
+                var alerta = t[3] && t[2] > 0;
+                return React.createElement("button", { key: t[0], type: "button", onClick: function () { return setTab(t[0]); }, style: { fontFamily: F_UI, fontSize: 13.5, fontWeight: 700, padding: "9px 14px", borderRadius: 8, cursor: "pointer",
+                        border: "1px solid " + (ativo ? (alerta ? T.bad : T.ink) : T.hair), background: ativo ? (alerta ? T.bad : T.ink) : T.surface, color: ativo ? "#fff" : alerta ? T.bad : T.ink2 } }, t[1] + " (" + t[2] + ")");
+            })),
+            q && React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginBottom: 10 } }, "Resultado da busca em todos os orçamentos: " + lista.length),
+            !q && tab === "rascunhos" && React.createElement("div", { style: { fontSize: 12.5, color: T.muted, marginBottom: 10 } }, "Rascunhos — ainda não enviados ao cliente."),
+            lista.map(function (o) { return React.createElement(CartaoOrc, { key: o.id, o: o, closer: closer, aberto: abertoId === o.id, setAbertoId: setAbertoId, aoMudar: function () { recarregar(); }, editar: editarOrcamento, aviseSalvo: aviseSalvo }); }),
+            !lista.length && React.createElement(Card, { className: "p16", style: { color: T.muted, fontSize: 13.5 } }, q ? "Nada encontrado para \"" + busca + "\"." : todos.length ? vazios[tab] : "Nenhum orçamento ainda. Clique em \"+ Novo orçamento\" para montar o primeiro."))));
 }
 /* v150: janela temporária de 15 dias (até 29/11/2026) em que o Rafael atua como closer.
    Nos logins dele (admin), o painel abre direto no Piloto Closer, já no nome dele. Passada a data, volta tudo ao padrão
