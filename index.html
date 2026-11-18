@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v152">
+<meta name="painel-versao" content="v153">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -4021,6 +4021,66 @@ function chamaTreino(nome, corpo) {
         return { ok: false, erro: e.message };
     }, function (e) { return { ok: false, erro: String((e && e.message) || e) }; });
 }
+/* v153: ouvir a ligação do Treinador (pedido do Rafael, 18/11/2026: o Paulo precisa ouvir as ligações do squad).
+   Áudio e transcrição vêm da função treino-audio, que confere quem pode ouvir (admin e gerente: todas;
+   cada pessoa: as próprias; coordenador: as do squad dele). O painel só toca. */
+function OuvirLigacao(_a) {
+    var id = _a.id;
+    var _s = __read(useState({ e: "parado", url: null, msg: "" }), 2), aud = _s[0], setAud = _s[1];
+    var _t = __read(useState({ e: "fechado", falas: [], msg: "" }), 2), tr = _t[0], setTr = _t[1];
+    useEffect(function () { return function () { if (aud.url) { try { URL.revokeObjectURL(aud.url); } catch (e) { } } }; }, [aud.url]);
+    var chamar = function (tipo) {
+        return db.auth.getSession().then(function (s) {
+            var tk = s && s.data && s.data.session ? s.data.session.access_token : "";
+            return fetch(CONFIG.url + "/functions/v1/treino-audio", { method: "POST",
+                headers: { "Authorization": "Bearer " + tk, "apikey": CONFIG.anonKey, "content-type": "application/json" },
+                body: JSON.stringify({ conversation_id: id, tipo: tipo }) });
+        });
+    };
+    var erroDe = function (r) { return r.json().then(function (j) { return (j && j.erro) || ("erro " + r.status); }, function () { return "erro " + r.status; }); };
+    var ouvir = function () {
+        if (aud.e === "carregando")
+            return;
+        setAud({ e: "carregando", url: null, msg: "" });
+        chamar("audio").then(function (r) {
+            if (!r.ok)
+                return erroDe(r).then(function (m) { setAud({ e: "erro", url: null, msg: m }); });
+            return r.blob().then(function (b) { setAud({ e: "ok", url: URL.createObjectURL(b), msg: "" }); });
+        }, function (e) { setAud({ e: "erro", url: null, msg: String((e && e.message) || e) }); });
+    };
+    var verTr = function () {
+        if (tr.e === "aberto") {
+            setTr({ e: "fechado", falas: tr.falas, msg: "" });
+            return;
+        }
+        if (tr.falas.length) {
+            setTr({ e: "aberto", falas: tr.falas, msg: "" });
+            return;
+        }
+        setTr({ e: "carregando", falas: [], msg: "" });
+        chamar("transcricao").then(function (r) {
+            if (!r.ok)
+                return erroDe(r).then(function (m) { setTr({ e: "erro", falas: [], msg: m }); });
+            return r.json().then(function (j) { setTr({ e: "aberto", falas: (j && j.falas) || [], msg: "" }); });
+        }, function (e) { setTr({ e: "erro", falas: [], msg: String((e && e.message) || e) }); });
+    };
+    var mmss = function (n) { return n == null ? "" : Math.floor(n / 60) + ":" + (n % 60 < 10 ? "0" : "") + (n % 60); };
+    return (React.createElement("div", { style: { padding: "4px 0" } },
+        React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" } },
+            aud.e !== "ok" && React.createElement(Btn, { kind: "accent", onClick: ouvir, style: { opacity: aud.e === "carregando" ? 0.6 : 1 } }, aud.e === "carregando" ? "Carregando o áudio…" : "▶ Ouvir a ligação"),
+            React.createElement(Btn, { onClick: verTr, style: { opacity: tr.e === "carregando" ? 0.6 : 1 } }, tr.e === "carregando" ? "Carregando…" : (tr.e === "aberto" ? "Esconder a transcrição" : "Ver a transcrição")),
+            aud.e === "ok" && React.createElement("audio", { controls: true, autoPlay: true, src: aud.url, style: { flex: "1 1 260px", minWidth: 220, height: 36 } })),
+        aud.e === "erro" && React.createElement("div", { style: { fontSize: 12.5, color: T.bad, marginTop: 6 } }, "Não consegui abrir o áudio: " + aud.msg),
+        tr.e === "erro" && React.createElement("div", { style: { fontSize: 12.5, color: T.bad, marginTop: 6 } }, "Não consegui abrir a transcrição: " + tr.msg),
+        tr.e === "aberto" && React.createElement("div", { style: { marginTop: 10, maxHeight: 360, overflowY: "auto", border: "1px solid " + T.hair, borderRadius: 8, padding: "6px 12px", background: T.surface } },
+            tr.falas.length === 0 && React.createElement("div", { style: { fontSize: 13, color: T.muted } }, "Sem transcrição para esta ligação."),
+            tr.falas.map(function (f, i) {
+                var eu = f.quem === "ligou";
+                return (React.createElement("div", { key: i, style: { padding: "6px 0", borderTop: i ? "1px solid " + T.hair : "none", fontSize: 13, lineHeight: 1.5 } },
+                    React.createElement("b", { style: { color: eu ? T.ink : T.muted } }, (eu ? "Quem ligou" : "Cliente (IA)") + (f.seg != null ? " · " + mmss(f.seg) : "") + ": "),
+                    f.texto));
+            }))));
+}
 function TreinoFeedback(_a) {
     var todos = _a.todos, tick = _a.tick, aoAtualizar = _a.aoAtualizar, frente = _a.frente || "car_service";
     var _bz = __read(useState(false), 2), ocupado = _bz[0], setOcupado = _bz[1];
@@ -4130,6 +4190,7 @@ function TreinoFeedback(_a) {
                     elim && React.createElement("span", { style: { fontSize: 12, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: T.bad, color: "#fff" } }, "Erro eliminatório"),
                     React.createElement("span", { style: { fontSize: 12, color: T.muted } }, aberto ? "▲" : "▼")),
                 aberto && React.createElement("div", { style: { borderTop: "1px solid " + T.hair, padding: 16, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 } },
+                    React.createElement("div", { style: { gridColumn: "1 / -1" } }, React.createElement(OuvirLigacao, { id: u.conversation_id })),
                     React.createElement("div", null,
                         React.createElement(Label, null, "Critérios"),
                         temCr ? CRIT.map(function (c, k) {
@@ -4177,6 +4238,7 @@ function AbaTreinador(_a) {
     var PASSA_FR = ehBdr ? TREINO_PASSA_BDR : TREINO_PASSA_STORE;
     var _b = __read(useState({ carregando: true, erro: null, sem: [], eq: [], ult: [], cl: [], sem_l: [] }), 2), pl = _b[0], setPl = _b[1];
     var _tk = __read(useState(0), 2), tick = _tk[0], setTick = _tk[1];
+    var _ov = __read(useState(null), 2), ouvindoId = _ov[0], setOuvindoId = _ov[1];
     useEffect(function () {
         if (semPlacar)
             return undefined;
@@ -4321,11 +4383,12 @@ function AbaTreinador(_a) {
                                 React.createElement(Th, { right: true }, "Nota"),
                                 React.createElement(Th, null, "Agendou"),
                                 ehSt && React.createElement(Th, null, "Resultado"),
-                                React.createElement(Th, { right: true }, "Dura\u00E7\u00E3o"))),
+                                React.createElement(Th, { right: true }, "Dura\u00E7\u00E3o"),
+                                React.createElement(Th, null))),
                         React.createElement("tbody", null,
                             ultSq.length === 0 && (React.createElement("tr", null,
                                 React.createElement(Td, { color: T.muted }, pl.carregando ? "Carregando…" : "Nenhuma ligação registrada ainda."))),
-                            ultSq.map(function (u) { return (React.createElement("tr", { key: u.conversation_id, style: { opacity: u.conta ? 1 : 0.55 } },
+                            ultSq.map(function (u) { return (React.createElement(React.Fragment, { key: u.conversation_id }, React.createElement("tr", { style: { opacity: u.conta ? 1 : 0.55 } },
                                 React.createElement(Td, null, fmtQuando(u.iniciada_em)),
                                 React.createElement(Td, { bold: true }, u.sdr_nome || "—"),
                                 React.createElement(Td, null, u.persona || "—"),
@@ -4336,7 +4399,9 @@ function AbaTreinador(_a) {
                                 React.createElement(Td, { right: true },
                                     Math.floor((u.duracao_s || 0) / 60),
                                     ":",
-                                    ((u.duracao_s || 0) % 60 < 10 ? "0" : "") + ((u.duracao_s || 0) % 60)))); })))))),
+                                    ((u.duracao_s || 0) % 60 < 10 ? "0" : "") + ((u.duracao_s || 0) % 60)),
+                                React.createElement(Td, { right: true }, React.createElement(Btn, { onClick: function () { return setOuvindoId(ouvindoId === u.conversation_id ? null : u.conversation_id); }, style: { padding: "4px 10px", fontSize: 12 } }, ouvindoId === u.conversation_id ? "Fechar" : "▶ Ouvir"))),
+                                ouvindoId === u.conversation_id && React.createElement("tr", null, React.createElement("td", { colSpan: 9, style: { padding: "10px 16px", background: "#FAFAFA", borderBottom: "1px solid " + T.hair } }, React.createElement(OuvirLigacao, { id: u.conversation_id }))))); })))))),
         React.createElement(Secao, { n: revisor ? 2 : (semPlacar ? 3 : 5), titulo: "Como a nota sai", nota: (ehBdr ? "Igual nos 12 clientes do BDR. A nota é a soma dos pesos dos critérios cumpridos (0 a 100) e passa quem faz 75 ou mais. Se houver erro eliminatório (passar preço ou desconto fora do cupom, prometer algo que depende do closer ou oferecer cupom diferente de 10% e 15%), a nota fica em no máximo 74. " : ehSt ? "Igual nos 12 clientes da Car Store. A nota é a soma dos pesos dos critérios cumpridos (0 a 100) e passa quem faz 75 ou mais. Se houver erro eliminatório (passar ou confirmar o valor do carro do cliente, prometer parcela, taxa ou aprovação, usar a palavra “consignação” ou citar condição além da comissão de 6%), a nota fica em no máximo 74. " : "Igual nos 13 clientes. A nota \u00E9 a soma dos pesos dos crit\u00E9rios cumpridos (0 a 100). ") + "Cada liga\u00E7\u00E3o tamb\u00E9m diz se o SDR agendou e traz um ponto de treino: a frase que ele disse, ao lado de uma vers\u00E3o melhor." },
             React.createElement(Card, { className: "p20" },
                 CRIT_FR.map(function (_a) {
