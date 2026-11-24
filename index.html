@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v153">
+<meta name="painel-versao" content="v154">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -4228,9 +4228,10 @@ function TreinoFeedback(_a) {
 }
 function AbaTreinador(_a) {
     var nome = _a.nome, semPlacar = _a.semPlacar, membros = _a.membros, todos = _a.todos, negocioPainel = _a.negocio, revisor = !!_a.revisor, soStore = !!_a.soStore;
+    var travaNeg = _a.travaNeg || (soStore ? "car_store" : "");
     if (revisor)
         semPlacar = true;
-    var _fr = __read(useState(revisor ? "bdr" : (soStore || negocioPainel === "car_store" ? "car_store" : "car_service")), 2), fr = _fr[0], setFr = _fr[1];
+    var _fr = __read(useState(revisor ? "bdr" : (travaNeg ? travaNeg : (negocioPainel === "car_store" ? "car_store" : "car_service"))), 2), fr = _fr[0], setFr = _fr[1];
     var ehBdr = fr === "bdr";
     var ehSt = fr !== "car_service";
     var NIVEIS = ehBdr ? TREINO_NIVEIS_BDR : (fr === "car_store" ? TREINO_NIVEIS_STORE : TREINO_NIVEIS);
@@ -4299,7 +4300,7 @@ function AbaTreinador(_a) {
     var nPersonas = NIVEIS.reduce(function (s, n) { return s + n.personas.length; }, 0);
     var botFr = function (id, rot) { return React.createElement("button", { key: id, onClick: function () { setFr(id); }, style: { fontFamily: F_UI, fontSize: 13, fontWeight: 700, padding: "7px 14px", borderRadius: 6, cursor: "pointer", border: "1px solid " + (fr === id ? T.marca : T.hair), background: fr === id ? T.marca : "transparent", color: fr === id ? T.preto : T.ink2 } }, rot); };
     return (React.createElement("div", null,
-        (revisor || soStore) ? null : React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" } }, botFr("car_service", "Car Service"), botFr("car_store", "Car Store"), botFr("bdr", "BDR")),
+        (revisor || travaNeg) ? null : React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" } }, botFr("car_service", "Car Service"), botFr("car_store", "Car Store"), botFr("bdr", "BDR")),
         React.createElement("div", { className: "grid-kpi", style: revisor ? { display: "none" } : undefined },
             React.createElement(Kpi, { label: "Personas no ar", value: nInt(nPersonas), sub: ehBdr ? "BDR \u00B7 3 por n\u00EDvel" : (ehSt ? "Car Store \u00B7 3 por n\u00EDvel" : "Car Service \u00B7 3 a 4 por n\u00EDvel") }),
             React.createElement(Kpi, { label: "Agendaram no treino", value: semPlacar ? "\u2014" : (nTodos > 0 ? Math.round(100 * agTodos / nTodos) + "%" : "\u2014"), sub: semPlacar ? "" : agTodos + " de " + nTodos + (ehBdr ? " ligações dos BDRs" : " ligações (SDRs e closers)") }),
@@ -5001,9 +5002,10 @@ function BibProva(_p) {
 function AbaBiblioteca(_pb) {
     var revisor = !!(_pb && _pb.revisor);
     var soStore = !!(_pb && _pb.soStore);
+    var travaNeg = (_pb && _pb.travaNeg) || (soStore ? "car_store" : "");
     var st = useState({ carregando: true, erro: null, mods: [], aulas: [], prog: [], time: [] }), dados = st[0], setDados = st[1];
     var us = useState(null), user = us[0], setUser = us[1];
-    var ue = useState(soStore ? "car_store" : "todas"), fUni = ue[0], setFUni = ue[1];
+    var ue = useState(travaNeg || "todas"), fUni = ue[0], setFUni = ue[1];
     var uf = useState(revisor ? "bdr" : "todas"), fFun = uf[0], setFFun = uf[1];
     var ub = useState(""), busca = ub[0], setBusca = ub[1];
     var ua = useState(null), aberta = ua[0], setAberta = ua[1];
@@ -5381,7 +5383,7 @@ function AbaBiblioteca(_pb) {
         React.createElement(Card, { className: "p12" },
             React.createElement(Inp, { type: "search", value: busca, onChange: function (e) { return setBusca(e.target.value); }, placeholder: "Buscar aula, módulo ou documento", style: { marginBottom: 10 } }),
             React.createElement("div", { style: { display: revisor ? "none" : "flex", gap: "10px 26px", flexWrap: "wrap", alignItems: "center" } },
-                !soStore && React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
+                !travaNeg && React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
                     React.createElement(Label, null, "Unidade"),
                     React.createElement(Chips, { value: fUni, onChange: setFUni, options: [["todas", "Todas"]].concat(BIB_UNIDADES) })),
                 React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" } },
@@ -5846,11 +5848,11 @@ function AbaBenchmark() {
 }
 /* faixa de abas do Hub (usada na casca do closer). Painel principal usa o próprio menu. */
 function HubConteudo(_a) {
-    var aba = _a.aba, nome = _a.nome, semPlacar = _a.semPlacar, membros = _a.membros, todos = _a.todos, negocio = _a.negocio, soStore = !!_a.soStore;
+    var aba = _a.aba, nome = _a.nome, semPlacar = _a.semPlacar, membros = _a.membros, todos = _a.todos, negocio = _a.negocio, soStore = !!_a.soStore, travaNeg = _a.travaNeg;
     return (React.createElement("div", null,
         aba === "precos" && React.createElement(AbaPrecos, null),
-        aba === "treinador" && React.createElement(AbaTreinador, { nome: nome, semPlacar: semPlacar, membros: membros, todos: todos, negocio: negocio, soStore: soStore }),
-        aba === "biblioteca" && React.createElement(AbaBiblioteca, { soStore: soStore }),
+        aba === "treinador" && React.createElement(AbaTreinador, { nome: nome, semPlacar: semPlacar, membros: membros, todos: todos, negocio: negocio, soStore: soStore, travaNeg: travaNeg }),
+        aba === "biblioteca" && React.createElement(AbaBiblioteca, { soStore: soStore, travaNeg: travaNeg }),
         aba === "benchmark" && React.createElement(AbaBenchmark, null)));
 }
 /* ===================== app ===================== */
@@ -17355,7 +17357,13 @@ function nomeDoLogin(sessao) {
 }
 function PainelHub(_a) {
     var sessao = _a.sessao;
-    var _b = __read(useState("precos"), 2), hub = _b[0], setHub = _b[1];
+    /* v154: login de teste/treino (app_metadata.acesso = "treino"): só Treinador e Biblioteca, travados no negócio
+       do login (app_metadata.negocio = car_service ou car_store). Só a porta; a regra de verdade continua no banco. */
+    var mHub = (sessao && sessao.user && sessao.user.app_metadata) || {};
+    var soTreino = mHub.acesso === "treino";
+    var travaHub = soTreino ? (mHub.negocio === "car_store" ? "car_store" : "car_service") : "";
+    var ABAS_HUB = soTreino ? HUB_ABAS.filter(function (x) { return x[0] === "treinador" || x[0] === "biblioteca"; }) : HUB_ABAS;
+    var _b = __read(useState(soTreino ? "biblioteca" : "precos"), 2), hub = _b[0], setHub = _b[1];
     var nome = nomeDoLogin(sessao);
     return (React.createElement("div", { style: { background: T.canvas, minHeight: "100vh", fontFamily: F_UI, color: T.ink } },
         React.createElement("header", { style: { background: T.preto, position: "sticky", top: 0, zIndex: 30 } },
@@ -17363,20 +17371,20 @@ function PainelHub(_a) {
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 13 } },
                     React.createElement(Selo, { tam: 32 }),
                     React.createElement("div", { style: { lineHeight: 1.2 } },
-                        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 15, fontWeight: 700, color: "#fff" } }, "Hub do SDR"),
-                        React.createElement("div", { style: { fontSize: 11.5, color: "rgba(255,255,255,.6)" } }, nome ? "Olá, " + nome : "Preços · Treinador · Biblioteca"))),
+                        React.createElement("div", { style: { fontFamily: F_MARCA, fontSize: 15, fontWeight: 700, color: "#fff" } }, soTreino ? "Treinamento do SDR" : "Hub do SDR"),
+                        React.createElement("div", { style: { fontSize: 11.5, color: "rgba(255,255,255,.6)" } }, nome ? "Olá, " + nome : (soTreino ? "Biblioteca · Treinador" : "Preços · Treinador · Biblioteca")))),
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12 } },
                     React.createElement("span", { style: { fontSize: 12, color: "rgba(255,255,255,.55)" } }, sessao.user.email),
                     React.createElement("button", { onClick: function () { return db.auth.signOut(); }, style: { background: "transparent", border: "1px solid rgba(255,255,255,.28)", color: "rgba(255,255,255,.85)",
                             borderRadius: 7, padding: "6px 12px", fontSize: 12, cursor: "pointer", fontFamily: F_UI } }, "Sair")))),
         React.createElement("main", { className: "wrap", style: { padding: "24px 24px 80px" } },
             React.createElement("div", { style: { display: "flex", gap: 4, background: T.surface, border: "1px solid ".concat(T.hair), borderRadius: 8, padding: 4,
-                    marginBottom: 16, width: "fit-content", maxWidth: "100%", flexWrap: "wrap", alignItems: "center" } }, HUB_ABAS.map(function (_a) {
+                    marginBottom: 16, width: "fit-content", maxWidth: "100%", flexWrap: "wrap", alignItems: "center" } }, ABAS_HUB.map(function (_a) {
                 var _b = __read(_a, 2), v = _b[0], l = _b[1];
                 return (React.createElement("button", { key: v, onClick: function () { return setHub(v); }, style: { fontFamily: F_MARCA, fontSize: 13, fontWeight: 700, padding: "8px 16px",
                         border: 0, borderRadius: 5, cursor: "pointer", background: hub === v ? T.ink : "transparent", color: hub === v ? "#fff" : T.ink2 } }, l));
             })),
-            React.createElement(HubConteudo, { aba: hub, nome: nome }))));
+            React.createElement(HubConteudo, { aba: hub, nome: nome, travaNeg: travaHub }))));
 }
 /* v133: casca do revisor da trilha do BDR (perfil 'bdr_revisor'). Só a trilha e o Treinador do BDR. */
 function PainelRevisor(_a) {
