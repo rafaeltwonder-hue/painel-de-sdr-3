@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Comercial">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Painel de SDR v124 — CAR SERVICE</title>
-<meta name="painel-versao" content="v154">
+<meta name="painel-versao" content="v155">
 <style>
 /* Poppins nos títulos e números; a fonte do sistema no texto denso.
    A Aeonik saiu por licença — ela é comercial e este painel é servido na
@@ -16958,6 +16958,7 @@ function CartaoOrc(_a) {
     var _j = __read(useState(false), 2), dataLivre = _j[0], setDataLivre = _j[1];
     var _k = __read(useState(false), 2), salvando = _k[0], setSalvando = _k[1];
     var _l = __read(useState(null), 2), erro = _l[0], setErro = _l[1];
+    var _ag = __read(useState(o.agendado_em ? String(o.agendado_em).slice(0, 10) : ""), 2), agData = _ag[0], setAgData = _ag[1]; // v155
     useEffect(function () {
         if (!aberto || itens) return undefined;
         var vivo = true;
@@ -16978,6 +16979,11 @@ function CartaoOrc(_a) {
         if (o.status === "perdido") return { t: "Perdido" + (o.motivo_perda ? " · " + String(o.motivo_perda).slice(0, 60) : ""), cor: T.muted };
         if (o.status === "vencido") return { t: "Vencido", cor: T.muted };
         if (rasc) return dd >= 2 ? { t: "Rascunho parado há " + plural(dd, "dia") + " — termine e envie", cor: T.bad } : { t: "Termine e envie ao cliente", cor: T.warn };
+        if (o.agendado_em && ehAb) { // v155: cliente agendado = orçamento efetivado em parte
+            var dAg = String(o.agendado_em).slice(0, 10);
+            if (dAg < h) return { t: "Agendado para " + brData(dAg) + " e já passou — fechou? marque o resultado abaixo", cor: T.bad };
+            return { t: "Agendado " + (dAg === h ? "para hoje" : "para " + brData(dAg)) + " ✓ — confirme com o cliente e, quando fechar, marque abaixo", cor: T.good };
+        }
         if (o.retorno_vencido) return { t: "Retorno atrasado — chame o cliente agora", cor: T.bad };
         if (retHoje) return { t: "Retorno é hoje — chame o cliente", cor: T.bad };
         if (vd != null && vd < 0) return { t: "A validade venceu há " + plural(-vd, "dia") + " — renove ou pergunte se ainda quer", cor: T.bad };
@@ -17038,7 +17044,16 @@ function CartaoOrc(_a) {
         (ehAb || o.status === "fechado" || o.status === "perdido" || o.status === "vencido") && React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
             grande("✔ Fechou", T.good, function () { return setModo(modo === "fechou" ? null : "fechou"); }, modo === "fechou" || o.status === "fechado"),
             grande("✖ Perdeu", T.bad, function () { return setModo(modo === "perdeu" ? null : "perdeu"); }, modo === "perdeu" || o.status === "perdido"),
-            grande("… Ainda negociando", T.warn, function () { return salvar({ status: "negociando", motivo_perda: null }, "Marcado como negociando ✓", false); }, o.status === "negociando")),
+            grande("… Ainda negociando", T.warn, function () { return salvar({ status: "negociando", motivo_perda: null }, "Marcado como negociando ✓", false); }, o.status === "negociando"),
+            ehAb && grande(o.agendado_em ? "📅 Agendado · " + brData(String(o.agendado_em).slice(0, 10)) : "📅 Agendado", "#1F5FBF", function () { return setModo(modo === "agendou" ? null : "agendou"); }, modo === "agendou" || !!o.agendado_em)),
+        modo === "agendou" && React.createElement("div", { style: { marginTop: 10, padding: 12, background: "#EAF1FB", border: "1px solid #BBD0F0", borderRadius: 8 } },
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 6 } }, "Cliente agendado — para quando? (o orçamento continua em aberto até você marcar Fechou)"),
+            React.createElement("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" } },
+                chip("Hoje", agData === h, function () { return setAgData(h); }),
+                chip("Amanhã", agData === mais(1), function () { return setAgData(mais(1)); }),
+                React.createElement(Inp, { type: "date", value: agData, onChange: function (e) { return setAgData(e.target.value); } }),
+                React.createElement(Btn, { kind: "solid", onClick: function () { if (!agData) return; db.from("orcamento_evento").insert({ orcamento_id: o.id, tipo: "nota", nota: "cliente agendado para " + brData(agData) }).then(function () { }, function () { }); return salvar({ agendado_em: agData }, "Agendado ✓", false); }, style: { opacity: agData ? 1 : .45 } }, salvando ? "Salvando…" : "Confirmar agendamento"),
+                o.agendado_em && React.createElement(LinkOrc, { onClick: function () { setAgData(""); return salvar({ agendado_em: null }, "Agendamento removido", false); } }, "Remover agendamento"))),
         modo === "fechou" && React.createElement("div", { style: { marginTop: 10, padding: 12, background: "#E6F4EF", border: "1px solid #B7DFD0", borderRadius: 8 } },
             React.createElement("div", { style: { fontSize: 13, fontWeight: 600, marginBottom: 6 } }, "Qual o número da O.S. no Oficina? (se ainda não abriu, deixe em branco)"),
             React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
